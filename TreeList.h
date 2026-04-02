@@ -20,11 +20,6 @@ typedef struct {
   int top;
 } TreeListIterator;
 
-typedef struct {
-  TreeList *satisfied;
-  TreeList *failed;
-} PartitionResult;
-
 int TreeList_hasNext(TreeListIterator *it);
 TreeListIterator TreeList_begin(TreeList *list);
 void *TreeList_next(TreeListIterator *it);
@@ -75,20 +70,4 @@ TreeList *TreeList_sort(TreeList *list, int (*compare)(const void *, const void 
 TreeList *TreeList_elemIndices(TreeList *list, void *target, int (*compare)(const void *, const void *));
 void *TreeList_min(TreeList *list, int (*compare)(const void *, const void *));
 void *TreeList_max(TreeList *list, int (*compare)(const void *, const void *));
-TreeList *TreeList_uniq(TreeList *list, int (*compare)(const void *, const void *));
-
-TreeList *TreeList_map(TreeList *list, void *(*f)(void *));
-void TreeList_foreach(TreeList *list, void (*f)(void *));
-void TreeList_forEachReverse(TreeList *list, void (*f)(void *));
-void *TreeList_fold(TreeList *list, void *acc, void *(*f)(void *acc, void *data));
-TreeList *TreeList_scan(TreeList *list, void *acc, void *(*f)(void *acc, void *data));
-
-PartitionResult TreeList_partition(TreeList *list, int (*predicate)(void *));
-TreeList *TreeList_filter(TreeList *list, int (*predicate)(void *));
-unsigned TreeList_count(TreeList *list, int (*predicate)(void *));
-int TreeList_any(TreeList *list, int (*predicate)(void *));
-int TreeList_all(TreeList *list, int (*predicate)(void *));
-void *TreeList_find(TreeList *list, int (*predicate)(void *));
-void *TreeList_findLast(TreeList *list, int (*predicate)(void *));
-int TreeList_findIndex(TreeList *list, int (*predicate)(void *));
-void TreeList_replaceIf(TreeList *list, int (*predicate)(void *), void *data);
+TreeList *TreeList_unique(TreeList *list, int (*compare)(const void *, const void *));
