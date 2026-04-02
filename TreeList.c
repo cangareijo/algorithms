@@ -408,36 +408,19 @@ TreeList *TreeList_unzipRight(TreeList *list) {
   return list3;
 }
 
-static void *sum_step(void *acc, void *data) {
-  double *a = (double *)acc;
-  double *d = (double *)data;
-  *a += *d;
-  return acc;
-}
-
 double TreeList_sum(TreeList *list) {
-  double total = 0;
-  TreeList_fold(list, &total, sum_step);
-  return total;
-}
-
-static void *prod_step(void *acc, void *data) {
-  double *a = (double *)acc;
-  double *d = (double *)data;
-  *a *= *d;
-  return acc;
+  if (!list) return 0;
+  return *(double *)(list->data) + TreeList_sum(list->left) + TreeList_sum(list->right);
 }
 
 double TreeList_product(TreeList *list) {
-  double total = 1;
-  TreeList_fold(list, &total, prod_step);
-  return total;
+  if (!list) return 1;
+  return *(double *)(list->data) * TreeList_product(list->left) * TreeList_product(list->right);
 }
 
 double TreeList_average(TreeList *list) {
-  unsigned n = TreeList_size(list);
-  if (n == 0) return 0;
-  return TreeList_sum(list) / n;
+  if (TreeList_isEmpty(list)) return 0;
+  return TreeList_sum(list) / TreeList_size(list);
 }
 
 int TreeList_indexOf(TreeList *list, void *target, int (*compare)(const void *, const void *)) {
