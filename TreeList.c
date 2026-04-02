@@ -2,48 +2,47 @@
 #include <stdlib.h>
 #include "TreeList.h"
 
-int TreeList_hasNext(TreeListIterator *it) { return it->top >= 0; }
-
 TreeListIterator TreeList_begin(TreeList *list) {
-  TreeListIterator it;
-  it.top = -1;
+  TreeListIterator iterator;
+  iterator.top = -1;
   while (list) {
-    it.stack[++it.top] = list;
+    iterator.stack[++iterator.top] = list;
     list = list->left;
   }
-  return it;
+  return iterator;
 }
 
-void *TreeList_next(TreeListIterator *it) {
-  if (it->top < 0) return NULL;
-  TreeList *curr = it->stack[it->top--];
+TreeListIterator TreeList_reverseBegin(TreeList *list) {
+  TreeListIterator iterator;
+  iterator.top = -1;
+  while (list) {
+    iterator.stack[++iterator.top] = list;
+    list = list->right;
+  }
+  return iterator;
+}
+
+int TreeListIterator_hasNext(TreeListIterator *iterator) { return iterator->top >= 0; }
+
+void *TreeListIterator_next(TreeListIterator *iterator) {
+  if (iterator->top < 0) return NULL;
+  TreeList *curr = iterator->stack[iterator->top--];
   void *data = curr->data;
   TreeList *node = curr->right;
   while (node) {
-    it->stack[++it->top] = node;
+    iterator->stack[++iterator->top] = node;
     node = node->left;
   }
   return data;
 }
 
-TreeListIterator TreeList_reverseBegin(TreeList *list) {
-    TreeListIterator it;
-    it.top = -1;
-    TreeList *curr = list;
-    while (curr != NULL) {
-        if (it.top < 63) it.stack[++it.top] = curr;
-        curr = curr->right;
-    }
-    return it;
-}
-
-void *TreeList_reverseNext(TreeListIterator *it) {
-  if (it->top < 0) return NULL;
-  TreeList *node = it->stack[it->top--];
+void *TreeListIterator_reverseNext(TreeListIterator *iterator) {
+  if (iterator->top < 0) return NULL;
+  TreeList *node = iterator->stack[iterator->top--];
   void *data = node->data;
   TreeList *curr = node->left;
   while (curr != NULL) {
-      if (it->top < 63) it->stack[++it->top] = curr;
+      if (iterator->top < 63) iterator->stack[++iterator->top] = curr;
       curr = curr->right;
   }
   return data;
@@ -72,7 +71,7 @@ static bool TreeList_isValidSize(TreeList *list) {
   return TreeList_isValidSize(list->left) && TreeList_isValidSize(list->right);
 }
 
-static void update(TreeList *list) {
+static void TreeList_update(TreeList *list) {
   if (!list) return;
   unsigned hl = TreeList_height(list->left);
   unsigned hr = TreeList_height(list->right);
@@ -83,14 +82,14 @@ static void update(TreeList *list) {
 static TreeList *setLeft(TreeList *list, TreeList *left) {
   if (!list) return NULL;
   list->left = left;
-  update(list);
+  TreeList_update(list);
   return list;
 }
 
 static TreeList *setRight(TreeList *list, TreeList *right) {
   if (!list) return NULL;
   list->right = right;
-  update(list);
+  TreeList_update(list);
   return list;
 }
 
@@ -98,8 +97,8 @@ static TreeList *rotateRight(TreeList *list) {
   TreeList *ll = list->left;
   list->left = ll->right;
   ll->right = list;
-  update(list);
-  update(ll);
+  TreeList_update(list);
+  TreeList_update(ll);
   return ll;
 }
 
@@ -107,8 +106,8 @@ static TreeList *rotateLeft(TreeList *list) {
   TreeList *lr = list->right;
   list->right = lr->left;
   lr->left = list;
-  update(list);
-  update(lr);
+  TreeList_update(list);
+  TreeList_update(lr);
   return lr;
 }
 
@@ -183,13 +182,13 @@ SplitResult TreeList_split(TreeList *list, unsigned i) {
   if (i <= TreeList_size(list->left)) {
     SplitResult res = TreeList_split(list->left, i);
     list->left = res.right;
-    update(list);
+    TreeList_update(list);
     res.right = rebalance(list);
     return res;
   } else {
     SplitResult res = TreeList_split(list->right, i - TreeList_size(list->left) - 1);
     list->right = res.left;
-    update(list);
+    TreeList_update(list);
     res.left = rebalance(list);
     return res;
   }
@@ -293,7 +292,7 @@ static TreeList *fromArrayRecursive(void **array, int start, int end) {
   TreeList *list = TreeList_singleton(array[mid]);
   list->left = fromArrayRecursive(array, start, mid - 1);
   list->right = fromArrayRecursive(array, mid + 1, end);
-  update(list);
+  TreeList_update(list);
   return list;
 }
 
@@ -308,7 +307,7 @@ void **TreeList_toArray(TreeList *list) {
   if (!array) return NULL;
   TreeListIterator iterator = TreeList_begin(list);
   unsigned i = 0;
-  while (TreeList_hasNext(&iterator)) array[i++] = TreeList_next(&iterator);
+  while (TreeListIterator_hasNext(&iterator)) array[i++] = TreeListIterator_next(&iterator);
   return array;
 }
 
@@ -349,14 +348,14 @@ TreeList *TreeList_zip(TreeList *list1, TreeList *list2) {
   TreeListIterator iterator1 = TreeList_begin(list1);
   TreeListIterator iterator2 = TreeList_begin(list2);
   TreeList *list3 = TreeList_empty();
-  while (TreeList_hasNext(&iterator1) && TreeList_hasNext(&iterator2)) {
+  while (TreeListIterator_hasNext(&iterator1) && TreeListIterator_hasNext(&iterator2)) {
     Pair *pair = malloc(sizeof(Pair));
     if (!pair) {
       TreeList_free(list3);
       return NULL;
     }
-    pair->first = TreeList_next(&iterator1);
-    pair->second = TreeList_next(&iterator2);
+    pair->first = TreeListIterator_next(&iterator1);
+    pair->second = TreeListIterator_next(&iterator2);
     TreeList *list4 = TreeList_push(list3, pair);
     if (!list4) {
       free(pair);
@@ -424,10 +423,10 @@ double TreeList_average(TreeList *list) {
 }
 
 int TreeList_indexOf(TreeList *list, void *target, int (*compare)(const void *, const void *)) {
-  TreeListIterator it = TreeList_begin(list);
+  TreeListIterator iterator = TreeList_begin(list);
   int index = 0;
-  while (TreeList_hasNext(&it)) {
-    void *current = TreeList_next(&it);
+  while (TreeListIterator_hasNext(&iterator)) {
+    void *current = TreeListIterator_next(&iterator);
     if (compare(current, target) == 0) return index;
     index++;
   }
@@ -435,10 +434,10 @@ int TreeList_indexOf(TreeList *list, void *target, int (*compare)(const void *, 
 }
 
 int TreeList_lastIndexOf(TreeList *list, void *target, int (*compare)(const void *, const void *)) {
-  TreeListIterator it = TreeList_reverseBegin(list);
+  TreeListIterator iterator = TreeList_reverseBegin(list);
   int index = (int)list->size - 1;
-  while (TreeList_hasNext(&it)) {
-    void *data = TreeList_reverseNext(&it);
+  while (TreeListIterator_hasNext(&iterator)) {
+    void *data = TreeListIterator_reverseNext(&iterator);
     if (compare(data, target) == 0) return index;
     index--;
   }
@@ -454,10 +453,10 @@ void TreeList_replace(TreeList *list, int (*compare)(const void *, const void *)
 
 bool TreeList_isSorted(TreeList *list, int (*compare)(const void *, const void *)) {
   if (!list || list->size <= 1) return true;
-  TreeListIterator it = TreeList_begin(list);
-  void *prev = TreeList_next(&it);
-  while (TreeList_hasNext(&it)) {
-    void *curr = TreeList_next(&it);
+  TreeListIterator iterator = TreeList_begin(list);
+  void *prev = TreeListIterator_next(&iterator);
+  while (TreeListIterator_hasNext(&iterator)) {
+    void *curr = TreeListIterator_next(&iterator);
     if (compare(prev, curr) > 0) return false;
     prev = curr;
   }
@@ -526,10 +525,10 @@ TreeList *TreeList_unique(TreeList *list, int (*compare)(const void *, const voi
   TreeList *sorted = TreeList_sort(list, compare);
   TreeList *unique = TreeList_empty();
   TreeListIterator iterator = TreeList_begin(sorted);
-  void *previous = TreeList_next(&iterator);
+  void *previous = TreeListIterator_next(&iterator);
   unique = TreeList_push(unique, previous);
-  while (TreeList_hasNext(&iterator)) {
-    void *current = TreeList_next(&iterator);
+  while (TreeListIterator_hasNext(&iterator)) {
+    void *current = TreeListIterator_next(&iterator);
     if (compare(previous, current) != 0) {
       unique = TreeList_push(unique, current);
       previous = current;
@@ -537,153 +536,4 @@ TreeList *TreeList_unique(TreeList *list, int (*compare)(const void *, const voi
   }
   TreeList_free(sorted);
   return unique;
-}
-
-
-typedef struct {
-  TreeList *satisfied;
-  TreeList *failed;
-} PartitionResult;
-
-TreeList *TreeList_map(TreeList *list, void *(*f)(void *));
-void TreeList_foreach(TreeList *list, void (*f)(void *));
-void TreeList_forEachReverse(TreeList *list, void (*f)(void *));
-void *TreeList_fold(TreeList *list, void *acc, void *(*f)(void *acc, void *data));
-TreeList *TreeList_scan(TreeList *list, void *acc, void *(*f)(void *acc, void *data));
-
-PartitionResult TreeList_partition(TreeList *list, int (*predicate)(void *));
-TreeList *TreeList_filter(TreeList *list, int (*predicate)(void *));
-unsigned TreeList_count(TreeList *list, int (*predicate)(void *));
-int TreeList_any(TreeList *list, int (*predicate)(void *));
-int TreeList_all(TreeList *list, int (*predicate)(void *));
-void *TreeList_find(TreeList *list, int (*predicate)(void *));
-void *TreeList_findLast(TreeList *list, int (*predicate)(void *));
-int TreeList_findIndex(TreeList *list, int (*predicate)(void *));
-void TreeList_replaceIf(TreeList *list, int (*predicate)(void *), void *data);
-
-
-TreeList *TreeList_map(TreeList *list, void *(*f)(void *)) {
-  if (!list) return NULL;
-  TreeList *map = malloc(sizeof(TreeList));
-  if (!map) return NULL;
-  map->data = f(list->data);
-  map->height = list->height;
-  map->size = list->size;
-  map->left = TreeList_map(list->left, f);
-  map->right = TreeList_map(list->right, f);
-  return map;
-}
-
-void TreeList_foreach(TreeList *list, void (*f)(void *)) {
-  if (!list) return;
-  TreeList_foreach(list->left, f);
-  f(list->data);
-  TreeList_foreach(list->right, f);
-}
-
-void TreeList_forEachReverse(TreeList *list, void (*f)(void *)) {
-  if (!list) return;
-  TreeList_forEachReverse(list->right, f);
-  f(list->data);
-  TreeList_forEachReverse(list->left, f);
-}
-
-void *TreeList_fold(TreeList *list, void *acc, void *(*f)(void *acc, void *data)) {
-  if (!list) return acc;
-  acc = TreeList_fold(list->left, acc, f);
-  acc = f(acc, list->data);
-  return TreeList_fold(list->right, acc, f);
-}
-
-TreeList *TreeList_scan(TreeList *list, void *acc, void *(*f)(void *acc, void *data)) {
-  unsigned n = TreeList_size(list);
-  void **results = malloc(sizeof(void *) * (n + 1));
-  if (!results) return NULL;
-  results[0] = acc;
-  unsigned count = 1;
-  TreeListIterator it = TreeList_begin(list);
-  while (TreeList_hasNext(&it)) {
-    void *data = TreeList_next(&it);
-    acc = f(acc, data);
-    results[count++] = acc;
-  }
-  TreeList *resultTree = TreeList_fromArray(results, n + 1);
-  free(results);
-  return resultTree;
-}
-
-
-PartitionResult TreeList_partition(TreeList *list, int (*predicate)(void *)) {
-  if (!list) return (PartitionResult){NULL, NULL};
-  unsigned n = TreeList_size(list);
-  void **allData = TreeList_toArray(list);
-  void **satData = malloc(sizeof(void *) * n);
-  void **failData = malloc(sizeof(void *) * n);
-  unsigned satCount = 0;
-  unsigned failCount = 0;
-  for (unsigned i = 0; i < n; i++)
-    if (predicate(allData[i])) satData[satCount++] = allData[i];
-    else failData[failCount++] = allData[i];
-  PartitionResult result;
-  result.satisfied = TreeList_fromArray(satData, satCount);
-  result.failed = TreeList_fromArray(failData, failCount);
-  free(allData);
-  free(satData);
-  free(failData);
-  return result;
-}
-
-TreeList *TreeList_filter(TreeList *list, int (*predicate)(void *)) {
-  PartitionResult result = TreeList_partition(list, predicate);
-  TreeList *filtered = result.satisfied;
-  TreeList_free(result.failed);
-  return filtered;
-}
-
-unsigned TreeList_count(TreeList *list, int (*predicate)(void *)) {
-  TreeList *filtered = TreeList_filter(list, predicate);
-  unsigned count = TreeList_size(filtered);
-  TreeList_free(filtered);
-  return count;
-}
-
-int TreeList_any(TreeList *list, int (*predicate)(void *)) {
-  return list && (TreeList_any(list->left, predicate) || predicate(list->data) || TreeList_any(list->right, predicate));
-}
-
-int TreeList_all(TreeList *list, int (*predicate)(void *)) {
-  return !list || TreeList_all(list->left, predicate) && predicate(list->data) && TreeList_all(list->right, predicate);
-}
-
-void *TreeList_find(TreeList *list, int (*predicate)(void *)) {
-  if (!list) return NULL;
-  void *found = TreeList_find(list->left, predicate);
-  if (found) return found;
-  if (predicate(list->data)) return list->data;
-  return TreeList_find(list->right, predicate);
-}
-
-void *TreeList_findLast(TreeList *list, int (*predicate)(void *)) {
-  if (!list) return NULL;
-  void *found = TreeList_findLast(list->right, predicate);
-  if (found) return found;
-  if (predicate(list->data)) return list->data;
-  return TreeList_findLast(list->left, predicate);
-}
-
-int TreeList_findIndex(TreeList *list, int (*predicate)(void *)) {
-  if (!list) return -1;
-  int index = TreeList_findIndex(list->left, predicate);
-  if (index != -1) return index;
-  if (predicate(list->data)) return (int)TreeList_size(list->left);
-  index = TreeList_findIndex(list->right, predicate);
-  if (index != -1) return (int)TreeList_size(list->left) + 1 + index;
-  return -1;
-}
-
-void TreeList_replaceIf(TreeList *list, int (*predicate)(void *), void *data) {
-  if (!list) return NULL;
-  if (predicate(list->data)) list->data = data;
-  TreeList_replaceIf(list->left, predicate, data);
-  TreeList_replaceIf(list->right, predicate, data);
 }

@@ -20,11 +20,11 @@ typedef struct {
   int top;
 } TreeListIterator;
 
-int TreeList_hasNext(TreeListIterator *it);
 TreeListIterator TreeList_begin(TreeList *list);
-void *TreeList_next(TreeListIterator *it);
 TreeListIterator TreeList_reverseBegin(TreeList *list);
-void *TreeList_reverseNext(TreeListIterator *it);
+int TreeListIterator_hasNext(TreeListIterator *iterator);
+void *TreeListIterator_next(TreeListIterator *iterator);
+void *TreeListIterator_reverseNext(TreeListIterator *iterator);
 
 bool TreeList_isValid(TreeList *list) {
 int TreeList_isEmpty(TreeList *list);
