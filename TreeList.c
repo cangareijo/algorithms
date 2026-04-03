@@ -1,6 +1,11 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include "TreeList.h"
+
+static unsigned TreeList_height(TreeList *list);
+static int TreeList_balance(TreeList *list);
+static bool TreeList_isValidHeight(TreeList *list);
+static bool TreeList_isValidBalance(TreeList *list);
+static bool TreeList_isValidSize(TreeList *list);
 
 TreeListIterator TreeList_begin(TreeList *list) {
   TreeListIterator iterator;
@@ -26,24 +31,24 @@ int TreeListIterator_hasNext(TreeListIterator *iterator) { return iterator->top 
 
 void *TreeListIterator_next(TreeListIterator *iterator) {
   if (iterator->top < 0) return NULL;
-  TreeList *curr = iterator->stack[iterator->top--];
-  void *data = curr->data;
-  TreeList *node = curr->right;
-  while (node) {
-    iterator->stack[++iterator->top] = node;
-    node = node->left;
+  TreeList *list = iterator->stack[iterator->top--];
+  void *data = list->data;
+  list = list->right;
+  while (list) {
+    iterator->stack[++iterator->top] = list;
+    list = list->left;
   }
   return data;
 }
 
 void *TreeListIterator_reverseNext(TreeListIterator *iterator) {
   if (iterator->top < 0) return NULL;
-  TreeList *node = iterator->stack[iterator->top--];
-  void *data = node->data;
-  TreeList *curr = node->left;
-  while (curr != NULL) {
-    iterator->stack[++iterator->top] = curr;
-    curr = curr->right;
+  TreeList *list = iterator->stack[iterator->top--];
+  void *data = list->data;
+  list = list->left;
+  while (list != NULL) {
+    iterator->stack[++iterator->top] = list;
+    list = list->right;
   }
   return data;
 }
