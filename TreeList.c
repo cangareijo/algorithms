@@ -1,11 +1,15 @@
 #include <stdlib.h>
 #include "TreeList.h"
 
+static unsigned max(unsigned m, unsigned n);
+
 static unsigned TreeList_height(TreeList *list);
 static int TreeList_balance(TreeList *list);
 static char TreeList_isValidHeight(TreeList *list);
 static char TreeList_isValidBalance(TreeList *list);
 static char TreeList_isValidSize(TreeList *list);
+
+static unsigned max(unsigned m, unsigned n) { return m >= n ? m : n; }
 
 TreeListIterator TreeList_begin(TreeList *list) {
   TreeListIterator iterator;
@@ -58,10 +62,8 @@ static unsigned TreeList_height(TreeList *list) { return list ? list->height : 0
 static int TreeList_balance(TreeList *list) { return list ? (int)TreeList_height(list->left) - (int)TreeList_height(list->right) : 0; }
 
 static char TreeList_isValidHeight(TreeList *list) {
-  if (!list) return 1;
-  unsigned left = TreeList_height(list->left);
-  unsigned right = TreeList_height(list->right);
-  return list->height == 1 + (left >= right ? left : right) && TreeList_isValidHeight(list->left) && TreeList_isValidHeight(list->right);
+  return !list || list->height == 1 + max(TreeList_height(list->left), TreeList_height(list->right)) &&
+    TreeList_isValidHeight(list->left) && TreeList_isValidHeight(list->right);
 }
 
 static char TreeList_isValidBalance(TreeList *list) {
