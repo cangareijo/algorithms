@@ -3,9 +3,9 @@
 
 static unsigned TreeList_height(TreeList *list);
 static int TreeList_balance(TreeList *list);
-static bool TreeList_isValidHeight(TreeList *list);
-static bool TreeList_isValidBalance(TreeList *list);
-static bool TreeList_isValidSize(TreeList *list);
+static char TreeList_isValidHeight(TreeList *list);
+static char TreeList_isValidBalance(TreeList *list);
+static char TreeList_isValidSize(TreeList *list);
 
 TreeListIterator TreeList_begin(TreeList *list) {
   TreeListIterator iterator;
