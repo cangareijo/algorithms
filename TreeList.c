@@ -148,6 +148,7 @@ TreeList *TreeList_singleton(void *data) {
   return list;
 }
 
+/*
 TreeList *TreeList_repeat(void *data, unsigned n) {
   if (n == 0) return NULL;
   unsigned mid = n / 2;
@@ -165,6 +166,22 @@ TreeList *TreeList_repeat(void *data, unsigned n) {
   list->right = right;
   TreeList_update(list);
   return list;
+}
+*/
+
+TreeList *TreeList_repeat(void *data, unsigned n) {
+  TreeList *single = TreeList_singleton(data);
+  TreeList *replicate = TreeList_replicate(single, n);
+  TreeList_free(single);
+  return replicate;
+}
+
+TreeList *TreeList_replicate(TreeList *list, unsigned n) {
+  if (n == 0) return TreeList_empty();
+  TreeList *half = TreeList_replicate(list, n / 2);
+  TreeList *combined = TreeList_concat(half, TreeList_copy(half));
+  if (n % 2 == 1) combined = TreeList_concat(combined, TreeList_copy(list));
+  return combined;
 }
 
 void TreeList_free(TreeList *list) {

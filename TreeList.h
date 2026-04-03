@@ -33,6 +33,7 @@ unsigned TreeList_size(TreeList *list);
 TreeList *TreeList_empty();
 TreeList *TreeList_singleton(void *data);
 TreeList *TreeList_repeat(void *data, unsigned n);
+TreeList *TreeList_replicate(TreeList *list, unsigned n);
 void TreeList_free(TreeList *list);
 TreeList *TreeList_clear(TreeList *list);
 void *TreeList_get(TreeList *list, unsigned i);
