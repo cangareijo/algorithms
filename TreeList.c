@@ -33,28 +33,27 @@ TreeListIterator TreeList_reverseBegin(TreeList *list) {
 
 int TreeListIterator_hasNext(TreeListIterator *iterator) { return iterator->top >= 0; }
 
-void *TreeListIterator_next(TreeListIterator *iterator) {
+void *TreeListIterator_get(TreeListIterator *iterator) {
   if (iterator->top < 0) return NULL;
-  TreeList *list = iterator->stack[iterator->top--];
-  void *data = list->data;
-  list = list->right;
+  return iterator->stack[iterator->top]->data;
+}
+
+void TreeListIterator_next(TreeListIterator *iterator) {
+  if (iterator->top < 0) return;
+  TreeList *list = iterator->stack[iterator->top--]->right;
   while (list) {
     iterator->stack[++iterator->top] = list;
     list = list->left;
   }
-  return data;
 }
 
-void *TreeListIterator_reverseNext(TreeListIterator *iterator) {
-  if (iterator->top < 0) return NULL;
-  TreeList *list = iterator->stack[iterator->top--];
-  void *data = list->data;
-  list = list->left;
-  while (list != NULL) {
+void TreeListIterator_reverseNext(TreeListIterator *iterator) {
+  if (iterator->top < 0) return;
+  TreeList *list = iterator->stack[iterator->top--]->left;
+  while (list) {
     iterator->stack[++iterator->top] = list;
     list = list->right;
   }
-  return data;
 }
 
 static unsigned TreeList_height(TreeList *list) { return list ? list->height : 0; }
@@ -312,7 +311,10 @@ void **TreeList_toArray(TreeList *list) {
   if (!array) return NULL;
   TreeListIterator iterator = TreeList_begin(list);
   unsigned i = 0;
-  while (TreeListIterator_hasNext(&iterator)) array[i++] = TreeListIterator_next(&iterator);
+  while (TreeListIterator_hasNext(&iterator)) {
+    array[i++] = TreeListIterator_get(&iterator);
+    TreeListIterator_next(&iterator);
+  }
   return array;
 }
 
@@ -359,8 +361,10 @@ TreeList *TreeList_zip(TreeList *list1, TreeList *list2) {
       TreeList_free(list3);
       return NULL;
     }
-    pair->first = TreeListIterator_next(&iterator1);
-    pair->second = TreeListIterator_next(&iterator2);
+    pair->first = TreeListIterator_get(&iterator1);
+    pair->second = TreeListIterator_get(&iterator2);
+    TreeListIterator_next(&iterator1);
+    TreeListIterator_next(&iterator2);
     TreeList *list4 = TreeList_push(list3, pair);
     if (!list4) {
       free(pair);
@@ -431,7 +435,8 @@ int TreeList_indexOf(TreeList *list, void *target, int (*compare)(const void *, 
   TreeListIterator iterator = TreeList_begin(list);
   int index = 0;
   while (TreeListIterator_hasNext(&iterator)) {
-    void *current = TreeListIterator_next(&iterator);
+    void *current = TreeListIterator_get(&iterator);
+    TreeListIterator_next(&iterator);
     if (compare(current, target) == 0) return index;
     index++;
   }
@@ -442,7 +447,8 @@ int TreeList_lastIndexOf(TreeList *list, void *target, int (*compare)(const void
   TreeListIterator iterator = TreeList_reverseBegin(list);
   int index = (int)list->size - 1;
   while (TreeListIterator_hasNext(&iterator)) {
-    void *data = TreeListIterator_reverseNext(&iterator);
+    void *data = TreeListIterator_get(&iterator);
+    TreeListIterator_reverseNext(&iterator);
     if (compare(data, target) == 0) return index;
     index--;
   }
@@ -452,16 +458,18 @@ int TreeList_lastIndexOf(TreeList *list, void *target, int (*compare)(const void
 void TreeList_replace(TreeList *list, int (*compare)(const void *, const void *), void *target, void *replacement) {
   if (!list) return;
   if (compare(list->data, target) == 0) list->data = replacement;
-  TreeList *left = TreeList_replace(list->left, compare, target, replacement);
-  TreeList *right = TreeList_replace(list->right, compare, target, replacement);
+  TreeList_replace(list->left, compare, target, replacement);
+  TreeList_replace(list->right, compare, target, replacement);
 }
 
 bool TreeList_isSorted(TreeList *list, int (*compare)(const void *, const void *)) {
   if (!list || list->size <= 1) return true;
   TreeListIterator iterator = TreeList_begin(list);
-  void *prev = TreeListIterator_next(&iterator);
+  void *prev = TreeListIterator_get(&iterator);
+  TreeListIterator_next(&iterator);
   while (TreeListIterator_hasNext(&iterator)) {
-    void *curr = TreeListIterator_next(&iterator);
+    void *curr = TreeListIterator_get(&iterator);
+    TreeListIterator_next(&iterator);
     if (compare(prev, curr) > 0) return false;
     prev = curr;
   }
@@ -505,7 +513,7 @@ TreeList *TreeList_elemIndices(TreeList *list, void *target, int (*compare)(cons
   return resultTree;
 }
 
-void *TreeList_min(TreeList *list, int (*compare)(void *, void *)) {
+void *TreeList_min(TreeList *list, int (*compare)(const void *, const void *)) {
   if (!list) return NULL;
   void *minVal = list->data;
   void *leftMin = TreeList_min(list->left, compare);
@@ -515,7 +523,7 @@ void *TreeList_min(TreeList *list, int (*compare)(void *, void *)) {
   return minVal;
 }
 
-void *TreeList_max(TreeList *list, int (*compare)(void *, void *)) {
+void *TreeList_max(TreeList *list, int (*compare)(const void *, const void *)) {
   if (!list) return NULL;
   void *maxVal = list->data;
   void *leftMax = TreeList_max(list->left, compare);
@@ -530,10 +538,12 @@ TreeList *TreeList_unique(TreeList *list, int (*compare)(const void *, const voi
   TreeList *sorted = TreeList_sort(list, compare);
   TreeList *unique = TreeList_empty();
   TreeListIterator iterator = TreeList_begin(sorted);
-  void *previous = TreeListIterator_next(&iterator);
+  void *previous = TreeListIterator_get(&iterator);
+  TreeListIterator_next(&iterator);
   unique = TreeList_push(unique, previous);
   while (TreeListIterator_hasNext(&iterator)) {
-    void *current = TreeListIterator_next(&iterator);
+    void *current = TreeListIterator_get(&iterator);
+    TreeListIterator_next(&iterator);
     if (compare(previous, current) != 0) {
       unique = TreeList_push(unique, current);
       previous = current;
