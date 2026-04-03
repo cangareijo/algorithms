@@ -42,8 +42,8 @@ void *TreeListIterator_reverseNext(TreeListIterator *iterator) {
   void *data = node->data;
   TreeList *curr = node->left;
   while (curr != NULL) {
-      if (iterator->top < 63) iterator->stack[++iterator->top] = curr;
-      curr = curr->right;
+    iterator->stack[++iterator->top] = curr;
+    curr = curr->right;
   }
   return data;
 }
