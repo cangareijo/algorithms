@@ -148,6 +148,25 @@ TreeList *TreeList_singleton(void *data) {
   return list;
 }
 
+TreeList *TreeList_repeat(void *data, unsigned n) {
+  if (n == 0) return NULL;
+  unsigned mid = n / 2;
+  TreeList *list = malloc(sizeof(TreeList));
+  TreeList *left = TreeList_repeat(data, mid);
+  TreeList *right = TreeList_repeat(data, n - mid - 1);
+  if (!list || mid > 0 && !left || n - mid - 1 > 0 && !right) {
+    TreeList_free(list);
+    TreeList_free(left);
+    TreeList_free(right);
+    return NULL;
+  }
+  list->data = data;
+  list->left = left;
+  list->right = right;
+  TreeList_update(list);
+  return list;
+}
+
 void TreeList_free(TreeList *list) {
   if (!list) return;
   TreeList_free(list->left);
