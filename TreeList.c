@@ -57,23 +57,21 @@ static unsigned TreeList_height(TreeList *list) { return list ? list->height : 0
 
 static int TreeList_balance(TreeList *list) { return list ? (int)TreeList_height(list->left) - (int)TreeList_height(list->right) : 0; }
 
-static bool TreeList_isValidHeight(TreeList *list) {
-  if (!list) return true;
+static char TreeList_isValidHeight(TreeList *list) {
+  if (!list) return 1;
   unsigned left = TreeList_height(list->left);
   unsigned right = TreeList_height(list->right);
   return list->height == 1 + (left >= right ? left : right) && TreeList_isValidHeight(list->left) && TreeList_isValidHeight(list->right);
 }
 
-static bool TreeList_isValidBalance(TreeList *list) {
-  return !list ||
-    -1 <= TreeList_balance(list) && TreeList_balance(list) <= 1 &&
+static char TreeList_isValidBalance(TreeList *list) {
+  return !list || -1 <= TreeList_balance(list) && TreeList_balance(list) <= 1 &&
     TreeList_isValidBalance(list->left) && TreeList_isValidBalance(list->right);
 }
 
-static bool TreeList_isValidSize(TreeList *list) {
-  if (!list) return true;
-  if (list->size != 1 + TreeList_size(list->left) + TreeList_size(list->right)) return false;
-  return TreeList_isValidSize(list->left) && TreeList_isValidSize(list->right);
+static char TreeList_isValidSize(TreeList *list) {
+  return !list || list->size == 1 + TreeList_size(list->left) + TreeList_size(list->right) &&
+    TreeList_isValidSize(list->left) && TreeList_isValidSize(list->right);
 }
 
 static void TreeList_update(TreeList *list) {
