@@ -11,6 +11,7 @@ static bool TreeList_isValidSize(TreeList *list);
 static void TreeList_update(TreeList *list);
 static TreeList *rotateRight(TreeList *list);
 static TreeList *rotateLeft(TreeList *list);
+static TreeList *rebalance(TreeList *list);
 
 static unsigned max(unsigned m, unsigned n) { return m >= n ? m : n; }
 
@@ -84,21 +85,21 @@ static void TreeList_update(TreeList *list) {
 }
 
 static TreeList *rotateRight(TreeList *list) {
-  TreeList *ll = list->left;
-  list->left = ll->right;
-  ll->right = list;
+  TreeList *left = list->left;
+  list->left = left->right;
+  left->right = list;
   TreeList_update(list);
-  TreeList_update(ll);
-  return ll;
+  TreeList_update(left);
+  return left;
 }
 
 static TreeList *rotateLeft(TreeList *list) {
-  TreeList *lr = list->right;
-  list->right = lr->left;
-  lr->left = list;
+  TreeList *right = list->right;
+  list->right = right->left;
+  right->left = list;
   TreeList_update(list);
-  TreeList_update(lr);
-  return lr;
+  TreeList_update(right);
+  return right;
 }
 
 static TreeList *rebalance(TreeList *list) {
