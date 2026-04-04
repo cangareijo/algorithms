@@ -1,3 +1,5 @@
+#include <stdbool.h>
+
 typedef struct {
   void *first;
   void *second;
@@ -31,7 +33,7 @@ bool TreeList_isValid(TreeList *list);
 int TreeList_isEmpty(TreeList *list);
 unsigned TreeList_size(TreeList *list);
 TreeList *TreeList_empty();
-TreeList *TreeList_singleton(void *data);
+TreeList *TreeList_single(void *data);
 TreeList *TreeList_repeat(void *data, unsigned n);
 TreeList *TreeList_replicate(TreeList *list, unsigned n);
 void TreeList_free(TreeList *list);

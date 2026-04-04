@@ -5,10 +5,12 @@ static unsigned max(unsigned m, unsigned n);
 
 static unsigned TreeList_height(TreeList *list);
 static int TreeList_balance(TreeList *list);
-static char TreeList_isValidHeight(TreeList *list);
-static char TreeList_isValidBalance(TreeList *list);
-static char TreeList_isValidSize(TreeList *list);
+static bool TreeList_isValidHeight(TreeList *list);
+static bool TreeList_isValidBalance(TreeList *list);
+static bool TreeList_isValidSize(TreeList *list);
 static void TreeList_update(TreeList *list);
+static TreeList *rotateRight(TreeList *list);
+static TreeList *rotateLeft(TreeList *list);
 
 static unsigned max(unsigned m, unsigned n) { return m >= n ? m : n; }
 
@@ -61,17 +63,17 @@ static unsigned TreeList_height(TreeList *list) { return list ? list->height : 0
 
 static int TreeList_balance(TreeList *list) { return list ? (int)TreeList_height(list->left) - (int)TreeList_height(list->right) : 0; }
 
-static char TreeList_isValidHeight(TreeList *list) {
+static bool TreeList_isValidHeight(TreeList *list) {
   return !list || list->height == 1 + max(TreeList_height(list->left), TreeList_height(list->right)) &&
     TreeList_isValidHeight(list->left) && TreeList_isValidHeight(list->right);
 }
 
-static char TreeList_isValidBalance(TreeList *list) {
+static bool TreeList_isValidBalance(TreeList *list) {
   return !list || -1 <= TreeList_balance(list) && TreeList_balance(list) <= 1 &&
     TreeList_isValidBalance(list->left) && TreeList_isValidBalance(list->right);
 }
 
-static char TreeList_isValidSize(TreeList *list) {
+static bool TreeList_isValidSize(TreeList *list) {
   return !list || list->size == 1 + TreeList_size(list->left) + TreeList_size(list->right) &&
     TreeList_isValidSize(list->left) && TreeList_isValidSize(list->right);
 }
@@ -79,20 +81,6 @@ static char TreeList_isValidSize(TreeList *list) {
 static void TreeList_update(TreeList *list) {
   list->height = 1 + max(TreeList_height(list->left), TreeList_height(list->right));
   list->size = 1 + TreeList_size(list->left) + TreeList_size(list->right);
-}
-
-static TreeList *TreeList_setLeft(TreeList *list, TreeList *left) {
-  if (!list) return NULL;
-  list->left = left;
-  TreeList_update(list);
-  return list;
-}
-
-static TreeList *TreeList_setRight(TreeList *list, TreeList *right) {
-  if (!list) return NULL;
-  list->right = right;
-  TreeList_update(list);
-  return list;
 }
 
 static TreeList *rotateRight(TreeList *list) {
@@ -125,21 +113,16 @@ static TreeList *rebalance(TreeList *list) {
   return list;
 }
 
-bool TreeList_isValid(TreeList *list) {
-  return TreeList_isValidHeight(list) && TreeList_isValidBalance(list) && TreeList_isValidSize(list);
-}
+bool TreeList_isValid(TreeList *list) { return TreeList_isValidHeight(list) && TreeList_isValidBalance(list) && TreeList_isValidSize(list); }
 
-int TreeList_isEmpty(TreeList *list) {
-  return !list;
-}
+int TreeList_isEmpty(TreeList *list) { return !list; }
 
 unsigned TreeList_size(TreeList *list) { return list ? list->size : 0; }
 
 TreeList *TreeList_empty() { return NULL; }
 
-TreeList *TreeList_singleton(void *data) {
+TreeList *TreeList_single(void *data) {
   TreeList *list = malloc(sizeof(TreeList));
-  if (!list) return NULL;
   list->data = data;
   list->left = list->right = NULL;
   list->height = list->size = 1;
@@ -158,7 +141,7 @@ TreeList *TreeList_repeatAlternative(void *data, unsigned n) {
 }
 
 TreeList *TreeList_repeat(void *data, unsigned n) {
-  TreeList *single = TreeList_singleton(data);
+  TreeList *single = TreeList_single(data);
   TreeList *replicate = TreeList_replicate(single, n);
   TreeList_free(single);
   return replicate;
@@ -201,8 +184,15 @@ void TreeList_set(TreeList *list, unsigned i, void *data) {
 TreeList *TreeList_concat(TreeList *left, TreeList *right) {
   if (!left) return right;
   if (!right) return left;
-  if (TreeList_height(left) > TreeList_height(right)) return rebalance(TreeList_setRight(left, TreeList_concat(left->right, right)));
-  return rebalance(TreeList_setLeft(right, TreeList_concat(left, right->left)));
+  if (TreeList_height(left) > TreeList_height(right)) {
+    left->right = TreeList_concat(left->right, right);
+    update(left);
+    return rebalance(left);
+  } else {
+    right->left = TreeList_concat(left, right->left);
+    update(right);
+    return rebalance(right);
+  }
 }
 
 SplitResult TreeList_split(TreeList *list, unsigned i) {
@@ -223,7 +213,7 @@ SplitResult TreeList_split(TreeList *list, unsigned i) {
 }
 
 TreeList *TreeList_insert(TreeList *list, unsigned i, void *data) {
-  TreeList *single = TreeList_singleton(data);
+  TreeList *single = TreeList_single(data);
   if (!single) return list;
   SplitResult parts = TreeList_split(list, i);
   TreeList *temp = TreeList_concat(parts.left, single);
@@ -255,7 +245,7 @@ TreeList *TreeList_removeRange(TreeList *list, unsigned i, unsigned length) {
 }
 
 TreeList *TreeList_push(TreeList *list, void *data) {
-  return TreeList_concat(list, TreeList_singleton(data));
+  return TreeList_concat(list, TreeList_single(data));
 }
 
 void *TreeList_peek(TreeList *list) {
@@ -267,7 +257,7 @@ TreeList *TreeList_pop(TreeList *list) {
 }
 
 TreeList *TreeList_pushLeft(TreeList *list, void *data) {
-  return TreeList_concat(TreeList_singleton(data), list);
+  return TreeList_concat(TreeList_single(data), list);
 }
 
 void *TreeList_peekLeft(TreeList *list) {
@@ -317,7 +307,7 @@ TreeList *TreeList_reverse(TreeList *list) {
 static TreeList *fromArrayRecursive(void **array, int start, int end) {
   if (start > end) return NULL;
   int mid = start + (end - start) / 2;
-  TreeList *list = TreeList_singleton(array[mid]);
+  TreeList *list = TreeList_single(array[mid]);
   list->left = fromArrayRecursive(array, start, mid - 1);
   list->right = fromArrayRecursive(array, mid + 1, end);
   TreeList_update(list);
