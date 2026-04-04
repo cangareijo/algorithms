@@ -196,53 +196,53 @@ TreeList *TreeList_concat(TreeList *left, TreeList *right) {
   }
 }
 
-SplitResult TreeList_split(TreeList *list, unsigned i) {
-  if (!list) return (SplitResult){NULL, NULL};
+Pair TreeList_split(TreeList *list, unsigned i) {
+  if (!list) return (Pair){NULL, NULL};
   if (i <= TreeList_size(list->left)) {
-    SplitResult res = TreeList_split(list->left, i);
-    list->left = res.right;
+    Pair pair = TreeList_split(list->left, i);
+    list->left = pair.second;
     TreeList_update(list);
-    res.right = rebalance(list);
-    return res;
+    pair.second = rebalance(list);
+    return pair;
   } else {
-    SplitResult res = TreeList_split(list->right, i - TreeList_size(list->left) - 1);
-    list->right = res.left;
+    Pair pair = TreeList_split(list->right, i - TreeList_size(list->left) - 1);
+    list->right = pair.first;
     TreeList_update(list);
-    res.left = rebalance(list);
-    return res;
+    pair.first = rebalance(list);
+    return pair;
   }
 }
 
 TreeList *TreeList_insert(TreeList *list, unsigned i, void *data) {
   TreeList *single = TreeList_single(data);
   if (!single) return list;
-  SplitResult parts = TreeList_split(list, i);
-  TreeList *temp = TreeList_concat(parts.left, single);
-  return TreeList_concat(temp, parts.right);
+  Pair pair = TreeList_split(list, i);
+  TreeList *temp = TreeList_concat(pair.first, single);
+  return TreeList_concat(temp, pair.second);
 }
 
 TreeList *TreeList_remove(TreeList *list, unsigned i) {
   if (!list || i >= TreeList_size(list)) return list;
-  SplitResult parts1 = TreeList_split(list, i);
-  SplitResult parts2 = TreeList_split(parts1.right, 1);
-  free(parts2.left);
-  return TreeList_concat(parts1.left, parts2.right);
+  Pair pair1 = TreeList_split(list, i);
+  Pair pair2 = TreeList_split(pair1.second, 1);
+  free(pair2.left);
+  return TreeList_concat(pair1.first, pair2.second);
 }
 
 TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other) {
   if (!other) return list;
   if (!list) return other;
-  SplitResult parts = TreeList_split(list, i);
-  TreeList *temp = TreeList_concat(parts.left, other);
-  return TreeList_concat(temp, parts.right);
+  Pair pair = TreeList_split(list, i);
+  TreeList *temp = TreeList_concat(pair.first, other);
+  return TreeList_concat(temp, pair.second);
 }
 
 TreeList *TreeList_removeRange(TreeList *list, unsigned i, unsigned length) {
   if (!list || length == 0) return list;
-  SplitResult parts1 = TreeList_split(list, i);
-  SplitResult parts2 = TreeList_split(parts1.right, length);
-  TreeList_free(parts2.left);
-  return TreeList_concat(parts1.left, parts2.right);
+  Pair pair1 = TreeList_split(list, i);
+  Pair pair2 = TreeList_split(pair1.second, length);
+  TreeList_free(pair2.first);
+  return TreeList_concat(pair1.first, pair2.second);
 }
 
 TreeList *TreeList_push(TreeList *list, void *data) {
@@ -274,11 +274,11 @@ TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length) {
     TreeList_free(list);
     return NULL;
   }
-  SplitResult parts1 = TreeList_split(list, i);
-  SplitResult parts2 = TreeList_split(parts1.right, length);
-  TreeList_free(parts1.left);
-  TreeList_free(parts2.right);
-  return parts2.left;
+  Pair pair1 = TreeList_split(list, i);
+  Pair pair2 = TreeList_split(pair1.second, length);
+  TreeList_free(pair1.first);
+  TreeList_free(pair2.second);
+  return pair2.first;
 }
 
 TreeList *TreeList_copy(TreeList *list) {
@@ -338,8 +338,8 @@ TreeList *TreeList_rotate(TreeList *list, int k) {
   if (n == 0) return list;
   unsigned splitIndex = ((k % n) + n) % n;
   if (splitIndex == 0) return list;
-  SplitResult parts = TreeList_split(list, splitIndex);
-  return TreeList_concat(parts.right, parts.left);
+  Pair pair = TreeList_split(list, splitIndex);
+  return TreeList_concat(pair.second, pair.first);
 }
 
 TreeList *TreeList_shuffle(TreeList *list) {

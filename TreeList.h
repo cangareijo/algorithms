@@ -13,11 +13,6 @@ typedef struct TreeList {
 } TreeList;
 
 typedef struct {
-  TreeList *left;
-  TreeList *right;
-} SplitResult;
-
-typedef struct {
   TreeList *stack[64];
   int top;
 } TreeListIterator;
@@ -41,7 +36,7 @@ TreeList *TreeList_clear(TreeList *list);
 void *TreeList_get(TreeList *list, unsigned i);
 void TreeList_set(TreeList *list, unsigned i, void *data);
 TreeList *TreeList_concat(TreeList *left, TreeList *right);
-SplitResult TreeList_split(TreeList *list, unsigned i);
+Pair TreeList_split(TreeList *list, unsigned i);
 TreeList *TreeList_insert(TreeList *list, unsigned i, void *data);
 TreeList *TreeList_remove(TreeList *list, unsigned i);
 TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other);
