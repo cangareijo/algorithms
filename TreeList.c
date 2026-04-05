@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include "TreeList.h"
 
+
+
 static unsigned max(unsigned m, unsigned n);
 
 static unsigned TreeList_height(TreeList *list);
@@ -12,6 +14,8 @@ static void TreeList_update(TreeList *list);
 static TreeList *TreeList_rotateRight(TreeList *list);
 static TreeList *TreeList_rotateLeft(TreeList *list);
 static TreeList *TreeList_rebalance(TreeList *list);
+
+
 
 static unsigned max(unsigned m, unsigned n) { return m >= n ? m : n; }
 
@@ -59,6 +63,8 @@ void TreeListIterator_reverseNext(TreeListIterator *iterator) {
     list = list->right;
   }
 }
+
+
 
 static unsigned TreeList_height(TreeList *list) { return list ? list->height : 0; }
 
@@ -113,6 +119,8 @@ static TreeList *TreeList_rebalance(TreeList *list) {
   }
   return list;
 }
+
+
 
 bool TreeList_isValid(TreeList *list) { return TreeList_isValidHeight(list) && TreeList_isValidBalance(list) && TreeList_isValidSize(list); }
 
@@ -211,7 +219,7 @@ void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **righ
   }
 }
 
-//
+
 
 TreeList *TreeList_clear(TreeList *list) {
   TreeList_free(list);
@@ -224,13 +232,6 @@ TreeList *TreeList_replicate(TreeList *list, unsigned n) {
   TreeList *combined = TreeList_concat(half, TreeList_copy(half));
   if (n % 2 == 1) combined = TreeList_concat(combined, TreeList_copy(list));
   return combined;
-}
-
-TreeList *TreeList_repeat(void *data, unsigned n) {
-  TreeList *single = TreeList_single(data);
-  TreeList *replicate = TreeList_replicate(single, n);
-  TreeList_free(single);
-  return replicate;
 }
 
 TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other) {
@@ -265,7 +266,14 @@ TreeList *TreeList_rotate(TreeList *list, int i) {
   return TreeList_concat(right, left);
 }
 
-//
+
+
+TreeList *TreeList_repeat(void *data, unsigned n) {
+  TreeList *single = TreeList_single(data);
+  TreeList *replicate = TreeList_replicate(single, n);
+  TreeList_free(single);
+  return replicate;
+}
 
 TreeList *TreeList_insert(TreeList *list, unsigned i, void *data) { return TreeList_insertList(list, i, TreeList_single(data)); }
 
@@ -275,15 +283,15 @@ TreeList *TreeList_push(TreeList *list, void *data) { return TreeList_concat(lis
 
 void *TreeList_peek(TreeList *list) { return TreeList_get(list, TreeList_size(list) - 1); }
 
-TreeList *TreeList_pop(TreeList *list) { return TreeList_remove(list, TreeList_size(list) - 1); }
+TreeList *TreeList_pop(TreeList *list) { return TreeList_removeRange(list, TreeList_size(list) - 1, 1); }
 
 TreeList *TreeList_pushLeft(TreeList *list, void *data) { return TreeList_concat(TreeList_single(data), list); }
 
 void *TreeList_peekLeft(TreeList *list) { return TreeList_get(list, 0); }
 
-TreeList *TreeList_popLeft(TreeList *list) { return TreeList_remove(list, 0); }
+TreeList *TreeList_popLeft(TreeList *list) { return TreeList_removeRange(list, 0, 1); }
 
-//
+
 
 void **TreeList_toArray(TreeList *list) {
   if (!list) return NULL;
