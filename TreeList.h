@@ -1,10 +1,5 @@
 #include <stdbool.h>
 
-typedef struct {
-  void *first;
-  void *second;
-} Pair;
-
 typedef struct TreeList {
   void *data;
   struct TreeList *left, *right;
@@ -38,6 +33,9 @@ void *TreeList_get(TreeList *list, unsigned i);
 void TreeList_set(TreeList *list, unsigned i, void *data);
 TreeList *TreeList_concat(TreeList *left, TreeList *right);
 void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **right);
+TreeList *TreeList_zip(TreeList *list1, TreeList *list2);
+TreeList *TreeList_unzipLeft(TreeList *list);
+TreeList *TreeList_unzipRight(TreeList *list);
 
 TreeList *TreeList_clear(TreeList *list);
 TreeList *TreeList_replicate(TreeList *list, unsigned n);
@@ -58,9 +56,6 @@ TreeList *TreeList_pushLeft(TreeList *list, void *data);
 void *TreeList_peekLeft(TreeList *list);
 TreeList *TreeList_popLeft(TreeList *list);
 
-TreeList *TreeList_zip(TreeList *list1, TreeList *list2);
-TreeList *TreeList_unzipLeft(TreeList *list);
-TreeList *TreeList_unzipRight(TreeList *list);
 double TreeList_sum(TreeList *list);
 double TreeList_product(TreeList *list);
 double TreeList_average(TreeList *list);

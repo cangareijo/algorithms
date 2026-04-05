@@ -240,6 +240,45 @@ void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **righ
   }
 }
 
+TreeList *TreeList_zip(TreeList *list1, TreeList *list2) {
+  TreeListIterator iterator1 = TreeList_begin(list1);
+  TreeListIterator iterator2 = TreeList_begin(list2);
+  TreeList *list3 = TreeList_empty();
+  while (TreeListIterator_hasNext(&iterator1) && TreeListIterator_hasNext(&iterator2)) {
+    TreeList **pair = malloc(2 * sizeof(TreeList *));
+    pair[0] = TreeListIterator_get(&iterator1);
+    pair[1] = TreeListIterator_get(&iterator2);
+    TreeListIterator_next(&iterator1);
+    TreeListIterator_next(&iterator2);
+    list3 = TreeList_push(list3, pair);
+  }
+  return list3;
+}
+
+TreeList *TreeList_unzipLeft(TreeList *list) {
+  if (!list) return NULL;
+  TreeList **pair = list->data;
+  TreeList *unzip = malloc(sizeof(TreeList));
+  unzip->data = pair[0];
+  unzip->left = TreeList_unzipLeft(list->left);
+  unzip->right = TreeList_unzipLeft(list->right);
+  unzip->height = list->height;
+  unzip->size = list->size;
+  return unzip;
+}
+
+TreeList *TreeList_unzipRight(TreeList *list) {
+  if (!list) return NULL;
+  TreeList **pair = list->data;
+  TreeList *unzip = malloc(sizeof(TreeList));
+  unzip->data = pair[1];
+  unzip->left = TreeList_unzipRight(list->left);
+  unzip->right = TreeList_unzipRight(list->right);
+  unzip->height = list->height;
+  unzip->size = list->size;
+  return unzip;
+}
+
 
 
 TreeList *TreeList_clear(TreeList *list) {
@@ -330,71 +369,6 @@ void *TreeList_peekLeft(TreeList *list) { return TreeList_get(list, 0); }
 TreeList *TreeList_popLeft(TreeList *list) { return TreeList_removeRange(list, 0, 1); }
 
 
-
-TreeList *TreeList_zip(TreeList *list1, TreeList *list2) {
-  TreeListIterator iterator1 = TreeList_begin(list1);
-  TreeListIterator iterator2 = TreeList_begin(list2);
-  TreeList *list3 = TreeList_empty();
-  while (TreeListIterator_hasNext(&iterator1) && TreeListIterator_hasNext(&iterator2)) {
-    Pair *pair = malloc(sizeof(Pair));
-    if (!pair) {
-      TreeList_free(list3);
-      return NULL;
-    }
-    pair->first = TreeListIterator_get(&iterator1);
-    pair->second = TreeListIterator_get(&iterator2);
-    TreeListIterator_next(&iterator1);
-    TreeListIterator_next(&iterator2);
-    TreeList *list4 = TreeList_push(list3, pair);
-    if (!list4) {
-      free(pair);
-      TreeList_free(list3);
-      return NULL;
-    }
-    list3 = list4;
-  }
-  return list3;
-}
-
-TreeList *TreeList_unzipLeft(TreeList *list) {
-  if (!list) return NULL;
-  TreeList *list2 = TreeList_unzipLeft(list->left);
-  TreeList *list3 = malloc(sizeof(TreeList));
-  TreeList *list4 = TreeList_unzipLeft(list->right);
-  if (list->left && !list2 || !list3 || list->right && !list4) {
-    TreeList_free(list2);
-    free(list3);
-    TreeList_free(list4);
-    return NULL;
-  }
-  Pair *pair = list->data;
-  list3->data = pair->first;
-  list3->left = list2;
-  list3->right = list4;
-  list3->height = list->height;
-  list3->size = list->size;
-  return list3;
-}
-
-TreeList *TreeList_unzipRight(TreeList *list) {
-  if (!list) return NULL;
-  TreeList *list2 = TreeList_unzipRight(list->left);
-  TreeList *list3 = malloc(sizeof(TreeList));
-  TreeList *list4 = TreeList_unzipRight(list->right);
-  if (list->left && !list2 || !list3 || list->right && !list4) {
-    TreeList_free(list2);
-    free(list3);
-    TreeList_free(list4);
-    return NULL;
-  }
-  Pair *pair = list->data;
-  list3->data = pair->second;
-  list3->left = list2;
-  list3->right = list4;
-  list3->height = list->height;
-  list3->size = list->size;
-  return list3;
-}
 
 double TreeList_sum(TreeList *list) {
   if (!list) return 0;
