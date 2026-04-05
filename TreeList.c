@@ -385,6 +385,8 @@ double TreeList_average(TreeList *list) {
   return TreeList_sum(list) / TreeList_size(list);
 }
 
+
+
 int TreeList_indexOf(TreeList *list, void *target, int (*compare)(const void *, const void *)) {
   TreeListIterator iterator = TreeList_begin(list);
   int index = 0;
