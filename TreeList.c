@@ -19,52 +19,14 @@ static TreeList *TreeList_rebalance(TreeList *list);
 
 static unsigned max(unsigned m, unsigned n) { return m >= n ? m : n; }
 
-TreeListIterator TreeList_begin(TreeList *list) {
-  TreeListIterator iterator;
-  iterator.top = -1;
-  while (list) {
-    iterator.stack[++iterator.top] = list;
-    list = list->left;
-  }
-  return iterator;
+static void Array_swap(void **x, void **y) {
+  void *u = *x;
+  void *v = *y;
+  *x = *u;
+  *y = *v;
 }
 
-TreeListIterator TreeList_reverseBegin(TreeList *list) {
-  TreeListIterator iterator;
-  iterator.top = -1;
-  while (list) {
-    iterator.stack[++iterator.top] = list;
-    list = list->right;
-  }
-  return iterator;
-}
-
-int TreeListIterator_hasNext(TreeListIterator *iterator) { return iterator->top >= 0; }
-
-void *TreeListIterator_get(TreeListIterator *iterator) {
-  if (iterator->top < 0) return NULL;
-  return iterator->stack[iterator->top]->data;
-}
-
-void TreeListIterator_next(TreeListIterator *iterator) {
-  if (iterator->top < 0) return;
-  TreeList *list = iterator->stack[iterator->top--]->right;
-  while (list) {
-    iterator->stack[++iterator->top] = list;
-    list = list->left;
-  }
-}
-
-void TreeListIterator_reverseNext(TreeListIterator *iterator) {
-  if (iterator->top < 0) return;
-  TreeList *list = iterator->stack[iterator->top--]->left;
-  while (list) {
-    iterator->stack[++iterator->top] = list;
-    list = list->right;
-  }
-}
-
-
+static void Array_shuffle(void **array, unsigned n) { for (unsigned i = 1; i < n; i++) Array_swap(array + i, array + rand() % (i + 1)); }
 
 static unsigned TreeList_height(TreeList *list) { return list ? list->height : 0; }
 
@@ -118,6 +80,53 @@ static TreeList *TreeList_rebalance(TreeList *list) {
     return TreeList_rotateLeft(list);
   }
   return list;
+}
+
+
+
+TreeListIterator TreeList_begin(TreeList *list) {
+  TreeListIterator iterator;
+  iterator.top = -1;
+  while (list) {
+    iterator.stack[++iterator.top] = list;
+    list = list->left;
+  }
+  return iterator;
+}
+
+TreeListIterator TreeList_reverseBegin(TreeList *list) {
+  TreeListIterator iterator;
+  iterator.top = -1;
+  while (list) {
+    iterator.stack[++iterator.top] = list;
+    list = list->right;
+  }
+  return iterator;
+}
+
+int TreeListIterator_hasNext(TreeListIterator *iterator) { return iterator->top >= 0; }
+
+void *TreeListIterator_get(TreeListIterator *iterator) {
+  if (iterator->top < 0) return NULL;
+  return iterator->stack[iterator->top]->data;
+}
+
+void TreeListIterator_next(TreeListIterator *iterator) {
+  if (iterator->top < 0) return;
+  TreeList *list = iterator->stack[iterator->top--]->right;
+  while (list) {
+    iterator->stack[++iterator->top] = list;
+    list = list->left;
+  }
+}
+
+void TreeListIterator_reverseNext(TreeListIterator *iterator) {
+  if (iterator->top < 0) return;
+  TreeList *list = iterator->stack[iterator->top--]->left;
+  while (list) {
+    iterator->stack[++iterator->top] = list;
+    list = list->right;
+  }
 }
 
 
@@ -278,6 +287,23 @@ TreeList *TreeList_rotate(TreeList *list, int i) {
   return TreeList_concat(right, left);
 }
 
+TreeList *TreeList_compact(TreeList *list) {
+  unsigned n = TreeList_size(list);
+  void **array = TreeList_toArray(list);
+  TreeList *compact = TreeList_fromArray(array, n);
+  free(array);
+  return compact;
+}
+
+TreeList *TreeList_shuffle(TreeList *list) {
+  unsigned n = TreeList_size(list);
+  void **array = TreeList_toArray(list);
+  Array_shuffle(array, n);
+  TreeList *shuffle = TreeList_fromArray(array, n);
+  free(array);
+  return shuffle;
+}
+
 
 
 TreeList *TreeList_repeat(void *data, unsigned n) {
@@ -304,34 +330,6 @@ void *TreeList_peekLeft(TreeList *list) { return TreeList_get(list, 0); }
 TreeList *TreeList_popLeft(TreeList *list) { return TreeList_removeRange(list, 0, 1); }
 
 
-
-static void Array_shuffle(void **array, unsigned n) {
-  for (unsigned i = n - 1; i > 0; i--) {
-    unsigned j = rand() % (i + 1);
-    void *x = array[i];
-    void *y = array[j];
-    array[i] = y;
-    array[j] = x;
-  }
-}
-
-TreeList *TreeList_shuffle(TreeList *list) {
-  unsigned n = TreeList_size(list);
-  void **array = TreeList_toArray(list);
-  Array_shuffle(array, n);
-  TreeList *shuffle = TreeList_fromArray(array, n);
-  free(array);
-  return shuffle;
-}
-
-TreeList *TreeList_compact(TreeList *list) {
-  if (!list) return NULL;
-  unsigned n = TreeList_size(list);
-  void **array = TreeList_toArray(list);
-  TreeList *compacted = TreeList_fromArray(array, n);
-  free(array);
-  return compacted;
-}
 
 TreeList *TreeList_zip(TreeList *list1, TreeList *list2) {
   TreeListIterator iterator1 = TreeList_begin(list1);
