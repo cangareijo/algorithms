@@ -309,17 +309,17 @@ TreeList *TreeList_shuffle(TreeList *list) {
   return shuffle;
 }
 
-TreeList* TreeList_zip(TreeList* list1, TreeList* list2) {
+TreeList *TreeList_zip(TreeList *list1, TreeList *list2) {
   unsigned n = unsigned_min(TreeList_size(list1), TreeList_size(list2));
-  void** array1 = TreeList_toArray(list1);
-  void** array2 = TreeList_toArray(list2);
-  void*** array3 = malloc(sizeof(void**) * n);
+  void **array1 = TreeList_toArray(list1);
+  void **array2 = TreeList_toArray(list2);
+  void ***array3 = malloc(sizeof(void**) * n);
   for (unsigned i = 0; i < n; i++) {
       array3[i] = malloc(sizeof(void*) * 2); 
       array3[i][0] = array1[i]; 
       array3[i][1] = array2[i]; 
   }
-  TreeList* list3 = TreeList_fromArray(array3, n);
+  TreeList *list3 = TreeList_fromArray(array3, n);
   free(array1);
   free(array2);
   free(array3);
