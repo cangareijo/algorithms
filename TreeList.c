@@ -116,6 +116,8 @@ static TreeList *TreeList_rebalance(TreeList *list) {
 
 bool TreeList_isValid(TreeList *list) { return TreeList_isValidHeight(list) && TreeList_isValidBalance(list) && TreeList_isValidSize(list); }
 
+bool TreeList_isEmpty(TreeList *list) { return !list; }
+
 unsigned TreeList_size(TreeList *list) { return list ? list->size : 0; }
 
 TreeList *TreeList_empty() { return NULL; }
@@ -125,6 +127,16 @@ TreeList *TreeList_single(void *data) {
   list->data = data;
   list->left = list->right = NULL;
   list->height = list->size = 1;
+  return list;
+}
+
+TreeList *fromArray(void **array, unsigned n) {
+  if (n == 0) return NULL;
+  TreeList *list = malloc(sizeof(TreeList));
+  list->data = array[n / 2];
+  list->left = fromArray(array, n / 2);
+  list->right = fromArray(array + n / 2 + 1, n - n / 2 - 1);
+  TreeList_update(list);
   return list;
 }
 
@@ -199,7 +211,7 @@ void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **righ
   }
 }
 
-int TreeList_isEmpty(TreeList *list) { return TreeList_size(list) == 0; }
+//
 
 TreeList *TreeList_clear(TreeList *list) {
   TreeList_free(list);
@@ -221,22 +233,6 @@ TreeList *TreeList_repeat(void *data, unsigned n) {
   return replicate;
 }
 
-TreeList *TreeList_insert(TreeList *list, unsigned i, void *data) {
-  TreeList *left, *right;
-  TreeList_split(list, i, &left, &right);
-  TreeList *single = TreeList_single(data);
-  TreeList *join = TreeList_concat(left, single);
-  return TreeList_concat(join, right);
-}
-
-TreeList *TreeList_remove(TreeList *list, unsigned i) {
-  TreeList *left, *middle, *right;
-  TreeList_split(list, i, &left, &right);
-  TreeList_split(right, 1, &middle, &right);
-  TreeList_free(middle);
-  return TreeList_concat(left, right);
-}
-
 TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other) {
   TreeList *left, *right;
   TreeList_split(list, i, &left, &right);
@@ -250,30 +246,6 @@ TreeList *TreeList_removeRange(TreeList *list, unsigned i, unsigned length) {
   TreeList_split(right, length, &middle, &right);
   TreeList_free(middle);
   return TreeList_concat(left, right);
-}
-
-TreeList *TreeList_push(TreeList *list, void *data) {
-  return TreeList_concat(list, TreeList_single(data));
-}
-
-void *TreeList_peek(TreeList *list) {
-  return TreeList_get(list, TreeList_size(list) - 1);
-}
-
-TreeList *TreeList_pop(TreeList *list) {
-  return TreeList_remove(list, TreeList_size(list) - 1);
-}
-
-TreeList *TreeList_pushLeft(TreeList *list, void *data) {
-  return TreeList_concat(TreeList_single(data), list);
-}
-
-void *TreeList_peekLeft(TreeList *list) {
-  return TreeList_get(list, 0);
-}
-
-TreeList *TreeList_popLeft(TreeList *list) {
-  return TreeList_remove(list, 0);
 }
 
 TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length) {
@@ -293,19 +265,25 @@ TreeList *TreeList_rotate(TreeList *list, int i) {
   return TreeList_concat(right, left);
 }
 
-static TreeList *fromArrayRecursive(void **array, int start, int end) {
-  if (start > end) return NULL;
-  int mid = start + (end - start) / 2;
-  TreeList *list = TreeList_single(array[mid]);
-  list->left = fromArrayRecursive(array, start, mid - 1);
-  list->right = fromArrayRecursive(array, mid + 1, end);
-  TreeList_update(list);
-  return list;
-}
+//
 
-TreeList *TreeList_fromArray(void **array, unsigned n) {
-  return fromArrayRecursive(array, 0, (int)n - 1);
-}
+TreeList *TreeList_insert(TreeList *list, unsigned i, void *data) { return TreeList_insertList(list, i, TreeList_single(data)); }
+
+TreeList *TreeList_remove(TreeList *list, unsigned i) { return TreeList_removeRange(list, i, 1); }
+
+TreeList *TreeList_push(TreeList *list, void *data) { return TreeList_concat(list, TreeList_single(data)); }
+
+void *TreeList_peek(TreeList *list) { return TreeList_get(list, TreeList_size(list) - 1); }
+
+TreeList *TreeList_pop(TreeList *list) { return TreeList_remove(list, TreeList_size(list) - 1); }
+
+TreeList *TreeList_pushLeft(TreeList *list, void *data) { return TreeList_concat(TreeList_single(data), list); }
+
+void *TreeList_peekLeft(TreeList *list) { return TreeList_get(list, 0); }
+
+TreeList *TreeList_popLeft(TreeList *list) { return TreeList_remove(list, 0); }
+
+//
 
 void **TreeList_toArray(TreeList *list) {
   if (!list) return NULL;

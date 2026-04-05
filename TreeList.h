@@ -25,9 +25,11 @@ void TreeListIterator_next(TreeListIterator *iterator);
 void TreeListIterator_reverseNext(TreeListIterator *iterator);
 
 bool TreeList_isValid(TreeList *list);
+bool TreeList_isEmpty(TreeList *list);
 unsigned TreeList_size(TreeList *list);
 TreeList *TreeList_empty();
 TreeList *TreeList_single(void *data);
+TreeList *TreeList_fromArray(void **array, unsigned n);
 TreeList *TreeList_copy(TreeList *list);
 void TreeList_free(TreeList *list);
 void TreeList_reverse(TreeList *list);
@@ -36,23 +38,23 @@ void TreeList_set(TreeList *list, unsigned i, void *data);
 TreeList *TreeList_concat(TreeList *left, TreeList *right);
 void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **right);
 
-int TreeList_isEmpty(TreeList *list);
 TreeList *TreeList_clear(TreeList *list);
 TreeList *TreeList_replicate(TreeList *list, unsigned n);
 TreeList *TreeList_repeat(void *data, unsigned n);
-TreeList *TreeList_insert(TreeList *list, unsigned i, void *data);
-TreeList *TreeList_remove(TreeList *list, unsigned i);
 TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other);
 TreeList *TreeList_removeRange(TreeList *list, unsigned i, unsigned length);
+TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length);
+TreeList *TreeList_rotate(TreeList *list, int i);
+
+TreeList *TreeList_insert(TreeList *list, unsigned i, void *data);
+TreeList *TreeList_remove(TreeList *list, unsigned i);
 TreeList *TreeList_push(TreeList *list, void *data);
 void *TreeList_peek(TreeList *list);
 TreeList *TreeList_pop(TreeList *list);
 TreeList *TreeList_pushLeft(TreeList *list, void *data);
 void *TreeList_peekLeft(TreeList *list);
 TreeList *TreeList_popLeft(TreeList *list);
-TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length);
-TreeList *TreeList_rotate(TreeList *list, int i);
-TreeList *TreeList_fromArray(void **array, unsigned n);
+
 void **TreeList_toArray(TreeList *list);
 TreeList *TreeList_shuffle(TreeList *list);
 TreeList *TreeList_compact(TreeList *list);
