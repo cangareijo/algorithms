@@ -40,12 +40,12 @@ void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **righ
 
 TreeList *TreeList_clear(TreeList *list);
 TreeList *TreeList_replicate(TreeList *list, unsigned n);
-TreeList *TreeList_repeat(void *data, unsigned n);
 TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other);
 TreeList *TreeList_removeRange(TreeList *list, unsigned i, unsigned length);
 TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length);
 TreeList *TreeList_rotate(TreeList *list, int i);
 
+TreeList *TreeList_repeat(void *data, unsigned n);
 TreeList *TreeList_insert(TreeList *list, unsigned i, void *data);
 TreeList *TreeList_remove(TreeList *list, unsigned i);
 TreeList *TreeList_push(TreeList *list, void *data);
