@@ -148,6 +148,18 @@ TreeList *fromArray(void **array, unsigned n) {
   return list;
 }
 
+void **TreeList_toArray(TreeList *list) {
+  if (!list) return NULL;
+  void **array = malloc(sizeof(void *) * list->size);
+  TreeListIterator iterator = TreeList_begin(list);
+  unsigned i = 0;
+  while (TreeListIterator_hasNext(&iterator)) {
+    array[i++] = TreeListIterator_get(&iterator);
+    TreeListIterator_next(&iterator);
+  }
+  return array;
+}
+
 TreeList *TreeList_copy(TreeList *list) {
   if (!list) return NULL;
   TreeList *copy = malloc(sizeof(TreeList));
@@ -293,33 +305,23 @@ TreeList *TreeList_popLeft(TreeList *list) { return TreeList_removeRange(list, 0
 
 
 
-void **TreeList_toArray(TreeList *list) {
-  if (!list) return NULL;
-  unsigned size = TreeList_size(list);
-  void **array = malloc(sizeof(void *) * size);
-  if (!array) return NULL;
-  TreeListIterator iterator = TreeList_begin(list);
-  unsigned i = 0;
-  while (TreeListIterator_hasNext(&iterator)) {
-    array[i++] = TreeListIterator_get(&iterator);
-    TreeListIterator_next(&iterator);
+static void Array_shuffle(void **array, unsigned n) {
+  for (unsigned i = n - 1; i > 0; i--) {
+    unsigned j = rand() % (i + 1);
+    void *x = array[i];
+    void *y = array[j];
+    array[i] = y;
+    array[j] = x;
   }
-  return array;
 }
 
 TreeList *TreeList_shuffle(TreeList *list) {
   unsigned n = TreeList_size(list);
-  if (n <= 1) return TreeList_copy(list);
   void **array = TreeList_toArray(list);
-  for (unsigned i = n - 1; i > 0; i--) {
-    unsigned j = rand() % (i + 1);
-    void *temp = array[i];
-    array[i] = array[j];
-    array[j] = temp;
-  }
-  TreeList *shuffled = TreeList_fromArray(array, n);
+  Array_shuffle(array, n);
+  TreeList *shuffle = TreeList_fromArray(array, n);
   free(array);
-  return shuffled;
+  return shuffle;
 }
 
 TreeList *TreeList_compact(TreeList *list) {
