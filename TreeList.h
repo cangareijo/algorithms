@@ -33,9 +33,6 @@ void *TreeList_get(TreeList *list, unsigned i);
 void TreeList_set(TreeList *list, unsigned i, void *data);
 TreeList *TreeList_concat(TreeList *left, TreeList *right);
 void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **right);
-TreeList *TreeList_zip(TreeList *list1, TreeList *list2);
-TreeList *TreeList_unzipLeft(TreeList *list);
-TreeList *TreeList_unzipRight(TreeList *list);
 
 TreeList *TreeList_clear(TreeList *list);
 TreeList *TreeList_replicate(TreeList *list, unsigned n);
@@ -45,6 +42,9 @@ TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length);
 TreeList *TreeList_rotate(TreeList *list, int i);
 TreeList *TreeList_compact(TreeList *list);
 TreeList *TreeList_shuffle(TreeList *list);
+TreeList *TreeList_zip(TreeList *list1, TreeList *list2);
+TreeList *TreeList_unzipLeft(TreeList *list);
+TreeList *TreeList_unzipRight(TreeList *list);
 
 TreeList *TreeList_repeat(void *data, unsigned n);
 TreeList *TreeList_insert(TreeList *list, unsigned i, void *data);
