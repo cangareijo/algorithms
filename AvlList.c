@@ -310,13 +310,13 @@ AvlList *AvlList_zip(AvlList *list1, AvlList *list2) {
   unsigned n = unsigned_min(AvlList_size(list1), AvlList_size(list2));
   void **array1 = AvlList_toArray(list1);
   void **array2 = AvlList_toArray(list2);
-  void ***array3 = malloc(sizeof(void**) * n);
+  void ***array3 = malloc(sizeof(void **) * n);
   for (unsigned i = 0; i < n; i++) {
-      array3[i] = malloc(sizeof(void*) * 2);
+      array3[i] = malloc(sizeof(void *) * 2);
       array3[i][0] = array1[i];
       array3[i][1] = array2[i];
   }
-  AvlList *list3 = AvlList_fromArray(array3, n);
+  AvlList *list3 = AvlList_fromArray((void **)array3, n);
   free(array1);
   free(array2);
   free(array3);
@@ -457,10 +457,10 @@ static void AvlList_indicesArray(
 }
 
 AvlList *AvlList_indices(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
-  void **array = malloc(sizeof(void *) * AvlList_size(list));
+  unsigned **array = malloc(sizeof(unsigned *) * AvlList_size(list));
   unsigned count = 0;
   AvlList_indicesArray(list, target, compare, 0, array, &count);
-  AvlList *indices = AvlList_fromArray(array, count);
+  AvlList *indices = AvlList_fromArray((void **)array, count);
   free(array);
   return indices;
 }
