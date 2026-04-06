@@ -27,8 +27,8 @@ static unsigned unsigned_max(unsigned m, unsigned n) { return m >= n ? m : n; }
 static void Array_swap(void **x, void **y) {
   void *u = *x;
   void *v = *y;
-  *x = *u;
-  *y = *v;
+  *x = u;
+  *y = v;
 }
 
 static void Array_shuffle(void **array, unsigned n) { for (unsigned i = 1; i < n; i++) Array_swap(array + i, array + rand() % (i + 1)); }
@@ -76,6 +76,7 @@ static AvlList *AvlList_rotateLeft(AvlList *list) {
 }
 
 static AvlList *AvlList_rebalance(AvlList *list) {
+  AvlList_update(list);
   if (AvlList_balance(list) > 1) {
     if (AvlList_balance(list->left) < 0) list->left = AvlList_rotateLeft(list->left);
     return AvlList_rotateRight(list);
@@ -152,12 +153,12 @@ AvlList *AvlList_single(void *data) {
   return list;
 }
 
-AvlList *fromArray(void **array, unsigned n) {
+AvlList *AvlList_fromArray(void **array, unsigned n) {
   if (n == 0) return NULL;
   AvlList *list = malloc(sizeof(AvlList));
   list->data = array[n / 2];
-  list->left = fromArray(array, n / 2);
-  list->right = fromArray(array + n / 2 + 1, n - n / 2 - 1);
+  list->left = AvlList_fromArray(array, n / 2);
+  list->right = AvlList_fromArray(array + n / 2 + 1, n - n / 2 - 1);
   AvlList_update(list);
   return list;
 }
@@ -221,11 +222,9 @@ AvlList *AvlList_concat(AvlList *left, AvlList *right) {
   if (!right) return left;
   if (AvlList_height(left) > AvlList_height(right)) {
     left->right = AvlList_concat(left->right, right);
-    AvlList_update(left);
     return AvlList_rebalance(left);
   } else {
     right->left = AvlList_concat(left, right->left);
-    AvlList_update(right);
     return AvlList_rebalance(right);
   }
 }
@@ -235,12 +234,10 @@ void AvlList_split(AvlList *list, unsigned i, AvlList **left, AvlList **right) {
   if (i <= AvlList_size(list->left)) {
     AvlList_split(list->left, i, left, right);
     list->left = *right;
-    AvlList_update(list);
     *right = AvlList_rebalance(list);
   } else {
     AvlList_split(list->right, i - AvlList_size(list->left) - 1, left, right);
     list->right = *left;
-    AvlList_update(list);
     *left = AvlList_rebalance(list);
   }
 }
