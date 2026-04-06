@@ -315,9 +315,9 @@ AvlList *AvlList_zip(AvlList *list1, AvlList *list2) {
   void **array2 = AvlList_toArray(list2);
   void ***array3 = malloc(sizeof(void**) * n);
   for (unsigned i = 0; i < n; i++) {
-      array3[i] = malloc(sizeof(void*) * 2); 
-      array3[i][0] = array1[i]; 
-      array3[i][1] = array2[i]; 
+      array3[i] = malloc(sizeof(void*) * 2);
+      array3[i][0] = array1[i];
+      array3[i][1] = array2[i];
   }
   AvlList *list3 = AvlList_fromArray(array3, n);
   free(array1);
@@ -405,15 +405,12 @@ int AvlList_indexOf(AvlList *list, void *target, int (*compare)(const void *, co
 }
 
 int AvlList_lastIndexOf(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
-  AvlListIterator iterator = AvlList_reverseBegin(list);
-  int index = (int)list->size - 1;
-  while (AvlListIterator_hasNext(&iterator)) {
-    void *data = AvlListIterator_get(&iterator);
-    AvlListIterator_reverseNext(&iterator);
-    if (compare(data, target) == 0) return index;
-    index--;
-  }
-  return -1;
+  if (!list) return -1;
+  unsigned left_size = list->left ? list->left->size : 0;
+  int i = AvlList_lastIndexOf(list->right, target, compare);
+  if (i != -1) return AvlList_size(list->left) + 1 + i;
+  if (compare(list->data, target) == 0) return AvlList_size(list->left);
+  return AvlList_lastIndexOf(list->left, target, compare);
 }
 
 void AvlList_replace(AvlList *list, int (*compare)(const void *, const void *), void *target, void *replacement) {
@@ -424,15 +421,15 @@ void AvlList_replace(AvlList *list, int (*compare)(const void *, const void *), 
 }
 
 bool AvlList_isSorted(AvlList *list, int (*compare)(const void *, const void *)) {
-  if (!list || list->size <= 1) return true;
+  if (AvlList_size(list) <= 1) return true;
   AvlListIterator iterator = AvlList_begin(list);
-  void *prev = AvlListIterator_get(&iterator);
+  void *previous = AvlListIterator_get(&iterator);
   AvlListIterator_next(&iterator);
   while (AvlListIterator_hasNext(&iterator)) {
-    void *curr = AvlListIterator_get(&iterator);
+    void *current = AvlListIterator_get(&iterator);
     AvlListIterator_next(&iterator);
-    if (compare(prev, curr) > 0) return false;
-    prev = curr;
+    if (compare(previous, current) > 0) return false;
+    previous = current;
   }
   return true;
 }
