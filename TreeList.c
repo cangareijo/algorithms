@@ -1,20 +1,20 @@
 #include <stdlib.h>
-#include "TreeList.h"
+#include "AvlList.h"
 
 
 
 static unsigned unsigned_min(unsigned m, unsigned n);
 static unsigned unsigned_max(unsigned m, unsigned n);
 
-static unsigned TreeList_height(TreeList *list);
-static int TreeList_balance(TreeList *list);
-static bool TreeList_isValidHeight(TreeList *list);
-static bool TreeList_isValidBalance(TreeList *list);
-static bool TreeList_isValidSize(TreeList *list);
-static void TreeList_update(TreeList *list);
-static TreeList *TreeList_rotateRight(TreeList *list);
-static TreeList *TreeList_rotateLeft(TreeList *list);
-static TreeList *TreeList_rebalance(TreeList *list);
+static unsigned AvlList_height(AvlList *list);
+static int AvlList_balance(AvlList *list);
+static bool AvlList_isValidHeight(AvlList *list);
+static bool AvlList_isValidBalance(AvlList *list);
+static bool AvlList_isValidSize(AvlList *list);
+static void AvlList_update(AvlList *list);
+static AvlList *AvlList_rotateRight(AvlList *list);
+static AvlList *AvlList_rotateLeft(AvlList *list);
+static AvlList *AvlList_rebalance(AvlList *list);
 
 
 
@@ -33,64 +33,64 @@ static void Array_swap(void **x, void **y) {
 
 static void Array_shuffle(void **array, unsigned n) { for (unsigned i = 1; i < n; i++) Array_swap(array + i, array + rand() % (i + 1)); }
 
-static unsigned TreeList_height(TreeList *list) { return list ? list->height : 0; }
+static unsigned AvlList_height(AvlList *list) { return list ? list->height : 0; }
 
-static int TreeList_balance(TreeList *list) { return list ? (int)TreeList_height(list->left) - (int)TreeList_height(list->right) : 0; }
+static int AvlList_balance(AvlList *list) { return list ? (int)AvlList_height(list->left) - (int)AvlList_height(list->right) : 0; }
 
-static bool TreeList_isValidHeight(TreeList *list) {
-  return !list || list->height == 1 + unsigned_max(TreeList_height(list->left), TreeList_height(list->right)) &&
-    TreeList_isValidHeight(list->left) && TreeList_isValidHeight(list->right);
+static bool AvlList_isValidHeight(AvlList *list) {
+  return !list || list->height == 1 + unsigned_max(AvlList_height(list->left), AvlList_height(list->right)) &&
+    AvlList_isValidHeight(list->left) && AvlList_isValidHeight(list->right);
 }
 
-static bool TreeList_isValidBalance(TreeList *list) {
-  return !list || -1 <= TreeList_balance(list) && TreeList_balance(list) <= 1 &&
-    TreeList_isValidBalance(list->left) && TreeList_isValidBalance(list->right);
+static bool AvlList_isValidBalance(AvlList *list) {
+  return !list || -1 <= AvlList_balance(list) && AvlList_balance(list) <= 1 &&
+    AvlList_isValidBalance(list->left) && AvlList_isValidBalance(list->right);
 }
 
-static bool TreeList_isValidSize(TreeList *list) {
-  return !list || list->size == 1 + TreeList_size(list->left) + TreeList_size(list->right) &&
-    TreeList_isValidSize(list->left) && TreeList_isValidSize(list->right);
+static bool AvlList_isValidSize(AvlList *list) {
+  return !list || list->size == 1 + AvlList_size(list->left) + AvlList_size(list->right) &&
+    AvlList_isValidSize(list->left) && AvlList_isValidSize(list->right);
 }
 
-static void TreeList_update(TreeList *list) {
-  list->height = 1 + unsigned_max(TreeList_height(list->left), TreeList_height(list->right));
-  list->size = 1 + TreeList_size(list->left) + TreeList_size(list->right);
+static void AvlList_update(AvlList *list) {
+  list->height = 1 + unsigned_max(AvlList_height(list->left), AvlList_height(list->right));
+  list->size = 1 + AvlList_size(list->left) + AvlList_size(list->right);
 }
 
-static TreeList *TreeList_rotateRight(TreeList *list) {
-  TreeList *left = list->left;
+static AvlList *AvlList_rotateRight(AvlList *list) {
+  AvlList *left = list->left;
   list->left = left->right;
   left->right = list;
-  TreeList_update(list);
-  TreeList_update(left);
+  AvlList_update(list);
+  AvlList_update(left);
   return left;
 }
 
-static TreeList *TreeList_rotateLeft(TreeList *list) {
-  TreeList *right = list->right;
+static AvlList *AvlList_rotateLeft(AvlList *list) {
+  AvlList *right = list->right;
   list->right = right->left;
   right->left = list;
-  TreeList_update(list);
-  TreeList_update(right);
+  AvlList_update(list);
+  AvlList_update(right);
   return right;
 }
 
-static TreeList *TreeList_rebalance(TreeList *list) {
-  if (TreeList_balance(list) > 1) {
-    if (TreeList_balance(list->left) < 0) list->left = TreeList_rotateLeft(list->left);
-    return TreeList_rotateRight(list);
+static AvlList *AvlList_rebalance(AvlList *list) {
+  if (AvlList_balance(list) > 1) {
+    if (AvlList_balance(list->left) < 0) list->left = AvlList_rotateLeft(list->left);
+    return AvlList_rotateRight(list);
   }
-  if (TreeList_balance(list) < -1) {
-    if (TreeList_balance(list->right) > 0) list->right = TreeList_rotateRight(list->right);
-    return TreeList_rotateLeft(list);
+  if (AvlList_balance(list) < -1) {
+    if (AvlList_balance(list->right) > 0) list->right = AvlList_rotateRight(list->right);
+    return AvlList_rotateLeft(list);
   }
   return list;
 }
 
 
 
-TreeListIterator TreeList_begin(TreeList *list) {
-  TreeListIterator iterator;
+AvlListIterator AvlList_begin(AvlList *list) {
+  AvlListIterator iterator;
   iterator.top = -1;
   while (list) {
     iterator.stack[++iterator.top] = list;
@@ -99,8 +99,8 @@ TreeListIterator TreeList_begin(TreeList *list) {
   return iterator;
 }
 
-TreeListIterator TreeList_reverseBegin(TreeList *list) {
-  TreeListIterator iterator;
+AvlListIterator AvlList_reverseBegin(AvlList *list) {
+  AvlListIterator iterator;
   iterator.top = -1;
   while (list) {
     iterator.stack[++iterator.top] = list;
@@ -109,25 +109,25 @@ TreeListIterator TreeList_reverseBegin(TreeList *list) {
   return iterator;
 }
 
-int TreeListIterator_hasNext(TreeListIterator *iterator) { return iterator->top >= 0; }
+int AvlListIterator_hasNext(AvlListIterator *iterator) { return iterator->top >= 0; }
 
-void *TreeListIterator_get(TreeListIterator *iterator) {
+void *AvlListIterator_get(AvlListIterator *iterator) {
   if (iterator->top < 0) return NULL;
   return iterator->stack[iterator->top]->data;
 }
 
-void TreeListIterator_next(TreeListIterator *iterator) {
+void AvlListIterator_next(AvlListIterator *iterator) {
   if (iterator->top < 0) return;
-  TreeList *list = iterator->stack[iterator->top--]->right;
+  AvlList *list = iterator->stack[iterator->top--]->right;
   while (list) {
     iterator->stack[++iterator->top] = list;
     list = list->left;
   }
 }
 
-void TreeListIterator_reverseNext(TreeListIterator *iterator) {
+void AvlListIterator_reverseNext(AvlListIterator *iterator) {
   if (iterator->top < 0) return;
-  TreeList *list = iterator->stack[iterator->top--]->left;
+  AvlList *list = iterator->stack[iterator->top--]->left;
   while (list) {
     iterator->stack[++iterator->top] = list;
     list = list->right;
@@ -136,215 +136,215 @@ void TreeListIterator_reverseNext(TreeListIterator *iterator) {
 
 
 
-bool TreeList_isValid(TreeList *list) { return TreeList_isValidHeight(list) && TreeList_isValidBalance(list) && TreeList_isValidSize(list); }
+bool AvlList_isValid(AvlList *list) { return AvlList_isValidHeight(list) && AvlList_isValidBalance(list) && AvlList_isValidSize(list); }
 
-bool TreeList_isEmpty(TreeList *list) { return !list; }
+bool AvlList_isEmpty(AvlList *list) { return !list; }
 
-unsigned TreeList_size(TreeList *list) { return list ? list->size : 0; }
+unsigned AvlList_size(AvlList *list) { return list ? list->size : 0; }
 
-TreeList *TreeList_empty() { return NULL; }
+AvlList *AvlList_empty() { return NULL; }
 
-TreeList *TreeList_single(void *data) {
-  TreeList *list = malloc(sizeof(TreeList));
+AvlList *AvlList_single(void *data) {
+  AvlList *list = malloc(sizeof(AvlList));
   list->data = data;
   list->left = list->right = NULL;
   list->height = list->size = 1;
   return list;
 }
 
-TreeList *fromArray(void **array, unsigned n) {
+AvlList *fromArray(void **array, unsigned n) {
   if (n == 0) return NULL;
-  TreeList *list = malloc(sizeof(TreeList));
+  AvlList *list = malloc(sizeof(AvlList));
   list->data = array[n / 2];
   list->left = fromArray(array, n / 2);
   list->right = fromArray(array + n / 2 + 1, n - n / 2 - 1);
-  TreeList_update(list);
+  AvlList_update(list);
   return list;
 }
 
-void **TreeList_toArray(TreeList *list) {
+void **AvlList_toArray(AvlList *list) {
   if (!list) return NULL;
   void **array = malloc(sizeof(void *) * list->size);
-  TreeListIterator iterator = TreeList_begin(list);
+  AvlListIterator iterator = AvlList_begin(list);
   unsigned i = 0;
-  while (TreeListIterator_hasNext(&iterator)) {
-    array[i++] = TreeListIterator_get(&iterator);
-    TreeListIterator_next(&iterator);
+  while (AvlListIterator_hasNext(&iterator)) {
+    array[i++] = AvlListIterator_get(&iterator);
+    AvlListIterator_next(&iterator);
   }
   return array;
 }
 
-TreeList *TreeList_copy(TreeList *list) {
+AvlList *AvlList_copy(AvlList *list) {
   if (!list) return NULL;
-  TreeList *copy = malloc(sizeof(TreeList));
+  AvlList *copy = malloc(sizeof(AvlList));
   copy->data = list->data;
   copy->height = list->height;
   copy->size = list->size;
-  copy->left = TreeList_copy(list->left);
-  copy->right = TreeList_copy(list->right);
+  copy->left = AvlList_copy(list->left);
+  copy->right = AvlList_copy(list->right);
   return copy;
 }
 
-void TreeList_free(TreeList *list) {
+void AvlList_free(AvlList *list) {
   if (!list) return;
-  TreeList_free(list->left);
-  TreeList_free(list->right);
+  AvlList_free(list->left);
+  AvlList_free(list->right);
   free(list);
 }
 
-void TreeList_reverse(TreeList *list) {
+void AvlList_reverse(AvlList *list) {
   if (!list) return;
-  TreeList_reverse(list->left);
-  TreeList_reverse(list->right);
-  TreeList *left = list->left;
-  TreeList *right = list->right;
+  AvlList_reverse(list->left);
+  AvlList_reverse(list->right);
+  AvlList *left = list->left;
+  AvlList *right = list->right;
   list->left = right;
   list->right = left;
 }
 
-void *TreeList_get(TreeList *list, unsigned i) {
+void *AvlList_get(AvlList *list, unsigned i) {
   if (!list) return NULL;
-  if (i < TreeList_size(list->left)) return TreeList_get(list->left, i);
-  if (i > TreeList_size(list->left)) return TreeList_get(list->right, i - TreeList_size(list->left) - 1);
+  if (i < AvlList_size(list->left)) return AvlList_get(list->left, i);
+  if (i > AvlList_size(list->left)) return AvlList_get(list->right, i - AvlList_size(list->left) - 1);
   return list->data;
 }
 
-void TreeList_set(TreeList *list, unsigned i, void *data) {
+void AvlList_set(AvlList *list, unsigned i, void *data) {
   if (!list) return;
-  if (i < TreeList_size(list->left)) TreeList_set(list->left, i, data);
-  else if (i > TreeList_size(list->left)) TreeList_set(list->right, i - TreeList_size(list->left) - 1, data);
+  if (i < AvlList_size(list->left)) AvlList_set(list->left, i, data);
+  else if (i > AvlList_size(list->left)) AvlList_set(list->right, i - AvlList_size(list->left) - 1, data);
   else list->data = data;
 }
 
-TreeList *TreeList_concat(TreeList *left, TreeList *right) {
+AvlList *AvlList_concat(AvlList *left, AvlList *right) {
   if (!left) return right;
   if (!right) return left;
-  if (TreeList_height(left) > TreeList_height(right)) {
-    left->right = TreeList_concat(left->right, right);
-    TreeList_update(left);
-    return TreeList_rebalance(left);
+  if (AvlList_height(left) > AvlList_height(right)) {
+    left->right = AvlList_concat(left->right, right);
+    AvlList_update(left);
+    return AvlList_rebalance(left);
   } else {
-    right->left = TreeList_concat(left, right->left);
-    TreeList_update(right);
-    return TreeList_rebalance(right);
+    right->left = AvlList_concat(left, right->left);
+    AvlList_update(right);
+    return AvlList_rebalance(right);
   }
 }
 
-void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **right) {
+void AvlList_split(AvlList *list, unsigned i, AvlList **left, AvlList **right) {
   if (!list) *left = *right = NULL;
-  if (i <= TreeList_size(list->left)) {
-    TreeList_split(list->left, i, left, right);
+  if (i <= AvlList_size(list->left)) {
+    AvlList_split(list->left, i, left, right);
     list->left = *right;
-    TreeList_update(list);
-    *right = TreeList_rebalance(list);
+    AvlList_update(list);
+    *right = AvlList_rebalance(list);
   } else {
-    TreeList_split(list->right, i - TreeList_size(list->left) - 1, left, right);
+    AvlList_split(list->right, i - AvlList_size(list->left) - 1, left, right);
     list->right = *left;
-    TreeList_update(list);
-    *left = TreeList_rebalance(list);
+    AvlList_update(list);
+    *left = AvlList_rebalance(list);
   }
 }
 
 
 
-TreeList *TreeList_clear(TreeList *list) {
-  TreeList_free(list);
-  return TreeList_empty();
+AvlList *AvlList_clear(AvlList *list) {
+  AvlList_free(list);
+  return AvlList_empty();
 }
 
-TreeList *TreeList_replicate(TreeList *list, unsigned n) {
-  if (n == 0) return TreeList_empty();
-  TreeList *half = TreeList_replicate(list, n / 2);
-  TreeList *combined = TreeList_concat(half, TreeList_copy(half));
-  if (n % 2 == 1) combined = TreeList_concat(combined, TreeList_copy(list));
+AvlList *AvlList_replicate(AvlList *list, unsigned n) {
+  if (n == 0) return AvlList_empty();
+  AvlList *half = AvlList_replicate(list, n / 2);
+  AvlList *combined = AvlList_concat(half, AvlList_copy(half));
+  if (n % 2 == 1) combined = AvlList_concat(combined, AvlList_copy(list));
   return combined;
 }
 
-TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other) {
-  TreeList *left, *right;
-  TreeList_split(list, i, &left, &right);
-  left = TreeList_concat(left, other);
-  return TreeList_concat(left, right);
+AvlList *AvlList_insertList(AvlList *list, unsigned i, AvlList *other) {
+  AvlList *left, *right;
+  AvlList_split(list, i, &left, &right);
+  left = AvlList_concat(left, other);
+  return AvlList_concat(left, right);
 }
 
-TreeList *TreeList_removeRange(TreeList *list, unsigned i, unsigned length) {
-  TreeList *left, *middle, *right;
-  TreeList_split(list, i, &left, &right);
-  TreeList_split(right, length, &middle, &right);
-  TreeList_free(middle);
-  return TreeList_concat(left, right);
+AvlList *AvlList_removeRange(AvlList *list, unsigned i, unsigned length) {
+  AvlList *left, *middle, *right;
+  AvlList_split(list, i, &left, &right);
+  AvlList_split(right, length, &middle, &right);
+  AvlList_free(middle);
+  return AvlList_concat(left, right);
 }
 
-TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length) {
-  TreeList *left, *middle, *right;
-  TreeList_split(list, i, &left, &right);
-  TreeList_split(right, length, &middle, &right);
-  TreeList_free(left);
-  TreeList_free(right);
+AvlList *AvlList_slice(AvlList *list, unsigned i, unsigned length) {
+  AvlList *left, *middle, *right;
+  AvlList_split(list, i, &left, &right);
+  AvlList_split(right, length, &middle, &right);
+  AvlList_free(left);
+  AvlList_free(right);
   return middle;
 }
 
-TreeList *TreeList_rotate(TreeList *list, int i) {
-  unsigned n = TreeList_size(list);
+AvlList *AvlList_rotate(AvlList *list, int i) {
+  unsigned n = AvlList_size(list);
   if (n == 0) return list;
-  TreeList *left, *right;
-  TreeList_split(list, ((i % n) + n) % n, &left, &right);
-  return TreeList_concat(right, left);
+  AvlList *left, *right;
+  AvlList_split(list, ((i % n) + n) % n, &left, &right);
+  return AvlList_concat(right, left);
 }
 
-TreeList *TreeList_compact(TreeList *list) {
-  unsigned n = TreeList_size(list);
-  void **array = TreeList_toArray(list);
-  TreeList *compact = TreeList_fromArray(array, n);
+AvlList *AvlList_compact(AvlList *list) {
+  unsigned n = AvlList_size(list);
+  void **array = AvlList_toArray(list);
+  AvlList *compact = AvlList_fromArray(array, n);
   free(array);
   return compact;
 }
 
-TreeList *TreeList_shuffle(TreeList *list) {
-  unsigned n = TreeList_size(list);
-  void **array = TreeList_toArray(list);
+AvlList *AvlList_shuffle(AvlList *list) {
+  unsigned n = AvlList_size(list);
+  void **array = AvlList_toArray(list);
   Array_shuffle(array, n);
-  TreeList *shuffle = TreeList_fromArray(array, n);
+  AvlList *shuffle = AvlList_fromArray(array, n);
   free(array);
   return shuffle;
 }
 
-TreeList *TreeList_zip(TreeList *list1, TreeList *list2) {
-  unsigned n = unsigned_min(TreeList_size(list1), TreeList_size(list2));
-  void **array1 = TreeList_toArray(list1);
-  void **array2 = TreeList_toArray(list2);
+AvlList *AvlList_zip(AvlList *list1, AvlList *list2) {
+  unsigned n = unsigned_min(AvlList_size(list1), AvlList_size(list2));
+  void **array1 = AvlList_toArray(list1);
+  void **array2 = AvlList_toArray(list2);
   void ***array3 = malloc(sizeof(void**) * n);
   for (unsigned i = 0; i < n; i++) {
       array3[i] = malloc(sizeof(void*) * 2); 
       array3[i][0] = array1[i]; 
       array3[i][1] = array2[i]; 
   }
-  TreeList *list3 = TreeList_fromArray(array3, n);
+  AvlList *list3 = AvlList_fromArray(array3, n);
   free(array1);
   free(array2);
   free(array3);
   return list3;
 }
 
-TreeList *TreeList_unzipLeft(TreeList *list) {
+AvlList *AvlList_unzipLeft(AvlList *list) {
   if (!list) return NULL;
   void **pair = list->data;
-  TreeList *unzip = malloc(sizeof(TreeList));
+  AvlList *unzip = malloc(sizeof(AvlList));
   unzip->data = pair[0];
-  unzip->left = TreeList_unzipLeft(list->left);
-  unzip->right = TreeList_unzipLeft(list->right);
+  unzip->left = AvlList_unzipLeft(list->left);
+  unzip->right = AvlList_unzipLeft(list->right);
   unzip->height = list->height;
   unzip->size = list->size;
   return unzip;
 }
 
-TreeList *TreeList_unzipRight(TreeList *list) {
+AvlList *AvlList_unzipRight(AvlList *list) {
   if (!list) return NULL;
   void **pair = list->data;
-  TreeList *unzip = malloc(sizeof(TreeList));
+  AvlList *unzip = malloc(sizeof(AvlList));
   unzip->data = pair[1];
-  unzip->left = TreeList_unzipRight(list->left);
-  unzip->right = TreeList_unzipRight(list->right);
+  unzip->left = AvlList_unzipRight(list->left);
+  unzip->right = AvlList_unzipRight(list->right);
   unzip->height = list->height;
   unzip->size = list->size;
   return unzip;
@@ -352,106 +352,106 @@ TreeList *TreeList_unzipRight(TreeList *list) {
 
 
 
-TreeList *TreeList_repeat(void *data, unsigned n) {
-  TreeList *single = TreeList_single(data);
-  TreeList *replicate = TreeList_replicate(single, n);
-  TreeList_free(single);
+AvlList *AvlList_repeat(void *data, unsigned n) {
+  AvlList *single = AvlList_single(data);
+  AvlList *replicate = AvlList_replicate(single, n);
+  AvlList_free(single);
   return replicate;
 }
 
-TreeList *TreeList_insert(TreeList *list, unsigned i, void *data) { return TreeList_insertList(list, i, TreeList_single(data)); }
+AvlList *AvlList_insert(AvlList *list, unsigned i, void *data) { return AvlList_insertList(list, i, AvlList_single(data)); }
 
-TreeList *TreeList_remove(TreeList *list, unsigned i) { return TreeList_removeRange(list, i, 1); }
+AvlList *AvlList_remove(AvlList *list, unsigned i) { return AvlList_removeRange(list, i, 1); }
 
-TreeList *TreeList_push(TreeList *list, void *data) { return TreeList_concat(list, TreeList_single(data)); }
+AvlList *AvlList_push(AvlList *list, void *data) { return AvlList_concat(list, AvlList_single(data)); }
 
-void *TreeList_peek(TreeList *list) { return TreeList_get(list, TreeList_size(list) - 1); }
+void *AvlList_peek(AvlList *list) { return AvlList_get(list, AvlList_size(list) - 1); }
 
-TreeList *TreeList_pop(TreeList *list) { return TreeList_removeRange(list, TreeList_size(list) - 1, 1); }
+AvlList *AvlList_pop(AvlList *list) { return AvlList_removeRange(list, AvlList_size(list) - 1, 1); }
 
-TreeList *TreeList_pushLeft(TreeList *list, void *data) { return TreeList_concat(TreeList_single(data), list); }
+AvlList *AvlList_pushLeft(AvlList *list, void *data) { return AvlList_concat(AvlList_single(data), list); }
 
-void *TreeList_peekLeft(TreeList *list) { return TreeList_get(list, 0); }
+void *AvlList_peekLeft(AvlList *list) { return AvlList_get(list, 0); }
 
-TreeList *TreeList_popLeft(TreeList *list) { return TreeList_removeRange(list, 0, 1); }
+AvlList *AvlList_popLeft(AvlList *list) { return AvlList_removeRange(list, 0, 1); }
 
 
 
-double TreeList_sum(TreeList *list) {
+double AvlList_sum(AvlList *list) {
   if (!list) return 0;
-  return *(double *)(list->data) + TreeList_sum(list->left) + TreeList_sum(list->right);
+  return *(double *)(list->data) + AvlList_sum(list->left) + AvlList_sum(list->right);
 }
 
-double TreeList_product(TreeList *list) {
+double AvlList_product(AvlList *list) {
   if (!list) return 1;
-  return *(double *)(list->data) * TreeList_product(list->left) * TreeList_product(list->right);
+  return *(double *)(list->data) * AvlList_product(list->left) * AvlList_product(list->right);
 }
 
-double TreeList_average(TreeList *list) {
-  if (TreeList_isEmpty(list)) return 0;
-  return TreeList_sum(list) / TreeList_size(list);
+double AvlList_average(AvlList *list) {
+  if (AvlList_isEmpty(list)) return 0;
+  return AvlList_sum(list) / AvlList_size(list);
 }
 
 
 
-int TreeList_indexOf(TreeList *list, void *target, int (*compare)(const void *, const void *)) {
-  TreeListIterator iterator = TreeList_begin(list);
+int AvlList_indexOf(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
+  AvlListIterator iterator = AvlList_begin(list);
   int index = 0;
-  while (TreeListIterator_hasNext(&iterator)) {
-    void *current = TreeListIterator_get(&iterator);
-    TreeListIterator_next(&iterator);
+  while (AvlListIterator_hasNext(&iterator)) {
+    void *current = AvlListIterator_get(&iterator);
+    AvlListIterator_next(&iterator);
     if (compare(current, target) == 0) return index;
     index++;
   }
   return -1;
 }
 
-int TreeList_lastIndexOf(TreeList *list, void *target, int (*compare)(const void *, const void *)) {
-  TreeListIterator iterator = TreeList_reverseBegin(list);
+int AvlList_lastIndexOf(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
+  AvlListIterator iterator = AvlList_reverseBegin(list);
   int index = (int)list->size - 1;
-  while (TreeListIterator_hasNext(&iterator)) {
-    void *data = TreeListIterator_get(&iterator);
-    TreeListIterator_reverseNext(&iterator);
+  while (AvlListIterator_hasNext(&iterator)) {
+    void *data = AvlListIterator_get(&iterator);
+    AvlListIterator_reverseNext(&iterator);
     if (compare(data, target) == 0) return index;
     index--;
   }
   return -1;
 }
 
-void TreeList_replace(TreeList *list, int (*compare)(const void *, const void *), void *target, void *replacement) {
+void AvlList_replace(AvlList *list, int (*compare)(const void *, const void *), void *target, void *replacement) {
   if (!list) return;
   if (compare(list->data, target) == 0) list->data = replacement;
-  TreeList_replace(list->left, compare, target, replacement);
-  TreeList_replace(list->right, compare, target, replacement);
+  AvlList_replace(list->left, compare, target, replacement);
+  AvlList_replace(list->right, compare, target, replacement);
 }
 
-bool TreeList_isSorted(TreeList *list, int (*compare)(const void *, const void *)) {
+bool AvlList_isSorted(AvlList *list, int (*compare)(const void *, const void *)) {
   if (!list || list->size <= 1) return true;
-  TreeListIterator iterator = TreeList_begin(list);
-  void *prev = TreeListIterator_get(&iterator);
-  TreeListIterator_next(&iterator);
-  while (TreeListIterator_hasNext(&iterator)) {
-    void *curr = TreeListIterator_get(&iterator);
-    TreeListIterator_next(&iterator);
+  AvlListIterator iterator = AvlList_begin(list);
+  void *prev = AvlListIterator_get(&iterator);
+  AvlListIterator_next(&iterator);
+  while (AvlListIterator_hasNext(&iterator)) {
+    void *curr = AvlListIterator_get(&iterator);
+    AvlListIterator_next(&iterator);
     if (compare(prev, curr) > 0) return false;
     prev = curr;
   }
   return true;
 }
 
-TreeList *TreeList_sort(TreeList *list, int (*compare)(const void *, const void *)) {
-  if (!list || list->size <= 1) return TreeList_copy(list);
-  unsigned n = TreeList_size(list);
-  void **array = TreeList_toArray(list);
+AvlList *AvlList_sort(AvlList *list, int (*compare)(const void *, const void *)) {
+  if (!list || list->size <= 1) return AvlList_copy(list);
+  unsigned n = AvlList_size(list);
+  void **array = AvlList_toArray(list);
   if (!array) return NULL;
   qsort(array, n, sizeof(void *), compare);
-  TreeList *sortedTree = TreeList_fromArray(array, n);
+  AvlList *sortedTree = AvlList_fromArray(array, n);
   free(array);
   return sortedTree;
 }
 
 static void collectToVoidPtrArray(
-  TreeList *node,
+  AvlList *node,
   void *target,
   int (*compare)(const void *, const void *),
   unsigned offset,
@@ -460,58 +460,58 @@ static void collectToVoidPtrArray(
 {
   if (!node) return;
   collectToVoidPtrArray(node->left, target, compare, offset, buffer, count);
-  unsigned currentIdx = offset + TreeList_size(node->left);
+  unsigned currentIdx = offset + AvlList_size(node->left);
   if (compare(node->data, target) == 0) buffer[(*count)++] = currentIdx;
   collectToVoidPtrArray(node->right, target, compare, currentIdx + 1, buffer, count);
 }
 
-TreeList *TreeList_elemIndices(TreeList *list, void *target, int (*compare)(const void *, const void *)) {
-  unsigned n = TreeList_size(list);
+AvlList *AvlList_elemIndices(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
+  unsigned n = AvlList_size(list);
   if (n == 0) return NULL;
   void **results = malloc(sizeof(void *) * n);
   unsigned count = 0;
   collectToVoidPtrArray(list, target, compare, 0, results, &count);
-  TreeList *resultTree = TreeList_fromArray(results, count);
+  AvlList *resultTree = AvlList_fromArray(results, count);
   free(results);
   return resultTree;
 }
 
-void *TreeList_min(TreeList *list, int (*compare)(const void *, const void *)) {
+void *AvlList_min(AvlList *list, int (*compare)(const void *, const void *)) {
   if (!list) return NULL;
   void *minVal = list->data;
-  void *leftMin = TreeList_min(list->left, compare);
+  void *leftMin = AvlList_min(list->left, compare);
   if (leftMin && compare(leftMin, minVal) < 0) minVal = leftMin;
-  void *rightMin = TreeList_min(list->right, compare);
+  void *rightMin = AvlList_min(list->right, compare);
   if (rightMin && compare(rightMin, minVal) < 0) minVal = rightMin;
   return minVal;
 }
 
-void *TreeList_max(TreeList *list, int (*compare)(const void *, const void *)) {
+void *AvlList_max(AvlList *list, int (*compare)(const void *, const void *)) {
   if (!list) return NULL;
   void *maxVal = list->data;
-  void *leftMax = TreeList_max(list->left, compare);
+  void *leftMax = AvlList_max(list->left, compare);
   if (leftMax && compare(leftMax, maxVal) > 0) maxVal = leftMax;
-  void *rightMax = TreeList_max(list->right, compare);
+  void *rightMax = AvlList_max(list->right, compare);
   if (rightMax && compare(rightMax, maxVal) > 0) maxVal = rightMax;
   return maxVal;
 }
 
-TreeList *TreeList_unique(TreeList *list, int (*compare)(const void *, const void *)) {
-  if (TreeList_size(list) <= 1) return TreeList_copy(list);
-  TreeList *sorted = TreeList_sort(list, compare);
-  TreeList *unique = TreeList_empty();
-  TreeListIterator iterator = TreeList_begin(sorted);
-  void *previous = TreeListIterator_get(&iterator);
-  TreeListIterator_next(&iterator);
-  unique = TreeList_push(unique, previous);
-  while (TreeListIterator_hasNext(&iterator)) {
-    void *current = TreeListIterator_get(&iterator);
-    TreeListIterator_next(&iterator);
+AvlList *AvlList_unique(AvlList *list, int (*compare)(const void *, const void *)) {
+  if (AvlList_size(list) <= 1) return AvlList_copy(list);
+  AvlList *sorted = AvlList_sort(list, compare);
+  AvlList *unique = AvlList_empty();
+  AvlListIterator iterator = AvlList_begin(sorted);
+  void *previous = AvlListIterator_get(&iterator);
+  AvlListIterator_next(&iterator);
+  unique = AvlList_push(unique, previous);
+  while (AvlListIterator_hasNext(&iterator)) {
+    void *current = AvlListIterator_get(&iterator);
+    AvlListIterator_next(&iterator);
     if (compare(previous, current) != 0) {
-      unique = TreeList_push(unique, current);
+      unique = AvlList_push(unique, current);
       previous = current;
     }
   }
-  TreeList_free(sorted);
+  AvlList_free(sorted);
   return unique;
 }

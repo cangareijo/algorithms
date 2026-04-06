@@ -1,71 +1,71 @@
 #include <stdbool.h>
 
-typedef struct TreeList {
+typedef struct AvlList {
   void *data;
-  struct TreeList *left, *right;
+  struct AvlList *left, *right;
   unsigned height;
   unsigned size;
-} TreeList;
+} AvlList;
 
 typedef struct {
-  TreeList *stack[64];
+  AvlList *stack[64];
   int top;
-} TreeListIterator;
+} AvlListIterator;
 
-TreeListIterator TreeList_begin(TreeList *list);
-TreeListIterator TreeList_reverseBegin(TreeList *list);
-int TreeListIterator_hasNext(TreeListIterator *iterator);
-void *TreeListIterator_get(TreeListIterator *iterator);
-void TreeListIterator_next(TreeListIterator *iterator);
-void TreeListIterator_reverseNext(TreeListIterator *iterator);
+AvlListIterator AvlList_begin(AvlList *list);
+AvlListIterator AvlList_reverseBegin(AvlList *list);
+int AvlListIterator_hasNext(AvlListIterator *iterator);
+void *AvlListIterator_get(AvlListIterator *iterator);
+void AvlListIterator_next(AvlListIterator *iterator);
+void AvlListIterator_reverseNext(AvlListIterator *iterator);
 
-bool TreeList_isValid(TreeList *list);
-bool TreeList_isEmpty(TreeList *list);
-unsigned TreeList_size(TreeList *list);
-TreeList *TreeList_empty();
-TreeList *TreeList_single(void *data);
-TreeList *TreeList_fromArray(void **array, unsigned n);
-void **TreeList_toArray(TreeList *list);
-TreeList *TreeList_copy(TreeList *list);
-void TreeList_free(TreeList *list);
-void TreeList_reverse(TreeList *list);
-void *TreeList_get(TreeList *list, unsigned i);
-void TreeList_set(TreeList *list, unsigned i, void *data);
-TreeList *TreeList_concat(TreeList *left, TreeList *right);
-void TreeList_split(TreeList *list, unsigned i, TreeList **left, TreeList **right);
+bool AvlList_isValid(AvlList *list);
+bool AvlList_isEmpty(AvlList *list);
+unsigned AvlList_size(AvlList *list);
+AvlList *AvlList_empty();
+AvlList *AvlList_single(void *data);
+AvlList *AvlList_fromArray(void **array, unsigned n);
+void **AvlList_toArray(AvlList *list);
+AvlList *AvlList_copy(AvlList *list);
+void AvlList_free(AvlList *list);
+void AvlList_reverse(AvlList *list);
+void *AvlList_get(AvlList *list, unsigned i);
+void AvlList_set(AvlList *list, unsigned i, void *data);
+AvlList *AvlList_concat(AvlList *left, AvlList *right);
+void AvlList_split(AvlList *list, unsigned i, AvlList **left, AvlList **right);
 
-TreeList *TreeList_clear(TreeList *list);
-TreeList *TreeList_replicate(TreeList *list, unsigned n);
-TreeList *TreeList_insertList(TreeList *list, unsigned i, TreeList *other);
-TreeList *TreeList_removeRange(TreeList *list, unsigned i, unsigned length);
-TreeList *TreeList_slice(TreeList *list, unsigned i, unsigned length);
-TreeList *TreeList_rotate(TreeList *list, int i);
-TreeList *TreeList_compact(TreeList *list);
-TreeList *TreeList_shuffle(TreeList *list);
-TreeList *TreeList_zip(TreeList *list1, TreeList *list2);
-TreeList *TreeList_unzipLeft(TreeList *list);
-TreeList *TreeList_unzipRight(TreeList *list);
+AvlList *AvlList_clear(AvlList *list);
+AvlList *AvlList_replicate(AvlList *list, unsigned n);
+AvlList *AvlList_insertList(AvlList *list, unsigned i, AvlList *other);
+AvlList *AvlList_removeRange(AvlList *list, unsigned i, unsigned length);
+AvlList *AvlList_slice(AvlList *list, unsigned i, unsigned length);
+AvlList *AvlList_rotate(AvlList *list, int i);
+AvlList *AvlList_compact(AvlList *list);
+AvlList *AvlList_shuffle(AvlList *list);
+AvlList *AvlList_zip(AvlList *list1, AvlList *list2);
+AvlList *AvlList_unzipLeft(AvlList *list);
+AvlList *AvlList_unzipRight(AvlList *list);
 
-TreeList *TreeList_repeat(void *data, unsigned n);
-TreeList *TreeList_insert(TreeList *list, unsigned i, void *data);
-TreeList *TreeList_remove(TreeList *list, unsigned i);
-TreeList *TreeList_push(TreeList *list, void *data);
-void *TreeList_peek(TreeList *list);
-TreeList *TreeList_pop(TreeList *list);
-TreeList *TreeList_pushLeft(TreeList *list, void *data);
-void *TreeList_peekLeft(TreeList *list);
-TreeList *TreeList_popLeft(TreeList *list);
+AvlList *AvlList_repeat(void *data, unsigned n);
+AvlList *AvlList_insert(AvlList *list, unsigned i, void *data);
+AvlList *AvlList_remove(AvlList *list, unsigned i);
+AvlList *AvlList_push(AvlList *list, void *data);
+void *AvlList_peek(AvlList *list);
+AvlList *AvlList_pop(AvlList *list);
+AvlList *AvlList_pushLeft(AvlList *list, void *data);
+void *AvlList_peekLeft(AvlList *list);
+AvlList *AvlList_popLeft(AvlList *list);
 
-double TreeList_sum(TreeList *list);
-double TreeList_product(TreeList *list);
-double TreeList_average(TreeList *list);
+double AvlList_sum(AvlList *list);
+double AvlList_product(AvlList *list);
+double AvlList_average(AvlList *list);
 
-int TreeList_indexOf(TreeList *list, void *target, int (*compare)(const void *, const void *));
-int TreeList_lastIndexOf(TreeList *list, void *target, int (*compare)(const void *, const void *));
-void TreeList_replace(TreeList *list, int (*compare)(const void *, const void *), void *target, void *replacement);
-bool TreeList_isSorted(TreeList *list, int (*compare)(const void *, const void *));
-TreeList *TreeList_sort(TreeList *list, int (*compare)(const void *, const void *));
-TreeList *TreeList_elemIndices(TreeList *list, void *target, int (*compare)(const void *, const void *));
-void *TreeList_min(TreeList *list, int (*compare)(const void *, const void *));
-void *TreeList_max(TreeList *list, int (*compare)(const void *, const void *));
-TreeList *TreeList_unique(TreeList *list, int (*compare)(const void *, const void *));
+int AvlList_indexOf(AvlList *list, void *target, int (*compare)(const void *, const void *));
+int AvlList_lastIndexOf(AvlList *list, void *target, int (*compare)(const void *, const void *));
+void AvlList_replace(AvlList *list, int (*compare)(const void *, const void *), void *target, void *replacement);
+bool AvlList_isSorted(AvlList *list, int (*compare)(const void *, const void *));
+AvlList *AvlList_sort(AvlList *list, int (*compare)(const void *, const void *));
+AvlList *AvlList_elemIndices(AvlList *list, void *target, int (*compare)(const void *, const void *));
+void *AvlList_min(AvlList *list, int (*compare)(const void *, const void *));
+void *AvlList_max(AvlList *list, int (*compare)(const void *, const void *));
+AvlList *AvlList_unique(AvlList *list, int (*compare)(const void *, const void *));
