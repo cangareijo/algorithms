@@ -395,14 +395,12 @@ double AvlList_average(AvlList *list) {
 
 
 int AvlList_indexOf(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
-  AvlListIterator iterator = AvlList_begin(list);
-  int index = 0;
-  while (AvlListIterator_hasNext(&iterator)) {
-    void *current = AvlListIterator_get(&iterator);
-    AvlListIterator_next(&iterator);
-    if (compare(current, target) == 0) return index;
-    index++;
-  }
+  if (!list) return -1;
+  int i = AvlList_indexOf(list->left, target, compare);
+  if (i != -1) return i;
+  if (compare(list->data, target) == 0) return AvlList_size(list->left);
+  i = AvlList_indexOf(list->right, target, compare);
+  if (i != -1) return AvlList_size(list->left) + 1 + i;
   return -1;
 }
 
