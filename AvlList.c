@@ -447,16 +447,16 @@ static void AvlList_indicesArray(
   void *target,
   int (*compare)(const void *, const void *),
   unsigned offset,
-  unsigned **array,
+  unsigned **indices,
   unsigned *count)
 {
   if (!list) return;
-  AvlList_indicesArray(list->left, target, compare, offset, array, count);
+  AvlList_indicesArray(list->left, target, compare, offset, indices, count);
   if (compare(list->data, target) == 0) {
-    array[*count] = malloc(sizeof(unsigned));
-    *array[(*count)++] = offset + AvlList_size(list->left);
+    indices[*count] = malloc(sizeof(unsigned));
+    *indices[(*count)++] = offset + AvlList_size(list->left);
   }
-  AvlList_indicesArray(list->right, target, compare, offset + AvlList_size(list->left) + 1, array, count);
+  AvlList_indicesArray(list->right, target, compare, offset + AvlList_size(list->left) + 1, indices, count);
 }
 
 AvlList *AvlList_indices(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
