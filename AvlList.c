@@ -435,40 +435,37 @@ bool AvlList_isSorted(AvlList *list, int (*compare)(const void *, const void *))
 }
 
 AvlList *AvlList_sort(AvlList *list, int (*compare)(const void *, const void *)) {
-  if (!list || list->size <= 1) return AvlList_copy(list);
-  unsigned n = AvlList_size(list);
   void **array = AvlList_toArray(list);
-  if (!array) return NULL;
-  qsort(array, n, sizeof(void *), compare);
-  AvlList *sortedTree = AvlList_fromArray(array, n);
+  qsort(array, AvlList_size(list), sizeof(void *), compare);
+  AvlList *sorted = AvlList_fromArray(array, AvlList_size(list));
   free(array);
-  return sortedTree;
+  return sorted;
 }
 
-static void collectToVoidPtrArray(
-  AvlList *node,
+static void AvlList_indicesArray(
+  AvlList *list,
   void *target,
   int (*compare)(const void *, const void *),
   unsigned offset,
-  unsigned *buffer,
+  unsigned **array,
   unsigned *count)
 {
-  if (!node) return;
-  collectToVoidPtrArray(node->left, target, compare, offset, buffer, count);
-  unsigned currentIdx = offset + AvlList_size(node->left);
-  if (compare(node->data, target) == 0) buffer[(*count)++] = currentIdx;
-  collectToVoidPtrArray(node->right, target, compare, currentIdx + 1, buffer, count);
+  if (!list) return;
+  AvlList_indicesArray(list->left, target, compare, offset, array, count);
+  if (compare(list->data, target) == 0) {
+    array[*count] = malloc(sizeof(unsigned));
+    *array[(*count)++] = offset + AvlList_size(list->left);
+  }
+  AvlList_indicesArray(list->right, target, compare, offset + AvlList_size(list->left) + 1, array, count);
 }
 
-AvlList *AvlList_elemIndices(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
-  unsigned n = AvlList_size(list);
-  if (n == 0) return NULL;
-  void **results = malloc(sizeof(void *) * n);
+AvlList *AvlList_indices(AvlList *list, void *target, int (*compare)(const void *, const void *)) {
+  void **array = malloc(sizeof(void *) * AvlList_size(list));
   unsigned count = 0;
-  collectToVoidPtrArray(list, target, compare, 0, results, &count);
-  AvlList *resultTree = AvlList_fromArray(results, count);
-  free(results);
-  return resultTree;
+  AvlList_indicesArray(list, target, compare, 0, array, &count);
+  AvlList *indices = AvlList_fromArray(array, count);
+  free(array);
+  return indices;
 }
 
 void *AvlList_min(AvlList *list, int (*compare)(const void *, const void *)) {
