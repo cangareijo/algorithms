@@ -470,22 +470,22 @@ AvlList *AvlList_indices(AvlList *list, void *target, int (*compare)(const void 
 
 void *AvlList_min(AvlList *list, int (*compare)(const void *, const void *)) {
   if (!list) return NULL;
-  void *minVal = list->data;
-  void *leftMin = AvlList_min(list->left, compare);
-  if (leftMin && compare(leftMin, minVal) < 0) minVal = leftMin;
-  void *rightMin = AvlList_min(list->right, compare);
-  if (rightMin && compare(rightMin, minVal) < 0) minVal = rightMin;
-  return minVal;
+  void *minimum = list->data;
+  void *left = AvlList_min(list->left, compare);
+  if (left && compare(left, minimum) < 0) minimum = left;
+  void *right = AvlList_min(list->right, compare);
+  if (right && compare(right, minimum) < 0) minimum = right;
+  return minimum;
 }
 
 void *AvlList_max(AvlList *list, int (*compare)(const void *, const void *)) {
   if (!list) return NULL;
-  void *maxVal = list->data;
-  void *leftMax = AvlList_max(list->left, compare);
-  if (leftMax && compare(leftMax, maxVal) > 0) maxVal = leftMax;
-  void *rightMax = AvlList_max(list->right, compare);
-  if (rightMax && compare(rightMax, maxVal) > 0) maxVal = rightMax;
-  return maxVal;
+  void *maximum = list->data;
+  void *left = AvlList_max(list->left, compare);
+  if (left && compare(left, maximum) > 0) maximum = left;
+  void *right = AvlList_max(list->right, compare);
+  if (right && compare(right, maximum) > 0) maximum = right;
+  return maximum;
 }
 
 AvlList *AvlList_unique(AvlList *list, int (*compare)(const void *, const void *)) {
