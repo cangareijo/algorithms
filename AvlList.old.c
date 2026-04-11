@@ -3,41 +3,41 @@ typedef struct {
   AvlList *failed;
 } PartitionResult;
 
-PartitionResult AvlList_partition(AvlList *list, int (*predicate)(void *));
-AvlList *AvlList_filter(AvlList *list, int (*predicate)(void *));
-unsigned AvlList_count(AvlList *list, int (*predicate)(void *));
-int AvlList_any(AvlList *list, int (*predicate)(void *));
-int AvlList_all(AvlList *list, int (*predicate)(void *));
-void *AvlList_find(AvlList *list, int (*predicate)(void *));
-void *AvlList_findLast(AvlList *list, int (*predicate)(void *));
-int AvlList_findIndex(AvlList *list, int (*predicate)(void *));
-void AvlList_replaceIf(AvlList *list, int (*predicate)(void *), void *data);
+PartitionResult AvlList_partition(AvlList *list, bool (*predicate)(void *));
+AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *));
+unsigned AvlList_count(AvlList *list, bool (*predicate)(void *));
+bool AvlList_any(AvlList *list, bool (*predicate)(void *));
+bool AvlList_all(AvlList *list, bool (*predicate)(void *));
+void *AvlList_find(AvlList *list, bool (*predicate)(void *));
+void *AvlList_findLast(AvlList *list, bool (*predicate)(void *));
+int AvlList_findIndex(AvlList *list, bool (*predicate)(void *));
+void AvlList_replaceIf(AvlList *list, bool (*predicate)(void *), void *data);
 
 
 
-AvlList *AvlList_filter(AvlList *list, int (*predicate)(void *)) {
+AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *)) {
   PartitionResult result = AvlList_partition(list, predicate);
   AvlList *filtered = result.satisfied;
   AvlList_free(result.failed);
   return filtered;
 }
 
-unsigned AvlList_count(AvlList *list, int (*predicate)(void *)) {
+unsigned AvlList_count(AvlList *list, bool (*predicate)(void *)) {
   AvlList *filtered = AvlList_filter(list, predicate);
   unsigned count = AvlList_size(filtered);
   AvlList_free(filtered);
   return count;
 }
 
-int AvlList_any(AvlList *list, int (*predicate)(void *)) {
+bool AvlList_any(AvlList *list, bool (*predicate)(void *)) {
   return list && (AvlList_any(list->left, predicate) || predicate(list->data) || AvlList_any(list->right, predicate));
 }
 
-int AvlList_all(AvlList *list, int (*predicate)(void *)) {
+bool AvlList_all(AvlList *list, bool (*predicate)(void *)) {
   return !list || AvlList_all(list->left, predicate) && predicate(list->data) && AvlList_all(list->right, predicate);
 }
 
-void *AvlList_find(AvlList *list, int (*predicate)(void *)) {
+void *AvlList_find(AvlList *list, bool (*predicate)(void *)) {
   if (!list) return NULL;
   void *found = AvlList_find(list->left, predicate);
   if (found) return found;
@@ -45,7 +45,7 @@ void *AvlList_find(AvlList *list, int (*predicate)(void *)) {
   return AvlList_find(list->right, predicate);
 }
 
-void *AvlList_findLast(AvlList *list, int (*predicate)(void *)) {
+void *AvlList_findLast(AvlList *list, bool (*predicate)(void *)) {
   if (!list) return NULL;
   void *found = AvlList_findLast(list->right, predicate);
   if (found) return found;
@@ -53,7 +53,7 @@ void *AvlList_findLast(AvlList *list, int (*predicate)(void *)) {
   return AvlList_findLast(list->left, predicate);
 }
 
-int AvlList_findIndex(AvlList *list, int (*predicate)(void *)) {
+int AvlList_findIndex(AvlList *list, bool (*predicate)(void *)) {
   if (!list) return -1;
   int index = AvlList_findIndex(list->left, predicate);
   if (index != -1) return index;
@@ -63,7 +63,7 @@ int AvlList_findIndex(AvlList *list, int (*predicate)(void *)) {
   return -1;
 }
 
-void AvlList_replaceIf(AvlList *list, int (*predicate)(void *), void *data) {
+void AvlList_replaceIf(AvlList *list, bool (*predicate)(void *), void *data) {
   if (!list) return NULL;
   if (predicate(list->data)) list->data = data;
   AvlList_replaceIf(list->left, predicate, data);

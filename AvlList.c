@@ -561,7 +561,7 @@ AvlList *AvlList_scan(AvlList *list, void *accumulator, void *(*f)(void *accumul
 }
 
 
-void AvlList_partition(AvlList *list, int (*predicate)(void *), AvlList **satisfy, AvlList **fail) {
+void AvlList_partition(AvlList *list, bool (*predicate)(void *), AvlList **satisfy, AvlList **fail) {
   void **array1 = AvlList_toArray(list);
   void **array2 = malloc(sizeof(void *) * AvlList_size(list));
   void **array3 = malloc(sizeof(void *) * AvlList_size(list));
