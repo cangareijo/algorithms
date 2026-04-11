@@ -559,3 +559,18 @@ AvlList *AvlList_scan(AvlList *list, void *accumulator, void *(*f)(void *accumul
   free(results);
   return scan;
 }
+
+
+void AvlList_partition(AvlList *list, int (*predicate)(void *), AvlList **satisfy, AvlList **fail) {
+  void **array1 = AvlList_toArray(list);
+  void **array2 = malloc(sizeof(void *) * AvlList_size(list));
+  void **array3 = malloc(sizeof(void *) * AvlList_size(list));
+  unsigned n2 = 0;
+  unsigned n3 = 0;
+  for (unsigned i = 0; i < AvlList_size(list); i++) if (predicate(array1[i])) array2[n2++] = array1[i]; else array3[n3++] = array1[i];
+  *satisfy = AvlList_fromArray(array2, n2);
+  *fail = AvlList_fromArray(array3, n3);
+  free(array1);
+  free(array2);
+  free(array3);
+}

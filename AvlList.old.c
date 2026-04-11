@@ -15,26 +15,6 @@ void AvlList_replaceIf(AvlList *list, int (*predicate)(void *), void *data);
 
 
 
-PartitionResult AvlList_partition(AvlList *list, int (*predicate)(void *)) {
-  if (!list) return (PartitionResult){NULL, NULL};
-  unsigned n = AvlList_size(list);
-  void **allData = AvlList_toArray(list);
-  void **satData = malloc(sizeof(void *) * n);
-  void **failData = malloc(sizeof(void *) * n);
-  unsigned satCount = 0;
-  unsigned failCount = 0;
-  for (unsigned i = 0; i < n; i++)
-    if (predicate(allData[i])) satData[satCount++] = allData[i];
-    else failData[failCount++] = allData[i];
-  PartitionResult result;
-  result.satisfied = AvlList_fromArray(satData, satCount);
-  result.failed = AvlList_fromArray(failData, failCount);
-  free(allData);
-  free(satData);
-  free(failData);
-  return result;
-}
-
 AvlList *AvlList_filter(AvlList *list, int (*predicate)(void *)) {
   PartitionResult result = AvlList_partition(list, predicate);
   AvlList *filtered = result.satisfied;
