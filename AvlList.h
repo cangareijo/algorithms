@@ -69,3 +69,5 @@ AvlList *AvlList_elemIndices(AvlList *list, void *target, int (*compare)(const v
 void *AvlList_min(AvlList *list, int (*compare)(const void *, const void *));
 void *AvlList_max(AvlList *list, int (*compare)(const void *, const void *));
 AvlList *AvlList_unique(AvlList *list, int (*compare)(const void *, const void *));
+
+AvlList *AvlList_map(AvlList *list, void *(*f)(void *));

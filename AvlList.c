@@ -504,3 +504,15 @@ AvlList *AvlList_unique(AvlList *list, int (*compare)(const void *, const void *
   AvlList_free(sorted);
   return unique;
 }
+
+
+AvlList *AvlList_map(AvlList *list, void *(*f)(void *)) {
+  if (!list) return NULL;
+  AvlList *map = malloc(sizeof(AvlList));
+  map->data = f(list->data);
+  map->height = list->height;
+  map->size = list->size;
+  map->left = AvlList_map(list->left, f);
+  map->right = AvlList_map(list->right, f);
+  return map;
+}
