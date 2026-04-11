@@ -542,3 +542,20 @@ AvlList *AvlList_map(AvlList *list, void *(*f)(void *)) {
   map->right = AvlList_map(list->right, f);
   return map;
 }
+
+AvlList *AvlList_scan(AvlList *list, void *accumulator, void *(*f)(void *accumulator, void *data)) {
+  unsigned n = AvlList_size(list);
+  void **results = malloc(sizeof(void *) * (n + 1));
+  results[0] = accumulator;
+  unsigned count = 1;
+  AvlListIterator iterator = AvlList_begin(list);
+  while (AvlListIterator_hasNext(&iterator)) {
+    void *data = AvlListIterator_get(&iterator);
+    accumulator = f(accumulator, data);
+    results[count++] = accumulator;
+    AvlListIterator_next(&iterator);
+  }
+  AvlList *scan = AvlList_fromArray(results, n + 1);
+  free(results);
+  return scan;
+}

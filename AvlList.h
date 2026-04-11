@@ -74,3 +74,4 @@ void AvlList_foreach(AvlList *list, void (*f)(void *));
 void AvlList_forEachReverse(AvlList *list, void (*f)(void *));
 void *AvlList_fold(AvlList *list, void *acc, void *(*f)(void *acc, void *data));
 AvlList *AvlList_map(AvlList *list, void *(*f)(void *));
+AvlList *AvlList_scan(AvlList *list, void *accumulator, void *(*f)(void *accumulator, void *data));

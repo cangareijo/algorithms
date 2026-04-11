@@ -3,8 +3,6 @@ typedef struct {
   AvlList *failed;
 } PartitionResult;
 
-AvlList *AvlList_scan(AvlList *list, void *acc, void *(*f)(void *acc, void *data));
-
 PartitionResult AvlList_partition(AvlList *list, int (*predicate)(void *));
 AvlList *AvlList_filter(AvlList *list, int (*predicate)(void *));
 unsigned AvlList_count(AvlList *list, int (*predicate)(void *));
@@ -15,23 +13,6 @@ void *AvlList_findLast(AvlList *list, int (*predicate)(void *));
 int AvlList_findIndex(AvlList *list, int (*predicate)(void *));
 void AvlList_replaceIf(AvlList *list, int (*predicate)(void *), void *data);
 
-
-AvlList *AvlList_scan(AvlList *list, void *acc, void *(*f)(void *acc, void *data)) {
-  unsigned n = AvlList_size(list);
-  void **results = malloc(sizeof(void *) * (n + 1));
-  if (!results) return NULL;
-  results[0] = acc;
-  unsigned count = 1;
-  AvlListIterator it = AvlList_begin(list);
-  while (AvlList_hasNext(&it)) {
-    void *data = AvlList_next(&it);
-    acc = f(acc, data);
-    results[count++] = acc;
-  }
-  AvlList *resultTree = AvlList_fromArray(results, n + 1);
-  free(results);
-  return resultTree;
-}
 
 
 PartitionResult AvlList_partition(AvlList *list, int (*predicate)(void *)) {
