@@ -3,9 +3,6 @@ typedef struct {
   AvlList *failed;
 } PartitionResult;
 
-void AvlList_foreach(AvlList *list, void (*f)(void *));
-void AvlList_forEachReverse(AvlList *list, void (*f)(void *));
-void *AvlList_fold(AvlList *list, void *acc, void *(*f)(void *acc, void *data));
 AvlList *AvlList_scan(AvlList *list, void *acc, void *(*f)(void *acc, void *data));
 
 PartitionResult AvlList_partition(AvlList *list, int (*predicate)(void *));
@@ -18,27 +15,6 @@ void *AvlList_findLast(AvlList *list, int (*predicate)(void *));
 int AvlList_findIndex(AvlList *list, int (*predicate)(void *));
 void AvlList_replaceIf(AvlList *list, int (*predicate)(void *), void *data);
 
-
-void AvlList_foreach(AvlList *list, void (*f)(void *)) {
-  if (!list) return;
-  AvlList_foreach(list->left, f);
-  f(list->data);
-  AvlList_foreach(list->right, f);
-}
-
-void AvlList_forEachReverse(AvlList *list, void (*f)(void *)) {
-  if (!list) return;
-  AvlList_forEachReverse(list->right, f);
-  f(list->data);
-  AvlList_forEachReverse(list->left, f);
-}
-
-void *AvlList_fold(AvlList *list, void *acc, void *(*f)(void *acc, void *data)) {
-  if (!list) return acc;
-  acc = AvlList_fold(list->left, acc, f);
-  acc = f(acc, list->data);
-  return AvlList_fold(list->right, acc, f);
-}
 
 AvlList *AvlList_scan(AvlList *list, void *acc, void *(*f)(void *acc, void *data)) {
   unsigned n = AvlList_size(list);

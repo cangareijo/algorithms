@@ -19,9 +19,9 @@ void *AvlListIterator_get(AvlListIterator *iterator);
 void AvlListIterator_next(AvlListIterator *iterator);
 void AvlListIterator_reverseNext(AvlListIterator *iterator);
 
-bool AvlList_isValid(AvlList *list);
-bool AvlList_isEmpty(AvlList *list);
-unsigned AvlList_size(AvlList *list);
+bool AvlList_isValid(const AvlList *list);
+bool AvlList_isEmpty(const AvlList *list);
+unsigned AvlList_size(const AvlList *list);
 AvlList *AvlList_empty();
 AvlList *AvlList_single(void *data);
 AvlList *AvlList_fromArray(void **array, unsigned n);
@@ -56,9 +56,9 @@ AvlList *AvlList_pushLeft(AvlList *list, void *data);
 void *AvlList_peekLeft(AvlList *list);
 AvlList *AvlList_popLeft(AvlList *list);
 
-double AvlList_sum(AvlList *list);
-double AvlList_product(AvlList *list);
-double AvlList_average(AvlList *list);
+double AvlList_sum(const AvlList *list);
+double AvlList_product(const AvlList *list);
+double AvlList_average(const AvlList *list);
 
 int AvlList_indexOf(AvlList *list, void *target, int (*compare)(const void *, const void *));
 int AvlList_lastIndexOf(AvlList *list, void *target, int (*compare)(const void *, const void *));
@@ -70,4 +70,7 @@ void *AvlList_min(AvlList *list, int (*compare)(const void *, const void *));
 void *AvlList_max(AvlList *list, int (*compare)(const void *, const void *));
 AvlList *AvlList_unique(AvlList *list, int (*compare)(const void *, const void *));
 
+void AvlList_foreach(AvlList *list, void (*f)(void *));
+void AvlList_forEachReverse(AvlList *list, void (*f)(void *));
+void *AvlList_fold(AvlList *list, void *acc, void *(*f)(void *acc, void *data));
 AvlList *AvlList_map(AvlList *list, void *(*f)(void *));

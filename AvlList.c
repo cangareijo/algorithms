@@ -6,11 +6,14 @@
 static unsigned unsigned_min(unsigned m, unsigned n);
 static unsigned unsigned_max(unsigned m, unsigned n);
 
-static unsigned AvlList_height(AvlList *list);
-static int AvlList_balance(AvlList *list);
-static bool AvlList_isValidHeight(AvlList *list);
-static bool AvlList_isValidBalance(AvlList *list);
-static bool AvlList_isValidSize(AvlList *list);
+static void Array_swap(void **x, void **y);
+static void Array_shuffle(void **array, unsigned n);
+
+static unsigned AvlList_height(const AvlList *list);
+static int AvlList_balance(const AvlList *list);
+static bool AvlList_isValidHeight(const AvlList *list);
+static bool AvlList_isValidBalance(const AvlList *list);
+static bool AvlList_isValidSize(const AvlList *list);
 static void AvlList_update(AvlList *list);
 static AvlList *AvlList_rotateRight(AvlList *list);
 static AvlList *AvlList_rotateLeft(AvlList *list);
@@ -33,21 +36,23 @@ static void Array_swap(void **x, void **y) {
 
 static void Array_shuffle(void **array, unsigned n) { for (unsigned i = 1; i < n; i++) Array_swap(array + i, array + rand() % (i + 1)); }
 
-static unsigned AvlList_height(AvlList *list) { return list ? list->height : 0; }
 
-static int AvlList_balance(AvlList *list) { return list ? (int)AvlList_height(list->left) - (int)AvlList_height(list->right) : 0; }
 
-static bool AvlList_isValidHeight(AvlList *list) {
+static unsigned AvlList_height(const AvlList *list) { return list ? list->height : 0; }
+
+static int AvlList_balance(const AvlList *list) { return list ? (int)AvlList_height(list->left) - (int)AvlList_height(list->right) : 0; }
+
+static bool AvlList_isValidHeight(const AvlList *list) {
   return !list || list->height == 1 + unsigned_max(AvlList_height(list->left), AvlList_height(list->right)) &&
     AvlList_isValidHeight(list->left) && AvlList_isValidHeight(list->right);
 }
 
-static bool AvlList_isValidBalance(AvlList *list) {
+static bool AvlList_isValidBalance(const AvlList *list) {
   return !list || -1 <= AvlList_balance(list) && AvlList_balance(list) <= 1 &&
     AvlList_isValidBalance(list->left) && AvlList_isValidBalance(list->right);
 }
 
-static bool AvlList_isValidSize(AvlList *list) {
+static bool AvlList_isValidSize(const AvlList *list) {
   return !list || list->size == 1 + AvlList_size(list->left) + AvlList_size(list->right) &&
     AvlList_isValidSize(list->left) && AvlList_isValidSize(list->right);
 }
@@ -137,11 +142,11 @@ void AvlListIterator_reverseNext(AvlListIterator *iterator) {
 
 
 
-bool AvlList_isValid(AvlList *list) { return AvlList_isValidHeight(list) && AvlList_isValidBalance(list) && AvlList_isValidSize(list); }
+bool AvlList_isValid(const AvlList *list) { return AvlList_isValidHeight(list) && AvlList_isValidBalance(list) && AvlList_isValidSize(list); }
 
-bool AvlList_isEmpty(AvlList *list) { return !list; }
+bool AvlList_isEmpty(const AvlList *list) { return !list; }
 
-unsigned AvlList_size(AvlList *list) { return list ? list->size : 0; }
+unsigned AvlList_size(const AvlList *list) { return list ? list->size : 0; }
 
 AvlList *AvlList_empty() { return NULL; }
 
@@ -374,17 +379,17 @@ AvlList *AvlList_popLeft(AvlList *list) { return AvlList_removeRange(list, 0, 1)
 
 
 
-double AvlList_sum(AvlList *list) {
+double AvlList_sum(const AvlList *list) {
   if (!list) return 0;
   return *(double *)(list->data) + AvlList_sum(list->left) + AvlList_sum(list->right);
 }
 
-double AvlList_product(AvlList *list) {
+double AvlList_product(const AvlList *list) {
   if (!list) return 1;
   return *(double *)(list->data) * AvlList_product(list->left) * AvlList_product(list->right);
 }
 
-double AvlList_average(AvlList *list) {
+double AvlList_average(const AvlList *list) {
   if (AvlList_isEmpty(list)) return 0;
   return AvlList_sum(list) / AvlList_size(list);
 }
@@ -506,13 +511,34 @@ AvlList *AvlList_unique(AvlList *list, int (*compare)(const void *, const void *
 }
 
 
+void AvlList_foreach(AvlList *list, void (*f)(void *)) {
+  if (!list) return;
+  AvlList_foreach(list->left, f);
+  f(list->data);
+  AvlList_foreach(list->right, f);
+}
+
+void AvlList_forEachReverse(AvlList *list, void (*f)(void *)) {
+  if (!list) return;
+  AvlList_forEachReverse(list->right, f);
+  f(list->data);
+  AvlList_forEachReverse(list->left, f);
+}
+
+void *AvlList_fold(AvlList *list, void *acc, void *(*f)(void *acc, void *data)) {
+  if (!list) return acc;
+  acc = AvlList_fold(list->left, acc, f);
+  acc = f(acc, list->data);
+  return AvlList_fold(list->right, acc, f);
+}
+
 AvlList *AvlList_map(AvlList *list, void *(*f)(void *)) {
   if (!list) return NULL;
   AvlList *map = malloc(sizeof(AvlList));
-  map->data = f(list->data);
   map->height = list->height;
   map->size = list->size;
   map->left = AvlList_map(list->left, f);
+  map->data = f(list->data);
   map->right = AvlList_map(list->right, f);
   return map;
 }
