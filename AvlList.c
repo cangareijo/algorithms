@@ -598,5 +598,5 @@ unsigned AvlList_count(AvlList *list, bool (*predicate)(void *)) {
 
 unsigned AvlList_countFail(AvlList *list, bool (*predicate)(void *)) {
   if (!list) return 0;
-  return AvlList_count(list->left, predicate) + (predicate(list->data) ? 0 : 1) + AvlList_count(list->right, predicate);
+  return AvlList_countFail(list->left, predicate) + (predicate(list->data) ? 0 : 1) + AvlList_countFail(list->right, predicate);
 }
