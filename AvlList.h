@@ -76,5 +76,6 @@ void *AvlList_fold(AvlList *list, void *acc, void *(*f)(void *acc, void *data));
 AvlList *AvlList_map(AvlList *list, void *(*f)(void *));
 AvlList *AvlList_scan(AvlList *list, void *accumulator, void *(*f)(void *accumulator, void *data));
 
-void AvlList_partition(AvlList *list, bool (*predicate)(void *), AvlList **satisfy, AvlList **fail);
 AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *));
+AvlList *AvlList_filterFail(AvlList *list, bool (*predicate)(void *));
+unsigned AvlList_count(AvlList *list, bool (*predicate)(void *));

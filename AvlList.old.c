@@ -1,4 +1,3 @@
-unsigned AvlList_count(AvlList *list, bool (*predicate)(void *));
 bool AvlList_any(AvlList *list, bool (*predicate)(void *));
 bool AvlList_all(AvlList *list, bool (*predicate)(void *));
 void *AvlList_find(AvlList *list, bool (*predicate)(void *));
@@ -7,13 +6,6 @@ int AvlList_findIndex(AvlList *list, bool (*predicate)(void *));
 void AvlList_replaceIf(AvlList *list, bool (*predicate)(void *), void *data);
 
 
-
-unsigned AvlList_count(AvlList *list, bool (*predicate)(void *)) {
-  AvlList *filtered = AvlList_filter(list, predicate);
-  unsigned count = AvlList_size(filtered);
-  AvlList_free(filtered);
-  return count;
-}
 
 bool AvlList_any(AvlList *list, bool (*predicate)(void *)) {
   return list && (AvlList_any(list->left, predicate) || predicate(list->data) || AvlList_any(list->right, predicate));

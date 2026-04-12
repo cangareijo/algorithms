@@ -8,6 +8,8 @@ static unsigned unsigned_max(unsigned m, unsigned n);
 
 static void Array_swap(void **x, void **y);
 static void Array_shuffle(void **array, unsigned n);
+static unsigned Array_filter(void **array, unsigned n, bool (*predicate)(void *));
+static unsigned Array_filterFail(void **array, unsigned n, bool (*predicate)(void *));
 
 static unsigned AvlList_height(const AvlList *list);
 static int AvlList_balance(const AvlList *list);
@@ -35,6 +37,18 @@ static void Array_swap(void **x, void **y) {
 }
 
 static void Array_shuffle(void **array, unsigned n) { for (unsigned i = 1; i < n; i++) Array_swap(array + i, array + rand() % (i + 1)); }
+
+static unsigned Array_filter(void **array, unsigned n, bool (*predicate)(void *)) {
+  unsigned count = 0;
+  for (unsigned i = 0; i < n; i++) if (predicate(array[i])) array[count++] = array[i];
+  return count;
+}
+
+static unsigned Array_filterFail(void **array, unsigned n, bool (*predicate)(void *)) {
+  unsigned count = 0;
+  for (unsigned i = 0; i < n; i++) if (!predicate(array[i])) array[count++] = array[i];
+  return count;
+}
 
 
 
@@ -561,29 +575,25 @@ AvlList *AvlList_scan(AvlList *list, void *accumulator, void *(*f)(void *accumul
 }
 
 
-void AvlList_partition(AvlList *list, bool (*predicate)(void *), AvlList **satisfy, AvlList **fail) {
-  void **array1 = AvlList_toArray(list);
-  void **array2 = malloc(sizeof(void *) * AvlList_size(list));
-  void **array3 = malloc(sizeof(void *) * AvlList_size(list));
-  unsigned n2 = 0;
-  unsigned n3 = 0;
-  for (unsigned i = 0; i < AvlList_size(list); i++) if (predicate(array1[i])) array2[n2++] = array1[i]; else array3[n3++] = array1[i];
-  *satisfy = AvlList_fromArray(array2, n2);
-  *fail = AvlList_fromArray(array3, n3);
-  free(array1);
-  free(array2);
-  free(array3);
-}
-
 AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *)) {
-  void **array = malloc(sizeof(void *) * AvlList_size(list));
-  unsigned n = 0;
-  AvlListIterator iterator = AvlList_begin(list);
-  while (AvlListIterator_hasNext(&iterator)) {
-    if (predicate(AvlListIterator_get(&iterator))) array[n++] = AvlListIterator_get(&iterator);
-    AvlListIterator_next(&iterator);
-  }
+  void **array = AvlList_toArray(list);
+  unsigned n = Array_filter(array, AvlList_size(list), predicate);
   AvlList *filter = AvlList_fromArray(array, n);
   free(array);
   return filter;
+}
+
+AvlList *AvlList_filterFail(AvlList *list, bool (*predicate)(void *)) {
+  void **array = AvlList_toArray(list);
+  unsigned n = Array_filterFail(array, AvlList_size(list), predicate);
+  AvlList *filter = AvlList_fromArray(array, n);
+  free(array);
+  return filter;
+}
+
+unsigned AvlList_count(AvlList *list, bool (*predicate)(void *)) {
+  AvlList *filtered = AvlList_filter(list, predicate);
+  unsigned count = AvlList_size(filtered);
+  AvlList_free(filtered);
+  return count;
 }
