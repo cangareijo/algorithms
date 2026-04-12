@@ -82,3 +82,6 @@ unsigned AvlList_count(AvlList *list, bool (*predicate)(void *));
 unsigned AvlList_countFail(AvlList *list, bool (*predicate)(void *));
 bool AvlList_any(AvlList *list, bool (*predicate)(void *));
 bool AvlList_all(AvlList *list, bool (*predicate)(void *));
+void *AvlList_find(AvlList *list, bool (*predicate)(void *));
+void *AvlList_findLast(AvlList *list, bool (*predicate)(void *));
+int AvlList_findIndex(AvlList *list, bool (*predicate)(void *));

@@ -608,3 +608,29 @@ bool AvlList_any(AvlList *list, bool (*predicate)(void *)) {
 bool AvlList_all(AvlList *list, bool (*predicate)(void *)) {
   return !list || AvlList_all(list->left, predicate) && predicate(list->data) && AvlList_all(list->right, predicate);
 }
+
+void *AvlList_find(AvlList *list, bool (*predicate)(void *)) {
+  if (!list) return NULL;
+  void *found = AvlList_find(list->left, predicate);
+  if (found) return found;
+  if (predicate(list->data)) return list->data;
+  return AvlList_find(list->right, predicate);
+}
+
+void *AvlList_findLast(AvlList *list, bool (*predicate)(void *)) {
+  if (!list) return NULL;
+  void *found = AvlList_findLast(list->right, predicate);
+  if (found) return found;
+  if (predicate(list->data)) return list->data;
+  return AvlList_findLast(list->left, predicate);
+}
+
+int AvlList_findIndex(AvlList *list, bool (*predicate)(void *)) {
+  if (!list) return -1;
+  int index = AvlList_findIndex(list->left, predicate);
+  if (index != -1) return index;
+  if (predicate(list->data)) return AvlList_size(list->left);
+  index = AvlList_findIndex(list->right, predicate);
+  if (index != -1) return AvlList_size(list->left) + 1 + index;
+  return -1;
+}
