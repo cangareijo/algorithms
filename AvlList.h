@@ -85,3 +85,4 @@ bool AvlList_all(AvlList *list, bool (*predicate)(void *));
 void *AvlList_find(AvlList *list, bool (*predicate)(void *));
 void *AvlList_findLast(AvlList *list, bool (*predicate)(void *));
 int AvlList_findIndex(AvlList *list, bool (*predicate)(void *));
+void AvlList_replaceIf(AvlList *list, bool (*predicate)(void *), void *data);

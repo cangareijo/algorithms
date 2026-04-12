@@ -634,3 +634,10 @@ int AvlList_findIndex(AvlList *list, bool (*predicate)(void *)) {
   if (index != -1) return AvlList_size(list->left) + 1 + index;
   return -1;
 }
+
+void AvlList_replaceIf(AvlList *list, bool (*predicate)(void *), void *data) {
+  if (!list) return NULL;
+  if (predicate(list->data)) list->data = data;
+  AvlList_replaceIf(list->left, predicate, data);
+  AvlList_replaceIf(list->right, predicate, data);
+}
