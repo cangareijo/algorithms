@@ -1,10 +1,3 @@
-typedef struct {
-  AvlList *satisfied;
-  AvlList *failed;
-} PartitionResult;
-
-PartitionResult AvlList_partition(AvlList *list, bool (*predicate)(void *));
-AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *));
 unsigned AvlList_count(AvlList *list, bool (*predicate)(void *));
 bool AvlList_any(AvlList *list, bool (*predicate)(void *));
 bool AvlList_all(AvlList *list, bool (*predicate)(void *));
@@ -14,13 +7,6 @@ int AvlList_findIndex(AvlList *list, bool (*predicate)(void *));
 void AvlList_replaceIf(AvlList *list, bool (*predicate)(void *), void *data);
 
 
-
-AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *)) {
-  PartitionResult result = AvlList_partition(list, predicate);
-  AvlList *filtered = result.satisfied;
-  AvlList_free(result.failed);
-  return filtered;
-}
 
 unsigned AvlList_count(AvlList *list, bool (*predicate)(void *)) {
   AvlList *filtered = AvlList_filter(list, predicate);

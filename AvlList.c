@@ -574,3 +574,16 @@ void AvlList_partition(AvlList *list, bool (*predicate)(void *), AvlList **satis
   free(array2);
   free(array3);
 }
+
+AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *)) {
+  void **array = malloc(sizeof(void *) * AvlList_size(list));
+  unsigned n = 0;
+  AvlListIterator iterator = AvlList_begin(list);
+  while (AvlListIterator_hasNext(&iterator)) {
+    if (predicate(AvlListIterator_get(&iterator))) array[n++] = AvlListIterator_get(&iterator);
+    AvlListIterator_next(&iterator);
+  }
+  AvlList *filter = AvlList_fromArray(array, n);
+  free(array);
+  return filter;
+}
