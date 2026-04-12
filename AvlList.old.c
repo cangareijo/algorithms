@@ -1,19 +1,9 @@
-bool AvlList_any(AvlList *list, bool (*predicate)(void *));
-bool AvlList_all(AvlList *list, bool (*predicate)(void *));
 void *AvlList_find(AvlList *list, bool (*predicate)(void *));
 void *AvlList_findLast(AvlList *list, bool (*predicate)(void *));
 int AvlList_findIndex(AvlList *list, bool (*predicate)(void *));
 void AvlList_replaceIf(AvlList *list, bool (*predicate)(void *), void *data);
 
 
-
-bool AvlList_any(AvlList *list, bool (*predicate)(void *)) {
-  return list && (AvlList_any(list->left, predicate) || predicate(list->data) || AvlList_any(list->right, predicate));
-}
-
-bool AvlList_all(AvlList *list, bool (*predicate)(void *)) {
-  return !list || AvlList_all(list->left, predicate) && predicate(list->data) && AvlList_all(list->right, predicate);
-}
 
 void *AvlList_find(AvlList *list, bool (*predicate)(void *)) {
   if (!list) return NULL;

@@ -80,3 +80,5 @@ AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *));
 AvlList *AvlList_filterFail(AvlList *list, bool (*predicate)(void *));
 unsigned AvlList_count(AvlList *list, bool (*predicate)(void *));
 unsigned AvlList_countFail(AvlList *list, bool (*predicate)(void *));
+bool AvlList_any(AvlList *list, bool (*predicate)(void *));
+bool AvlList_all(AvlList *list, bool (*predicate)(void *));

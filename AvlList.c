@@ -600,3 +600,11 @@ unsigned AvlList_countFail(AvlList *list, bool (*predicate)(void *)) {
   if (!list) return 0;
   return AvlList_countFail(list->left, predicate) + (predicate(list->data) ? 0 : 1) + AvlList_countFail(list->right, predicate);
 }
+
+bool AvlList_any(AvlList *list, bool (*predicate)(void *)) {
+  return list && (AvlList_any(list->left, predicate) || predicate(list->data) || AvlList_any(list->right, predicate));
+}
+
+bool AvlList_all(AvlList *list, bool (*predicate)(void *)) {
+  return !list || AvlList_all(list->left, predicate) && predicate(list->data) && AvlList_all(list->right, predicate);
+}
