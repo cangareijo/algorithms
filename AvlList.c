@@ -592,8 +592,11 @@ AvlList *AvlList_filterFail(AvlList *list, bool (*predicate)(void *)) {
 }
 
 unsigned AvlList_count(AvlList *list, bool (*predicate)(void *)) {
-  AvlList *filtered = AvlList_filter(list, predicate);
-  unsigned count = AvlList_size(filtered);
-  AvlList_free(filtered);
-  return count;
+  if (!list) return 0;
+  return AvlList_count(list->left, predicate) + (predicate(list->data) ? 1 : 0) + AvlList_count(list->right, predicate);
+}
+
+unsigned AvlList_countFail(AvlList *list, bool (*predicate)(void *)) {
+  if (!list) return 0;
+  return AvlList_count(list->left, predicate) + (predicate(list->data) ? 0 : 1) + AvlList_count(list->right, predicate);
 }

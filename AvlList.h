@@ -79,3 +79,4 @@ AvlList *AvlList_scan(AvlList *list, void *accumulator, void *(*f)(void *accumul
 AvlList *AvlList_filter(AvlList *list, bool (*predicate)(void *));
 AvlList *AvlList_filterFail(AvlList *list, bool (*predicate)(void *));
 unsigned AvlList_count(AvlList *list, bool (*predicate)(void *));
+unsigned AvlList_countFail(AvlList *list, bool (*predicate)(void *));
