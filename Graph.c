@@ -5,6 +5,41 @@
 
 
 
+struct QNode {
+  unsigned vertex;
+  struct QNode* next;
+};
+
+struct Queue {
+  struct QNode *front, *rear;
+};
+
+struct Queue* createQueue() { struct Queue* queue = malloc(sizeof(struct Queue)); queue->front = queue->rear = NULL; return queue; }
+
+void enqueue(struct Queue* queue, unsigned vertex) {
+  struct QNode* node = malloc(sizeof(struct QNode));
+  node->vertex = vertex;
+  node->next = NULL;
+  if (queue->rear) queue->rear->next = node; else queue->front = node;
+  queue->rear = node;
+}
+
+unsigned dequeue(struct Queue* queue) {
+  assert(queue->front);
+  struct QNode* node = queue->front;
+  unsigned vertex = node->vertex;
+  queue->front = queue->front->next;
+  if (!queue->front) queue->rear = NULL;
+  free(node);
+  return vertex;
+}
+
+bool isEmpty(const struct Queue* queue) { return !queue->front; }
+
+void freeQueue(struct Queue* queue) { while (!isEmpty(queue)) dequeue(queue); free(queue); }
+
+
+
 struct Node {
   unsigned vertex;
   struct Node *next;
@@ -22,10 +57,9 @@ struct Node *addNeighbor(struct Node *node, unsigned vertex) {
 }
 
 void freeNeighbors(struct Node *node) {
-  if (node) {
-    freeNeighbors(node->next);
-    free(node);
-  }
+  if (!node) return;
+  freeNeighbors(node->next);
+  free(node);
 }
 
 
@@ -63,15 +97,35 @@ void addUndirectedEdge(struct Graph *graph, unsigned source, unsigned destinatio
 static void depthFirstSearchRecursive(const struct Graph *graph, bool *visited, unsigned vertex) {
   assert(vertex < graph->size);
   visited[vertex] = true;
-  printf("Visited %d\n", vertex);
+  printf(" %u", vertex);
   for (const struct Node *neighbors = graph->neighbors[vertex]; neighbors; neighbors = neighbors->next)
     if (!visited[neighbors->vertex]) depthFirstSearchRecursive(graph, visited, neighbors->vertex);
 }
 
 void depthFirstSearch(const struct Graph *graph, unsigned vertex) {
   bool *visited = calloc(graph->size, sizeof(*visited));
+  printf("Depth-first order:");
   depthFirstSearchRecursive(graph, visited, vertex);
+  printf("\n");
   free(visited);
+}
+
+void breadthFirstSearch(const struct Graph *graph, unsigned start) {
+  bool *visited = calloc(graph->size, sizeof(bool));
+  struct Queue* queue = createQueue();
+  enqueue(queue, start);
+  printf("Breadth-first order:");
+  while (!isEmpty(queue)) {
+    unsigned current = dequeue(queue);
+    if (!visited[current]) {
+      printf(" %u", current);
+      visited[current] = true;
+      for (struct Node* neighbor = graph->neighbors[current]; neighbor; neighbor = neighbor->next) enqueue(queue, neighbor->vertex);
+    }
+  }
+  printf("\n");
+  free(visited);
+  freeQueue(queue);
 }
 
 static bool isCyclicUndirectedRecursive(const struct Graph *graph, bool *visited, unsigned parent, unsigned current) {
@@ -118,10 +172,9 @@ int main() {
   addUndirectedEdge(graph1, 0, 2);
   addUndirectedEdge(graph1, 1, 2);
   addUndirectedEdge(graph1, 2, 3);
-  unsigned start = 2;
-  printf("DFS starting from vertex %d:\n", start);
-  depthFirstSearch(graph1, start);
+  depthFirstSearch(graph1, 2);
   freeGraph(graph1);
+
   struct Graph *graph2 = createGraph(4);
   addDirectedEdge(graph2, 0, 1);
   addDirectedEdge(graph2, 1, 2);
@@ -129,5 +182,21 @@ int main() {
   addDirectedEdge(graph2, 2, 3);
   if (isCyclicDirected(graph2)) printf("Graph 2 contains a cycle.\n"); else printf("Graph 2 does not contain a cycle.\n");
   freeGraph(graph2);
+
+  struct Graph *graph3 = createGraph(4);
+  addUndirectedEdge(graph3, 0, 1);
+  addUndirectedEdge(graph3, 1, 2);
+  addUndirectedEdge(graph3, 2, 3);
+  breadthFirstSearch(graph3, 0);
+  if (!isCyclicUndirected(graph3)) printf("Graph 3 is acyclic (Correct).\n");
+  freeGraph(graph3);
+
+  struct Graph *graph4 = createGraph(3);
+  addUndirectedEdge(graph4, 0, 1);
+  addUndirectedEdge(graph4, 1, 2);
+  addUndirectedEdge(graph4, 2, 0);
+  if (isCyclicUndirected(graph4)) printf("Graph 4 contains an undirected cycle (Correct).\n");
+  else printf("Graph 4 cycle not detected (Error).\n");
+  freeGraph(graph4);
   return 0;
 }
