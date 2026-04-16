@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,25 +43,15 @@ void freeQueue(struct Queue* queue) { while (!isEmpty(queue)) dequeue(queue); fr
 
 struct Node {
   unsigned vertex;
+  int weight;
   struct Node *next;
 };
 
-struct Node *addNeighbor(struct Node *node, unsigned vertex) {
-  if (!node) {
-    node = malloc(sizeof(*node));
-    node->vertex = vertex;
-    node->next = NULL;
-  } else if (vertex != node->vertex) {
-    node->next = addNeighbor(node->next, vertex);
-  }
-  return node;
+bool areValidNeighbors(const struct Node *node, unsigned size) {
+  return !node || (node->vertex < size && areValidNeighbors(node->next, size));
 }
 
-void freeNeighbors(struct Node *node) {
-  if (!node) return;
-  freeNeighbors(node->next);
-  free(node);
-}
+void freeNeighbors(struct Node *node) { if (!node) return; freeNeighbors(node->next); free(node); }
 
 
 
@@ -68,6 +59,13 @@ struct Graph {
   unsigned size;
   struct Node **neighbors;
 };
+
+bool isValidGraph(struct Graph *graph) {
+  if (!graph) return false;
+  bool valid = true;
+  for (unsigned i = 0; i < graph->size; i++) valid &= areValidNeighbors(graph->neighbors[i], graph->size);
+  return valid;
+}
 
 struct Graph *createGraph(unsigned size) {
   struct Graph *graph = malloc(sizeof(struct Graph));
@@ -83,15 +81,32 @@ void freeGraph(struct Graph *graph) {
 }
 
 void addDirectedEdge(struct Graph *graph, unsigned source, unsigned destination) {
-  assert(graph);
+  assert(isValidGraph(graph));
   assert(source < graph->size);
   assert(destination < graph->size);
-  graph->neighbors[source] = addNeighbor(graph->neighbors[source], destination);
+  struct Node *node = malloc(sizeof(struct Node));
+  node->vertex = destination;
+  node->next = graph->neighbors[source];
+  graph->neighbors[source] = node;
 }
 
 void addUndirectedEdge(struct Graph *graph, unsigned source, unsigned destination) {
+  assert(isValidGraph(graph));
+  assert(source < graph->size);
+  assert(destination < graph->size);
   addDirectedEdge(graph, source, destination);
   if (source != destination) addDirectedEdge(graph, destination, source);
+}
+
+void addWeightedEdge(struct Graph *graph, unsigned source, unsigned destination, int weight) {
+  assert(isValidGraph(graph));
+  assert(source < graph->size);
+  assert(destination < graph->size);
+  struct Node *node = malloc(sizeof(struct Node));
+  node->vertex = destination;
+  node->weight = weight;
+  node->next = graph->neighbors[source];
+  graph->neighbors[source] = node;
 }
 
 static void depthFirstSearchRecursive(const struct Graph *graph, bool *visited, unsigned vertex) {
@@ -166,6 +181,38 @@ bool isCyclicDirected(const struct Graph *graph) {
   return cyclic;
 }
 
+unsigned *shortestDistanceAlternative(const struct Graph *graph, unsigned start) {
+  unsigned *distance = malloc(graph->size * sizeof(unsigned));
+  for (unsigned i = 0; i < graph->size; i++) distance[i] = UINT_MAX;
+  distance[start] = 0;
+  for (unsigned count = 0; count < graph->size; count++)
+    for (unsigned v = 0; v < graph->size; v++)
+      if (distance[v] != UINT_MAX)
+        for (struct Node *neighbor = graph->neighbors[v]; neighbor; neighbor = neighbor->next)
+          if (distance[v] + neighbor->weight < distance[neighbor->vertex])
+            distance[neighbor->vertex] = distance[v] + neighbor->weight;
+  return distance;
+}
+
+unsigned *shortestDistance(const struct Graph *graph, unsigned start) {
+  unsigned *distance = malloc(graph->size * sizeof(unsigned));
+  bool *visited = calloc(graph->size, sizeof(bool));
+  for (unsigned i = 0; i < graph->size; i++) distance[i] = UINT_MAX;
+  distance[start] = 0;
+  for (unsigned count = 0; count < graph->size; count++) {
+    unsigned u = 0;
+    while (visited[u]) u++;
+    for (unsigned v = 0; v < graph->size; v++) if (!visited[v] && distance[v] < distance[u]) u = v;
+    visited[u] = true;
+    if (distance[u] != UINT_MAX)
+      for (struct Node *neighbor = graph->neighbors[u]; neighbor; neighbor = neighbor->next)
+        if (distance[u] + neighbor->weight < distance[neighbor->vertex])
+          distance[neighbor->vertex] = distance[u] + neighbor->weight;
+  }
+  free(visited);
+  return distance;
+}
+
 int main() {
   struct Graph *graph1 = createGraph(4);
   addUndirectedEdge(graph1, 0, 1);
@@ -198,5 +245,23 @@ int main() {
   if (isCyclicUndirected(graph4)) printf("Graph 4 contains an undirected cycle (Correct).\n");
   else printf("Graph 4 cycle not detected (Error).\n");
   freeGraph(graph4);
+
+  struct Graph *graph5 = createGraph(5);
+  addWeightedEdge(graph5, 0, 1, 10);
+  addWeightedEdge(graph5, 0, 4, 5);
+  addWeightedEdge(graph5, 1, 2, 1);
+  addWeightedEdge(graph5, 1, 4, 2);
+  addWeightedEdge(graph5, 2, 3, 4);
+  addWeightedEdge(graph5, 4, 1, 3);
+  addWeightedEdge(graph5, 4, 2, 9);
+  addWeightedEdge(graph5, 4, 3, 2);
+  int start = 0;
+  unsigned *distance = shortestDistance(graph5, start);
+  printf("Shortest distances from vertex %u: ", start);
+  for (unsigned i = 0; i < graph5->size; i++) { if (i > 0) printf(", "); printf("%u: %d", i, distance[i]); }
+  printf("\n");
+  freeGraph(graph5);
+  free(distance);
+
   return 0;
 }
