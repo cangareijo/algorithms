@@ -8,26 +8,26 @@
 
 struct QNode {
   unsigned vertex;
-  struct QNode* next;
+  struct QNode *next;
 };
 
 struct Queue {
   struct QNode *front, *rear;
 };
 
-struct Queue* createQueue() { struct Queue* queue = malloc(sizeof(struct Queue)); queue->front = queue->rear = NULL; return queue; }
+struct Queue *createQueue() { struct Queue *queue = malloc(sizeof(struct Queue)); queue->front = queue->rear = NULL; return queue; }
 
-void enqueue(struct Queue* queue, unsigned vertex) {
-  struct QNode* node = malloc(sizeof(struct QNode));
+void enqueue(struct Queue *queue, unsigned vertex) {
+  struct QNode *node = malloc(sizeof(struct QNode));
   node->vertex = vertex;
   node->next = NULL;
   if (queue->rear) queue->rear->next = node; else queue->front = node;
   queue->rear = node;
 }
 
-unsigned dequeue(struct Queue* queue) {
+unsigned dequeue(struct Queue *queue) {
   assert(queue->front);
-  struct QNode* node = queue->front;
+  struct QNode *node = queue->front;
   unsigned vertex = node->vertex;
   queue->front = queue->front->next;
   if (!queue->front) queue->rear = NULL;
@@ -35,9 +35,68 @@ unsigned dequeue(struct Queue* queue) {
   return vertex;
 }
 
-bool isEmpty(const struct Queue* queue) { return !queue->front; }
+bool isEmpty(const struct Queue *queue) { return !queue->front; }
 
-void freeQueue(struct Queue* queue) { while (!isEmpty(queue)) dequeue(queue); free(queue); }
+void freeQueue(struct Queue *queue) { while (!isEmpty(queue)) dequeue(queue); free(queue); }
+
+
+
+struct HeapNode {
+  unsigned vertex;
+  unsigned distance;
+};
+
+void swapInHeap(struct HeapNode **a, struct HeapNode **b) { struct HeapNode *x = *a; struct HeapNode *y = *b; *a = y; *b = x; }
+
+struct Heap {
+  unsigned size;
+  unsigned capacity;
+  struct HeapNode **array;
+};
+
+struct Heap *createHeap() {
+  struct Heap *heap = malloc(sizeof(struct Heap));
+  heap->size = 0;
+  heap->capacity = 1;
+  heap->array = malloc(heap->capacity * sizeof(struct HeapNode *));
+  return heap;
+}
+
+void freeHeap(struct Heap *heap) { for (unsigned i = 0; i < heap->size; i++) free(heap->array[i]); free(heap->array); free(heap); }
+
+void insertInHeap(struct Heap *heap, unsigned vertex, unsigned distance) {
+  if (heap->size == heap->capacity) { heap->capacity *= 2; heap->array = realloc(heap->array, heap->capacity * sizeof(struct HeapNode *)); }
+  struct HeapNode *node = malloc(sizeof(struct HeapNode));
+  node->vertex = vertex;
+  node->distance = distance;
+  unsigned i = heap->size;
+  heap->array[i] = node;
+  while (i > 0 && heap->array[i]->distance < heap->array[(i - 1) / 2]->distance) {
+    swapInHeap(&heap->array[i], &heap->array[(i - 1) / 2]);
+    i = (i - 1) / 2;
+  }
+  heap->size++;
+}
+
+unsigned getHeapVertex(const struct Heap *heap) { assert(heap->size > 0); return heap->array[0]->vertex; }
+
+unsigned getHeapDistance(const struct Heap *heap) { assert(heap->size > 0); return heap->array[0]->distance; }
+
+void extractFromHeap(struct Heap *heap) {
+  assert(heap->size > 0);
+  free(heap->array[0]);
+  heap->array[0] = heap->array[--heap->size];
+  unsigned i = 0;
+  while ((2 * i + 1 < heap->size && heap->array[2 * i + 1]->distance < heap->array[i]->distance) ||
+    (2 * i + 2 < heap->size && heap->array[2 * i + 2]->distance < heap->array[i]->distance))
+      if (2 * i + 2 >= heap->size || heap->array[2 * i + 1]->distance <= heap->array[2 * i + 2]->distance) {
+        swapInHeap(&heap->array[i], &heap->array[2 * i + 1]);
+        i = 2 * i + 1;
+      } else {
+        swapInHeap(&heap->array[i], &heap->array[2 * i + 2]);
+        i = 2 * i + 2;
+      }
+}
 
 
 
@@ -127,7 +186,7 @@ void depthFirstSearch(const struct Graph *graph, unsigned vertex) {
 
 void breadthFirstSearch(const struct Graph *graph, unsigned start) {
   bool *visited = calloc(graph->size, sizeof(bool));
-  struct Queue* queue = createQueue();
+  struct Queue *queue = createQueue();
   enqueue(queue, start);
   printf("Breadth-first order:");
   while (!isEmpty(queue)) {
@@ -135,7 +194,7 @@ void breadthFirstSearch(const struct Graph *graph, unsigned start) {
     if (!visited[current]) {
       printf(" %u", current);
       visited[current] = true;
-      for (struct Node* neighbor = graph->neighbors[current]; neighbor; neighbor = neighbor->next) enqueue(queue, neighbor->vertex);
+      for (struct Node *neighbor = graph->neighbors[current]; neighbor; neighbor = neighbor->next) enqueue(queue, neighbor->vertex);
     }
   }
   printf("\n");
@@ -181,7 +240,7 @@ bool isCyclicDirected(const struct Graph *graph) {
   return cyclic;
 }
 
-unsigned *shortestDistanceAlternative(const struct Graph *graph, unsigned start) {
+unsigned *shortestDistanceAlternative1(const struct Graph *graph, unsigned start) {
   unsigned *distance = malloc(graph->size * sizeof(unsigned));
   for (unsigned i = 0; i < graph->size; i++) distance[i] = UINT_MAX;
   distance[start] = 0;
@@ -194,7 +253,7 @@ unsigned *shortestDistanceAlternative(const struct Graph *graph, unsigned start)
   return distance;
 }
 
-unsigned *shortestDistance(const struct Graph *graph, unsigned start) {
+unsigned *shortestDistanceAlternative2(const struct Graph *graph, unsigned start) {
   unsigned *distance = malloc(graph->size * sizeof(unsigned));
   bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned i = 0; i < graph->size; i++) distance[i] = UINT_MAX;
@@ -210,6 +269,27 @@ unsigned *shortestDistance(const struct Graph *graph, unsigned start) {
           distance[neighbor->vertex] = distance[u] + neighbor->weight;
   }
   free(visited);
+  return distance;
+}
+
+unsigned *shortestDistance(const struct Graph *graph, unsigned start) {
+  unsigned *distance = malloc(graph->size * sizeof(unsigned));
+  for (unsigned i = 0; i < graph->size; i++) distance[i] = UINT_MAX;
+  distance[start] = 0;
+  struct Heap *heap = createHeap();
+  insertInHeap(heap, start, 0);
+  while (heap->size > 0) {
+    unsigned u = getHeapVertex(heap);
+    unsigned d = getHeapDistance(heap);
+    extractFromHeap(heap);
+    if (d > distance[u]) continue;
+    for (struct Node *edge = graph->neighbors[u]; edge; edge = edge->next)
+      if (distance[u] + edge->weight < distance[edge->vertex]) {
+        distance[edge->vertex] = distance[u] + edge->weight;
+        insertInHeap(heap, edge->vertex, distance[edge->vertex]);
+      }
+  }
+  freeHeap(heap);
   return distance;
 }
 
@@ -235,15 +315,14 @@ int main() {
   addUndirectedEdge(graph3, 1, 2);
   addUndirectedEdge(graph3, 2, 3);
   breadthFirstSearch(graph3, 0);
-  if (!isCyclicUndirected(graph3)) printf("Graph 3 is acyclic (Correct).\n");
+  if (isCyclicUndirected(graph3)) printf("Graph 3 is cyclic.\n"); else printf("Graph 3 is acyclic.\n");
   freeGraph(graph3);
 
   struct Graph *graph4 = createGraph(3);
   addUndirectedEdge(graph4, 0, 1);
   addUndirectedEdge(graph4, 1, 2);
   addUndirectedEdge(graph4, 2, 0);
-  if (isCyclicUndirected(graph4)) printf("Graph 4 contains an undirected cycle (Correct).\n");
-  else printf("Graph 4 cycle not detected (Error).\n");
+  if (isCyclicUndirected(graph4)) printf("Graph 4 contains an undirected cycle.\n"); else printf("Graph 4 cycle not detected.\n");
   freeGraph(graph4);
 
   struct Graph *graph5 = createGraph(5);
@@ -258,7 +337,7 @@ int main() {
   int start = 0;
   unsigned *distance = shortestDistance(graph5, start);
   printf("Shortest distances from vertex %u: ", start);
-  for (unsigned i = 0; i < graph5->size; i++) { if (i > 0) printf(", "); printf("%u: %d", i, distance[i]); }
+  for (unsigned i = 0; i < graph5->size; i++) { if (i > 0) printf(", "); printf("%u: %u", i, distance[i]); }
   printf("\n");
   freeGraph(graph5);
   free(distance);
