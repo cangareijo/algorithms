@@ -78,11 +78,11 @@ void insertInHeap(struct Heap *heap, unsigned vertex, unsigned distance) {
   heap->size++;
 }
 
-unsigned getHeapVertex(const struct Heap *heap) { assert(heap->size > 0); return heap->array[0]->vertex; }
+unsigned getMinimumVertexFromHeap(const struct Heap *heap) { assert(heap->size > 0); return heap->array[0]->vertex; }
 
-unsigned getHeapDistance(const struct Heap *heap) { assert(heap->size > 0); return heap->array[0]->distance; }
+unsigned getMinimumDistanceFromHeap(const struct Heap *heap) { assert(heap->size > 0); return heap->array[0]->distance; }
 
-void extractFromHeap(struct Heap *heap) {
+void removeMinimumFromHeap(struct Heap *heap) {
   assert(heap->size > 0);
   free(heap->array[0]);
   heap->array[0] = heap->array[--heap->size];
@@ -219,22 +219,22 @@ bool isCyclicUndirected(const struct Graph *graph) {
   return cyclic;
 }
 
-static bool isCyclicDirectedRecursive(const struct Graph *graph, bool *visited, bool *stack, unsigned vertex) {
+static bool isDirectedCyclicRecursive(const struct Graph *graph, bool *visited, bool *stack, unsigned vertex) {
   visited[vertex] = true;
   stack[vertex] = true;
   for (const struct Node *neighbors = graph->neighbors[vertex]; neighbors; neighbors = neighbors->next)
-    if (stack[neighbors->vertex] || (!visited[neighbors->vertex] && isCyclicDirectedRecursive(graph, visited, stack, neighbors->vertex)))
+    if (stack[neighbors->vertex] || (!visited[neighbors->vertex] && isDirectedCyclicRecursive(graph, visited, stack, neighbors->vertex)))
       return true;
   stack[vertex] = false;
   return false;
 }
 
-bool isCyclicDirected(const struct Graph *graph) {
+bool isDirectedCyclic(const struct Graph *graph) {
   bool *visited = calloc(graph->size, sizeof(*visited));
   bool *stack = calloc(graph->size, sizeof(*stack));
   bool cyclic = false;
   for (unsigned i = 0; i < graph->size; i++)
-    if (!visited[i] && isCyclicDirectedRecursive(graph, visited, stack, i)) { cyclic = true; break; }
+    if (!visited[i] && isDirectedCyclicRecursive(graph, visited, stack, i)) { cyclic = true; break; }
   free(visited);
   free(stack);
   return cyclic;
@@ -279,9 +279,9 @@ unsigned *shortestDistance(const struct Graph *graph, unsigned start) {
   struct Heap *heap = createHeap();
   insertInHeap(heap, start, 0);
   while (heap->size > 0) {
-    unsigned u = getHeapVertex(heap);
-    unsigned d = getHeapDistance(heap);
-    extractFromHeap(heap);
+    unsigned u = getMinimumVertexFromHeap(heap);
+    unsigned d = getMinimumDistanceFromHeap(heap);
+    removeMinimumFromHeap(heap);
     if (d > distance[u]) continue;
     for (struct Node *edge = graph->neighbors[u]; edge; edge = edge->next)
       if (distance[u] + edge->weight < distance[edge->vertex]) {
@@ -291,6 +291,24 @@ unsigned *shortestDistance(const struct Graph *graph, unsigned start) {
   }
   freeHeap(heap);
   return distance;
+}
+
+static void topologicalSortRecursive(const struct Graph *graph, bool *visited, unsigned *stack, unsigned *index, unsigned vertex) {
+  visited[vertex] = true;
+  for (const struct Node *neighbor = graph->neighbors[vertex]; neighbor; neighbor = neighbor->next)
+    if (!visited[neighbor->vertex]) topologicalSortRecursive(graph, visited, stack, index, neighbor->vertex);
+  stack[(*index)--] = vertex;
+}
+
+unsigned *topologicalSort(const struct Graph *graph) {
+  if (isDirectedCyclic(graph)) return NULL;
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned *sorted = malloc(graph->size * sizeof(unsigned));
+  unsigned index = graph->size - 1;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!visited[vertex]) topologicalSortRecursive(graph, visited, sorted, &index, vertex);
+  free(visited);
+  return sorted;
 }
 
 int main() {
@@ -307,7 +325,7 @@ int main() {
   addDirectedEdge(graph2, 1, 2);
   addDirectedEdge(graph2, 2, 0);
   addDirectedEdge(graph2, 2, 3);
-  if (isCyclicDirected(graph2)) printf("Graph 2 contains a cycle.\n"); else printf("Graph 2 does not contain a cycle.\n");
+  if (isDirectedCyclic(graph2)) printf("Graph 2 contains a cycle.\n"); else printf("Graph 2 does not contain a cycle.\n");
   freeGraph(graph2);
 
   struct Graph *graph3 = createGraph(4);
@@ -334,13 +352,26 @@ int main() {
   addWeightedEdge(graph5, 4, 1, 3);
   addWeightedEdge(graph5, 4, 2, 9);
   addWeightedEdge(graph5, 4, 3, 2);
-  int start = 0;
+  unsigned start = 0;
   unsigned *distance = shortestDistance(graph5, start);
   printf("Shortest distances from vertex %u: ", start);
   for (unsigned i = 0; i < graph5->size; i++) { if (i > 0) printf(", "); printf("%u: %u", i, distance[i]); }
   printf("\n");
   freeGraph(graph5);
   free(distance);
+
+  struct Graph *graph6 = createGraph(6);
+  addDirectedEdge(graph6, 5, 2);
+  addDirectedEdge(graph6, 5, 0);
+  addDirectedEdge(graph6, 4, 0);
+  addDirectedEdge(graph6, 4, 1);
+  addDirectedEdge(graph6, 2, 3);
+  addDirectedEdge(graph6, 3, 1);
+  unsigned *sorted = topologicalSort(graph6);
+  if (sorted) { printf("Topological Order:"); for (unsigned i = 0; i < graph6->size; i++) printf(" %u", sorted[i]); printf("\n"); }
+  else { printf("Graph contains a cycle; topological sort is impossible.\n"); }
+  freeGraph(graph6);
+  free(sorted);
 
   return 0;
 }
