@@ -39,8 +39,8 @@ void destroyGraph(Graph *graph);
 void addDirectedEdgeToGraph(Graph *graph, unsigned source, unsigned destination, unsigned weight);
 void addUndirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weight);
 void printGraph(const Graph *graph);
-bool isCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
-bool isCyclicGraph(const Graph *graph);
+bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
+bool isDirectedCyclicGraph(const Graph *graph);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -51,7 +51,7 @@ unsigned *dijkstra(const Graph *graph, unsigned source);
 Graph *prim(const Graph *graph, unsigned source);
 
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
-void testIsCyclicGraph();
+void testIsDirectedCyclicGraph();
 void testDepthFirstSortOfGraph();
 void testBreadthFirstSortOfGraph();
 void testTopologicalSortOfGraph();
@@ -156,21 +156,22 @@ void printGraph(const Graph *graph) {
   }
 }
 
-bool isCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
+bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
   visited[vertex] = 1;
   for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-    if (visited[edge->destination] == 1 || (visited[edge->destination] == 0 && isCyclicGraphComponent(graph, edge->destination, visited)))
-      return true;
+    if (visited[edge->destination] == 1 ||
+      (visited[edge->destination] == 0 && isDirectedCyclicGraphComponent(graph, edge->destination, visited)))
+        return true;
   visited[vertex] = 2;
   return false;
 }
 
-bool isCyclicGraph(const Graph *graph) {
+bool isDirectedCyclicGraph(const Graph *graph) {
   char visited[graph->size];
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
     visited[vertex] = 0;
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    if (visited[vertex] == 0 && isCyclicGraphComponent(graph, vertex, visited))
+    if (visited[vertex] == 0 && isDirectedCyclicGraphComponent(graph, vertex, visited))
       return true;
   return false;
 }
@@ -309,12 +310,12 @@ bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
   return true;
 }
 
-void testIsCyclicGraph() {
+void testIsDirectedCyclicGraph() {
   Graph *g = createGraph(3);
   addDirectedEdgeToGraph(g, 0, 1, 1);
   addDirectedEdgeToGraph(g, 1, 2, 1);
   addDirectedEdgeToGraph(g, 2, 0, 1);
-  if (isCyclicGraph(g))
+  if (isDirectedCyclicGraph(g))
     printf("Cycle Detection Test passed: Cycle found!\n");
   else
     printf("Cycle Detection Test failed: No cycle found.\n");
@@ -545,7 +546,7 @@ void testPrim() {
 }
 
 int main() {
-  testIsCyclicGraph();
+  testIsDirectedCyclicGraph();
   testDepthFirstSortOfGraph();
   testBreadthFirstSortOfGraph();
   testTopologicalSortOfGraph();
