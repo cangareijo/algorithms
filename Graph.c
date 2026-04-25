@@ -6,7 +6,7 @@
 
 typedef struct {
   unsigned vertex;
-  unsigned distance;
+  unsigned priority;
 } HeapNode;
 
 void swapHeapNodes(HeapNode *a, HeapNode *b);
@@ -19,13 +19,13 @@ typedef struct {
 
 Heap *createHeap();
 void freeHeap(Heap *heap);
-void insertInHeap(Heap *heap, unsigned vertex, unsigned distance);
+void insertInHeap(Heap *heap, unsigned vertex, unsigned priority);
 unsigned getMinimumFromHeap(const Heap *heap);
 void removeMinimumFromHeap(Heap *heap);
 
 typedef struct Edge {
   unsigned destination;
-  unsigned distance;
+  unsigned weight;
   struct Edge *next;
 } Edge;
 
@@ -36,8 +36,10 @@ typedef struct {
 
 Graph *createGraph(unsigned size);
 void destroyGraph(Graph *graph);
-void addEdgeToGraph(Graph *graph, unsigned source, unsigned destination, unsigned distance);
-bool isCyclicGraphComponent(const Graph *graph, unsigned vertex, bool *visited, bool *visiting);
+void addDirectedEdgeToGraph(Graph *graph, unsigned source, unsigned destination, unsigned weight);
+void addUndirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weight);
+void printGraph(const Graph *graph);
+bool isCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicGraph(const Graph *graph);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
@@ -45,14 +47,17 @@ void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsig
 unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
-unsigned *distancesInGraph(const Graph *graph, unsigned source);
+unsigned *dijkstra(const Graph *graph, unsigned source);
+Graph *prim(const Graph *graph, unsigned source);
 
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testIsCyclicGraph();
 void testDepthFirstSortOfGraph();
 void testBreadthFirstSortOfGraph();
 void testTopologicalSortOfGraph();
-void testDistancesInGraph();
+void testDijkstra();
+void getUndirectedGraphStats(const Graph *graph, unsigned *weight, unsigned *count);
+void testPrim();
 
 void swapHeapNodes(HeapNode *a, HeapNode *b) {
   HeapNode c = *a;
@@ -74,14 +79,15 @@ void freeHeap(Heap *heap) {
   free(heap);
 }
 
-void insertInHeap(Heap *heap, unsigned vertex, unsigned distance) {
+void insertInHeap(Heap *heap, unsigned vertex, unsigned priority) {
   if (heap->size >= heap->capacity) {
     heap->capacity *= 2;
     heap->nodes = realloc(heap->nodes, heap->capacity * sizeof(HeapNode));
   }
   unsigned i = heap->size++;
-  heap->nodes[i] = (HeapNode){vertex, distance};
-  while (i > 0 && heap->nodes[(i - 1) / 2].distance > heap->nodes[i].distance) {
+  heap->nodes[i].vertex = vertex;
+  heap->nodes[i].priority = priority;
+  while (i > 0 && heap->nodes[(i - 1) / 2].priority > heap->nodes[i].priority) {
     swapHeapNodes(&heap->nodes[i], &heap->nodes[(i - 1) / 2]);
     i = (i - 1) / 2;
   }
@@ -96,14 +102,11 @@ void removeMinimumFromHeap(Heap *heap) {
   unsigned i = 0;
   while (true) {
     unsigned left = 2 * i + 1, right = 2 * i + 2, smallest = i;
-    if (left < heap->size && heap->nodes[left].distance < heap->nodes[smallest].distance) smallest = left;
-    if (right < heap->size && heap->nodes[right].distance < heap->nodes[smallest].distance) smallest = right;
-    if (smallest != i) {
-      swapHeapNodes(&heap->nodes[i], &heap->nodes[smallest]);
-      i = smallest;
-    } else {
-      break;
-    }
+    if (left < heap->size && heap->nodes[left].priority < heap->nodes[smallest].priority) smallest = left;
+    if (right < heap->size && heap->nodes[right].priority < heap->nodes[smallest].priority) smallest = right;
+    if (smallest == i) break;
+    swapHeapNodes(&heap->nodes[i], &heap->nodes[smallest]);
+    i = smallest;
   }
 }
 
@@ -127,33 +130,47 @@ void destroyGraph(Graph *graph) {
   free(graph);
 }
 
-void addEdgeToGraph(Graph *graph, unsigned source, unsigned destination, unsigned distance) {
+void addDirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
   Edge *edge = malloc(sizeof(Edge));
-  edge->destination = destination;
-  edge->distance = distance;
-  edge->next = graph->edges[source];
-  graph->edges[source] = edge;
+  edge->destination = v;
+  edge->weight = weight;
+  edge->next = graph->edges[u];
+  graph->edges[u] = edge;
 }
 
-bool isCyclicGraphComponent(const Graph *graph, unsigned vertex, bool *visited, bool *visiting) {
-  visited[vertex] = true;
-  visiting[vertex] = true;
+void addUndirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
+  addDirectedEdgeToGraph(graph, u, v, weight);
+  addDirectedEdgeToGraph(graph, v, u, weight);
+}
+
+void printGraph(const Graph *graph) {
+  for (unsigned i = 0; i < graph->size; i++) {
+    Edge *current = graph->edges[i];
+    if (current) {
+      while (current) {
+        printf(" (%u, %u): %u,", i, current->destination, current->weight);
+        current = current->next;
+      }
+      printf("\n");
+    }
+  }
+}
+
+bool isCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
+  visited[vertex] = 1;
   for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-    if (visiting[edge->destination] || (!visited[edge->destination] && isCyclicGraphComponent(graph, edge->destination, visited, visiting)))
+    if (visited[edge->destination] == 1 || (visited[edge->destination] == 0 && isCyclicGraphComponent(graph, edge->destination, visited)))
       return true;
-  visiting[vertex] = false;
+  visited[vertex] = 2;
   return false;
 }
 
 bool isCyclicGraph(const Graph *graph) {
-  bool visited[graph->size];
-  bool visiting[graph->size];
-  for (unsigned i = 0; i < graph->size; i++) {
-    visited[i] = false;
-    visiting[i] = false;
-  }
-  for (unsigned i = 0; i < graph->size; i++)
-    if (!visited[i] && isCyclicGraphComponent(graph, i, visited, visiting))
+  char visited[graph->size];
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    visited[vertex] = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (visited[vertex] == 0 && isCyclicGraphComponent(graph, vertex, visited))
       return true;
   return false;
 }
@@ -231,23 +248,54 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
   return ordering;
 }
 
-unsigned *distancesInGraph(const Graph *graph, unsigned source) {
-  unsigned *distances = malloc(graph->size * sizeof(unsigned));
-  for (unsigned i = 0; i < graph->size; i++) distances[i] = UINT_MAX;
-  distances[source] = 0;
+unsigned *dijkstra(const Graph *graph, unsigned source) {
+  unsigned *weights = malloc(graph->size * sizeof(unsigned));
+  for (unsigned i = 0; i < graph->size; i++) weights[i] = UINT_MAX;
+  weights[source] = 0;
   Heap *heap = createHeap();
   insertInHeap(heap, source, 0);
   while (heap->size > 0) {
     unsigned vertex = getMinimumFromHeap(heap);
     removeMinimumFromHeap(heap);
     for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-      if (distances[vertex] + edge->distance < distances[edge->destination]) {
-        distances[edge->destination] = distances[vertex] + edge->distance;
-        insertInHeap(heap, edge->destination, distances[edge->destination]);
+      if (weights[vertex] + edge->weight < weights[edge->destination]) {
+        weights[edge->destination] = weights[vertex] + edge->weight;
+        insertInHeap(heap, edge->destination, weights[edge->destination]);
       }
   }
   freeHeap(heap);
-  return distances;
+  return weights;
+}
+
+Graph *prim(const Graph *graph, unsigned source) {
+  unsigned parents[graph->size];
+  unsigned weights[graph->size];
+  bool visited[graph->size];
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    parents[vertex] = UINT_MAX;
+    weights[vertex] = UINT_MAX;
+    visited[vertex] = false;
+  }
+  weights[source] = 0;
+  Heap *heap = createHeap();
+  insertInHeap(heap, source, 0);
+  Graph *tree = createGraph(graph->size);
+  while (heap->size > 0) {
+    unsigned vertex = getMinimumFromHeap(heap);
+    removeMinimumFromHeap(heap);
+    if (visited[vertex]) continue;
+    visited[vertex] = true;
+    if (parents[vertex] != UINT_MAX)
+      addUndirectedEdgeToGraph(tree, parents[vertex], vertex, weights[vertex]);
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+      if (!visited[edge->destination] && edge->weight < weights[edge->destination]) {
+        parents[edge->destination] = vertex;
+        weights[edge->destination] = edge->weight;
+        insertInHeap(heap, edge->destination, edge->weight);
+      }
+  }
+  freeHeap(heap);
+  return tree;
 }
 
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
@@ -263,9 +311,9 @@ bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
 
 void testIsCyclicGraph() {
   Graph *g = createGraph(3);
-  addEdgeToGraph(g, 0, 1, 1);
-  addEdgeToGraph(g, 1, 2, 1);
-  addEdgeToGraph(g, 2, 0, 1);
+  addDirectedEdgeToGraph(g, 0, 1, 1);
+  addDirectedEdgeToGraph(g, 1, 2, 1);
+  addDirectedEdgeToGraph(g, 2, 0, 1);
   if (isCyclicGraph(g))
     printf("Cycle Detection Test passed: Cycle found!\n");
   else
@@ -275,8 +323,8 @@ void testIsCyclicGraph() {
 
 void testDepthFirstSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToGraph(g1, 0, 1, 1);
-  addEdgeToGraph(g1, 1, 2, 1);
+  addDirectedEdgeToGraph(g1, 0, 1, 1);
+  addDirectedEdgeToGraph(g1, 1, 2, 1);
   unsigned *order1 = depthFirstSortOfGraph(g1, 0);
   assert(order1[0] == 0);
   assert(order1[1] == 1);
@@ -286,8 +334,8 @@ void testDepthFirstSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToGraph(g2, 0, 2, 1);
-  addEdgeToGraph(g2, 0, 1, 1); 
+  addDirectedEdgeToGraph(g2, 0, 2, 1);
+  addDirectedEdgeToGraph(g2, 0, 1, 1); 
   unsigned *order2 = depthFirstSortOfGraph(g2, 0);
   assert(order2[0] == 0);
   assert(order2[1] == 1); 
@@ -297,7 +345,7 @@ void testDepthFirstSortOfGraph() {
   free(order2);
 
   Graph *g3 = createGraph(3);
-  addEdgeToGraph(g3, 0, 1, 1);
+  addDirectedEdgeToGraph(g3, 0, 1, 1);
   unsigned *order3 = depthFirstSortOfGraph(g3, 0);
   assert(order3[0] == 0);
   assert(order3[1] == 1);
@@ -307,8 +355,8 @@ void testDepthFirstSortOfGraph() {
   free(order3);
 
   Graph *g4 = createGraph(2);
-  addEdgeToGraph(g4, 0, 1, 1);
-  addEdgeToGraph(g4, 1, 0, 1);
+  addDirectedEdgeToGraph(g4, 0, 1, 1);
+  addDirectedEdgeToGraph(g4, 1, 0, 1);
   unsigned *order4 = depthFirstSortOfGraph(g4, 0);
   assert(order4[0] == 0);
   assert(order4[1] == 1);
@@ -319,8 +367,8 @@ void testDepthFirstSortOfGraph() {
 
 void testBreadthFirstSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToGraph(g1, 0, 1, 1);
-  addEdgeToGraph(g1, 1, 2, 1);
+  addDirectedEdgeToGraph(g1, 0, 1, 1);
+  addDirectedEdgeToGraph(g1, 1, 2, 1);
   unsigned *order1 = breadthFirstSortOfGraph(g1, 0);
   assert(order1[0] == 0);
   assert(order1[1] == 1);
@@ -330,8 +378,8 @@ void testBreadthFirstSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToGraph(g2, 0, 2, 1);
-  addEdgeToGraph(g2, 0, 1, 1); 
+  addDirectedEdgeToGraph(g2, 0, 2, 1);
+  addDirectedEdgeToGraph(g2, 0, 1, 1); 
   unsigned *order2 = breadthFirstSortOfGraph(g2, 0);
   assert(order2[0] == 0);
   assert(order2[1] == 1); 
@@ -341,7 +389,7 @@ void testBreadthFirstSortOfGraph() {
   free(order2);
 
   Graph *g3 = createGraph(3);
-  addEdgeToGraph(g3, 0, 1, 1);
+  addDirectedEdgeToGraph(g3, 0, 1, 1);
   unsigned *order3 = breadthFirstSortOfGraph(g3, 0);
   assert(order3[0] == 0);
   assert(order3[1] == 1);
@@ -351,8 +399,8 @@ void testBreadthFirstSortOfGraph() {
   free(order3);
 
   Graph *g4 = createGraph(2);
-  addEdgeToGraph(g4, 0, 1, 1);
-  addEdgeToGraph(g4, 1, 0, 1);
+  addDirectedEdgeToGraph(g4, 0, 1, 1);
+  addDirectedEdgeToGraph(g4, 1, 0, 1);
   unsigned *order4 = breadthFirstSortOfGraph(g4, 0);
   assert(order4[0] == 0);
   assert(order4[1] == 1);
@@ -363,8 +411,8 @@ void testBreadthFirstSortOfGraph() {
 
 void testTopologicalSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToGraph(g1, 0, 1, 1);
-  addEdgeToGraph(g1, 1, 2, 1);
+  addDirectedEdgeToGraph(g1, 0, 1, 1);
+  addDirectedEdgeToGraph(g1, 1, 2, 1);
   unsigned *order1 = topologicalSortOfGraph(g1);
   assert(isValidTopologicalSort(g1, order1));
   printf("Topo test 1 (linear) passed!\n");
@@ -372,10 +420,10 @@ void testTopologicalSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(4);
-  addEdgeToGraph(g2, 0, 1, 1);
-  addEdgeToGraph(g2, 0, 2, 1);
-  addEdgeToGraph(g2, 1, 3, 1);
-  addEdgeToGraph(g2, 2, 3, 1);
+  addDirectedEdgeToGraph(g2, 0, 1, 1);
+  addDirectedEdgeToGraph(g2, 0, 2, 1);
+  addDirectedEdgeToGraph(g2, 1, 3, 1);
+  addDirectedEdgeToGraph(g2, 2, 3, 1);
   unsigned *order2 = topologicalSortOfGraph(g2);
   assert(isValidTopologicalSort(g2, order2));
   printf("Topo test 2 (diamond) passed!\n");
@@ -383,8 +431,8 @@ void testTopologicalSortOfGraph() {
   free(order2);
 
   Graph *g3 = createGraph(4);
-  addEdgeToGraph(g3, 0, 1, 1);
-  addEdgeToGraph(g3, 2, 3, 1);
+  addDirectedEdgeToGraph(g3, 0, 1, 1);
+  addDirectedEdgeToGraph(g3, 2, 3, 1);
   unsigned *order3 = topologicalSortOfGraph(g3);
   assert(isValidTopologicalSort(g3, order3));
   printf("Topo test 3 (disconnected) passed!\n");
@@ -399,11 +447,11 @@ void testTopologicalSortOfGraph() {
   free(order4);
 }
 
-void testDistancesInGraph() {
+void testDijkstra() {
   Graph *g1 = createGraph(3);
-  addEdgeToGraph(g1, 0, 1, 5);
-  addEdgeToGraph(g1, 1, 2, 10);
-  unsigned *dist1 = distancesInGraph(g1, 0);
+  addDirectedEdgeToGraph(g1, 0, 1, 5);
+  addDirectedEdgeToGraph(g1, 1, 2, 10);
+  unsigned *dist1 = dijkstra(g1, 0);
   assert(dist1[0] == 0);
   assert(dist1[1] == 5);
   assert(dist1[2] == 15);
@@ -412,17 +460,17 @@ void testDistancesInGraph() {
   free(dist1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToGraph(g2, 0, 2, 10);
-  addEdgeToGraph(g2, 0, 1, 2);
-  addEdgeToGraph(g2, 1, 2, 3);
-  unsigned *dist2 = distancesInGraph(g2, 0);
+  addDirectedEdgeToGraph(g2, 0, 2, 10);
+  addDirectedEdgeToGraph(g2, 0, 1, 2);
+  addDirectedEdgeToGraph(g2, 1, 2, 3);
+  unsigned *dist2 = dijkstra(g2, 0);
   assert(dist2[2] == 5);
   printf("Test 2 passed: Shortest path selection\n");
   destroyGraph(g2);
   free(dist2);
 
   Graph *g3 = createGraph(2);
-  unsigned *dist3 = distancesInGraph(g3, 0);
+  unsigned *dist3 = dijkstra(g3, 0);
   assert(dist3[0] == 0);
   assert(dist3[1] == UINT_MAX);
   printf("Test 3 passed: Unreachable vertex (UINT_MAX)\n");
@@ -430,10 +478,10 @@ void testDistancesInGraph() {
   free(dist3);
 
   Graph *g4 = createGraph(3);
-  addEdgeToGraph(g4, 0, 1, 1);
-  addEdgeToGraph(g4, 1, 2, 1);
-  addEdgeToGraph(g4, 2, 0, 1);
-  unsigned *dist4 = distancesInGraph(g4, 0);
+  addDirectedEdgeToGraph(g4, 0, 1, 1);
+  addDirectedEdgeToGraph(g4, 1, 2, 1);
+  addDirectedEdgeToGraph(g4, 2, 0, 1);
+  unsigned *dist4 = dijkstra(g4, 0);
   assert(dist4[0] == 0);
   assert(dist4[1] == 1);
   assert(dist4[2] == 2);
@@ -442,11 +490,66 @@ void testDistancesInGraph() {
   free(dist4);
 }
 
+void getUndirectedGraphStats(const Graph *graph, unsigned *weight, unsigned *count) {
+  *weight = 0;
+  *count = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
+      *weight += edge->weight;
+      (*count)++;
+    }
+  *weight /= 2;
+  *count /= 2;
+}
+
+void testPrim() {
+  Graph *g1 = createGraph(3);
+  addUndirectedEdgeToGraph(g1, 0, 1, 1);
+  addUndirectedEdgeToGraph(g1, 1, 2, 3);
+  addUndirectedEdgeToGraph(g1, 0, 2, 4);
+  Graph *mst1 = prim(g1, 0);
+  unsigned w1, e1;
+  getUndirectedGraphStats(mst1, &w1, &e1);
+  assert(e1 == 2);
+  assert(w1 == 4);
+  printf("Prim test 1 (triangle) passed: weight %u\n", w1);
+  destroyGraph(g1);
+  destroyGraph(mst1);
+
+  Graph *g2 = createGraph(5);
+  addUndirectedEdgeToGraph(g2, 0, 1, 2);
+  addUndirectedEdgeToGraph(g2, 0, 3, 6);
+  addUndirectedEdgeToGraph(g2, 1, 2, 3);
+  addUndirectedEdgeToGraph(g2, 1, 3, 8);
+  addUndirectedEdgeToGraph(g2, 1, 4, 5);
+  addUndirectedEdgeToGraph(g2, 2, 4, 7);
+  addUndirectedEdgeToGraph(g2, 3, 4, 9);
+  Graph *mst2 = prim(g2, 0);
+  unsigned w2, e2;
+  getUndirectedGraphStats(mst2, &w2, &e2);
+  assert(e2 == 4);
+  assert(w2 == 16);
+  printf("Prim test 2 (complex) passed: weight %u\n", w2);
+  destroyGraph(g2);
+  destroyGraph(mst2);
+
+  Graph *g3 = createGraph(1);
+  Graph *mst3 = prim(g3, 0);
+  unsigned w3, e3;
+  getUndirectedGraphStats(mst3, &w3, &e3);
+  assert(e3 == 0);
+  assert(w3 == 0);
+  printf("Prim test 3 (single vertex) passed!\n");
+  destroyGraph(g3);
+  destroyGraph(mst3);
+}
+
 int main() {
   testIsCyclicGraph();
   testDepthFirstSortOfGraph();
   testBreadthFirstSortOfGraph();
   testTopologicalSortOfGraph();
-  testDistancesInGraph();
+  testDijkstra();
+  testPrim();
   return 0;
 }
