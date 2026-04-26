@@ -41,6 +41,8 @@ void addUndirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned wei
 void printGraph(const Graph *graph);
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isDirectedCyclicGraph(const Graph *graph);
+bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
+bool isUndirectedCyclicGraph(const Graph *graph);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -50,10 +52,11 @@ unsigned *topologicalSortOfGraph(const Graph *graph);
 unsigned *dijkstra(const Graph *graph, unsigned source);
 Graph *prim(const Graph *graph, unsigned source);
 
-bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testIsDirectedCyclicGraph();
+void testIsUndirectedCyclicGraph();
 void testDepthFirstSortOfGraph();
 void testBreadthFirstSortOfGraph();
+bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testTopologicalSortOfGraph();
 void testDijkstra();
 void getUndirectedGraphStats(const Graph *graph, unsigned *weight, unsigned *count);
@@ -173,6 +176,31 @@ bool isDirectedCyclicGraph(const Graph *graph) {
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
     if (visited[vertex] == 0 && isDirectedCyclicGraphComponent(graph, vertex, visited))
       return true;
+  return false;
+}
+
+bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
+  visited[vertex] = true;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (visited[edge->destination]) {
+      if (edge->destination != parent)
+        return true;
+    } else {
+      if (isUndirectedCyclicGraphComponent(graph, edge->destination, vertex, visited))
+        return true;
+    }
+  return false;
+}
+
+bool isUndirectedCyclicGraph(const Graph *graph) {
+  bool *visited = calloc(graph->size, sizeof(bool));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!visited[vertex])
+      if (isUndirectedCyclicGraphComponent(graph, vertex, graph->size, visited)) {
+        free(visited);
+        return true;
+      }
+  free(visited);
   return false;
 }
 
@@ -299,17 +327,6 @@ Graph *prim(const Graph *graph, unsigned source) {
   return tree;
 }
 
-bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
-  unsigned position[graph->size];
-  for (unsigned i = 0; i < graph->size; i++)
-    position[ordering[i]] = i;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
-      if (position[v] >= position[edge->destination])
-        return false;
-  return true;
-}
-
 void testIsDirectedCyclicGraph() {
   Graph *g = createGraph(3);
   addDirectedEdgeToGraph(g, 0, 1, 1);
@@ -320,6 +337,46 @@ void testIsDirectedCyclicGraph() {
   else
     printf("Cycle Detection Test failed: No cycle found.\n");
   destroyGraph(g);
+}
+
+void testIsUndirectedCyclicGraph() {
+  Graph *g1 = createGraph(3);
+  addUndirectedEdgeToGraph(g1, 0, 1, 1);
+  addUndirectedEdgeToGraph(g1, 1, 2, 1);
+  if (!isUndirectedCyclicGraph(g1))
+    printf("Undirected Test 1 passed: Tree is acyclic.\n");
+  else
+    printf("Undirected Test 1 failed: False positive in tree.\n");
+  destroyGraph(g1);
+
+  Graph *g2 = createGraph(3);
+  addUndirectedEdgeToGraph(g2, 0, 1, 1);
+  addUndirectedEdgeToGraph(g2, 1, 2, 1);
+  addUndirectedEdgeToGraph(g2, 2, 0, 1);
+  if (isUndirectedCyclicGraph(g2))
+    printf("Undirected Test 2 passed: Triangle cycle detected.\n");
+  else
+    printf("Undirected Test 2 failed: Triangle cycle missed.\n");
+  destroyGraph(g2);
+
+  Graph *g3 = createGraph(5);
+  addUndirectedEdgeToGraph(g3, 0, 1, 1);
+  addUndirectedEdgeToGraph(g3, 2, 3, 1);
+  addUndirectedEdgeToGraph(g3, 3, 4, 1);
+  addUndirectedEdgeToGraph(g3, 4, 2, 1);
+  if (isUndirectedCyclicGraph(g3))
+    printf("Undirected Test 3 passed: Cycle in disconnected component detected.\n");
+  else
+    printf("Undirected Test 3 failed: Missed cycle in disconnected component.\n");
+  destroyGraph(g3);
+
+  Graph *g4 = createGraph(2);
+  addUndirectedEdgeToGraph(g4, 0, 1, 1);
+  if (!isUndirectedCyclicGraph(g4))
+    printf("Undirected Test 4 passed: Simple edge is acyclic.\n");
+  else
+    printf("Undirected Test 4 failed: Parent incorrectly triggered cycle.\n");
+  destroyGraph(g4);
 }
 
 void testDepthFirstSortOfGraph() {
@@ -408,6 +465,17 @@ void testBreadthFirstSortOfGraph() {
   printf("BFS test 4 (cycle) passed!\n");
   destroyGraph(g4);
   free(order4);
+}
+
+bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
+  unsigned position[graph->size];
+  for (unsigned i = 0; i < graph->size; i++)
+    position[ordering[i]] = i;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
+      if (position[v] >= position[edge->destination])
+        return false;
+  return true;
 }
 
 void testTopologicalSortOfGraph() {
@@ -547,6 +615,7 @@ void testPrim() {
 
 int main() {
   testIsDirectedCyclicGraph();
+  testIsUndirectedCyclicGraph();
   testDepthFirstSortOfGraph();
   testBreadthFirstSortOfGraph();
   testTopologicalSortOfGraph();
