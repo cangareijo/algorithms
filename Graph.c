@@ -23,6 +23,22 @@ void insertInHeap(Heap *heap, unsigned vertex, unsigned priority);
 unsigned getMinimumFromHeap(const Heap *heap);
 void removeMinimumFromHeap(Heap *heap);
 
+typedef struct {
+  unsigned *parent;
+  unsigned *rank;
+} Dsu;
+
+Dsu *createDsu(unsigned n);
+void freeDsu(Dsu *dsu);
+unsigned findDsu(Dsu *dsu, unsigned i);
+void unionDsu(Dsu *dsu, unsigned i, unsigned j);
+
+typedef struct {
+  unsigned u, v, weight;
+} FlatEdge;
+
+int compareEdges(const void *a, const void *b);
+
 typedef struct Edge {
   unsigned destination;
   unsigned weight;
@@ -36,8 +52,11 @@ typedef struct {
 
 Graph *createGraph(unsigned size);
 void destroyGraph(Graph *graph);
-void addDirectedEdgeToGraph(Graph *graph, unsigned source, unsigned destination, unsigned weight);
-void addUndirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weight);
+void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, unsigned weight);
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, unsigned weight);
+unsigned countEdgesInDirectedGraph(const Graph *graph);
+unsigned countEdgesInUndirectedGraph(const Graph *graph);
+FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 void printGraph(const Graph *graph);
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isDirectedCyclicGraph(const Graph *graph);
@@ -51,6 +70,7 @@ void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsign
 unsigned *topologicalSortOfGraph(const Graph *graph);
 unsigned *dijkstra(const Graph *graph, unsigned source);
 Graph *prim(const Graph *graph, unsigned source);
+Graph *kruskal(const Graph *graph);
 
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
@@ -61,6 +81,9 @@ void testTopologicalSortOfGraph();
 void testDijkstra();
 void getUndirectedGraphStats(const Graph *graph, unsigned *weight, unsigned *count);
 void testPrim();
+void testKruskal();
+
+
 
 void swapHeapNodes(HeapNode *a, HeapNode *b) {
   HeapNode c = *a;
@@ -113,6 +136,48 @@ void removeMinimumFromHeap(Heap *heap) {
   }
 }
 
+
+
+Dsu *createDsu(unsigned n) {
+  Dsu *dsu = malloc(sizeof(Dsu));
+  dsu->parent = malloc(n * sizeof(unsigned));
+  dsu->rank = calloc(n, sizeof(unsigned));
+  for (unsigned i = 0; i < n; i++) dsu->parent[i] = i;
+  return dsu;
+}
+
+void freeDsu(Dsu *dsu) {
+  free(dsu->parent);
+  free(dsu->rank);
+  free(dsu);
+}
+
+unsigned findDsu(Dsu *dsu, unsigned i) {
+  if (dsu->parent[i] == i) return i;
+  return dsu->parent[i] = findDsu(dsu, dsu->parent[i]);
+}
+
+void unionDsu(Dsu *dsu, unsigned i, unsigned j) {
+  unsigned root_i = findDsu(dsu, i);
+  unsigned root_j = findDsu(dsu, j);
+  if (root_i != root_j) {
+    if (dsu->rank[root_i] < dsu->rank[root_j]) dsu->parent[root_i] = root_j;
+    else if (dsu->rank[root_i] > dsu->rank[root_j]) dsu->parent[root_j] = root_i;
+    else {
+      dsu->parent[root_i] = root_j;
+      dsu->rank[root_j]++;
+    }
+  }
+}
+
+
+
+int compareEdges(const void *a, const void *b) {
+  return (int)((FlatEdge *)a)->weight - (int)((FlatEdge *)b)->weight;
+}
+
+
+
 Graph *createGraph(unsigned size) {
   Graph *graph = malloc(sizeof(Graph));
   graph->size = size;
@@ -133,7 +198,7 @@ void destroyGraph(Graph *graph) {
   free(graph);
 }
 
-void addDirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
+void addEdgeToDirectedGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
   Edge *edge = malloc(sizeof(Edge));
   edge->destination = v;
   edge->weight = weight;
@@ -141,9 +206,39 @@ void addDirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weigh
   graph->edges[u] = edge;
 }
 
-void addUndirectedEdgeToGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
-  addDirectedEdgeToGraph(graph, u, v, weight);
-  addDirectedEdgeToGraph(graph, v, u, weight);
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
+  addEdgeToDirectedGraph(graph, u, v, weight);
+  addEdgeToDirectedGraph(graph, v, u, weight);
+}
+
+unsigned countEdgesInDirectedGraph(const Graph *graph) {
+  unsigned count = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      count++;
+  return count;
+}
+
+unsigned countEdgesInUndirectedGraph(const Graph *graph) {
+  unsigned count = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (v < e->destination) count++;
+  return count;
+}
+
+FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
+  FlatEdge *edges = malloc(countEdgesInUndirectedGraph(graph) * sizeof(FlatEdge));
+  unsigned i = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (v < e->destination) {
+        edges[i].u = v;
+        edges[i].v = e->destination;
+        edges[i].weight = e->weight;
+        i++;
+      }
+  return edges;
 }
 
 void printGraph(const Graph *graph) {
@@ -315,7 +410,7 @@ Graph *prim(const Graph *graph, unsigned source) {
     if (visited[vertex]) continue;
     visited[vertex] = true;
     if (parents[vertex] != UINT_MAX)
-      addUndirectedEdgeToGraph(tree, parents[vertex], vertex, weights[vertex]);
+      addEdgeToUndirectedGraph(tree, parents[vertex], vertex, weights[vertex]);
     for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
       if (!visited[edge->destination] && edge->weight < weights[edge->destination]) {
         parents[edge->destination] = vertex;
@@ -327,11 +422,27 @@ Graph *prim(const Graph *graph, unsigned source) {
   return tree;
 }
 
+Graph *kruskal(const Graph *graph) {
+  unsigned edgeCount = countEdgesInUndirectedGraph(graph);
+  FlatEdge *flatEdges = getEdgeArrayFromUndirectedGraph(graph);
+  qsort(flatEdges, edgeCount, sizeof(FlatEdge), compareEdges);
+  Dsu *dsu = createDsu(graph->size);
+  Graph *mst = createGraph(graph->size);
+  for (unsigned i = 0; i < edgeCount; i++)
+    if (findDsu(dsu, flatEdges[i].u) != findDsu(dsu, flatEdges[i].v)) {
+      unionDsu(dsu, flatEdges[i].u, flatEdges[i].v);
+      addEdgeToUndirectedGraph(mst, flatEdges[i].u, flatEdges[i].v, flatEdges[i].weight);
+    }
+  free(flatEdges);
+  freeDsu(dsu);
+  return mst;
+}
+
 void testIsDirectedCyclicGraph() {
   Graph *g = createGraph(3);
-  addDirectedEdgeToGraph(g, 0, 1, 1);
-  addDirectedEdgeToGraph(g, 1, 2, 1);
-  addDirectedEdgeToGraph(g, 2, 0, 1);
+  addEdgeToDirectedGraph(g, 0, 1, 1);
+  addEdgeToDirectedGraph(g, 1, 2, 1);
+  addEdgeToDirectedGraph(g, 2, 0, 1);
   if (isDirectedCyclicGraph(g))
     printf("Cycle Detection Test passed: Cycle found!\n");
   else
@@ -341,8 +452,8 @@ void testIsDirectedCyclicGraph() {
 
 void testIsUndirectedCyclicGraph() {
   Graph *g1 = createGraph(3);
-  addUndirectedEdgeToGraph(g1, 0, 1, 1);
-  addUndirectedEdgeToGraph(g1, 1, 2, 1);
+  addEdgeToUndirectedGraph(g1, 0, 1, 1);
+  addEdgeToUndirectedGraph(g1, 1, 2, 1);
   if (!isUndirectedCyclicGraph(g1))
     printf("Undirected Test 1 passed: Tree is acyclic.\n");
   else
@@ -350,9 +461,9 @@ void testIsUndirectedCyclicGraph() {
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
-  addUndirectedEdgeToGraph(g2, 0, 1, 1);
-  addUndirectedEdgeToGraph(g2, 1, 2, 1);
-  addUndirectedEdgeToGraph(g2, 2, 0, 1);
+  addEdgeToUndirectedGraph(g2, 0, 1, 1);
+  addEdgeToUndirectedGraph(g2, 1, 2, 1);
+  addEdgeToUndirectedGraph(g2, 2, 0, 1);
   if (isUndirectedCyclicGraph(g2))
     printf("Undirected Test 2 passed: Triangle cycle detected.\n");
   else
@@ -360,10 +471,10 @@ void testIsUndirectedCyclicGraph() {
   destroyGraph(g2);
 
   Graph *g3 = createGraph(5);
-  addUndirectedEdgeToGraph(g3, 0, 1, 1);
-  addUndirectedEdgeToGraph(g3, 2, 3, 1);
-  addUndirectedEdgeToGraph(g3, 3, 4, 1);
-  addUndirectedEdgeToGraph(g3, 4, 2, 1);
+  addEdgeToUndirectedGraph(g3, 0, 1, 1);
+  addEdgeToUndirectedGraph(g3, 2, 3, 1);
+  addEdgeToUndirectedGraph(g3, 3, 4, 1);
+  addEdgeToUndirectedGraph(g3, 4, 2, 1);
   if (isUndirectedCyclicGraph(g3))
     printf("Undirected Test 3 passed: Cycle in disconnected component detected.\n");
   else
@@ -371,7 +482,7 @@ void testIsUndirectedCyclicGraph() {
   destroyGraph(g3);
 
   Graph *g4 = createGraph(2);
-  addUndirectedEdgeToGraph(g4, 0, 1, 1);
+  addEdgeToUndirectedGraph(g4, 0, 1, 1);
   if (!isUndirectedCyclicGraph(g4))
     printf("Undirected Test 4 passed: Simple edge is acyclic.\n");
   else
@@ -381,8 +492,8 @@ void testIsUndirectedCyclicGraph() {
 
 void testDepthFirstSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addDirectedEdgeToGraph(g1, 0, 1, 1);
-  addDirectedEdgeToGraph(g1, 1, 2, 1);
+  addEdgeToDirectedGraph(g1, 0, 1, 1);
+  addEdgeToDirectedGraph(g1, 1, 2, 1);
   unsigned *order1 = depthFirstSortOfGraph(g1, 0);
   assert(order1[0] == 0);
   assert(order1[1] == 1);
@@ -392,18 +503,18 @@ void testDepthFirstSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(3);
-  addDirectedEdgeToGraph(g2, 0, 2, 1);
-  addDirectedEdgeToGraph(g2, 0, 1, 1); 
+  addEdgeToDirectedGraph(g2, 0, 2, 1);
+  addEdgeToDirectedGraph(g2, 0, 1, 1);
   unsigned *order2 = depthFirstSortOfGraph(g2, 0);
   assert(order2[0] == 0);
-  assert(order2[1] == 1); 
+  assert(order2[1] == 1);
   assert(order2[2] == 2);
   printf("DFS test 2 (Fork) passed!\n");
   destroyGraph(g2);
   free(order2);
 
   Graph *g3 = createGraph(3);
-  addDirectedEdgeToGraph(g3, 0, 1, 1);
+  addEdgeToDirectedGraph(g3, 0, 1, 1);
   unsigned *order3 = depthFirstSortOfGraph(g3, 0);
   assert(order3[0] == 0);
   assert(order3[1] == 1);
@@ -413,8 +524,8 @@ void testDepthFirstSortOfGraph() {
   free(order3);
 
   Graph *g4 = createGraph(2);
-  addDirectedEdgeToGraph(g4, 0, 1, 1);
-  addDirectedEdgeToGraph(g4, 1, 0, 1);
+  addEdgeToDirectedGraph(g4, 0, 1, 1);
+  addEdgeToDirectedGraph(g4, 1, 0, 1);
   unsigned *order4 = depthFirstSortOfGraph(g4, 0);
   assert(order4[0] == 0);
   assert(order4[1] == 1);
@@ -425,8 +536,8 @@ void testDepthFirstSortOfGraph() {
 
 void testBreadthFirstSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addDirectedEdgeToGraph(g1, 0, 1, 1);
-  addDirectedEdgeToGraph(g1, 1, 2, 1);
+  addEdgeToDirectedGraph(g1, 0, 1, 1);
+  addEdgeToDirectedGraph(g1, 1, 2, 1);
   unsigned *order1 = breadthFirstSortOfGraph(g1, 0);
   assert(order1[0] == 0);
   assert(order1[1] == 1);
@@ -436,18 +547,18 @@ void testBreadthFirstSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(3);
-  addDirectedEdgeToGraph(g2, 0, 2, 1);
-  addDirectedEdgeToGraph(g2, 0, 1, 1); 
+  addEdgeToDirectedGraph(g2, 0, 2, 1);
+  addEdgeToDirectedGraph(g2, 0, 1, 1);
   unsigned *order2 = breadthFirstSortOfGraph(g2, 0);
   assert(order2[0] == 0);
-  assert(order2[1] == 1); 
+  assert(order2[1] == 1);
   assert(order2[2] == 2);
   printf("BFS test 2 (fork) passed!\n");
   destroyGraph(g2);
   free(order2);
 
   Graph *g3 = createGraph(3);
-  addDirectedEdgeToGraph(g3, 0, 1, 1);
+  addEdgeToDirectedGraph(g3, 0, 1, 1);
   unsigned *order3 = breadthFirstSortOfGraph(g3, 0);
   assert(order3[0] == 0);
   assert(order3[1] == 1);
@@ -457,8 +568,8 @@ void testBreadthFirstSortOfGraph() {
   free(order3);
 
   Graph *g4 = createGraph(2);
-  addDirectedEdgeToGraph(g4, 0, 1, 1);
-  addDirectedEdgeToGraph(g4, 1, 0, 1);
+  addEdgeToDirectedGraph(g4, 0, 1, 1);
+  addEdgeToDirectedGraph(g4, 1, 0, 1);
   unsigned *order4 = breadthFirstSortOfGraph(g4, 0);
   assert(order4[0] == 0);
   assert(order4[1] == 1);
@@ -480,8 +591,8 @@ bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
 
 void testTopologicalSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addDirectedEdgeToGraph(g1, 0, 1, 1);
-  addDirectedEdgeToGraph(g1, 1, 2, 1);
+  addEdgeToDirectedGraph(g1, 0, 1, 1);
+  addEdgeToDirectedGraph(g1, 1, 2, 1);
   unsigned *order1 = topologicalSortOfGraph(g1);
   assert(isValidTopologicalSort(g1, order1));
   printf("Topo test 1 (linear) passed!\n");
@@ -489,10 +600,10 @@ void testTopologicalSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(4);
-  addDirectedEdgeToGraph(g2, 0, 1, 1);
-  addDirectedEdgeToGraph(g2, 0, 2, 1);
-  addDirectedEdgeToGraph(g2, 1, 3, 1);
-  addDirectedEdgeToGraph(g2, 2, 3, 1);
+  addEdgeToDirectedGraph(g2, 0, 1, 1);
+  addEdgeToDirectedGraph(g2, 0, 2, 1);
+  addEdgeToDirectedGraph(g2, 1, 3, 1);
+  addEdgeToDirectedGraph(g2, 2, 3, 1);
   unsigned *order2 = topologicalSortOfGraph(g2);
   assert(isValidTopologicalSort(g2, order2));
   printf("Topo test 2 (diamond) passed!\n");
@@ -500,8 +611,8 @@ void testTopologicalSortOfGraph() {
   free(order2);
 
   Graph *g3 = createGraph(4);
-  addDirectedEdgeToGraph(g3, 0, 1, 1);
-  addDirectedEdgeToGraph(g3, 2, 3, 1);
+  addEdgeToDirectedGraph(g3, 0, 1, 1);
+  addEdgeToDirectedGraph(g3, 2, 3, 1);
   unsigned *order3 = topologicalSortOfGraph(g3);
   assert(isValidTopologicalSort(g3, order3));
   printf("Topo test 3 (disconnected) passed!\n");
@@ -518,8 +629,8 @@ void testTopologicalSortOfGraph() {
 
 void testDijkstra() {
   Graph *g1 = createGraph(3);
-  addDirectedEdgeToGraph(g1, 0, 1, 5);
-  addDirectedEdgeToGraph(g1, 1, 2, 10);
+  addEdgeToDirectedGraph(g1, 0, 1, 5);
+  addEdgeToDirectedGraph(g1, 1, 2, 10);
   unsigned *dist1 = dijkstra(g1, 0);
   assert(dist1[0] == 0);
   assert(dist1[1] == 5);
@@ -529,9 +640,9 @@ void testDijkstra() {
   free(dist1);
 
   Graph *g2 = createGraph(3);
-  addDirectedEdgeToGraph(g2, 0, 2, 10);
-  addDirectedEdgeToGraph(g2, 0, 1, 2);
-  addDirectedEdgeToGraph(g2, 1, 2, 3);
+  addEdgeToDirectedGraph(g2, 0, 2, 10);
+  addEdgeToDirectedGraph(g2, 0, 1, 2);
+  addEdgeToDirectedGraph(g2, 1, 2, 3);
   unsigned *dist2 = dijkstra(g2, 0);
   assert(dist2[2] == 5);
   printf("Test 2 passed: Shortest path selection\n");
@@ -547,9 +658,9 @@ void testDijkstra() {
   free(dist3);
 
   Graph *g4 = createGraph(3);
-  addDirectedEdgeToGraph(g4, 0, 1, 1);
-  addDirectedEdgeToGraph(g4, 1, 2, 1);
-  addDirectedEdgeToGraph(g4, 2, 0, 1);
+  addEdgeToDirectedGraph(g4, 0, 1, 1);
+  addEdgeToDirectedGraph(g4, 1, 2, 1);
+  addEdgeToDirectedGraph(g4, 2, 0, 1);
   unsigned *dist4 = dijkstra(g4, 0);
   assert(dist4[0] == 0);
   assert(dist4[1] == 1);
@@ -573,9 +684,9 @@ void getUndirectedGraphStats(const Graph *graph, unsigned *weight, unsigned *cou
 
 void testPrim() {
   Graph *g1 = createGraph(3);
-  addUndirectedEdgeToGraph(g1, 0, 1, 1);
-  addUndirectedEdgeToGraph(g1, 1, 2, 3);
-  addUndirectedEdgeToGraph(g1, 0, 2, 4);
+  addEdgeToUndirectedGraph(g1, 0, 1, 1);
+  addEdgeToUndirectedGraph(g1, 1, 2, 3);
+  addEdgeToUndirectedGraph(g1, 0, 2, 4);
   Graph *mst1 = prim(g1, 0);
   unsigned w1, e1;
   getUndirectedGraphStats(mst1, &w1, &e1);
@@ -586,13 +697,13 @@ void testPrim() {
   destroyGraph(mst1);
 
   Graph *g2 = createGraph(5);
-  addUndirectedEdgeToGraph(g2, 0, 1, 2);
-  addUndirectedEdgeToGraph(g2, 0, 3, 6);
-  addUndirectedEdgeToGraph(g2, 1, 2, 3);
-  addUndirectedEdgeToGraph(g2, 1, 3, 8);
-  addUndirectedEdgeToGraph(g2, 1, 4, 5);
-  addUndirectedEdgeToGraph(g2, 2, 4, 7);
-  addUndirectedEdgeToGraph(g2, 3, 4, 9);
+  addEdgeToUndirectedGraph(g2, 0, 1, 2);
+  addEdgeToUndirectedGraph(g2, 0, 3, 6);
+  addEdgeToUndirectedGraph(g2, 1, 2, 3);
+  addEdgeToUndirectedGraph(g2, 1, 3, 8);
+  addEdgeToUndirectedGraph(g2, 1, 4, 5);
+  addEdgeToUndirectedGraph(g2, 2, 4, 7);
+  addEdgeToUndirectedGraph(g2, 3, 4, 9);
   Graph *mst2 = prim(g2, 0);
   unsigned w2, e2;
   getUndirectedGraphStats(mst2, &w2, &e2);
@@ -613,6 +724,26 @@ void testPrim() {
   destroyGraph(mst3);
 }
 
+void testKruskal() {
+  Graph *g = createGraph(4);
+  addEdgeToUndirectedGraph(g, 0, 1, 10);
+  addEdgeToUndirectedGraph(g, 1, 3, 15);
+  addEdgeToUndirectedGraph(g, 3, 2, 4);
+  addEdgeToUndirectedGraph(g, 2, 0, 6);
+  addEdgeToUndirectedGraph(g, 0, 3, 5);
+
+  Graph *mst = kruskal(g);
+  unsigned weight, count;
+  getUndirectedGraphStats(mst, &weight, &count);
+
+  assert(count == 3);
+  assert(weight == 19);
+  printf("Kruskal test passed: weight %u\n", weight);
+
+  destroyGraph(g);
+  destroyGraph(mst);
+}
+
 int main() {
   testIsDirectedCyclicGraph();
   testIsUndirectedCyclicGraph();
@@ -621,5 +752,6 @@ int main() {
   testTopologicalSortOfGraph();
   testDijkstra();
   testPrim();
+  testKruskal();
   return 0;
 }
