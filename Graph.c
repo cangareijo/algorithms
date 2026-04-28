@@ -661,14 +661,14 @@ void testBellmanFord() {
   addEdgeToDirectedGraph(g, 1, 2, 1);
   addEdgeToDirectedGraph(g, 0, 2, 10);
   addEdgeToDirectedGraph(g, 2, 3, 1);
-  unsigned *d1 = bellmanFord(g, 0);
+  int *d1 = bellmanFord(g, 0);
   assert(d1 != NULL);
   assert(d1[3] == 7);
   printf("Bellman-Ford test 1 (positive) passed!\n");
   free(d1);
 
   addEdgeToDirectedGraph(g, 3, 1, -10);
-  unsigned *d2 = bellmanFord(g, 0);
+  int *d2 = bellmanFord(g, 0);
   assert(d2 == NULL);
   printf("Bellman-Ford test 2 (negative cycle) passed!\n");
   destroyGraph(g);
