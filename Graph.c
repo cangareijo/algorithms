@@ -34,14 +34,15 @@ unsigned findDsu(Dsu *dsu, unsigned i);
 void unionDsu(Dsu *dsu, unsigned i, unsigned j);
 
 typedef struct {
-  unsigned u, v, weight;
+  unsigned u, v;
+  int weight;
 } FlatEdge;
 
 int compareEdges(const void *a, const void *b);
 
 typedef struct Edge {
   unsigned destination;
-  unsigned weight;
+  int weight;
   struct Edge *next;
 } Edge;
 
@@ -52,8 +53,8 @@ typedef struct {
 
 Graph *createGraph(unsigned size);
 void destroyGraph(Graph *graph);
-void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, unsigned weight);
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, unsigned weight);
+void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 unsigned countEdgesInDirectedGraph(const Graph *graph);
 unsigned countEdgesInUndirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
@@ -68,7 +69,8 @@ void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsig
 unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
-unsigned *dijkstra(const Graph *graph, unsigned source);
+int *bellmanFord(const Graph *graph, unsigned source);
+int *dijkstra(const Graph *graph, unsigned source);
 Graph *prim(const Graph *graph, unsigned source);
 Graph *kruskal(const Graph *graph);
 
@@ -78,8 +80,9 @@ void testDepthFirstSortOfGraph();
 void testBreadthFirstSortOfGraph();
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testTopologicalSortOfGraph();
+void testBellmanFord();
 void testDijkstra();
-void getUndirectedGraphStats(const Graph *graph, unsigned *weight, unsigned *count);
+void getUndirectedGraphStats(const Graph *graph, int *weight, unsigned *count);
 void testPrim();
 void testKruskal();
 
@@ -173,7 +176,7 @@ void unionDsu(Dsu *dsu, unsigned i, unsigned j) {
 
 
 int compareEdges(const void *a, const void *b) {
-  return (int)((FlatEdge *)a)->weight - (int)((FlatEdge *)b)->weight;
+  return ((FlatEdge *)a)->weight - ((FlatEdge *)b)->weight;
 }
 
 
@@ -198,7 +201,7 @@ void destroyGraph(Graph *graph) {
   free(graph);
 }
 
-void addEdgeToDirectedGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
+void addEdgeToDirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
   Edge *edge = malloc(sizeof(Edge));
   edge->destination = v;
   edge->weight = weight;
@@ -206,7 +209,7 @@ void addEdgeToDirectedGraph(Graph *graph, unsigned u, unsigned v, unsigned weigh
   graph->edges[u] = edge;
 }
 
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, unsigned weight) {
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
   addEdgeToDirectedGraph(graph, u, v, weight);
   addEdgeToDirectedGraph(graph, v, u, weight);
 }
@@ -246,7 +249,7 @@ void printGraph(const Graph *graph) {
     Edge *current = graph->edges[i];
     if (current) {
       while (current) {
-        printf(" (%u, %u): %u,", i, current->destination, current->weight);
+        printf(" (%u, %u): %d,", i, current->destination, current->weight);
         current = current->next;
       }
       printf("\n");
@@ -372,9 +375,34 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
   return ordering;
 }
 
-unsigned *dijkstra(const Graph *graph, unsigned source) {
-  unsigned *weights = malloc(graph->size * sizeof(unsigned));
-  for (unsigned i = 0; i < graph->size; i++) weights[i] = UINT_MAX;
+int *bellmanFord(const Graph *graph, unsigned source) {
+  int *distance = malloc(graph->size * sizeof(int));
+  for (unsigned v = 0; v < graph->size; v++) distance[v] = INT_MAX;
+  distance[source] = 0;
+  for (unsigned i = 1; i < graph->size; i++) {
+    bool changed = false;
+    for (unsigned v = 0; v < graph->size; v++)
+      if (distance[v] < INT_MAX)
+        for (Edge *e = graph->edges[v]; e; e = e->next)
+          if (distance[v] + e->weight < distance[e->destination]) {
+            distance[e->destination] = distance[v] + e->weight;
+            changed = true;
+          }
+    if (!changed) break;
+  }
+  for (unsigned v = 0; v < graph->size; v++)
+    if (distance[v] < INT_MAX)
+      for (Edge *e = graph->edges[v]; e; e = e->next)
+        if (distance[v] + (int)e->weight < distance[e->destination]) {
+          free(distance);
+          return NULL;
+        }
+  return distance;
+}
+
+int *dijkstra(const Graph *graph, unsigned source) {
+  int *weights = malloc(graph->size * sizeof(int));
+  for (unsigned v = 0; v < graph->size; v++) weights[v] = INT_MAX;
   weights[source] = 0;
   Heap *heap = createHeap();
   insertInHeap(heap, source, 0);
@@ -393,11 +421,11 @@ unsigned *dijkstra(const Graph *graph, unsigned source) {
 
 Graph *prim(const Graph *graph, unsigned source) {
   unsigned parents[graph->size];
-  unsigned weights[graph->size];
+  int weights[graph->size];
   bool visited[graph->size];
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     parents[vertex] = UINT_MAX;
-    weights[vertex] = UINT_MAX;
+    weights[vertex] = INT_MAX;
     visited[vertex] = false;
   }
   weights[source] = 0;
@@ -627,11 +655,30 @@ void testTopologicalSortOfGraph() {
   free(order4);
 }
 
+void testBellmanFord() {
+  Graph *g = createGraph(4);
+  addEdgeToDirectedGraph(g, 0, 1, 5);
+  addEdgeToDirectedGraph(g, 1, 2, 1);
+  addEdgeToDirectedGraph(g, 0, 2, 10);
+  addEdgeToDirectedGraph(g, 2, 3, 1);
+  unsigned *d1 = bellmanFord(g, 0);
+  assert(d1 != NULL);
+  assert(d1[3] == 7);
+  printf("Bellman-Ford test 1 (positive) passed!\n");
+  free(d1);
+
+  addEdgeToDirectedGraph(g, 3, 1, -10);
+  unsigned *d2 = bellmanFord(g, 0);
+  assert(d2 == NULL);
+  printf("Bellman-Ford test 2 (negative cycle) passed!\n");
+  destroyGraph(g);
+}
+
 void testDijkstra() {
   Graph *g1 = createGraph(3);
   addEdgeToDirectedGraph(g1, 0, 1, 5);
   addEdgeToDirectedGraph(g1, 1, 2, 10);
-  unsigned *dist1 = dijkstra(g1, 0);
+  int *dist1 = dijkstra(g1, 0);
   assert(dist1[0] == 0);
   assert(dist1[1] == 5);
   assert(dist1[2] == 15);
@@ -643,17 +690,17 @@ void testDijkstra() {
   addEdgeToDirectedGraph(g2, 0, 2, 10);
   addEdgeToDirectedGraph(g2, 0, 1, 2);
   addEdgeToDirectedGraph(g2, 1, 2, 3);
-  unsigned *dist2 = dijkstra(g2, 0);
+  int *dist2 = dijkstra(g2, 0);
   assert(dist2[2] == 5);
   printf("Test 2 passed: Shortest path selection\n");
   destroyGraph(g2);
   free(dist2);
 
   Graph *g3 = createGraph(2);
-  unsigned *dist3 = dijkstra(g3, 0);
+  int *dist3 = dijkstra(g3, 0);
   assert(dist3[0] == 0);
-  assert(dist3[1] == UINT_MAX);
-  printf("Test 3 passed: Unreachable vertex (UINT_MAX)\n");
+  assert(dist3[1] == INT_MAX);
+  printf("Test 3 passed: Unreachable vertex (INT_MAX)\n");
   destroyGraph(g3);
   free(dist3);
 
@@ -661,7 +708,7 @@ void testDijkstra() {
   addEdgeToDirectedGraph(g4, 0, 1, 1);
   addEdgeToDirectedGraph(g4, 1, 2, 1);
   addEdgeToDirectedGraph(g4, 2, 0, 1);
-  unsigned *dist4 = dijkstra(g4, 0);
+  int *dist4 = dijkstra(g4, 0);
   assert(dist4[0] == 0);
   assert(dist4[1] == 1);
   assert(dist4[2] == 2);
@@ -670,7 +717,7 @@ void testDijkstra() {
   free(dist4);
 }
 
-void getUndirectedGraphStats(const Graph *graph, unsigned *weight, unsigned *count) {
+void getUndirectedGraphStats(const Graph *graph, int *weight, unsigned *count) {
   *weight = 0;
   *count = 0;
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
@@ -688,11 +735,12 @@ void testPrim() {
   addEdgeToUndirectedGraph(g1, 1, 2, 3);
   addEdgeToUndirectedGraph(g1, 0, 2, 4);
   Graph *mst1 = prim(g1, 0);
-  unsigned w1, e1;
+  int w1;
+  unsigned e1;
   getUndirectedGraphStats(mst1, &w1, &e1);
   assert(e1 == 2);
   assert(w1 == 4);
-  printf("Prim test 1 (triangle) passed: weight %u\n", w1);
+  printf("Prim test 1 (triangle) passed: weight %d\n", w1);
   destroyGraph(g1);
   destroyGraph(mst1);
 
@@ -705,17 +753,19 @@ void testPrim() {
   addEdgeToUndirectedGraph(g2, 2, 4, 7);
   addEdgeToUndirectedGraph(g2, 3, 4, 9);
   Graph *mst2 = prim(g2, 0);
-  unsigned w2, e2;
+  int w2;
+  unsigned e2;
   getUndirectedGraphStats(mst2, &w2, &e2);
   assert(e2 == 4);
   assert(w2 == 16);
-  printf("Prim test 2 (complex) passed: weight %u\n", w2);
+  printf("Prim test 2 (complex) passed: weight %d\n", w2);
   destroyGraph(g2);
   destroyGraph(mst2);
 
   Graph *g3 = createGraph(1);
   Graph *mst3 = prim(g3, 0);
-  unsigned w3, e3;
+  int w3;
+  unsigned e3;
   getUndirectedGraphStats(mst3, &w3, &e3);
   assert(e3 == 0);
   assert(w3 == 0);
@@ -733,12 +783,13 @@ void testKruskal() {
   addEdgeToUndirectedGraph(g, 0, 3, 5);
 
   Graph *mst = kruskal(g);
-  unsigned weight, count;
+  int weight;
+  unsigned count;
   getUndirectedGraphStats(mst, &weight, &count);
 
   assert(count == 3);
   assert(weight == 19);
-  printf("Kruskal test passed: weight %u\n", weight);
+  printf("Kruskal test passed: weight %d\n", weight);
 
   destroyGraph(g);
   destroyGraph(mst);
@@ -750,6 +801,7 @@ int main() {
   testDepthFirstSortOfGraph();
   testBreadthFirstSortOfGraph();
   testTopologicalSortOfGraph();
+  testBellmanFord();
   testDijkstra();
   testPrim();
   testKruskal();
