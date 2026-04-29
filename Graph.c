@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+void freeMatrix(int **matrix, unsigned n);
+
 typedef struct {
   unsigned vertex;
   unsigned priority;
@@ -71,6 +73,7 @@ void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsign
 unsigned *topologicalSortOfGraph(const Graph *graph);
 int *bellmanFord(const Graph *graph, unsigned source);
 int *dijkstra(const Graph *graph, unsigned source);
+int **floydWarshall(const Graph *graph);
 Graph *prim(const Graph *graph, unsigned source);
 Graph *kruskal(const Graph *graph);
 
@@ -82,9 +85,19 @@ bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testTopologicalSortOfGraph();
 void testBellmanFord();
 void testDijkstra();
+void testFloydWarshall();
 void getUndirectedGraphStats(const Graph *graph, int *weight, unsigned *count);
 void testPrim();
 void testKruskal();
+
+
+
+void freeMatrix(int **matrix, unsigned n) {
+  for (unsigned i = 0; i < n; i++) {
+    free(matrix[i]);
+  }
+  free(matrix);
+}
 
 
 
@@ -419,6 +432,43 @@ int *dijkstra(const Graph *graph, unsigned source) {
   return weights;
 }
 
+int **floydWarshall(const Graph *graph) {
+  unsigned n = graph->size;
+  int **distance = malloc(n * sizeof(int *));
+  for (unsigned i = 0; i < n; i++) {
+    distance[i] = malloc(n * sizeof(int));
+    for (unsigned j = 0; j < n; j++) {
+      if (i == j) distance[i][j] = 0;
+      else distance[i][j] = INT_MAX;
+    }
+  }
+  for (unsigned v = 0; v < n; v++) {
+    for (Edge *e = graph->edges[v]; e; e = e->next) {
+      if (e->weight < distance[v][e->destination]) {
+        distance[v][e->destination] = e->weight;
+      }
+    }
+  }
+  for (unsigned k = 0; k < n; k++) {
+    for (unsigned i = 0; i < n; i++) {
+      for (unsigned j = 0; j < n; j++) {
+        if (distance[i][k] < INT_MAX && distance[k][j] < INT_MAX) {
+          if (distance[i][k] + distance[k][j] < distance[i][j]) {
+            distance[i][j] = distance[i][k] + distance[k][j];
+          }
+        }
+      }
+    }
+  }
+  for (unsigned i = 0; i < n; i++) {
+    if (distance[i][i] < 0) {
+      freeMatrix(distance, n);
+      distance = NULL;
+    }
+  }
+  return distance;
+}
+
 Graph *prim(const Graph *graph, unsigned source) {
   unsigned parents[graph->size];
   int weights[graph->size];
@@ -717,6 +767,20 @@ void testDijkstra() {
   free(dist4);
 }
 
+void testFloydWarshall() {
+  Graph *g = createGraph(4);
+  addEdgeToDirectedGraph(g, 0, 3, 10);
+  addEdgeToDirectedGraph(g, 0, 1, 5);
+  addEdgeToDirectedGraph(g, 1, 2, 3);
+  addEdgeToDirectedGraph(g, 2, 3, 1);
+  int **d = floydWarshall(g);
+  assert(d[0][3] == 9);
+  assert(d[1][3] == 4);
+  printf("Floyd-Warshall test passed!\n");
+  freeMatrix(d, 4);
+  destroyGraph(g);
+}
+
 void getUndirectedGraphStats(const Graph *graph, int *weight, unsigned *count) {
   *weight = 0;
   *count = 0;
@@ -803,6 +867,7 @@ int main() {
   testTopologicalSortOfGraph();
   testBellmanFord();
   testDijkstra();
+  testFloydWarshall();
   testPrim();
   testKruskal();
   return 0;
