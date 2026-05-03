@@ -61,6 +61,8 @@ Graph *copyGraph(const Graph *graph);
 Graph *copyTranspose(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
+unsigned outDegree(const Graph *graph, unsigned vertex);
+unsigned inDegree(const Graph *graph, unsigned vertex);
 unsigned countEdgesInDirectedGraph(const Graph *graph);
 unsigned countEdgesInUndirectedGraph(const Graph *graph);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
@@ -284,6 +286,30 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices) {
     }
   }
   return subgraph;
+}
+
+unsigned outDegree(const Graph *graph, unsigned vertex) {
+  assert(graph != NULL);
+  assert(vertex < graph->size);
+  unsigned count = 0;
+  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+    count++;
+  }
+  return count;
+}
+
+unsigned inDegree(const Graph *graph, unsigned vertex) {
+  assert(graph != NULL);
+  assert(vertex < graph->size);
+  unsigned count = 0;
+  for (unsigned i = 0; i < graph->size; i++) {
+    for (Edge *edge = graph->edges[i]; edge != NULL; edge = edge->next) {
+      if (edge->destination == vertex) {
+        count++;
+      }
+    }
+  }
+  return count;
 }
 
 unsigned countEdgesInDirectedGraph(const Graph *graph) {
@@ -1127,5 +1153,6 @@ int main() {
   testFloydWarshall();
   testPrim();
   testKruskal();
+  printf("All tests passed!\n");
   return 0;
 }
