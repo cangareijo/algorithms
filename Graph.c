@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+unsigned minimumUnsigned(unsigned a, unsigned b);
+
 void freeMatrix(int **matrix, unsigned n);
 
 typedef struct {
@@ -61,8 +63,11 @@ Graph *copyGraph(const Graph *graph);
 Graph *copyTranspose(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
+unsigned countEdges(const Graph *graph);
+int sumWeights(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
+unsigned *inDegrees(const Graph *graph);
 unsigned countEdgesInDirectedGraph(const Graph *graph);
 unsigned countEdgesInUndirectedGraph(const Graph *graph);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
@@ -90,6 +95,16 @@ int *dijkstra(const Graph *graph, unsigned source);
 int **floydWarshall(const Graph *graph);
 Graph *prim(const Graph *graph, unsigned source);
 Graph *kruskal(const Graph *graph);
+void recursivelyFindArticulationPoints(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  bool *articulations,
+  unsigned *timer);
+bool *findArticulationPoints(const Graph *graph);
 
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
@@ -103,9 +118,13 @@ void testTopologicalSortOfGraph();
 void testBellmanFord();
 void testDijkstra();
 void testFloydWarshall();
-void getUndirectedGraphStats(const Graph *graph, int *weight, unsigned *count);
 void testPrim();
 void testKruskal();
+void testFindArticulationPoints();
+
+
+
+unsigned minimumUnsigned(unsigned a, unsigned b) { return a <= b ? a : b; }
 
 
 
@@ -275,6 +294,8 @@ Graph *copyUndirected(const Graph *graph) {
 }
 
 Graph *copySubgraph(const Graph *graph, const bool *vertices) {
+  assert(graph != NULL);
+  assert(vertices != NULL);
   Graph *subgraph = createGraph(graph->size);
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     if (vertices[vertex]) {
@@ -286,6 +307,28 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices) {
     }
   }
   return subgraph;
+}
+
+unsigned countEdges(const Graph *graph) {
+  assert(graph != NULL);
+  unsigned count = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
+      count++;
+    }
+  }
+  return count;
+}
+
+int sumWeights(const Graph *graph) {
+  assert(graph != NULL);
+  int weight = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
+      weight += edge->weight;
+    }
+  }
+  return weight;
 }
 
 unsigned outDegree(const Graph *graph, unsigned vertex) {
@@ -310,6 +353,18 @@ unsigned inDegree(const Graph *graph, unsigned vertex) {
     }
   }
   return count;
+}
+
+unsigned *inDegrees(const Graph *graph) {
+  assert(graph != NULL);
+  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
+  assert(degrees != NULL);
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+      degrees[edge->destination]++;
+    }
+  }
+  return degrees;
 }
 
 unsigned countEdgesInDirectedGraph(const Graph *graph) {
@@ -493,13 +548,12 @@ unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source) {
   assert(source < graph->size);
   unsigned *ordering = malloc(graph->size * sizeof(unsigned));
   unsigned count = 0;
-  bool visited[graph->size];
-  for (unsigned i = 0; i < graph->size; i++)
-    visited[i] = false;
+  bool *visited = calloc(graph->size, sizeof(bool));
   depthFirstSortOfGraphComponent(graph, source, ordering, &count, visited);
   for (unsigned i = 0; i < graph->size; i++)
     if (!visited[i])
       depthFirstSortOfGraphComponent(graph, i, ordering, &count, visited);
+  free(visited);
   return ordering;
 }
 
@@ -523,13 +577,12 @@ unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source) {
   assert(source < graph->size);
   unsigned *ordering = malloc(graph->size * sizeof(unsigned));
   unsigned count = 0;
-  bool visited[graph->size];
-  for (unsigned i = 0; i < graph->size; i++)
-    visited[i] = false;
+  bool *visited = calloc(graph->size, sizeof(bool));
   breadthFirstSortOfGraphComponent(graph, source, ordering, &count, visited);
   for (unsigned i = 0; i < graph->size; i++)
     if (!visited[i])
       breadthFirstSortOfGraphComponent(graph, i, ordering, &count, visited);
+  free(visited);
   return ordering;
 }
 
@@ -542,14 +595,14 @@ void topologicalSortOfGraphComponent(const Graph *graph, unsigned vertex, unsign
 }
 
 unsigned *topologicalSortOfGraph(const Graph *graph) {
+  assert(!isDirectedCyclicGraph(graph));
   unsigned *ordering = malloc(graph->size * sizeof(unsigned));
   unsigned index = graph->size;
-  bool visited[graph->size];
-  for (unsigned i = 0; i < graph->size; i++)
-    visited[i] = false;
+  bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned i = 0; i < graph->size; i++)
     if (!visited[i])
       topologicalSortOfGraphComponent(graph, i, ordering, &index, visited);
+  free(visited);
   return ordering;
 }
 
@@ -680,6 +733,61 @@ Graph *kruskal(const Graph *graph) {
   freeDsu(dsu);
   return mst;
 }
+
+void recursivelyFindArticulationPoints(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  bool *articulations,
+  unsigned *timer)
+{
+  unsigned children = 0;
+  visited[vertex] = true;
+  discovery[vertex] = low[vertex] = ++(*timer);
+  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+    if (!visited[edge->destination]) {
+      children++;
+      parent[edge->destination] = vertex;
+      recursivelyFindArticulationPoints(graph, edge->destination, visited, discovery, low, parent, articulations, timer);
+      low[vertex] = minimumUnsigned(low[vertex], low[edge->destination]);
+      if (parent[vertex] == UINT_MAX && children >= 2) {
+        articulations[vertex] = true;
+      }
+      if (parent[vertex] != UINT_MAX && low[edge->destination] >= discovery[vertex]) {
+        articulations[vertex] = true;
+      }
+    } else if (edge->destination != parent[vertex]) {
+      low[vertex] = minimumUnsigned(low[vertex], discovery[edge->destination]);
+    }
+  }
+}
+
+bool *findArticulationPoints(const Graph *graph) {
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
+  unsigned *low = calloc(graph->size, sizeof(unsigned));
+  unsigned *parent = malloc(graph->size * sizeof(unsigned));
+  bool *articulations = calloc(graph->size, sizeof(bool));
+  unsigned timer = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    parent[vertex] = UINT_MAX;
+  }
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    if (!visited[vertex]) {
+      recursivelyFindArticulationPoints(graph, vertex, visited, discovery, low, parent, articulations, &timer);
+    }
+  }
+  free(visited);
+  free(discovery);
+  free(low);
+  free(parent);
+  return articulations;
+}
+
+
 
 void testIsDirectedCyclicGraph() {
   Graph *g = createGraph(3);
@@ -1012,7 +1120,7 @@ void testDijkstra() {
   assert(dist1[0] == 0);
   assert(dist1[1] == 5);
   assert(dist1[2] == 15);
-  printf("Test 1 passed: Simple path\n");
+  printf("Dijkstra test 1 passed: Simple path\n");
   destroyGraph(g1);
   free(dist1);
 
@@ -1022,7 +1130,7 @@ void testDijkstra() {
   addEdgeToDirectedGraph(g2, 1, 2, 3);
   int *dist2 = dijkstra(g2, 0);
   assert(dist2[2] == 5);
-  printf("Test 2 passed: Shortest path selection\n");
+  printf("Dijkstra test 2 passed: Shortest path selection\n");
   destroyGraph(g2);
   free(dist2);
 
@@ -1030,7 +1138,7 @@ void testDijkstra() {
   int *dist3 = dijkstra(g3, 0);
   assert(dist3[0] == 0);
   assert(dist3[1] == INT_MAX);
-  printf("Test 3 passed: Unreachable vertex (INT_MAX)\n");
+  printf("Dijkstra test 3 passed: Unreachable vertex (INT_MAX)\n");
   destroyGraph(g3);
   free(dist3);
 
@@ -1042,7 +1150,7 @@ void testDijkstra() {
   assert(dist4[0] == 0);
   assert(dist4[1] == 1);
   assert(dist4[2] == 2);
-  printf("Test 4 passed: Cyclic graph\n");
+  printf("Dijkstra test 4 passed: Cyclic graph\n");
   destroyGraph(g4);
   free(dist4);
 }
@@ -1061,61 +1169,47 @@ void testFloydWarshall() {
   destroyGraph(g);
 }
 
-void getUndirectedGraphStats(const Graph *graph, int *weight, unsigned *count) {
-  *weight = 0;
-  *count = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
-      *weight += edge->weight;
-      (*count)++;
-    }
-  *weight /= 2;
-  *count /= 2;
-}
-
 void testPrim() {
-  Graph *g1 = createGraph(3);
-  addEdgeToUndirectedGraph(g1, 0, 1, 1);
-  addEdgeToUndirectedGraph(g1, 1, 2, 3);
-  addEdgeToUndirectedGraph(g1, 0, 2, 4);
-  Graph *mst1 = prim(g1, 0);
-  int w1;
-  unsigned e1;
-  getUndirectedGraphStats(mst1, &w1, &e1);
-  assert(e1 == 2);
-  assert(w1 == 4);
-  printf("Prim test 1 (triangle) passed: weight %d\n", w1);
-  destroyGraph(g1);
-  destroyGraph(mst1);
-
-  Graph *g2 = createGraph(5);
-  addEdgeToUndirectedGraph(g2, 0, 1, 2);
-  addEdgeToUndirectedGraph(g2, 0, 3, 6);
-  addEdgeToUndirectedGraph(g2, 1, 2, 3);
-  addEdgeToUndirectedGraph(g2, 1, 3, 8);
-  addEdgeToUndirectedGraph(g2, 1, 4, 5);
-  addEdgeToUndirectedGraph(g2, 2, 4, 7);
-  addEdgeToUndirectedGraph(g2, 3, 4, 9);
-  Graph *mst2 = prim(g2, 0);
-  int w2;
-  unsigned e2;
-  getUndirectedGraphStats(mst2, &w2, &e2);
-  assert(e2 == 4);
-  assert(w2 == 16);
-  printf("Prim test 2 (complex) passed: weight %d\n", w2);
-  destroyGraph(g2);
-  destroyGraph(mst2);
-
-  Graph *g3 = createGraph(1);
-  Graph *mst3 = prim(g3, 0);
-  int w3;
-  unsigned e3;
-  getUndirectedGraphStats(mst3, &w3, &e3);
-  assert(e3 == 0);
-  assert(w3 == 0);
-  printf("Prim test 3 (single vertex) passed!\n");
-  destroyGraph(g3);
-  destroyGraph(mst3);
+  {
+    Graph *g = createGraph(3);
+    addEdgeToUndirectedGraph(g, 0, 1, 1);
+    addEdgeToUndirectedGraph(g, 1, 2, 3);
+    addEdgeToUndirectedGraph(g, 0, 2, 4);
+    Graph *mst = prim(g, 0);
+    int w = sumWeights(mst) / 2;
+    assert(countEdges(mst) / 2 == 2);
+    assert(w == 4);
+    printf("Prim test 1 (triangle) passed: weight %d\n", w);
+    destroyGraph(g);
+    destroyGraph(mst);
+  }
+  {
+    Graph *g = createGraph(5);
+    addEdgeToUndirectedGraph(g, 0, 1, 2);
+    addEdgeToUndirectedGraph(g, 0, 3, 6);
+    addEdgeToUndirectedGraph(g, 1, 2, 3);
+    addEdgeToUndirectedGraph(g, 1, 3, 8);
+    addEdgeToUndirectedGraph(g, 1, 4, 5);
+    addEdgeToUndirectedGraph(g, 2, 4, 7);
+    addEdgeToUndirectedGraph(g, 3, 4, 9);
+    Graph *mst = prim(g, 0);
+    int w = sumWeights(mst) / 2;
+    assert(countEdges(mst) / 2 == 4);
+    assert(w == 16);
+    printf("Prim test 2 (complex) passed: weight %d\n", w);
+    destroyGraph(g);
+    destroyGraph(mst);
+  }
+  {
+    Graph *g = createGraph(1);
+    Graph *mst = prim(g, 0);
+    int w = sumWeights(mst);
+    assert(countEdges(mst) == 0);
+    assert(w == 0);
+    printf("Prim test 3 (single vertex) passed!\n");
+    destroyGraph(g);
+    destroyGraph(mst);
+  }
 }
 
 void testKruskal() {
@@ -1125,18 +1219,80 @@ void testKruskal() {
   addEdgeToUndirectedGraph(g, 3, 2, 4);
   addEdgeToUndirectedGraph(g, 2, 0, 6);
   addEdgeToUndirectedGraph(g, 0, 3, 5);
-
   Graph *mst = kruskal(g);
-  int weight;
-  unsigned count;
-  getUndirectedGraphStats(mst, &weight, &count);
-
-  assert(count == 3);
+  int weight = sumWeights(mst) / 2;
+  assert(countEdges(mst) / 2 == 3);
   assert(weight == 19);
   printf("Kruskal test passed: weight %d\n", weight);
-
   destroyGraph(g);
   destroyGraph(mst);
+}
+
+void testFindArticulationPoints() {
+  {
+    unsigned n = 3;
+    Graph *g = createGraph(n);
+    addEdgeToUndirectedGraph(g, 0, 1, 1);
+    addEdgeToUndirectedGraph(g, 1, 2, 1);
+    bool *articulations = findArticulationPoints(g);
+    bool expected[] = {false, true, false};
+    for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
+    printf("Articulation test passed: linear path\n");
+    destroyGraph(g);
+    free(articulations);
+  }
+  {
+    unsigned n = 3;
+    Graph *g = createGraph(n);
+    addEdgeToUndirectedGraph(g, 0, 1, 1);
+    addEdgeToUndirectedGraph(g, 1, 2, 1);
+    addEdgeToUndirectedGraph(g, 2, 0, 1);
+    bool *articulations = findArticulationPoints(g);
+    bool expected[] = {false, false, false};
+    for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
+    printf("Articulation test passed: simple cycle\n");
+    destroyGraph(g);
+    free(articulations);
+  }
+  {
+    unsigned n = 4;
+    Graph *g = createGraph(n);
+    addEdgeToUndirectedGraph(g, 0, 1, 1);
+    addEdgeToUndirectedGraph(g, 0, 2, 1);
+    addEdgeToUndirectedGraph(g, 0, 3, 1);
+    bool *articulations = findArticulationPoints(g);
+    bool expected[] = {true, false, false, false};
+    for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
+    printf("Articulation test passed: star graph\n");
+    destroyGraph(g);
+    free(articulations);
+  }
+  {
+    unsigned n = 6;
+    Graph *g = createGraph(n);
+    addEdgeToUndirectedGraph(g, 0, 1, 1); addEdgeToUndirectedGraph(g, 1, 2, 1); addEdgeToUndirectedGraph(g, 2, 0, 1);
+    addEdgeToUndirectedGraph(g, 2, 3, 1);
+    addEdgeToUndirectedGraph(g, 3, 4, 1); addEdgeToUndirectedGraph(g, 4, 5, 1); addEdgeToUndirectedGraph(g, 5, 3, 1);
+    bool *articulations = findArticulationPoints(g);
+    bool expected[] = {false, false, true, true, false, false};
+    for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
+    printf("Articulation test passed: two triangles connected by a bridge\n");
+    destroyGraph(g);
+    free(articulations);
+  }
+  {
+    unsigned n = 5;
+    Graph *g = createGraph(n);
+    addEdgeToUndirectedGraph(g, 0, 1, 1);
+    addEdgeToUndirectedGraph(g, 2, 3, 1);
+    addEdgeToUndirectedGraph(g, 3, 4, 1);
+    bool *articulations = findArticulationPoints(g);
+    bool expected[] = {false, false, false, true, false};
+    for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
+    printf("Articulation test passed: disconnected components\n");
+    destroyGraph(g);
+    free(articulations);
+  }
 }
 
 int main() {
@@ -1153,6 +1309,7 @@ int main() {
   testFloydWarshall();
   testPrim();
   testKruskal();
+  testFindArticulationPoints();
   printf("All tests passed!\n");
   return 0;
 }
