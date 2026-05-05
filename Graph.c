@@ -55,6 +55,7 @@ typedef struct {
   Edge **edges;
 } Graph;
 
+bool isValidGraph(const Graph *graph);
 Graph *createGraph(unsigned size);
 void destroyGraph(Graph *graph);
 void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
@@ -105,6 +106,17 @@ void recursivelyFindArticulationPoints(
   bool *articulations,
   unsigned *timer);
 bool *findArticulationPoints(const Graph *graph);
+void recursivelyFindBridges(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  unsigned **bridges,
+  unsigned *count,
+  unsigned *timer);
+unsigned **findBridges(const Graph *graph); // Returns a NULL-terminated array of bridges.
 
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
@@ -121,6 +133,11 @@ void testFloydWarshall();
 void testPrim();
 void testKruskal();
 void testFindArticulationPoints();
+bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v);
+void freeBridgeResult(unsigned **bridges);
+void testFindBridges();
+
+int main();
 
 
 
@@ -229,6 +246,17 @@ int compareEdges(const void *a, const void *b) {
 }
 
 
+
+bool isValidGraph(const Graph *graph) {
+  if (graph == NULL) return false;
+  if (graph->edges == NULL) return false;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+      if (edge->destination >= graph->size) return false;
+    }
+  }
+  return true;
+}
 
 Graph *createGraph(unsigned size) {
   Graph *graph = malloc(sizeof(Graph));
@@ -787,18 +815,94 @@ bool *findArticulationPoints(const Graph *graph) {
   return articulations;
 }
 
+void recursivelyFindBridges(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  unsigned **bridges,
+  unsigned *count,
+  unsigned *timer)
+{
+  visited[vertex] = true;
+  discovery[vertex] = low[vertex] = ++(*timer);
+  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+    if (!visited[edge->destination]) {
+      parent[edge->destination] = vertex;
+      recursivelyFindBridges(graph, edge->destination, visited, discovery, low, parent, bridges, count, timer);
+      low[vertex] = minimumUnsigned(low[vertex], low[edge->destination]);
+      if (low[edge->destination] > discovery[vertex]) {
+        bridges[*count] = malloc(2 * sizeof(unsigned));
+        bridges[*count][0] = vertex;
+        bridges[*count][1] = edge->destination;
+        (*count)++;
+      }
+    } else if (edge->destination != parent[vertex]) {
+      low[vertex] = minimumUnsigned(low[vertex], discovery[edge->destination]);
+    }
+  }
+}
+
+unsigned **findBridges(const Graph *graph) {
+  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
+  unsigned *low = calloc(graph->size, sizeof(unsigned));
+  unsigned *parent = malloc(graph->size * sizeof(unsigned));
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned **bridges = calloc(graph->size, sizeof(unsigned *));
+  unsigned count = 0;
+  unsigned timer = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) parent[vertex] = UINT_MAX;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    if (!visited[vertex]) {
+      recursivelyFindBridges(graph, vertex, visited, discovery, low, parent, bridges, &count, &timer);
+    }
+  }
+  free(discovery);
+  free(low);
+  free(parent);
+  free(visited);
+  return bridges;
+}
+
 
 
 void testIsDirectedCyclicGraph() {
-  Graph *g = createGraph(3);
-  addEdgeToDirectedGraph(g, 0, 1, 1);
-  addEdgeToDirectedGraph(g, 1, 2, 1);
-  addEdgeToDirectedGraph(g, 2, 0, 1);
-  if (isDirectedCyclicGraph(g))
-    printf("Cycle Detection Test passed: Cycle found!\n");
-  else
-    printf("Cycle Detection Test failed: No cycle found.\n");
-  destroyGraph(g);
+  Graph *g1 = createGraph(3);
+  addEdgeToDirectedGraph(g1, 0, 1, 1);
+  addEdgeToDirectedGraph(g1, 1, 2, 1);
+  addEdgeToDirectedGraph(g1, 2, 0, 1);
+  assert(isDirectedCyclicGraph(g1) == true);
+  printf("Directed cyclic test 1 passed: Simple cycle found.\n");
+  destroyGraph(g1);
+
+  Graph *g2 = createGraph(3);
+  addEdgeToDirectedGraph(g2, 0, 1, 1);
+  addEdgeToDirectedGraph(g2, 1, 2, 1);
+  addEdgeToDirectedGraph(g2, 0, 2, 1);
+  assert(isDirectedCyclicGraph(g2) == false);
+  printf("Directed cyclic test 2 passed: DAG correctly identified as acyclic.\n");
+  destroyGraph(g2);
+
+  Graph *g3 = createGraph(1);
+  addEdgeToDirectedGraph(g3, 0, 0, 1);
+  assert(isDirectedCyclicGraph(g3) == true);
+  printf("Directed cyclic test 3 passed: Self-loop detected.\n");
+  destroyGraph(g3);
+
+  Graph *g4 = createGraph(4);
+  addEdgeToDirectedGraph(g4, 0, 1, 1);
+  addEdgeToDirectedGraph(g4, 2, 3, 1);
+  addEdgeToDirectedGraph(g4, 3, 2, 1);
+  assert(isDirectedCyclicGraph(g4) == true);
+  printf("Directed cyclic test 4 passed: Cycle in disconnected component found.\n");
+  destroyGraph(g4);
+
+  Graph *g5 = createGraph(0);
+  assert(isDirectedCyclicGraph(g5) == false);
+  printf("Directed cyclic test 5 passed: Empty graph is acyclic.\n");
+  destroyGraph(g5);
 }
 
 void testIsUndirectedCyclicGraph() {
@@ -844,27 +948,27 @@ void testIsUndirectedCyclicGraph() {
 void testIsConnectedUndirectedGraph() {
   Graph *g1 = createGraph(1);
   assert(isConnectedUndirectedGraph(g1) == true);
-  printf("Test 1 passed: Single vertex\n");
+  printf("Undirected connected test 1 passed: Single vertex\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
   addEdgeToUndirectedGraph(g2, 0, 1, 1);
   addEdgeToUndirectedGraph(g2, 1, 2, 1);
   assert(isConnectedUndirectedGraph(g2) == true);
-  printf("Test 2 passed: Simple line graph\n");
+  printf("Undirected connected test 2 passed: Simple line graph\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(4);
   addEdgeToUndirectedGraph(g3, 0, 1, 1);
   addEdgeToUndirectedGraph(g3, 2, 3, 1);
   assert(isConnectedUndirectedGraph(g3) == false);
-  printf("Test 3 passed: Disconnected components\n");
+  printf("Undirected connected test 3 passed: Disconnected components\n");
   destroyGraph(g3);
 
   Graph *g4 = createGraph(3);
   addEdgeToUndirectedGraph(g4, 0, 1, 1);
   assert(isConnectedUndirectedGraph(g4) == false);
-  printf("Test 4 passed: Isolated vertex\n");
+  printf("Undirected connected test 4 passed: Isolated vertex\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(4);
@@ -875,7 +979,7 @@ void testIsConnectedUndirectedGraph() {
   addEdgeToUndirectedGraph(g5, 1, 3, 1);
   addEdgeToUndirectedGraph(g5, 2, 3, 1);
   assert(isConnectedUndirectedGraph(g5) == true);
-  printf("Test 5 passed: Complete graph\n");
+  printf("Undirected connected test 5 passed: Complete graph\n");
   destroyGraph(g5);
 }
 
@@ -889,7 +993,7 @@ void testIsWeaklyConnectedDirectedGraph() {
 
   Graph *g2 = createGraph(3);
   addEdgeToDirectedGraph(g2, 0, 1, 1);
-  addEdgeToDirectedGraph(g2, 2, 1, 1); 
+  addEdgeToDirectedGraph(g2, 2, 1, 1);
   assert(isWeaklyConnectedDirectedGraph(g2) == true);
   printf("Weakly Test 2 passed: Source/Sink structure\n");
   destroyGraph(g2);
@@ -1295,6 +1399,66 @@ void testFindArticulationPoints() {
   }
 }
 
+bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v) {
+  if (!bridges) return false;
+  for (int i = 0; bridges[i] != NULL; i++) {
+    if ((bridges[i][0] == u && bridges[i][1] == v) || (bridges[i][0] == v && bridges[i][1] == u)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void freeBridgeResult(unsigned **bridges) {
+  if (!bridges) return;
+  for (int i = 0; bridges[i] != NULL; i++) {
+    free(bridges[i]);
+  }
+  free(bridges);
+}
+
+void testFindBridges() {
+  printf("Running Bridge Detection Tests...\n");
+
+  Graph *line = createGraph(3);
+  addEdgeToUndirectedGraph(line, 0, 1, 1);
+  addEdgeToUndirectedGraph(line, 1, 2, 1);
+  
+  unsigned **b1 = findBridges(line);
+  assert(hasBridge(b1, 0, 1));
+  assert(hasBridge(b1, 1, 2));
+  freeBridgeResult(b1);
+  destroyGraph(line);
+  printf("Passed: Line Graph\n");
+
+  Graph *cycle = createGraph(3);
+  addEdgeToUndirectedGraph(cycle, 0, 1, 1);
+  addEdgeToUndirectedGraph(cycle, 1, 2, 1);
+  addEdgeToUndirectedGraph(cycle, 2, 0, 1);
+  
+  unsigned **b2 = findBridges(cycle);
+  assert(b2[0] == NULL);
+  freeBridgeResult(b2);
+  destroyGraph(cycle);
+  printf("Passed: Cycle (No Bridges)\n");
+
+  Graph *dumbbell = createGraph(6);
+  addEdgeToUndirectedGraph(dumbbell, 0, 1, 1);
+  addEdgeToUndirectedGraph(dumbbell, 1, 2, 1);
+  addEdgeToUndirectedGraph(dumbbell, 2, 0, 1);
+  addEdgeToUndirectedGraph(dumbbell, 1, 3, 1);
+  addEdgeToUndirectedGraph(dumbbell, 3, 4, 1);
+  addEdgeToUndirectedGraph(dumbbell, 4, 5, 1);
+  addEdgeToUndirectedGraph(dumbbell, 5, 3, 1);
+
+  unsigned **b3 = findBridges(dumbbell);
+  assert(hasBridge(b3, 1, 3));
+  assert(!hasBridge(b3, 0, 1));
+  freeBridgeResult(b3);
+  destroyGraph(dumbbell);
+  printf("Passed: Dumbbell Graph\n");
+}
+
 int main() {
   testIsDirectedCyclicGraph();
   testIsUndirectedCyclicGraph();
@@ -1310,6 +1474,7 @@ int main() {
   testPrim();
   testKruskal();
   testFindArticulationPoints();
+  testFindBridges();
   printf("All tests passed!\n");
   return 0;
 }
