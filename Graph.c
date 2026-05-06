@@ -526,8 +526,7 @@ bool isDirectedCyclicGraph(const Graph *graph) {
   char *visited = calloc(graph->size, sizeof(char));
   bool cyclic = false;
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    if (visited[vertex] == 0 && (cyclic = isDirectedCyclicGraphComponent(graph, vertex, visited)))
-      break;
+    cyclic ||= (visited[vertex] == 0 && isDirectedCyclicGraphComponent(graph, vertex, visited));
   free(visited);
   return cyclic;
 }
