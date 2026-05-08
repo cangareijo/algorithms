@@ -91,6 +91,7 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool isConnectedUndirectedGraph(const Graph *graph);
 bool isWeaklyConnectedDirectedGraph(const Graph *graph);
 bool isStronglyConnectedDirectedGraph(const Graph *graph);
+bool isBipartite(const Graph *graph);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -629,6 +630,31 @@ bool isStronglyConnectedDirectedGraph(const Graph *graph) {
   return reachable;
 }
 
+bool isBipartite(const Graph *graph) {
+  int *colors = calloc(graph->size, sizeof(int));
+  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+  bool bipartite = true;
+  for (unsigned u = 0; u < graph->size; u++)
+    if (colors[u] == 0) {
+      colors[u] = 1;
+      unsigned head = 0, tail = 0;
+      queue[tail++] = u;
+      while (head < tail) {
+        unsigned v = queue[head++];
+        for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
+          if (colors[edge->destination] == 0) {
+            colors[edge->destination] = (colors[v] == 1) ? 2 : 1;
+            queue[tail++] = edge->destination;
+          } else if (colors[edge->destination] == colors[v]) {
+            bipartite = false;
+          }
+      }
+    }
+  free(colors);
+  free(queue);
+  return bipartite;
+}
+
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
   assert(source < graph->size);
   ordering[(*count)++] = source;
@@ -666,6 +692,7 @@ void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsig
         queue[tail++] = edge->destination;
       }
   }
+  free(queue);
 }
 
 unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source) {
