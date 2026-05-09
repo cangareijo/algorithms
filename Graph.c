@@ -65,13 +65,17 @@ Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
-unsigned countEdges(const Graph *graph);
 int sumWeights(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
+unsigned *degreeDistribution(const Graph *graph);
 unsigned inDegree(const Graph *graph, unsigned vertex);
 unsigned *inDegrees(const Graph *graph);
-unsigned countEdgesInDirectedGraph(const Graph *graph);
-unsigned countEdgesInUndirectedGraph(const Graph *graph);
+unsigned countEdges(const Graph *graph);
+unsigned countTriangles(const Graph *graph);
+double normalizedDegree(const Graph *graph, unsigned vertex);
+double density(const Graph *graph);
+double localClusteringCoefficient(const Graph *graph, unsigned vertex);
+double averageClusteringCoefficient(const Graph *graph);
 int graphEccentricity(const Graph *graph, unsigned vertex);
 int graphRadius(const Graph *graph);
 int graphDiameter(const Graph *graph);
@@ -82,6 +86,7 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 void printGraph(const Graph *graph);
+bool hasEdge(const Graph *graph, unsigned u, unsigned v);
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isDirectedCyclicGraph(const Graph *graph);
 bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -98,6 +103,7 @@ void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsig
 unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
+unsigned *coloring(const Graph *graph);
 int *bellmanFord(const Graph *graph, unsigned source);
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
 int *weightedDijkstra(const Graph *graph, unsigned source);
@@ -359,17 +365,6 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices) {
   return subgraph;
 }
 
-unsigned countEdges(const Graph *graph) {
-  assert(graph != NULL);
-  unsigned count = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
-      count++;
-    }
-  }
-  return count;
-}
-
 int sumWeights(const Graph *graph) {
   assert(graph != NULL);
   int weight = 0;
@@ -391,6 +386,12 @@ unsigned outDegree(const Graph *graph, unsigned vertex) {
   return count;
 }
 
+unsigned *degreeDistribution(const Graph *graph) {
+  unsigned *distribution = calloc(graph->size, sizeof(unsigned));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) distribution[outDegree(graph, vertex)]++;
+  return distribution;
+}
+
 unsigned inDegree(const Graph *graph, unsigned vertex) {
   assert(graph != NULL);
   assert(vertex < graph->size);
@@ -406,9 +407,7 @@ unsigned inDegree(const Graph *graph, unsigned vertex) {
 }
 
 unsigned *inDegrees(const Graph *graph) {
-  assert(graph != NULL);
   unsigned *degrees = calloc(graph->size, sizeof(unsigned));
-  assert(degrees != NULL);
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
       degrees[edge->destination]++;
@@ -417,20 +416,53 @@ unsigned *inDegrees(const Graph *graph) {
   return degrees;
 }
 
-unsigned countEdgesInDirectedGraph(const Graph *graph) {
+unsigned countEdges(const Graph *graph) {
   unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
       count++;
   return count;
 }
 
-unsigned countEdgesInUndirectedGraph(const Graph *graph) {
-  unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (v < e->destination) count++;
-  return count;
+unsigned countTriangles(const Graph *graph) {
+  unsigned triangles = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
+      if (d->destination > vertex)
+        for (Edge *e = graph->edges[d->destination]; e != NULL; e = e->next)
+          if (e->destination > d->destination)
+            for (Edge *f = graph->edges[e->destination]; f != NULL; f = f->next)
+              if (f->destination == vertex)
+                triangles++;
+  return triangles;
+}
+
+double normalizedDegree(const Graph *graph, unsigned vertex) {
+  if (graph->size < 2) return 0;
+  return (double)outDegree(graph, vertex) / (graph->size - 1);
+}
+
+double density(const Graph *graph) {
+  if (graph->size < 2) return 0;
+  return (double)countEdges(graph) / (graph->size * (graph->size - 1));
+}
+
+double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
+  unsigned k = outDegree(graph, vertex);
+  if (k < 2) return 0;
+  unsigned edgesBetweenNeighbours = 0;
+  for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
+    for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+      if (hasEdge(graph, d->destination, e->destination))
+        edgesBetweenNeighbours++;
+  return (double)edgesBetweenNeighbours / (k * (k - 1));
+}
+
+double averageClusteringCoefficient(const Graph *graph) {
+  if (graph->size == 0) return 0;
+  double total = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) total += localClusteringCoefficient(graph, vertex);
+  return total / graph->size;
 }
 
 int graphEccentricity(const Graph *graph, unsigned vertex) {
@@ -502,7 +534,7 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 }
 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph) {
-  FlatEdge *edges = malloc(countEdgesInDirectedGraph(graph) * sizeof(FlatEdge));
+  FlatEdge *edges = malloc(countEdges(graph) * sizeof(FlatEdge));
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e; e = e->next) {
@@ -515,7 +547,7 @@ FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph) {
 }
 
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
-  FlatEdge *edges = malloc(countEdgesInUndirectedGraph(graph) * sizeof(FlatEdge));
+  FlatEdge *edges = malloc(countEdges(graph) / 2 * sizeof(FlatEdge));
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e; e = e->next)
@@ -539,6 +571,14 @@ void printGraph(const Graph *graph) {
       printf("\n");
     }
   }
+}
+
+bool hasEdge(const Graph *graph, unsigned u, unsigned v) {
+  bool exists = false;
+  for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next)
+    if (edge->destination == v)
+      exists = true;
+  return exists;
 }
 
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
@@ -728,6 +768,26 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
   return ordering;
 }
 
+unsigned *coloring(const Graph *graph) {
+  unsigned *colors = malloc(graph->size  *sizeof(unsigned));
+  colors[0] = 0;
+  for (unsigned vertex = 1; vertex < graph->size; vertex++) colors[vertex] = UINT_MAX;
+  bool *taken = calloc(graph->size, sizeof(bool));
+  for (unsigned vertex = 1; vertex < graph->size; vertex++) {
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
+      if (colors[edge->destination] != UINT_MAX)
+        taken[colors[edge->destination]] = true;
+    unsigned color = 1;
+    while (taken[color]) color++;
+    colors[vertex] = color;
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
+      if (colors[edge->destination] != UINT_MAX)
+        taken[colors[edge->destination]] = false;
+  }
+  free(taken);
+  return colors;
+}
+
 int *bellmanFord(const Graph *graph, unsigned source) {
   assert(isValidGraph(graph));
   assert(source < graph->size);
@@ -850,17 +910,17 @@ Graph *prim(const Graph *graph, unsigned source) {
 }
 
 Graph *kruskal(const Graph *graph) {
-  unsigned edgeCount = countEdgesInUndirectedGraph(graph);
-  FlatEdge *flatEdges = getEdgeArrayFromUndirectedGraph(graph);
-  qsort(flatEdges, edgeCount, sizeof(FlatEdge), compareEdges);
+  unsigned count = countEdges(graph) / 2;
+  FlatEdge *edges = getEdgeArrayFromUndirectedGraph(graph);
+  qsort(edges, count, sizeof(FlatEdge), compareEdges);
   Dsu *dsu = createDsu(graph->size);
   Graph *mst = createGraph(graph->size);
-  for (unsigned i = 0; i < edgeCount; i++)
-    if (findDsu(dsu, flatEdges[i].u) != findDsu(dsu, flatEdges[i].v)) {
-      unionDsu(dsu, flatEdges[i].u, flatEdges[i].v);
-      addEdgeToUndirectedGraph(mst, flatEdges[i].u, flatEdges[i].v, flatEdges[i].weight);
+  for (unsigned i = 0; i < count; i++)
+    if (findDsu(dsu, edges[i].u) != findDsu(dsu, edges[i].v)) {
+      unionDsu(dsu, edges[i].u, edges[i].v);
+      addEdgeToUndirectedGraph(mst, edges[i].u, edges[i].v, edges[i].weight);
     }
-  free(flatEdges);
+  free(edges);
   freeDsu(dsu);
   return mst;
 }
@@ -1509,7 +1569,7 @@ void testPrim() {
     addEdgeToUndirectedGraph(g, 0, 2, 4);
     Graph *mst = prim(g, 0);
     int w = sumWeights(mst) / 2;
-    assert(countEdges(mst) / 2 == 2);
+    assert(countEdges(mst) == 4);
     assert(w == 4);
     printf("Prim test 1 (triangle) passed: weight %d\n", w);
     destroyGraph(g);
@@ -1526,7 +1586,7 @@ void testPrim() {
     addEdgeToUndirectedGraph(g, 3, 4, 9);
     Graph *mst = prim(g, 0);
     int w = sumWeights(mst) / 2;
-    assert(countEdges(mst) / 2 == 4);
+    assert(countEdges(mst) == 8);
     assert(w == 16);
     printf("Prim test 2 (complex) passed: weight %d\n", w);
     destroyGraph(g);
@@ -1553,7 +1613,7 @@ void testKruskal() {
   addEdgeToUndirectedGraph(g, 0, 3, 5);
   Graph *mst = kruskal(g);
   int weight = sumWeights(mst) / 2;
-  assert(countEdges(mst) / 2 == 3);
+  assert(countEdges(mst) == 6);
   assert(weight == 19);
   printf("Kruskal test passed: weight %d\n", weight);
   destroyGraph(g);
