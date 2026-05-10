@@ -55,7 +55,7 @@ typedef struct {
   Edge **edges;
 } Graph;
 
-bool isValidGraph(const Graph *graph);
+bool isValid(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoop(const Graph *graph);
@@ -268,7 +268,7 @@ int compareEdges(const void *a, const void *b) {
 
 
 
-bool isValidGraph(const Graph *graph) {
+bool isValid(const Graph *graph) {
   if (graph == NULL) return false;
   if (graph->edges == NULL) return false;
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
@@ -348,7 +348,7 @@ void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) 
 }
 
 Graph *copyGraph(const Graph *graph) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   Graph *copy = createGraph(graph->size);
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
@@ -359,7 +359,7 @@ Graph *copyGraph(const Graph *graph) {
 }
 
 Graph *copyTranspose(const Graph *graph) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   Graph *transpose = createGraph(graph->size);
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
@@ -370,7 +370,7 @@ Graph *copyTranspose(const Graph *graph) {
 }
 
 Graph *copyUnweighted(const Graph *graph) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   Graph *copy = createGraph(graph->size);
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
@@ -381,7 +381,7 @@ Graph *copyUnweighted(const Graph *graph) {
 }
 
 Graph *copyUndirected(const Graph *graph) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   Graph *undirected = createGraph(graph->size);
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
@@ -392,7 +392,7 @@ Graph *copyUndirected(const Graph *graph) {
 }
 
 Graph *copySubgraph(const Graph *graph, const bool *vertices) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   assert(vertices != NULL);
   Graph *subgraph = createGraph(graph->size);
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
@@ -668,7 +668,7 @@ bool isUndirectedCyclicGraph(const Graph *graph) {
 }
 
 bool *reachabilityFromVertexInGraph(const Graph *graph, unsigned vertex) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   assert(vertex < graph->size);
   unsigned *distances = unweightedDijkstra(graph, vertex);
   bool *reachable = malloc(graph->size * sizeof(bool));
@@ -678,7 +678,7 @@ bool *reachabilityFromVertexInGraph(const Graph *graph, unsigned vertex) {
 }
 
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   assert(vertex < graph->size);
   bool *reachable = reachabilityFromVertexInGraph(graph, vertex);
   for (unsigned i = 0; i < graph->size; i++) {
@@ -831,7 +831,7 @@ unsigned *coloring(const Graph *graph) {
 }
 
 int *bellmanFord(const Graph *graph, unsigned source) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   assert(source < graph->size);
   int *distance = malloc(graph->size * sizeof(int));
   for (unsigned v = 0; v < graph->size; v++) distance[v] = INT_MAX;
@@ -856,7 +856,7 @@ int *bellmanFord(const Graph *graph, unsigned source) {
 }
 
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   assert(source < graph->size);
   unsigned *distances = malloc(graph->size * sizeof(unsigned));
   for (unsigned i = 0; i < graph->size; i++) distances[i] = INT_MAX;
@@ -878,7 +878,7 @@ unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
 }
 
 int *weightedDijkstra(const Graph *graph, unsigned source) {
-  assert(isValidGraph(graph));
+  assert(isValid(graph));
   assert(source < graph->size);
   int *weights = malloc(graph->size * sizeof(int));
   for (unsigned v = 0; v < graph->size; v++) weights[v] = INT_MAX;
