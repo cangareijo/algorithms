@@ -56,6 +56,13 @@ typedef struct {
 } Graph;
 
 bool isValidGraph(const Graph *graph);
+bool isRegular(const Graph *graph);
+bool isComplete(const Graph *graph);
+bool hasSelfLoop(const Graph *graph);
+bool isIsolated(const Graph *graph, unsigned vertex);
+bool isSource(const Graph *graph, unsigned vertex);
+bool isSink(const Graph *graph, unsigned vertex);
+
 Graph *createGraph(unsigned size);
 void destroyGraph(Graph *graph);
 void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
@@ -270,6 +277,41 @@ bool isValidGraph(const Graph *graph) {
     }
   }
   return true;
+}
+
+bool isRegular(const Graph *graph) {
+  if (graph->size < 2) return true;
+  unsigned degree = outDegree(graph, 0);
+  for (unsigned i = 1; i < graph->size; i++) if (outDegree(graph, i) != degree) return false;
+  return true;
+}
+
+bool isComplete(const Graph *graph) {
+  if (graph->size < 2) return true;
+  return countEdges(graph) == graph->size * (graph->size - 1);
+}
+
+bool hasSelfLoop(const Graph *graph) {
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
+      if (edge->destination == vertex)
+        return true;
+  return false;
+}
+
+bool isIsolated(const Graph *graph, unsigned vertex) {
+  assert(vertex < graph->size);
+  return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
+}
+
+bool isSource(const Graph *graph, unsigned vertex) {
+  assert(vertex < graph->size);
+  return inDegree(graph, vertex) == 0 && outDegree(graph, vertex) > 0;
+}
+
+bool isSink(const Graph *graph, unsigned vertex) {
+  assert(vertex < graph->size);
+  return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) > 0;
 }
 
 Graph *createGraph(unsigned size) {
