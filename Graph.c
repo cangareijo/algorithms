@@ -59,6 +59,8 @@ bool isValid(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoop(const Graph *graph);
+bool isEulerianUndirected(const Graph *graph);
+bool isEulerianDirected(const Graph *graph);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
@@ -271,11 +273,10 @@ int compareEdges(const void *a, const void *b) {
 bool isValid(const Graph *graph) {
   if (graph == NULL) return false;
   if (graph->edges == NULL) return false;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-      if (edge->destination >= graph->size) return false;
-    }
-  }
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
+      if (edge->destination >= graph->size)
+        return false;
   return true;
 }
 
@@ -299,6 +300,18 @@ bool hasSelfLoop(const Graph *graph) {
   return false;
 }
 
+bool isEulerianUndirected(const Graph *graph) {
+  if (graph->size < 2) return true;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (outDegree(graph, vertex) % 2 != 0) return false;
+  return isConnectedUndirectedGraph(graph);
+}
+
+bool isEulerianDirected(const Graph *graph) {
+  if (graph->size < 2) return true;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (inDegree(graph, vertex) != outDegree(graph, vertex)) return false;
+  return isStronglyConnectedDirectedGraph(graph);
+}
+
 bool isIsolated(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
@@ -313,6 +326,8 @@ bool isSink(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) > 0;
 }
+
+
 
 Graph *createGraph(unsigned size) {
   Graph *graph = malloc(sizeof(Graph));
