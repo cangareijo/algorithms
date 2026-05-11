@@ -67,6 +67,10 @@ bool isWeaklyConnectedDirectedGraph(const Graph *graph);
 bool isStronglyConnectedDirectedGraph(const Graph *graph);
 bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
+bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
+bool isDirectedCyclicGraph(const Graph *graph);
+bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
+bool isUndirectedCyclicGraph(const Graph *graph);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
@@ -91,12 +95,16 @@ void destroyGraph(Graph *graph);
 void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
 void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 int sumWeights(const Graph *graph);
+
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned *degreeDistribution(const Graph *graph);
 unsigned inDegree(const Graph *graph, unsigned vertex);
 unsigned *inDegrees(const Graph *graph);
 unsigned countEdges(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
+void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
+unsigned countComponents(const Graph *graph);
+
 double normalizedDegree(const Graph *graph, unsigned vertex);
 double density(const Graph *graph);
 double localClusteringCoefficient(const Graph *graph, unsigned vertex);
@@ -111,10 +119,6 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 void printGraph(const Graph *graph);
-bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
-bool isDirectedCyclicGraph(const Graph *graph);
-bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
-bool isUndirectedCyclicGraph(const Graph *graph);
 bool *reachabilityFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -376,6 +380,50 @@ bool isUndirected(const Graph *graph) {
   return true;
 }
 
+bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
+  visited[vertex] = 1;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (visited[edge->destination] == 1 ||
+      (visited[edge->destination] == 0 && isDirectedCyclicGraphComponent(graph, edge->destination, visited)))
+        return true;
+  visited[vertex] = 2;
+  return false;
+}
+
+bool isDirectedCyclicGraph(const Graph *graph) {
+  char *visited = calloc(graph->size, sizeof(char));
+  bool cyclic = false;
+  for (unsigned vertex = 0; vertex < graph->size && !cyclic; vertex++)
+    cyclic = (visited[vertex] == 0 && isDirectedCyclicGraphComponent(graph, vertex, visited));
+  free(visited);
+  return cyclic;
+}
+
+bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
+  visited[vertex] = true;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (visited[edge->destination]) {
+      if (edge->destination != parent)
+        return true;
+    } else {
+      if (isUndirectedCyclicGraphComponent(graph, edge->destination, vertex, visited))
+        return true;
+    }
+  return false;
+}
+
+bool isUndirectedCyclicGraph(const Graph *graph) {
+  bool *visited = calloc(graph->size, sizeof(bool));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!visited[vertex])
+      if (isUndirectedCyclicGraphComponent(graph, vertex, graph->size, visited)) {
+        free(visited);
+        return true;
+      }
+  free(visited);
+  return false;
+}
+
 bool isIsolated(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
@@ -577,6 +625,8 @@ int sumWeights(const Graph *graph) {
   return weight;
 }
 
+
+
 unsigned outDegree(const Graph *graph, unsigned vertex) {
   assert(graph != NULL);
   assert(vertex < graph->size);
@@ -637,6 +687,27 @@ unsigned countTriangles(const Graph *graph) {
                 triangles++;
   return triangles;
 }
+
+void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
+  visited[vertex] = true;
+  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
+    if (!visited[edge->destination])
+      traverseComponent(graph, edge->destination, visited);
+}
+
+unsigned countComponents(const Graph *graph) {
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned count = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!visited[vertex]) {
+      count++;
+      traverseComponent(graph, vertex, visited);
+    }
+  free(visited);
+  return count;
+}
+
+
 
 double normalizedDegree(const Graph *graph, unsigned vertex) {
   if (graph->size < 2) return 0;
@@ -772,50 +843,6 @@ void printGraph(const Graph *graph) {
       printf("\n");
     }
   }
-}
-
-bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
-  visited[vertex] = 1;
-  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-    if (visited[edge->destination] == 1 ||
-      (visited[edge->destination] == 0 && isDirectedCyclicGraphComponent(graph, edge->destination, visited)))
-        return true;
-  visited[vertex] = 2;
-  return false;
-}
-
-bool isDirectedCyclicGraph(const Graph *graph) {
-  char *visited = calloc(graph->size, sizeof(char));
-  bool cyclic = false;
-  for (unsigned vertex = 0; vertex < graph->size && !cyclic; vertex++)
-    cyclic = (visited[vertex] == 0 && isDirectedCyclicGraphComponent(graph, vertex, visited));
-  free(visited);
-  return cyclic;
-}
-
-bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
-  visited[vertex] = true;
-  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-    if (visited[edge->destination]) {
-      if (edge->destination != parent)
-        return true;
-    } else {
-      if (isUndirectedCyclicGraphComponent(graph, edge->destination, vertex, visited))
-        return true;
-    }
-  return false;
-}
-
-bool isUndirectedCyclicGraph(const Graph *graph) {
-  bool *visited = calloc(graph->size, sizeof(bool));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    if (!visited[vertex])
-      if (isUndirectedCyclicGraphComponent(graph, vertex, graph->size, visited)) {
-        free(visited);
-        return true;
-      }
-  free(visited);
-  return false;
 }
 
 bool *reachabilityFromVertexInGraph(const Graph *graph, unsigned vertex) {
