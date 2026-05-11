@@ -66,12 +66,15 @@ bool isConnectedUndirectedGraph(const Graph *graph);
 bool isWeaklyConnectedDirectedGraph(const Graph *graph);
 bool isStronglyConnectedDirectedGraph(const Graph *graph);
 bool isBipartite(const Graph *graph);
+bool isUndirected(const Graph *graph);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
 bool isPendantDirected(const Graph *graph, unsigned vertex);
 bool isPendantUndirected(const Graph *graph, unsigned vertex);
 bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex);
+bool hasEdge(const Graph *graph, unsigned u, unsigned v);
+bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -108,7 +111,6 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 void printGraph(const Graph *graph);
-bool hasEdge(const Graph *graph, unsigned u, unsigned v);
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isDirectedCyclicGraph(const Graph *graph);
 bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -366,6 +368,14 @@ bool isBipartite(const Graph *graph) {
   return bipartite;
 }
 
+bool isUndirected(const Graph *graph) {
+  for (unsigned u = 0; u < graph->size; u++)
+    for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+      if (!hasWeightedEdge(graph, e->destination, u, e->weight))
+        return false;
+  return true;
+}
+
 bool isIsolated(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
@@ -388,12 +398,24 @@ bool isPendantDirected(const Graph *graph, unsigned vertex) {
 
 bool isPendantUndirected(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
-  return outDegree(graph, vertex) == 1 && inDegree(graph, vertex) == 1;
+  return outDegree(graph, vertex) == 1;
 }
 
 bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next) if (e->destination == vertex) return true;
+  return false;
+}
+
+bool hasEdge(const Graph *graph, unsigned u, unsigned v) {
+  if (u >= graph->size || v >= graph->size) return false;
+  for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v) return true;
+  return false;
+}
+
+bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
+  if (u >= graph->size || v >= graph->size) return false;
+  for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v && e->weight == weight) return true;
   return false;
 }
 
@@ -750,14 +772,6 @@ void printGraph(const Graph *graph) {
       printf("\n");
     }
   }
-}
-
-bool hasEdge(const Graph *graph, unsigned u, unsigned v) {
-  bool exists = false;
-  for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next)
-    if (edge->destination == v)
-      exists = true;
-  return exists;
 }
 
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
