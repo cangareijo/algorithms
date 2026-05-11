@@ -74,7 +74,7 @@ Graph *copyGraph(const Graph *graph);
 Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
-Graph *complement(const Graph *graph);
+Graph *copyComplement(const Graph *graph);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 
 void destroyGraph(Graph *graph);
@@ -428,7 +428,7 @@ Graph *copyUndirected(const Graph *graph) {
   return undirected;
 }
 
-Graph *complement(const Graph *graph) {
+Graph *copyComplement(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned u = 0; u < graph->size; u++)
     for (unsigned v = 0; v < graph->size; v++)
