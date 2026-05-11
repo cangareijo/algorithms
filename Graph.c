@@ -69,7 +69,8 @@ bool isBipartite(const Graph *graph);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
-bool isPendant(const Graph *graph, unsigned vertex);
+bool isPendantDirected(const Graph *graph, unsigned vertex);
+bool isPendantUndirected(const Graph *graph, unsigned vertex);
 bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex);
 
 Graph *createGraph(unsigned size);
@@ -380,9 +381,14 @@ bool isSink(const Graph *graph, unsigned vertex) {
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) > 0;
 }
 
-bool isPendant(const Graph *graph, unsigned vertex) {
+bool isPendantDirected(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   return outDegree(graph, vertex) + inDegree(graph, vertex) == 1;
+}
+
+bool isPendantUndirected(const Graph *graph, unsigned vertex) {
+  assert(vertex < graph->size);
+  return outDegree(graph, vertex) == 1 && inDegree(graph, vertex) == 1;
 }
 
 bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex) {
