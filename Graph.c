@@ -69,6 +69,8 @@ bool isBipartite(const Graph *graph);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
+bool isPendant(const Graph *graph, unsigned vertex);
+bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -301,10 +303,7 @@ bool isComplete(const Graph *graph) {
 }
 
 bool hasSelfLoop(const Graph *graph) {
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
-      if (edge->destination == vertex)
-        return true;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (hasSelfLoopAtVertex(graph, vertex)) return true;
   return false;
 }
 
@@ -379,6 +378,17 @@ bool isSource(const Graph *graph, unsigned vertex) {
 bool isSink(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) > 0;
+}
+
+bool isPendant(const Graph *graph, unsigned vertex) {
+  assert(vertex < graph->size);
+  return outDegree(graph, vertex) + inDegree(graph, vertex) == 1;
+}
+
+bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex) {
+  assert(vertex < graph->size);
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next) if (e->destination == vertex) return true;
+  return false;
 }
 
 
