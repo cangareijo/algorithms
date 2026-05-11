@@ -61,6 +61,10 @@ bool isComplete(const Graph *graph);
 bool hasSelfLoop(const Graph *graph);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
+bool isConnectedUndirectedGraph(const Graph *graph);
+bool isWeaklyConnectedDirectedGraph(const Graph *graph);
+bool isStronglyConnectedDirectedGraph(const Graph *graph);
+bool isBipartite(const Graph *graph);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
@@ -104,10 +108,6 @@ bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsig
 bool isUndirectedCyclicGraph(const Graph *graph);
 bool *reachabilityFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
-bool isConnectedUndirectedGraph(const Graph *graph);
-bool isWeaklyConnectedDirectedGraph(const Graph *graph);
-bool isStronglyConnectedDirectedGraph(const Graph *graph);
-bool isBipartite(const Graph *graph);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -312,6 +312,52 @@ bool isEulerianDirected(const Graph *graph) {
   if (graph->size < 2) return true;
   for (unsigned vertex = 0; vertex < graph->size; vertex++) if (inDegree(graph, vertex) != outDegree(graph, vertex)) return false;
   return isStronglyConnectedDirectedGraph(graph);
+}
+
+bool isConnectedUndirectedGraph(const Graph *graph) {
+  if (graph->size < 2) return true;
+  return allAreReachableFromVertexInGraph(graph, 0);
+}
+
+bool isWeaklyConnectedDirectedGraph(const Graph *graph) {
+  if (graph->size < 2) return true;
+  Graph *undirected = copyUndirected(graph);
+  bool reachable = allAreReachableFromVertexInGraph(undirected, 0);
+  destroyGraph(undirected);
+  return reachable;
+}
+
+bool isStronglyConnectedDirectedGraph(const Graph *graph) {
+  if (graph->size < 2) return true;
+  Graph *transpose = copyTranspose(graph);
+  bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(transpose, 0);
+  destroyGraph(transpose);
+  return reachable;
+}
+
+bool isBipartite(const Graph *graph) {
+  int *colors = calloc(graph->size, sizeof(int));
+  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+  bool bipartite = true;
+  for (unsigned u = 0; u < graph->size; u++)
+    if (colors[u] == 0) {
+      colors[u] = 1;
+      unsigned head = 0, tail = 0;
+      queue[tail++] = u;
+      while (head < tail) {
+        unsigned v = queue[head++];
+        for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
+          if (colors[edge->destination] == 0) {
+            colors[edge->destination] = (colors[v] == 1) ? 2 : 1;
+            queue[tail++] = edge->destination;
+          } else if (colors[edge->destination] == colors[v]) {
+            bipartite = false;
+          }
+      }
+    }
+  free(colors);
+  free(queue);
+  return bipartite;
 }
 
 bool isIsolated(const Graph *graph, unsigned vertex) {
@@ -718,52 +764,6 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   }
   free(reachable);
   return true;
-}
-
-bool isConnectedUndirectedGraph(const Graph *graph) {
-  if (graph->size < 2) return true;
-  return allAreReachableFromVertexInGraph(graph, 0);
-}
-
-bool isWeaklyConnectedDirectedGraph(const Graph *graph) {
-  if (graph->size < 2) return true;
-  Graph *undirected = copyUndirected(graph);
-  bool reachable = allAreReachableFromVertexInGraph(undirected, 0);
-  destroyGraph(undirected);
-  return reachable;
-}
-
-bool isStronglyConnectedDirectedGraph(const Graph *graph) {
-  if (graph->size < 2) return true;
-  Graph *transpose = copyTranspose(graph);
-  bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(transpose, 0);
-  destroyGraph(transpose);
-  return reachable;
-}
-
-bool isBipartite(const Graph *graph) {
-  int *colors = calloc(graph->size, sizeof(int));
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
-  bool bipartite = true;
-  for (unsigned u = 0; u < graph->size; u++)
-    if (colors[u] == 0) {
-      colors[u] = 1;
-      unsigned head = 0, tail = 0;
-      queue[tail++] = u;
-      while (head < tail) {
-        unsigned v = queue[head++];
-        for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
-          if (colors[edge->destination] == 0) {
-            colors[edge->destination] = (colors[v] == 1) ? 2 : 1;
-            queue[tail++] = edge->destination;
-          } else if (colors[edge->destination] == colors[v]) {
-            bipartite = false;
-          }
-      }
-    }
-  free(colors);
-  free(queue);
-  return bipartite;
 }
 
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
