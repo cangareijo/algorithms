@@ -76,6 +76,7 @@ Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
+Graph *lineGraph(const Graph *graph);
 Graph *contractEdge(Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
@@ -441,6 +442,18 @@ Graph *copyComplement(const Graph *graph) {
         if (!hasEdge(graph, u, v))
           addEdgeToDirectedGraph(g, u, v, 1);
   return g;
+}
+
+Graph *lineGraph(const Graph *graph) {
+  unsigned count = countEdges(graph) / 2;
+  FlatEdge *edges = getEdgeArrayFromUndirectedGraph(graph);
+  Graph *line = createGraph(count);
+  for (unsigned i = 0; i < count; i++)
+    for (unsigned j = i + 1; j < count; j++)
+      if (edges[i].u == edges[j].u || edges[i].u == edges[j].v || edges[i].v == edges[j].u || edges[i].v == edges[j].v)
+        addEdgeToUndirectedGraph(line, i, j, 1);
+  free(edges);
+  return line;
 }
 
 Graph *contractEdge(Graph *graph, unsigned u, unsigned v) {
