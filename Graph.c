@@ -66,15 +66,16 @@ bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
 
 Graph *createGraph(unsigned size);
-void destroyGraph(Graph *graph);
-void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 Graph *copyGraph(const Graph *graph);
 Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *complement(const Graph *graph);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
+
+void destroyGraph(Graph *graph);
+void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 int sumWeights(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned *degreeDistribution(const Graph *graph);
@@ -337,32 +338,6 @@ Graph *createGraph(unsigned size) {
   return graph;
 }
 
-void destroyGraph(Graph *graph) {
-  for (unsigned i = 0; i < graph->size; i++) {
-    Edge *current = graph->edges[i];
-    while (current) {
-      Edge *next = current->next;
-      free(current);
-      current = next;
-    }
-  }
-  free(graph->edges);
-  free(graph);
-}
-
-void addEdgeToDirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
-  Edge *edge = malloc(sizeof(Edge));
-  edge->destination = v;
-  edge->weight = weight;
-  edge->next = graph->edges[u];
-  graph->edges[u] = edge;
-}
-
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
-  addEdgeToDirectedGraph(graph, u, v, weight);
-  addEdgeToDirectedGraph(graph, v, u, weight);
-}
-
 Graph *copyGraph(const Graph *graph) {
   assert(isValid(graph));
   Graph *copy = createGraph(graph->size);
@@ -431,6 +406,34 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices) {
     }
   }
   return subgraph;
+}
+
+
+
+void destroyGraph(Graph *graph) {
+  for (unsigned i = 0; i < graph->size; i++) {
+    Edge *current = graph->edges[i];
+    while (current) {
+      Edge *next = current->next;
+      free(current);
+      current = next;
+    }
+  }
+  free(graph->edges);
+  free(graph);
+}
+
+void addEdgeToDirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
+  Edge *edge = malloc(sizeof(Edge));
+  edge->destination = v;
+  edge->weight = weight;
+  edge->next = graph->edges[u];
+  graph->edges[u] = edge;
+}
+
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
+  addEdgeToDirectedGraph(graph, u, v, weight);
+  addEdgeToDirectedGraph(graph, v, u, weight);
 }
 
 int sumWeights(const Graph *graph) {
