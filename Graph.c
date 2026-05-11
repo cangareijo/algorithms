@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 unsigned minimumUnsigned(unsigned a, unsigned b);
+unsigned maximumUnsigned(unsigned a, unsigned b);
 
 void freeMatrix(int **matrix, unsigned n);
 
@@ -76,6 +77,7 @@ Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
+Graph *graphUnion(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *graph);
 void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
@@ -168,6 +170,8 @@ int main();
 
 
 unsigned minimumUnsigned(unsigned a, unsigned b) { return a <= b ? a : b; }
+
+unsigned maximumUnsigned(unsigned a, unsigned b) { return a >= b ? a : b; }
 
 
 
@@ -452,6 +456,18 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices) {
     }
   }
   return subgraph;
+}
+
+Graph *graphUnion(const Graph *g1, const Graph *g2) {
+  Graph *g3 = createGraph(maximumUnsigned(g1->size, g2->size));
+  for (unsigned v = 0; v < g1->size; v++)
+    for (Edge *e = g1->edges[v]; e; e = e->next)
+      addEdgeToDirectedGraph(g3, v, e->destination, e->weight);
+  for (unsigned v = 0; v < g2->size; v++)
+    for (Edge *e = g2->edges[v]; e; e = e->next)
+      if (!hasEdge(g3, v, e->destination))
+        addEdgeToDirectedGraph(g3, v, e->destination, e->weight);
+  return g3;
 }
 
 
