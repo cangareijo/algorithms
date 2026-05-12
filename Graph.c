@@ -79,6 +79,7 @@ bool isPendantUndirected(const Graph *graph, unsigned vertex);
 bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex);
 bool hasEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
+bool isClique(const Graph *graph, const bool *subset);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -465,6 +466,16 @@ bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
   if (u >= graph->size || v >= graph->size) return false;
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v && e->weight == weight) return true;
   return false;
+}
+
+bool isClique(const Graph *graph, const bool *subset) {
+  for (unsigned u = 0; u < graph->size; u++)
+    if (subset[u])
+      for (unsigned v = u + 1; v < graph->size; v++)
+        if (subset[v])
+          if (!hasEdge(graph, u, v))
+            return false;
+  return true;
 }
 
 
