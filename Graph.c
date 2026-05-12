@@ -83,6 +83,8 @@ bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
 bool isVertexCover(const Graph *graph, const bool *subset);
 bool isPath(const Graph *graph, const unsigned *path, unsigned length);
+bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
+bool isUndirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -501,6 +503,20 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
 }
 
 bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
+  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) return false;
+  return true;
+}
+
+bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length) {
+  if (length < 2) return false;
+  if (path[0] != path[length - 1]) return false;
+  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) return false;
+  return true;
+}
+
+bool isUndirectedCycle(const Graph *graph, const unsigned *path, unsigned length) {
+  if (length < 4) return false;
+  if (path[0] != path[length - 1]) return false;
   for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) return false;
   return true;
 }
