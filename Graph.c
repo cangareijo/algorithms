@@ -86,6 +86,7 @@ bool isPath(const Graph *graph, const unsigned *path, unsigned length);
 bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length);
+bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -518,27 +519,40 @@ bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length) 
 bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length) {
   bool cycle = true;
   if (length < 4 || path[0] != path[length - 1]) cycle = false;
-  bool *seen = calloc(graph->size, sizeof(bool));
+  bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned i = 1; i < length; i++) {
-    if (seen[path[i]]) cycle = false;
-    if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
-    seen[path[i]] = true;
+    if (visited[path[i]]) cycle = false;
+    visited[path[i]] = true;
   }
-  free(seen);
+  free(visited);
+  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
   return cycle;
 }
 
 bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length) {
   bool cycle = true;
   if (length != graph->size + 1 || path[0] != path[length - 1]) cycle = false;
-  bool *seen = calloc(graph->size, sizeof(bool));
+  bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned i = 1; i < length; i++) {
-    if (seen[path[i]]) cycle = false;
-    if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
-    seen[path[i]] = true;
+    if (visited[path[i]]) cycle = false;
+    visited[path[i]] = true;
   }
-  free(seen);
+  free(visited);
+  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
   return cycle;
+}
+
+bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length) {
+  bool b = true;
+  if (length != graph->size) b = false;
+  bool *visited = calloc(graph->size, sizeof(bool));
+  for (unsigned i = 0; i < length; i++) {
+    if (visited[path[i]]) b = false;
+    visited[path[i]] = true;
+  }
+  free(visited);
+  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) b = false;
+  return b;
 }
 
 
