@@ -83,7 +83,9 @@ bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
 bool isVertexCover(const Graph *graph, const bool *subset);
 bool isPath(const Graph *graph, const unsigned *path, unsigned length);
-bool isCycle(const Graph *graph, const unsigned *path, unsigned length);
+bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
+bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length);
+bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -506,11 +508,37 @@ bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
   return true;
 }
 
-bool isCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  if (length < 2) return false;
-  if (path[0] != path[length - 1]) return false;
-  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) return false;
-  return true;
+bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length) {
+  bool cycle = true;
+  if (length < 2 || path[0] != path[length - 1]) cycle = false;
+  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
+  return cycle;
+}
+
+bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length) {
+  bool cycle = true;
+  if (length < 4 || path[0] != path[length - 1]) cycle = false;
+  bool *seen = calloc(graph->size, sizeof(bool));
+  for (unsigned i = 1; i < length; i++) {
+    if (seen[path[i]]) cycle = false;
+    if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
+    seen[path[i]] = true;
+  }
+  free(seen);
+  return cycle;
+}
+
+bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length) {
+  bool cycle = true;
+  if (length != graph->size + 1 || path[0] != path[length - 1]) cycle = false;
+  bool *seen = calloc(graph->size, sizeof(bool));
+  for (unsigned i = 1; i < length; i++) {
+    if (seen[path[i]]) cycle = false;
+    if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
+    seen[path[i]] = true;
+  }
+  free(seen);
+  return cycle;
 }
 
 
