@@ -80,6 +80,9 @@ bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex);
 bool hasEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool isClique(const Graph *graph, const bool *subset);
+bool isIndependentSet(const Graph *graph, const bool *subset);
+bool isVertexCover(const Graph *graph, const bool *subset);
+bool isPath(const Graph *graph, const unsigned *path, unsigned length);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -475,6 +478,35 @@ bool isClique(const Graph *graph, const bool *subset) {
         if (subset[v])
           if (!hasEdge(graph, u, v))
             return false;
+  return true;
+}
+
+bool isIndependentSet(const Graph *graph, const bool *subset) {
+  for (unsigned u = 0; u < graph->size; u++)
+    if (subset[u])
+      for (unsigned v = u + 1; v < graph->size; v++)
+        if (subset[v])
+          if (hasEdge(graph, u, v))
+            return false;
+  return true;
+}
+
+bool isVertexCover(const Graph *graph, const bool *subset) {
+  for (unsigned u = 0; u < graph->size; u++)
+    if (!subset[u])
+      for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next)
+        if (!subset[edge->destination])
+          return false;
+  return true;
+}
+
+bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
+  if (length == 0) return true;
+  if (length == 1) return path[0] < graph->size;
+  for (unsigned i = 1; i < length; i++) {
+    if (path[i] >= graph->size) return false;
+    if (!hasEdge(graph, path[i - 1], path[i])) return false;
+  }
   return true;
 }
 
