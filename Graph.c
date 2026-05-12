@@ -78,6 +78,7 @@ bool isPendantDirected(const Graph *graph, unsigned vertex);
 bool isPendantUndirected(const Graph *graph, unsigned vertex);
 bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex);
 bool hasEdge(const Graph *graph, unsigned u, unsigned v);
+bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
@@ -467,6 +468,34 @@ bool hasEdge(const Graph *graph, unsigned u, unsigned v) {
   if (u >= graph->size || v >= graph->size) return false;
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v) return true;
   return false;
+}
+
+bool isReachable(const Graph *graph, unsigned start, unsigned target) {
+  if (start >= graph->size) return false;
+  if (target >= graph->size) return false;
+  if (start == target) return true;
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+  unsigned head = 0, tail = 0;
+  visited[start] = true;
+  queue[tail++] = start;
+  bool b = false;
+  while (head < tail) {
+    unsigned u = queue[head++];
+    for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next) {
+      if (edge->destination == target) {
+        b = true;
+        break;
+      }
+      if (!visited[edge->destination]) {
+        visited[edge->destination] = true;
+        queue[tail++] = edge->destination;
+      }
+    }
+  }
+  free(visited);
+  free(queue);
+  return b;
 }
 
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
@@ -947,14 +976,14 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   assert(isValid(graph));
   assert(vertex < graph->size);
   bool *reachable = reachabilityFromVertexInGraph(graph, vertex);
-  for (unsigned i = 0; i < graph->size; i++) {
+  bool b = true;
+  for (unsigned i = 0; i < graph->size; i++)
     if (!reachable[i]) {
-      free(reachable);
-      return false;
+      b = false;
+      break;
     }
-  }
   free(reachable);
-  return true;
+  return b;
 }
 
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
