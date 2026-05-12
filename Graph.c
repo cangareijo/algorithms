@@ -501,12 +501,7 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
 }
 
 bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
-  if (length == 0) return true;
-  if (length == 1) return path[0] < graph->size;
-  for (unsigned i = 1; i < length; i++) {
-    if (path[i] >= graph->size) return false;
-    if (!hasEdge(graph, path[i - 1], path[i])) return false;
-  }
+  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) return false;
   return true;
 }
 
