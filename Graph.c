@@ -96,6 +96,7 @@ Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
+Graph *removeVertex(const Graph *graph, unsigned vertex);
 Graph *contractEdge(Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
@@ -662,6 +663,24 @@ Graph *lineGraph(const Graph *graph) {
         addEdgeToUndirectedGraph(line, i, j, 1);
   free(edges);
   return line;
+}
+
+Graph *removeVertex(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
+  assert(vertex < graph->size);
+  Graph *removed = createGraph(graph->size - 1);
+  assert(isValid(removed));
+  for (unsigned source = 0; source < graph->size; source++)
+    if (source != vertex) {
+      unsigned newSource = (source > vertex) ? source - 1 : source;
+      for (Edge *current = graph->edges[source]; current != NULL; current = current->next) {
+        if (current->destination != vertex) {
+          unsigned newDestination = (current->destination > vertex) ? current->destination - 1 : current->destination;
+          addEdgeToDirectedGraph(removed, newSource, newDestination, current->weight);
+        }
+      }
+    }
+  return removed;
 }
 
 Graph *contractEdge(Graph *graph, unsigned u, unsigned v) {
