@@ -103,6 +103,8 @@ Graph *graphUnion(const Graph *g1, const Graph *g2);
 void destroyGraph(Graph *graph);
 void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
 void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
+void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination);
+void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v);
 
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned *degreeDistribution(const Graph *graph);
@@ -114,16 +116,16 @@ void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 
 int sumWeights(const Graph *graph);
-int edgeWeight(const Graph *graph, unsigned u, unsigned v);
+int graphRadius(const Graph *graph);
+int graphDiameter(const Graph *graph);
+int graphEccentricity(const Graph *graph, unsigned vertex);
+int edgeWeight(const Graph *graph, unsigned source, unsigned destination);
 int pathWeight(const Graph *graph, const unsigned *path, unsigned length);
 
 double normalizedDegree(const Graph *graph, unsigned vertex);
 double density(const Graph *graph);
 double localClusteringCoefficient(const Graph *graph, unsigned vertex);
 double averageClusteringCoefficient(const Graph *graph);
-int graphEccentricity(const Graph *graph, unsigned vertex);
-int graphRadius(const Graph *graph);
-int graphDiameter(const Graph *graph);
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
@@ -721,17 +723,34 @@ void destroyGraph(Graph *graph) {
   free(graph);
 }
 
-void addEdgeToDirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
+void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight) {
   Edge *edge = malloc(sizeof(Edge));
-  edge->destination = v;
+  edge->destination = destination;
   edge->weight = weight;
-  edge->next = graph->edges[u];
-  graph->edges[u] = edge;
+  edge->next = graph->edges[source];
+  graph->edges[source] = edge;
 }
 
 void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
   addEdgeToDirectedGraph(graph, u, v, weight);
   addEdgeToDirectedGraph(graph, v, u, weight);
+}
+
+void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination) {
+  Edge *previous = NULL;
+  for (Edge *current = graph->edges[source]; current != NULL; current = current->next) {
+    if (current->destination == destination) {
+      if (previous == NULL) graph->edges[source] = current->next; else previous->next = current->next;
+      free(current);
+      return;
+    }
+    previous = current;
+  }
+}
+
+void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v) {
+  removeEdgeFromDirectedGraph(graph, u, v);
+  removeEdgeFromDirectedGraph(graph, v, u);
 }
 
 
@@ -829,23 +848,41 @@ int sumWeights(const Graph *graph) {
   return weight;
 }
 
+int graphRadius(const Graph *graph) {
+  int radius = INT_MAX;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    int eccentricity = graphEccentricity(graph, vertex);
+    if (eccentricity < radius) radius = eccentricity;
+  }
+  return radius;
+}
+
+int graphDiameter(const Graph *graph) {
+  int diameter = INT_MIN;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    int eccentricity = graphEccentricity(graph, vertex);
+    if (eccentricity > diameter) diameter = eccentricity;
+  }
+  return diameter;
+}
+
+int graphEccentricity(const Graph *graph, unsigned vertex) {
+  int *distance = weightedDijkstra(graph, vertex);
+  int eccentricity = INT_MIN;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (distance[vertex] > eccentricity) eccentricity = distance[vertex];
+  free(distance);
+  return eccentricity;
+}
+
 int edgeWeight(const Graph *graph, unsigned u, unsigned v) {
-  assert(isValid(graph));
-  if (u >= graph->size || v >= graph->size) return -1;
   for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next) if (edge->destination == v) return edge->weight;
   return -1; 
 }
 
 int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
-  assert(isValid(graph));
-  assert(path != NULL);
-  int total = 0;
-  for (unsigned i = 1; i < length; i++) {
-    int weight = edgeWeight(graph, path[i - 1], path[i]);
-    if (weight == -1) return -1;
-    total += weight;
-  }
-  return total;
+  int weight = 0;
+  for (unsigned i = 1; i < length; i++) weight += edgeWeight(graph, path[i - 1], path[i]);
+  return weight;
 }
 
 
@@ -876,32 +913,6 @@ double averageClusteringCoefficient(const Graph *graph) {
   double total = 0;
   for (unsigned vertex = 0; vertex < graph->size; vertex++) total += localClusteringCoefficient(graph, vertex);
   return total / graph->size;
-}
-
-int graphEccentricity(const Graph *graph, unsigned vertex) {
-  int *distance = weightedDijkstra(graph, vertex);
-  int eccentricity = INT_MIN;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (distance[vertex] > eccentricity) eccentricity = distance[vertex];
-  free(distance);
-  return eccentricity;
-}
-
-int graphRadius(const Graph *graph) {
-  int radius = INT_MAX;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    int eccentricity = graphEccentricity(graph, vertex);
-    if (eccentricity < radius) radius = eccentricity;
-  }
-  return radius;
-}
-
-int graphDiameter(const Graph *graph) {
-  int diameter = INT_MIN;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    int eccentricity = graphEccentricity(graph, vertex);
-    if (eccentricity > diameter) diameter = eccentricity;
-  }
-  return diameter;
 }
 
 bool *graphCenter(const Graph *graph) {
