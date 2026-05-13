@@ -103,7 +103,6 @@ Graph *graphUnion(const Graph *g1, const Graph *g2);
 void destroyGraph(Graph *graph);
 void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
 void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
-int sumWeights(const Graph *graph);
 
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned *degreeDistribution(const Graph *graph);
@@ -113,6 +112,10 @@ unsigned countEdges(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
+
+int sumWeights(const Graph *graph);
+int edgeWeight(const Graph *graph, unsigned u, unsigned v);
+int pathWeight(const Graph *graph, const unsigned *path, unsigned length);
 
 double normalizedDegree(const Graph *graph, unsigned vertex);
 double density(const Graph *graph);
@@ -731,17 +734,6 @@ void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) 
   addEdgeToDirectedGraph(graph, v, u, weight);
 }
 
-int sumWeights(const Graph *graph) {
-  assert(graph != NULL);
-  int weight = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
-      weight += edge->weight;
-    }
-  }
-  return weight;
-}
-
 
 
 unsigned outDegree(const Graph *graph, unsigned vertex) {
@@ -822,6 +814,38 @@ unsigned countComponents(const Graph *graph) {
     }
   free(visited);
   return count;
+}
+
+
+
+int sumWeights(const Graph *graph) {
+  assert(isValid(graph));
+  int weight = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
+      weight += edge->weight;
+    }
+  }
+  return weight;
+}
+
+int edgeWeight(const Graph *graph, unsigned u, unsigned v) {
+  assert(isValid(graph));
+  if (u >= graph->size || v >= graph->size) return -1;
+  for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next) if (edge->destination == v) return edge->weight;
+  return -1; 
+}
+
+int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
+  assert(isValid(graph));
+  assert(path != NULL);
+  int total = 0;
+  for (unsigned i = 1; i < length; i++) {
+    int weight = edgeWeight(graph, path[i - 1], path[i]);
+    if (weight == -1) return -1;
+    total += weight;
+  }
+  return total;
 }
 
 
