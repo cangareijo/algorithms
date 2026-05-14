@@ -57,6 +57,9 @@ typedef struct {
 } Graph;
 
 bool isValid(const Graph *graph);
+bool isNull(const Graph *graph);
+bool isTrivial(const Graph *graph);
+bool isEmpty(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
@@ -110,14 +113,16 @@ void mergeVertices(Graph *graph, unsigned u, unsigned v);
 void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
 void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 
-unsigned outDegree(const Graph *graph, unsigned vertex);
-unsigned *degreeDistribution(const Graph *graph);
-unsigned inDegree(const Graph *graph, unsigned vertex);
-unsigned *inDegrees(const Graph *graph);
 unsigned countEdges(const Graph *graph);
+unsigned countSelfLoops(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
+unsigned outDegree(const Graph *graph, unsigned vertex);
+unsigned inDegree(const Graph *graph, unsigned vertex);
+
+unsigned *degreeDistribution(const Graph *graph);
+unsigned *inDegrees(const Graph *graph);
 
 int sumWeights(const Graph *graph);
 int graphRadius(const Graph *graph);
@@ -312,6 +317,21 @@ bool isValid(const Graph *graph) {
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
       if (edge->destination >= graph->size)
         return false;
+  return true;
+}
+
+bool isNull(const Graph *graph) {
+  return graph->size == 0;
+}
+
+bool isTrivial(const Graph *graph) {
+  if (graph->size != 1) return false;
+  return graph->edges[0] == NULL;
+}
+
+bool isEmpty(const Graph *graph) {
+  if (graph->size == 0) return false;
+  for (unsigned v = 0; v < graph->size; v++) if (graph->edges[v] != NULL) return false;
   return true;
 }
 
@@ -838,51 +858,17 @@ void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) 
 
 
 
-unsigned outDegree(const Graph *graph, unsigned vertex) {
-  assert(graph != NULL);
-  assert(vertex < graph->size);
-  unsigned count = 0;
-  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-    count++;
-  }
-  return count;
-}
-
-unsigned *degreeDistribution(const Graph *graph) {
-  unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) distribution[outDegree(graph, vertex)]++;
-  return distribution;
-}
-
-unsigned inDegree(const Graph *graph, unsigned vertex) {
-  assert(graph != NULL);
-  assert(vertex < graph->size);
-  unsigned count = 0;
-  for (unsigned i = 0; i < graph->size; i++) {
-    for (Edge *edge = graph->edges[i]; edge != NULL; edge = edge->next) {
-      if (edge->destination == vertex) {
-        count++;
-      }
-    }
-  }
-  return count;
-}
-
-unsigned *inDegrees(const Graph *graph) {
-  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-      degrees[edge->destination]++;
-    }
-  }
-  return degrees;
-}
-
 unsigned countEdges(const Graph *graph) {
   unsigned count = 0;
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
       count++;
+  return count;
+}
+
+unsigned countSelfLoops(const Graph *graph) {
+  unsigned count = 0;
+  for (unsigned v = 0; v < graph->size; v++) for (Edge *e = graph->edges[v]; e != NULL; e = e->next) if (e->destination == v) count++;
   return count;
 }
 
@@ -916,6 +902,48 @@ unsigned countComponents(const Graph *graph) {
     }
   free(visited);
   return count;
+}
+
+unsigned outDegree(const Graph *graph, unsigned vertex) {
+  assert(graph != NULL);
+  assert(vertex < graph->size);
+  unsigned count = 0;
+  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+    count++;
+  }
+  return count;
+}
+
+unsigned inDegree(const Graph *graph, unsigned vertex) {
+  assert(graph != NULL);
+  assert(vertex < graph->size);
+  unsigned count = 0;
+  for (unsigned i = 0; i < graph->size; i++) {
+    for (Edge *edge = graph->edges[i]; edge != NULL; edge = edge->next) {
+      if (edge->destination == vertex) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+
+
+unsigned *degreeDistribution(const Graph *graph) {
+  unsigned *distribution = calloc(graph->size, sizeof(unsigned));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) distribution[outDegree(graph, vertex)]++;
+  return distribution;
+}
+
+unsigned *inDegrees(const Graph *graph) {
+  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+      degrees[edge->destination]++;
+    }
+  }
+  return degrees;
 }
 
 
