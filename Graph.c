@@ -102,10 +102,11 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *graph);
-void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination);
 void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v);
+void mergeVertices(Graph *graph, unsigned u, unsigned v);
+void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned *degreeDistribution(const Graph *graph);
@@ -742,19 +743,6 @@ void destroyGraph(Graph *graph) {
   free(graph);
 }
 
-void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight) {
-  Edge *edge = malloc(sizeof(Edge));
-  edge->destination = destination;
-  edge->weight = weight;
-  edge->next = graph->edges[source];
-  graph->edges[source] = edge;
-}
-
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
-  addEdgeToDirectedGraph(graph, u, v, weight);
-  addEdgeToDirectedGraph(graph, v, u, weight);
-}
-
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination) {
   Edge *previous = NULL;
   for (Edge *current = graph->edges[source]; current != NULL; current = current->next) {
@@ -770,6 +758,42 @@ void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destina
 void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v) {
   removeEdgeFromDirectedGraph(graph, u, v);
   removeEdgeFromDirectedGraph(graph, v, u);
+}
+
+void mergeVertices(Graph *graph, unsigned u, unsigned v) {
+  assert(u < graph->size);
+  assert(v < graph->size);
+  assert(u != v);
+  for (unsigned w = 0; w < graph->size; w++)
+    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
+      if (e->destination == v)
+        e->destination = u;
+  for (unsigned w = 0; w < graph->size; w++)
+    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
+      if (e->destination > v)
+        e->destination = e->destination - 1;
+  while (graph->edges[v] != NULL) {
+    Edge *e = graph->edges[v];
+    graph->edges[v] = e->next;
+    e->next = graph->edges[u];
+    graph->edges[u] = e;
+  }
+  for (unsigned w = v + 1; w < graph->size; w++)
+    graph->edges[w - 1] = graph->edges[w];
+  graph->size--;
+}
+
+void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight) {
+  Edge *edge = malloc(sizeof(Edge));
+  edge->destination = destination;
+  edge->weight = weight;
+  edge->next = graph->edges[source];
+  graph->edges[source] = edge;
+}
+
+void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
+  addEdgeToDirectedGraph(graph, u, v, weight);
+  addEdgeToDirectedGraph(graph, v, u, weight);
 }
 
 
