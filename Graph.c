@@ -102,6 +102,7 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *graph);
+void removeSelfLoops(Graph *graph);
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination);
 void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v);
 void mergeVertices(Graph *graph, unsigned u, unsigned v);
@@ -741,6 +742,20 @@ void destroyGraph(Graph *graph) {
   }
   free(graph->edges);
   free(graph);
+}
+
+void removeSelfLoops(Graph *graph) {
+  for (unsigned v = 0; v < graph->size; v++) {
+    Edge **current = &graph->edges[v];
+    while (*current != NULL)
+      if ((*current)->destination == v) {
+        Edge *duplicate = *current;
+        *current = (*current)->next;
+        free(duplicate);
+      } else {
+        current = &(*current)->next;
+      }
+  }
 }
 
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination) {
