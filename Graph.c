@@ -59,7 +59,7 @@ typedef struct {
 bool isValid(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
-bool hasSelfLoop(const Graph *graph);
+bool hasSelfLoops(const Graph *graph);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
 bool isConnectedUndirectedGraph(const Graph *graph);
@@ -76,7 +76,7 @@ bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
 bool isPendantDirected(const Graph *graph, unsigned vertex);
 bool isPendantUndirected(const Graph *graph, unsigned vertex);
-bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex);
+bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
 bool hasEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
@@ -103,6 +103,7 @@ Graph *graphUnion(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *graph);
 void removeSelfLoops(Graph *graph);
+void removeParallelEdges(Graph *graph);
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination);
 void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v);
 void mergeVertices(Graph *graph, unsigned u, unsigned v);
@@ -326,8 +327,8 @@ bool isComplete(const Graph *graph) {
   return countEdges(graph) == graph->size * (graph->size - 1);
 }
 
-bool hasSelfLoop(const Graph *graph) {
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (hasSelfLoopAtVertex(graph, vertex)) return true;
+bool hasSelfLoops(const Graph *graph) {
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (hasSelfLoopsAtVertex(graph, vertex)) return true;
   return false;
 }
 
@@ -466,7 +467,7 @@ bool isPendantUndirected(const Graph *graph, unsigned vertex) {
   return outDegree(graph, vertex) == 1;
 }
 
-bool hasSelfLoopAtVertex(const Graph *graph, unsigned vertex) {
+bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next) if (e->destination == vertex) return true;
   return false;
@@ -756,6 +757,30 @@ void removeSelfLoops(Graph *graph) {
         current = &(*current)->next;
       }
   }
+}
+
+void removeParallelEdges(Graph *graph) {
+  int *minimum = malloc(graph->size * sizeof(int));
+  bool *seen = calloc(graph->size, sizeof(bool));
+  for (unsigned v = 0; v < graph->size; v++) {
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+      if (!seen[e->destination] || e->weight < minimum[e->destination]) minimum[e->destination] = e->weight;
+      seen[e->destination] = true;
+    }
+    Edge **e = &graph->edges[v];
+    while (*e != NULL) {
+      if (seen[(*e)->destination] && minimum[(*e)->destination] == (*e)->weight) {
+        seen[(*e)->destination] = false;
+        e = &(*e)->next;
+      } else {
+        Edge *parallel = *e;
+        *e = (*e)->next;
+        free(parallel);
+      }
+    }
+  }
+  free(minimum);
+  free(seen);
 }
 
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination) {
