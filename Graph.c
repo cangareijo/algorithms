@@ -81,7 +81,7 @@ bool isSink(const Graph *graph, unsigned vertex);
 bool isPendantDirected(const Graph *graph, unsigned vertex);
 bool isPendantUndirected(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
-bool hasEdge(const Graph *graph, unsigned u, unsigned v);
+bool isAdjacent(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool isClique(const Graph *graph, const bool *subset);
@@ -124,6 +124,7 @@ void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
+unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 
 unsigned *degreeDistribution(const Graph *graph);
 unsigned *outDegrees(const Graph *graph);
@@ -512,7 +513,7 @@ bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
   return false;
 }
 
-bool hasEdge(const Graph *graph, unsigned u, unsigned v) {
+bool isAdjacent(const Graph *graph, unsigned u, unsigned v) {
   if (u >= graph->size || v >= graph->size) return false;
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v) return true;
   return false;
@@ -557,7 +558,7 @@ bool isClique(const Graph *graph, const bool *subset) {
     if (subset[u])
       for (unsigned v = u + 1; v < graph->size; v++)
         if (subset[v])
-          if (!hasEdge(graph, u, v))
+          if (!isAdjacent(graph, u, v))
             return false;
   return true;
 }
@@ -567,7 +568,7 @@ bool isIndependentSet(const Graph *graph, const bool *subset) {
     if (subset[u])
       for (unsigned v = u + 1; v < graph->size; v++)
         if (subset[v])
-          if (hasEdge(graph, u, v))
+          if (isAdjacent(graph, u, v))
             return false;
   return true;
 }
@@ -582,14 +583,14 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
 }
 
 bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
-  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) return false;
+  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) return false;
   return true;
 }
 
 bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length) {
   bool cycle = true;
   if (length < 2 || path[0] != path[length - 1]) cycle = false;
-  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
+  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) cycle = false;
   return cycle;
 }
 
@@ -602,7 +603,7 @@ bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length) {
     visited[path[i]] = true;
   }
   free(visited);
-  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
+  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) cycle = false;
   return cycle;
 }
 
@@ -615,7 +616,7 @@ bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned lengt
     visited[path[i]] = true;
   }
   free(visited);
-  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) cycle = false;
+  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) cycle = false;
   return cycle;
 }
 
@@ -628,7 +629,7 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length
     visited[path[i]] = true;
   }
   free(visited);
-  for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) b = false;
+  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) b = false;
   return b;
 }
 
@@ -713,7 +714,7 @@ Graph *copyComplement(const Graph *graph) {
   for (unsigned u = 0; u < graph->size; u++)
     for (unsigned v = 0; v < graph->size; v++)
       if (u != v)
-        if (!hasEdge(graph, u, v))
+        if (!isAdjacent(graph, u, v))
           addEdgeToDirectedGraph(g, u, v, 1);
   return g;
 }
@@ -759,7 +760,7 @@ Graph *contractEdge(Graph *graph, unsigned u, unsigned v) {
       unsigned destination = e->destination;
       if (source == v) source = u;
       if (destination == v) destination = u;
-      if (source != destination && !hasEdge(g, source, destination)) addEdgeToDirectedGraph(g, source, destination, e->weight);
+      if (source != destination && !isAdjacent(g, source, destination)) addEdgeToDirectedGraph(g, source, destination, e->weight);
     }
   return g;
 }
@@ -787,7 +788,7 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
       addEdgeToDirectedGraph(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
-      if (!hasEdge(g3, v, e->destination))
+      if (!isAdjacent(g3, v, e->destination))
         addEdgeToDirectedGraph(g3, v, e->destination, e->weight);
   return g3;
 }
@@ -995,6 +996,21 @@ unsigned inDegree(const Graph *graph, unsigned vertex) {
   return count;
 }
 
+unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
+  if (u >= graph->size || v >= graph->size) return 0;
+  bool *neighbors = calloc(graph->size, sizeof(bool));
+  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+    neighbors[e->destination] = true;
+  unsigned count = 0;
+  for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    if (neighbors[e->destination]) {
+      count++;
+      neighbors[e->destination] = false; 
+    }
+  free(neighbors);
+  return count;
+}
+
 
 
 unsigned *degreeDistribution(const Graph *graph) {
@@ -1087,7 +1103,7 @@ double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
   unsigned edgesBetweenNeighbours = 0;
   for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
     for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
-      if (hasEdge(graph, d->destination, e->destination))
+      if (isAdjacent(graph, d->destination, e->destination))
         edgesBetweenNeighbours++;
   return (double)edgesBetweenNeighbours / (k * (k - 1));
 }
