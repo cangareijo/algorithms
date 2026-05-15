@@ -92,6 +92,7 @@ bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
+bool isSubGraph(const Graph *sub, const Graph *main);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
@@ -629,6 +630,29 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length
   free(visited);
   for (unsigned i = 1; i < length; i++) if (!hasEdge(graph, path[i - 1], path[i])) b = false;
   return b;
+}
+
+bool isSubGraph(const Graph *sub, const Graph *main) {
+  if (sub->size > main->size) return false;
+  bool *edges = calloc(main->size, sizeof(bool));
+  int *weights = malloc(main->size * sizeof(int));
+  bool match = true;
+  for (unsigned u = 0; u < sub->size; u++) {
+    for (Edge *e = main->edges[u]; e != NULL; e = e->next) {
+      edges[e->destination] = true;
+      weights[e->destination] = e->weight;
+    }
+    for (Edge *e = sub->edges[u]; e != NULL; e = e->next)
+      if (!edges[e->destination] || e->weight != weights[e->destination]) {
+        match = false;
+        break;
+      }
+    if (!match) break;
+    for (Edge *e = main->edges[u]; e != NULL; e = e->next) edges[e->destination] = false;
+  }
+  free(weights);
+  free(edges);
+  return match;
 }
 
 
