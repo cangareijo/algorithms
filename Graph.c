@@ -70,6 +70,7 @@ bool isWeaklyConnectedDirectedGraph(const Graph *graph);
 bool isStronglyConnectedDirectedGraph(const Graph *graph);
 bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
+bool isMultiGraph(const Graph *graph);
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isDirectedCyclicGraph(const Graph *graph);
 bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -419,6 +420,20 @@ bool isUndirected(const Graph *graph) {
       if (!hasWeightedEdge(graph, e->destination, u, e->weight))
         return false;
   return true;
+}
+
+bool isMultiGraph(const Graph *graph) {
+  bool b = false;
+  bool *seen = malloc(graph->size * sizeof(bool));
+  for (unsigned v = 0; v < graph->size; v++) {
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) seen[e->destination] = false;
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+      if (seen[e->destination]) b = true;
+      seen[e->destination] = true;
+    }
+  }
+  free(seen);
+  return b;
 }
 
 bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
