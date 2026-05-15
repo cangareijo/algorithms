@@ -116,12 +116,15 @@ void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
 unsigned countEdges(const Graph *graph);
 unsigned countSelfLoops(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
+unsigned minDegree(const Graph *graph);
+unsigned maxDegree(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
 
 unsigned *degreeDistribution(const Graph *graph);
+unsigned *outDegrees(const Graph *graph);
 unsigned *inDegrees(const Graph *graph);
 
 int sumWeights(const Graph *graph);
@@ -885,6 +888,31 @@ unsigned countTriangles(const Graph *graph) {
   return triangles;
 }
 
+unsigned minDegree(const Graph *graph) {
+  if (graph->size == 0) return 0;
+  unsigned *in = inDegrees(graph);
+  unsigned *out = outDegrees(graph);
+  unsigned minimum = in[0] + out[0];
+  for (unsigned v = 1; v < graph->size; v++)
+    if (in[v] + out[v] < minimum)
+      minimum = in[v] + out[v];
+  free(in);
+  free(out);
+  return minimum;
+}
+
+unsigned maxDegree(const Graph *graph) {
+  unsigned *in = inDegrees(graph);
+  unsigned *out = outDegrees(graph);
+  unsigned maximum = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (in[v] + out[v] > maximum)
+      maximum = in[v] + out[v];
+  free(in);
+  free(out);
+  return maximum;
+}
+
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
   visited[vertex] = true;
   for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
@@ -936,13 +964,19 @@ unsigned *degreeDistribution(const Graph *graph) {
   return distribution;
 }
 
+unsigned *outDegrees(const Graph *graph) {
+  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
+      degrees[vertex]++;
+  return degrees;
+}
+
 unsigned *inDegrees(const Graph *graph) {
   unsigned *degrees = calloc(graph->size, sizeof(unsigned));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
       degrees[edge->destination]++;
-    }
-  }
   return degrees;
 }
 
