@@ -73,6 +73,7 @@ bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
 bool isTree(const Graph *graph);
 bool isForest(const Graph *graph);
+bool isWheel(const Graph *graph);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -446,6 +447,40 @@ bool isTree(const Graph *graph) {
 
 bool isForest(const Graph *graph) {
   return isUndirected(graph) && !isCyclicUndirected(graph);
+}
+
+bool isWheel(const Graph *graph) {
+  if (graph->size < 4) return false;
+  if (!isUndirected(graph)) return false;
+  unsigned hub;
+  unsigned hubCount = 0;
+  for (unsigned v = 0; v < graph->size; v++) {
+    unsigned degree = outDegree(graph, v);
+    if (degree == graph->size - 1) {
+      hub = v;
+      hubCount++;
+    } else if (degree != 3) {
+      return false;
+    }
+  }
+  if (graph->size == 4 && hubCount != 4) return false;
+  if (graph->size > 4 && hubCount != 1) return false;
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned visitedCount = 0;
+  unsigned current = hub;
+  do {
+    visited[current] = true;
+    visitedCount++;
+    unsigned next = UINT_MAX;
+    for (Edge *edge = graph->edges[current]; edge != NULL; edge = edge->next)
+      if (!visited[edge->destination]) {
+        next = edge->destination;
+        break;
+      }
+    current = next;
+  } while (current != UINT_MAX);
+  free(visited);
+  return visitedCount == graph->size;
 }
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
