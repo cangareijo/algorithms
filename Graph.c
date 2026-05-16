@@ -65,16 +65,17 @@ bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
-bool isConnectedUndirectedGraph(const Graph *graph);
-bool isWeaklyConnectedDirectedGraph(const Graph *graph);
-bool isStronglyConnectedDirectedGraph(const Graph *graph);
+bool isConnectedUndirected(const Graph *graph);
+bool isWeaklyConnectedDirected(const Graph *graph);
+bool isStronglyConnectedDirected(const Graph *graph);
 bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
-bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited);
-bool isDirectedCyclicGraph(const Graph *graph);
-bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
-bool isUndirectedCyclicGraph(const Graph *graph);
+bool isTree(const Graph *graph);
+bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
+bool isCyclicDirected(const Graph *graph);
+bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
+bool isCyclicUndirected(const Graph *graph);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
@@ -183,13 +184,13 @@ void recursivelyFindBridges(
   unsigned **bridges,
   unsigned *count,
   unsigned *timer);
-unsigned **findBridges(const Graph *graph); // Returns a NULL-terminated array of bridges.
+unsigned **findBridges(const Graph *graph);
 
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
-void testIsConnectedUndirectedGraph();
-void testIsWeaklyConnectedDirectedGraph();
-void testIsStronglyConnectedDirectedGraph();
+void testIsConnectedUndirected();
+void testIsWeaklyConnectedDirected();
+void testIsStronglyConnectedDirected();
 void testDepthFirstSortOfGraph();
 void testBreadthFirstSortOfGraph();
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
@@ -361,21 +362,21 @@ bool hasSelfLoops(const Graph *graph) {
 bool isEulerianUndirected(const Graph *graph) {
   if (graph->size < 2) return true;
   for (unsigned vertex = 0; vertex < graph->size; vertex++) if (outDegree(graph, vertex) % 2 != 0) return false;
-  return isConnectedUndirectedGraph(graph);
+  return isConnectedUndirected(graph);
 }
 
 bool isEulerianDirected(const Graph *graph) {
   if (graph->size < 2) return true;
   for (unsigned vertex = 0; vertex < graph->size; vertex++) if (inDegree(graph, vertex) != outDegree(graph, vertex)) return false;
-  return isStronglyConnectedDirectedGraph(graph);
+  return isStronglyConnectedDirected(graph);
 }
 
-bool isConnectedUndirectedGraph(const Graph *graph) {
+bool isConnectedUndirected(const Graph *graph) {
   if (graph->size < 2) return true;
   return allAreReachableFromVertexInGraph(graph, 0);
 }
 
-bool isWeaklyConnectedDirectedGraph(const Graph *graph) {
+bool isWeaklyConnectedDirected(const Graph *graph) {
   if (graph->size < 2) return true;
   Graph *undirected = copyUndirected(graph);
   bool reachable = allAreReachableFromVertexInGraph(undirected, 0);
@@ -383,7 +384,7 @@ bool isWeaklyConnectedDirectedGraph(const Graph *graph) {
   return reachable;
 }
 
-bool isStronglyConnectedDirectedGraph(const Graph *graph) {
+bool isStronglyConnectedDirected(const Graph *graph) {
   if (graph->size < 2) return true;
   Graph *transpose = copyTranspose(graph);
   bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(transpose, 0);
@@ -438,43 +439,47 @@ bool isMultiGraph(const Graph *graph) {
   return b;
 }
 
-bool isDirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, char *visited) {
+bool isTree(const Graph *graph) {
+  return isUndirected(graph) && !isCyclicUndirected(graph) && isConnectedUndirected(graph);
+}
+
+bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
   visited[vertex] = 1;
   for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
     if (visited[edge->destination] == 1 ||
-      (visited[edge->destination] == 0 && isDirectedCyclicGraphComponent(graph, edge->destination, visited)))
+      (visited[edge->destination] == 0 && isCyclicDirectedComponent(graph, edge->destination, visited)))
         return true;
   visited[vertex] = 2;
   return false;
 }
 
-bool isDirectedCyclicGraph(const Graph *graph) {
+bool isCyclicDirected(const Graph *graph) {
   char *visited = calloc(graph->size, sizeof(char));
   bool cyclic = false;
   for (unsigned vertex = 0; vertex < graph->size && !cyclic; vertex++)
-    cyclic = (visited[vertex] == 0 && isDirectedCyclicGraphComponent(graph, vertex, visited));
+    cyclic = (visited[vertex] == 0 && isCyclicDirectedComponent(graph, vertex, visited));
   free(visited);
   return cyclic;
 }
 
-bool isUndirectedCyclicGraphComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
+bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
   visited[vertex] = true;
   for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
     if (visited[edge->destination]) {
       if (edge->destination != parent)
         return true;
     } else {
-      if (isUndirectedCyclicGraphComponent(graph, edge->destination, vertex, visited))
+      if (isCyclicUndirectedComponent(graph, edge->destination, vertex, visited))
         return true;
     }
   return false;
 }
 
-bool isUndirectedCyclicGraph(const Graph *graph) {
+bool isCyclicUndirected(const Graph *graph) {
   bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
     if (!visited[vertex])
-      if (isUndirectedCyclicGraphComponent(graph, vertex, graph->size, visited)) {
+      if (isCyclicUndirectedComponent(graph, vertex, graph->size, visited)) {
         free(visited);
         return true;
       }
@@ -1283,7 +1288,7 @@ void topologicalSortOfGraphComponent(const Graph *graph, unsigned vertex, unsign
 }
 
 unsigned *topologicalSortOfGraph(const Graph *graph) {
-  assert(!isDirectedCyclicGraph(graph));
+  assert(!isCyclicDirected(graph));
   unsigned *ordering = malloc(graph->size * sizeof(unsigned));
   unsigned index = graph->size;
   bool *visited = calloc(graph->size, sizeof(bool));
@@ -1562,7 +1567,7 @@ void testIsDirectedCyclicGraph() {
   addEdgeToDirectedGraph(g1, 0, 1, 1);
   addEdgeToDirectedGraph(g1, 1, 2, 1);
   addEdgeToDirectedGraph(g1, 2, 0, 1);
-  assert(isDirectedCyclicGraph(g1) == true);
+  assert(isCyclicDirected(g1) == true);
   printf("Directed cyclic test 1 passed: Simple cycle found.\n");
   destroyGraph(g1);
 
@@ -1570,13 +1575,13 @@ void testIsDirectedCyclicGraph() {
   addEdgeToDirectedGraph(g2, 0, 1, 1);
   addEdgeToDirectedGraph(g2, 1, 2, 1);
   addEdgeToDirectedGraph(g2, 0, 2, 1);
-  assert(isDirectedCyclicGraph(g2) == false);
+  assert(isCyclicDirected(g2) == false);
   printf("Directed cyclic test 2 passed: DAG correctly identified as acyclic.\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(1);
   addEdgeToDirectedGraph(g3, 0, 0, 1);
-  assert(isDirectedCyclicGraph(g3) == true);
+  assert(isCyclicDirected(g3) == true);
   printf("Directed cyclic test 3 passed: Self-loop detected.\n");
   destroyGraph(g3);
 
@@ -1584,12 +1589,12 @@ void testIsDirectedCyclicGraph() {
   addEdgeToDirectedGraph(g4, 0, 1, 1);
   addEdgeToDirectedGraph(g4, 2, 3, 1);
   addEdgeToDirectedGraph(g4, 3, 2, 1);
-  assert(isDirectedCyclicGraph(g4) == true);
+  assert(isCyclicDirected(g4) == true);
   printf("Directed cyclic test 4 passed: Cycle in disconnected component found.\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(0);
-  assert(isDirectedCyclicGraph(g5) == false);
+  assert(isCyclicDirected(g5) == false);
   printf("Directed cyclic test 5 passed: Empty graph is acyclic.\n");
   destroyGraph(g5);
 }
@@ -1598,7 +1603,7 @@ void testIsUndirectedCyclicGraph() {
   Graph *g1 = createGraph(3);
   addEdgeToUndirectedGraph(g1, 0, 1, 1);
   addEdgeToUndirectedGraph(g1, 1, 2, 1);
-  if (!isUndirectedCyclicGraph(g1))
+  if (!isCyclicUndirected(g1))
     printf("Undirected Test 1 passed: Tree is acyclic.\n");
   else
     printf("Undirected Test 1 failed: False positive in tree.\n");
@@ -1608,7 +1613,7 @@ void testIsUndirectedCyclicGraph() {
   addEdgeToUndirectedGraph(g2, 0, 1, 1);
   addEdgeToUndirectedGraph(g2, 1, 2, 1);
   addEdgeToUndirectedGraph(g2, 2, 0, 1);
-  if (isUndirectedCyclicGraph(g2))
+  if (isCyclicUndirected(g2))
     printf("Undirected Test 2 passed: Triangle cycle detected.\n");
   else
     printf("Undirected Test 2 failed: Triangle cycle missed.\n");
@@ -1619,7 +1624,7 @@ void testIsUndirectedCyclicGraph() {
   addEdgeToUndirectedGraph(g3, 2, 3, 1);
   addEdgeToUndirectedGraph(g3, 3, 4, 1);
   addEdgeToUndirectedGraph(g3, 4, 2, 1);
-  if (isUndirectedCyclicGraph(g3))
+  if (isCyclicUndirected(g3))
     printf("Undirected Test 3 passed: Cycle in disconnected component detected.\n");
   else
     printf("Undirected Test 3 failed: Missed cycle in disconnected component.\n");
@@ -1627,36 +1632,36 @@ void testIsUndirectedCyclicGraph() {
 
   Graph *g4 = createGraph(2);
   addEdgeToUndirectedGraph(g4, 0, 1, 1);
-  if (!isUndirectedCyclicGraph(g4))
+  if (!isCyclicUndirected(g4))
     printf("Undirected Test 4 passed: Simple edge is acyclic.\n");
   else
     printf("Undirected Test 4 failed: Parent incorrectly triggered cycle.\n");
   destroyGraph(g4);
 }
 
-void testIsConnectedUndirectedGraph() {
+void testIsConnectedUndirected() {
   Graph *g1 = createGraph(1);
-  assert(isConnectedUndirectedGraph(g1) == true);
+  assert(isConnectedUndirected(g1) == true);
   printf("Undirected connected test 1 passed: Single vertex\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
   addEdgeToUndirectedGraph(g2, 0, 1, 1);
   addEdgeToUndirectedGraph(g2, 1, 2, 1);
-  assert(isConnectedUndirectedGraph(g2) == true);
+  assert(isConnectedUndirected(g2) == true);
   printf("Undirected connected test 2 passed: Simple line graph\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(4);
   addEdgeToUndirectedGraph(g3, 0, 1, 1);
   addEdgeToUndirectedGraph(g3, 2, 3, 1);
-  assert(isConnectedUndirectedGraph(g3) == false);
+  assert(isConnectedUndirected(g3) == false);
   printf("Undirected connected test 3 passed: Disconnected components\n");
   destroyGraph(g3);
 
   Graph *g4 = createGraph(3);
   addEdgeToUndirectedGraph(g4, 0, 1, 1);
-  assert(isConnectedUndirectedGraph(g4) == false);
+  assert(isConnectedUndirected(g4) == false);
   printf("Undirected connected test 4 passed: Isolated vertex\n");
   destroyGraph(g4);
 
@@ -1667,30 +1672,30 @@ void testIsConnectedUndirectedGraph() {
   addEdgeToUndirectedGraph(g5, 1, 2, 1);
   addEdgeToUndirectedGraph(g5, 1, 3, 1);
   addEdgeToUndirectedGraph(g5, 2, 3, 1);
-  assert(isConnectedUndirectedGraph(g5) == true);
+  assert(isConnectedUndirected(g5) == true);
   printf("Undirected connected test 5 passed: Complete graph\n");
   destroyGraph(g5);
 }
 
-void testIsWeaklyConnectedDirectedGraph() {
+void testIsWeaklyConnectedDirected() {
   Graph *g1 = createGraph(3);
   addEdgeToDirectedGraph(g1, 0, 1, 1);
   addEdgeToDirectedGraph(g1, 1, 2, 1);
-  assert(isWeaklyConnectedDirectedGraph(g1) == true);
+  assert(isWeaklyConnectedDirected(g1) == true);
   printf("Weakly Test 1 passed: Simple chain\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
   addEdgeToDirectedGraph(g2, 0, 1, 1);
   addEdgeToDirectedGraph(g2, 2, 1, 1);
-  assert(isWeaklyConnectedDirectedGraph(g2) == true);
+  assert(isWeaklyConnectedDirected(g2) == true);
   printf("Weakly Test 2 passed: Source/Sink structure\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(4);
   addEdgeToDirectedGraph(g3, 0, 1, 1);
   addEdgeToDirectedGraph(g3, 2, 3, 1);
-  assert(isWeaklyConnectedDirectedGraph(g3) == false);
+  assert(isWeaklyConnectedDirected(g3) == false);
   printf("Weakly Test 3 passed: Truly disconnected components\n");
   destroyGraph(g3);
 
@@ -1698,30 +1703,30 @@ void testIsWeaklyConnectedDirectedGraph() {
   addEdgeToDirectedGraph(g4, 0, 1, 1);
   addEdgeToDirectedGraph(g4, 0, 2, 1);
   addEdgeToDirectedGraph(g4, 0, 3, 1);
-  assert(isWeaklyConnectedDirectedGraph(g4) == true);
+  assert(isWeaklyConnectedDirected(g4) == true);
   printf("Weakly Test 4 passed: Star pattern\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(2);
   addEdgeToDirectedGraph(g5, 0, 0, 1);
-  assert(isWeaklyConnectedDirectedGraph(g5) == false);
+  assert(isWeaklyConnectedDirected(g5) == false);
   printf("Weakly Test 5 passed: Isolated vertex with self-loop\n");
   destroyGraph(g5);
 }
 
-void testIsStronglyConnectedDirectedGraph() {
+void testIsStronglyConnectedDirected() {
   Graph *g1 = createGraph(3);
   addEdgeToDirectedGraph(g1, 0, 1, 1);
   addEdgeToDirectedGraph(g1, 1, 2, 1);
   addEdgeToDirectedGraph(g1, 2, 0, 1);
-  assert(isStronglyConnectedDirectedGraph(g1) == true);
+  assert(isStronglyConnectedDirected(g1) == true);
   printf("Strongly Test 1 passed: Simple cycle\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
   addEdgeToDirectedGraph(g2, 0, 1, 1);
   addEdgeToDirectedGraph(g2, 1, 2, 1);
-  assert(isStronglyConnectedDirectedGraph(g2) == false);
+  assert(isStronglyConnectedDirected(g2) == false);
   printf("Strongly Test 2 passed: Linear chain (not strong)\n");
   destroyGraph(g2);
 
@@ -1730,7 +1735,7 @@ void testIsStronglyConnectedDirectedGraph() {
   addEdgeToDirectedGraph(g3, 1, 0, 1);
   addEdgeToDirectedGraph(g3, 2, 3, 1);
   addEdgeToDirectedGraph(g3, 3, 2, 1);
-  assert(isStronglyConnectedDirectedGraph(g3) == false);
+  assert(isStronglyConnectedDirected(g3) == false);
   printf("Strongly Test 3 passed: Disconnected cycles\n");
   destroyGraph(g3);
 
@@ -1739,12 +1744,12 @@ void testIsStronglyConnectedDirectedGraph() {
   addEdgeToDirectedGraph(g4, 1, 0, 1);
   addEdgeToDirectedGraph(g4, 1, 2, 1);
   addEdgeToDirectedGraph(g4, 2, 1, 1);
-  assert(isStronglyConnectedDirectedGraph(g4) == true);
+  assert(isStronglyConnectedDirected(g4) == true);
   printf("Strongly Test 4 passed: Bidirectional chain\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(1);
-  assert(isStronglyConnectedDirectedGraph(g5) == true);
+  assert(isStronglyConnectedDirected(g5) == true);
   printf("Strongly Test 5 passed: Single vertex\n");
   destroyGraph(g5);
 }
@@ -2276,9 +2281,9 @@ void testFindBridges() {
 int main() {
   testIsDirectedCyclicGraph();
   testIsUndirectedCyclicGraph();
-  testIsConnectedUndirectedGraph();
-  testIsWeaklyConnectedDirectedGraph();
-  testIsStronglyConnectedDirectedGraph();
+  testIsConnectedUndirected();
+  testIsWeaklyConnectedDirected();
+  testIsStronglyConnectedDirected();
   testDepthFirstSortOfGraph();
   testBreadthFirstSortOfGraph();
   testTopologicalSortOfGraph();
