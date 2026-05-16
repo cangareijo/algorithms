@@ -72,6 +72,7 @@ bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
 bool isTree(const Graph *graph);
+bool isForest(const Graph *graph);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -441,6 +442,10 @@ bool isMultiGraph(const Graph *graph) {
 
 bool isTree(const Graph *graph) {
   return isUndirected(graph) && !isCyclicUndirected(graph) && isConnectedUndirected(graph);
+}
+
+bool isForest(const Graph *graph) {
+  return isUndirected(graph) && !isCyclicUndirected(graph);
 }
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
