@@ -63,6 +63,7 @@ bool isEmpty(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
+bool isBalancedDirected(const Graph *graph);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
 bool isConnectedUndirected(const Graph *graph);
@@ -363,23 +364,32 @@ bool isComplete(const Graph *graph) {
 }
 
 bool hasSelfLoops(const Graph *graph) {
+  assert(isValid(graph));
   for (unsigned vertex = 0; vertex < graph->size; vertex++) if (hasSelfLoopsAtVertex(graph, vertex)) return true;
   return false;
 }
 
+bool isBalancedDirected(const Graph *graph) {
+  assert(isValid(graph));
+  for (unsigned v = 0; v < graph->size; v++) if (inDegree(graph, v) != outDegree(graph, v)) return false;
+  return true;
+}
+
 bool isEulerianUndirected(const Graph *graph) {
+  assert(isValid(graph));
   if (graph->size < 2) return true;
   for (unsigned vertex = 0; vertex < graph->size; vertex++) if (outDegree(graph, vertex) % 2 != 0) return false;
   return isConnectedUndirected(graph);
 }
 
 bool isEulerianDirected(const Graph *graph) {
+  assert(isValid(graph));
   if (graph->size < 2) return true;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (inDegree(graph, vertex) != outDegree(graph, vertex)) return false;
-  return isStronglyConnectedDirected(graph);
+  return isBalancedDirected(graph) && isStronglyConnectedDirected(graph);
 }
 
 bool isConnectedUndirected(const Graph *graph) {
+  assert(isValid(graph));
   if (graph->size < 2) return true;
   return allAreReachableFromVertexInGraph(graph, 0);
 }
