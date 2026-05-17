@@ -141,10 +141,13 @@ int graphEccentricity(const Graph *graph, unsigned vertex);
 int edgeWeight(const Graph *graph, unsigned source, unsigned destination);
 int pathWeight(const Graph *graph, const unsigned *path, unsigned length);
 
+int **toMatrix(const Graph *graph);
+
 double normalizedDegree(const Graph *graph, unsigned vertex);
 double density(const Graph *graph);
 double localClusteringCoefficient(const Graph *graph, unsigned vertex);
 double averageClusteringCoefficient(const Graph *graph);
+
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
@@ -1145,6 +1148,18 @@ int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
 
 
 
+int **toMatrix(const Graph *graph) {
+  int **matrix = malloc(graph->size * sizeof(int *));
+  for (unsigned v = 0; v < graph->size; v++)
+    matrix[v] = malloc(graph->size * sizeof(int));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      matrix[v][e->destination] = e->weight;
+  return matrix;
+}
+
+
+
 double normalizedDegree(const Graph *graph, unsigned vertex) {
   if (graph->size < 2) return 0;
   return (double)outDegree(graph, vertex) / (graph->size - 1);
@@ -1172,6 +1187,8 @@ double averageClusteringCoefficient(const Graph *graph) {
   for (unsigned vertex = 0; vertex < graph->size; vertex++) total += localClusteringCoefficient(graph, vertex);
   return total / graph->size;
 }
+
+
 
 bool *graphCenter(const Graph *graph) {
   int *eccentricity = malloc(graph->size * sizeof(int));
