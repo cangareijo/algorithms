@@ -71,8 +71,8 @@ bool isStronglyConnectedDirected(const Graph *graph);
 bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
-bool isTree(const Graph *graph);
 bool isForest(const Graph *graph);
+bool isTree(const Graph *graph);
 bool isStar(const Graph *graph);
 bool isWheel(const Graph *graph);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
@@ -442,12 +442,12 @@ bool isMultiGraph(const Graph *graph) {
   return b;
 }
 
-bool isTree(const Graph *graph) {
-  return isUndirected(graph) && !isCyclicUndirected(graph) && isConnectedUndirected(graph);
-}
-
 bool isForest(const Graph *graph) {
   return isUndirected(graph) && !isCyclicUndirected(graph);
+}
+
+bool isTree(const Graph *graph) {
+  return isUndirected(graph) && !isCyclicUndirected(graph) && isConnectedUndirected(graph);
 }
 
 bool isStar(const Graph *graph) {
