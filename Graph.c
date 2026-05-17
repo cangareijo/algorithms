@@ -79,6 +79,7 @@ bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visite
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
 bool isCyclicUndirected(const Graph *graph);
+bool isKRegular(const Graph *graph, unsigned k);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
@@ -100,7 +101,6 @@ bool isSubGraph(const Graph *sub, const Graph *main);
 
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
-Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
@@ -113,6 +113,7 @@ Graph *graphUnion(const Graph *g1, const Graph *g2);
 void destroyGraph(Graph *graph);
 void removeSelfLoops(Graph *graph);
 void removeParallelEdges(Graph *graph);
+void transpose(Graph *graph);
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination);
 void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v);
 void mergeVertices(Graph *graph, unsigned u, unsigned v);
@@ -543,6 +544,11 @@ bool isCyclicUndirected(const Graph *graph) {
   return false;
 }
 
+bool isKRegular(const Graph *graph, unsigned k) {
+  for (unsigned v = 0; v < graph->size; v++) if (outDegree(graph, v) != k) return false;
+  return true;
+}
+
 bool isIsolated(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
@@ -737,17 +743,6 @@ Graph *copyGraph(const Graph *graph) {
   return copy;
 }
 
-Graph *copyTranspose(const Graph *graph) {
-  assert(isValid(graph));
-  Graph *transpose = createGraph(graph->size);
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-      addEdgeToDirectedGraph(transpose, edge->destination, vertex, edge->weight);
-    }
-  }
-  return transpose;
-}
-
 Graph *copyUnweighted(const Graph *graph) {
   assert(isValid(graph));
   Graph *copy = createGraph(graph->size);
@@ -905,6 +900,23 @@ void removeParallelEdges(Graph *graph) {
   }
   free(minimum);
   free(seen);
+}
+
+void transpose(Graph *graph) {
+  Edge **edges = calloc(graph->size, sizeof(Edge *));
+  for (unsigned v = 0; v < graph->size; v++) {
+    Edge *current = graph->edges[v];
+    while (current != NULL) {
+      unsigned destination = current->destination;
+      Edge *next = current->next;
+      current->destination = v;
+      current->next = edges[destination];
+      edges[destination] = current;
+      current = next;
+    }
+  }
+  free(graph->edges);
+  graph->edges = edges;
 }
 
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination) {
