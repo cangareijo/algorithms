@@ -73,6 +73,7 @@ bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
 bool isTree(const Graph *graph);
 bool isForest(const Graph *graph);
+bool isStar(const Graph *graph);
 bool isWheel(const Graph *graph);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
@@ -447,6 +448,18 @@ bool isTree(const Graph *graph) {
 
 bool isForest(const Graph *graph) {
   return isUndirected(graph) && !isCyclicUndirected(graph);
+}
+
+bool isStar(const Graph *graph) {
+  if (graph->size < 2) return false;
+  if (!isUndirected(graph)) return false;
+  unsigned count = 0;
+  for (unsigned v = 0; v < graph->size; v++) {
+    unsigned degree = outDegree(graph, v);
+    if (degree == graph->size - 1) count++; else if (degree != 1) return false;
+  }
+  if (graph->size == 2) return count == 2;
+  return count == 1;
 }
 
 bool isWheel(const Graph *graph) {
