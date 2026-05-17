@@ -83,6 +83,7 @@ bool isKRegular(const Graph *graph, unsigned k);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
+bool isUniversalSink(const Graph *graph, unsigned vertex);
 bool isPendantDirected(const Graph *graph, unsigned vertex);
 bool isPendantUndirected(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
@@ -550,18 +551,27 @@ bool isKRegular(const Graph *graph, unsigned k) {
 }
 
 bool isIsolated(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
 }
 
 bool isSource(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
   assert(vertex < graph->size);
   return inDegree(graph, vertex) == 0 && outDegree(graph, vertex) > 0;
 }
 
 bool isSink(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) > 0;
+}
+
+bool isUniversalSink(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
+  assert(vertex < graph->size);
+  return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == graph->size - 1;
 }
 
 bool isPendantDirected(const Graph *graph, unsigned vertex) {
