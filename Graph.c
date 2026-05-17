@@ -81,6 +81,7 @@ bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
 bool isCyclicUndirected(const Graph *graph);
 bool isKRegular(const Graph *graph, unsigned k);
+bool hasConstantWeights(const Graph *graph, int weight);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
@@ -544,6 +545,8 @@ bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned p
 }
 
 bool isCyclicUndirected(const Graph *graph) {
+  assert(isValid(graph));
+  assert(isUndirected(graph));
   bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
     if (!visited[vertex])
@@ -556,7 +559,17 @@ bool isCyclicUndirected(const Graph *graph) {
 }
 
 bool isKRegular(const Graph *graph, unsigned k) {
+  assert(isValid(graph));
   for (unsigned v = 0; v < graph->size; v++) if (outDegree(graph, v) != k) return false;
+  return true;
+}
+
+bool hasConstantWeights(const Graph *graph, int weight) {
+  assert(isValid(graph));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (e->weight != weight)
+        return false;
   return true;
 }
 
