@@ -129,6 +129,8 @@ unsigned countSelfLoops(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
 unsigned minDegree(const Graph *graph);
 unsigned maxDegree(const Graph *graph);
+unsigned countPendantDirected(const Graph *graph);
+unsigned countPendantUndirected(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
@@ -617,11 +619,14 @@ bool isUniversalSink(const Graph *graph, unsigned vertex) {
 }
 
 bool isPendantDirected(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
   assert(vertex < graph->size);
   return outDegree(graph, vertex) + inDegree(graph, vertex) == 1;
 }
 
 bool isPendantUndirected(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
+  assert(isUndirected(graph));
   assert(vertex < graph->size);
   return outDegree(graph, vertex) == 1;
 }
@@ -1076,6 +1081,27 @@ unsigned maxDegree(const Graph *graph) {
   free(in);
   free(out);
   return maximum;
+}
+
+unsigned countPendantDirected(const Graph *graph) {
+  assert(isValid(graph));
+  unsigned *a = inDegrees(graph);
+  unsigned n = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (a[v] + outDegree(graph, v) == 1)
+      n++;
+  free(a);
+  return n;
+}
+
+unsigned countPendantUndirected(const Graph *graph) {
+  assert(isValid(graph));
+  assert(isUndirected(graph));
+  unsigned n = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (outDegree(graph, v) == 1)
+      n++;
+  return n;
 }
 
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
