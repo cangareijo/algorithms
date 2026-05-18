@@ -83,12 +83,13 @@ bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned p
 bool isCyclicUndirected(const Graph *graph);
 bool isKRegular(const Graph *graph, unsigned k);
 bool hasConstantWeights(const Graph *graph, int weight);
+bool isDense(const Graph *graph, double threshold);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
 bool isSink(const Graph *graph, unsigned vertex);
 bool isUniversalSink(const Graph *graph, unsigned vertex);
-bool isPendantDirected(const Graph *graph, unsigned vertex);
-bool isPendantUndirected(const Graph *graph, unsigned vertex);
+bool isDirectedLeaf(const Graph *graph, unsigned vertex);
+bool isUndirectedLeaf(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
 bool isAdjacent(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
@@ -129,8 +130,8 @@ unsigned countSelfLoops(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
 unsigned minDegree(const Graph *graph);
 unsigned maxDegree(const Graph *graph);
-unsigned countPendantDirected(const Graph *graph);
-unsigned countPendantUndirected(const Graph *graph);
+unsigned countDirectedLeaves(const Graph *graph);
+unsigned countUndirectedLeaves(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
@@ -450,17 +451,18 @@ bool isUndirected(const Graph *graph) {
 }
 
 bool isMultiGraph(const Graph *graph) {
-  bool b = false;
+  assert(isValid(graph));
+  bool multi = false;
   bool *seen = malloc(graph->size * sizeof(bool));
-  for (unsigned v = 0; v < graph->size; v++) {
+  for (unsigned v = 0; v < graph->size && !multi; v++) {
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next) seen[e->destination] = false;
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
-      if (seen[e->destination]) b = true;
+    for (Edge *e = graph->edges[v]; e != NULL && !multi; e = e->next) {
+      if (seen[e->destination]) multi = true;
       seen[e->destination] = true;
     }
   }
   free(seen);
-  return b;
+  return multi;
 }
 
 bool isForest(const Graph *graph) {
@@ -594,6 +596,16 @@ bool hasConstantWeights(const Graph *graph, int weight) {
   return true;
 }
 
+bool isDense(const Graph *graph, double threshold) {
+  assert(isValid(graph));
+  assert(!isMultiGraph(graph));
+  assert(!hasSelfLoops(graph));
+  assert(threshold >= 0);
+  assert(threshold <= 1);
+  if (graph->size <= 1) return false;
+  return (double)countEdges(graph) / graph->size * (graph->size - 1) >= threshold;
+}
+
 bool isIsolated(const Graph *graph, unsigned vertex) {
   assert(isValid(graph));
   assert(vertex < graph->size);
@@ -618,13 +630,13 @@ bool isUniversalSink(const Graph *graph, unsigned vertex) {
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == graph->size - 1;
 }
 
-bool isPendantDirected(const Graph *graph, unsigned vertex) {
+bool isDirectedLeaf(const Graph *graph, unsigned vertex) {
   assert(isValid(graph));
   assert(vertex < graph->size);
   return outDegree(graph, vertex) + inDegree(graph, vertex) == 1;
 }
 
-bool isPendantUndirected(const Graph *graph, unsigned vertex) {
+bool isUndirectedLeaf(const Graph *graph, unsigned vertex) {
   assert(isValid(graph));
   assert(isUndirected(graph));
   assert(vertex < graph->size);
@@ -1083,7 +1095,7 @@ unsigned maxDegree(const Graph *graph) {
   return maximum;
 }
 
-unsigned countPendantDirected(const Graph *graph) {
+unsigned countDirectedLeaves(const Graph *graph) {
   assert(isValid(graph));
   unsigned *a = inDegrees(graph);
   unsigned n = 0;
@@ -1094,7 +1106,7 @@ unsigned countPendantDirected(const Graph *graph) {
   return n;
 }
 
-unsigned countPendantUndirected(const Graph *graph) {
+unsigned countUndirectedLeaves(const Graph *graph) {
   assert(isValid(graph));
   assert(isUndirected(graph));
   unsigned n = 0;
