@@ -76,6 +76,7 @@ bool isForest(const Graph *graph);
 bool isTree(const Graph *graph);
 bool isStar(const Graph *graph);
 bool isWheel(const Graph *graph);
+bool hasIsolatedVertices(const Graph *graph);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -512,6 +513,22 @@ bool isWheel(const Graph *graph) {
   } while (current != UINT_MAX);
   free(visited);
   return visitedCount == graph->size;
+}
+
+bool hasIsolatedVertices(const Graph *graph) {
+  assert(isValid(graph));
+  bool *a = calloc(graph->size, sizeof(bool));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      a[e->destination] = true;
+  bool b = false;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (graph->edges[v] == NULL && !a[v]) {
+      b = true;
+      break;
+    }
+  free(a);
+  return b;
 }
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
