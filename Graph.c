@@ -147,10 +147,11 @@ int pathWeight(const Graph *graph, const unsigned *path, unsigned length);
 
 int **toMatrix(const Graph *graph);
 
-double normalizedDegree(const Graph *graph, unsigned vertex);
 double density(const Graph *graph);
-double localClusteringCoefficient(const Graph *graph, unsigned vertex);
 double averageClusteringCoefficient(const Graph *graph);
+double normalizedDegree(const Graph *graph, unsigned vertex);
+double localClusteringCoefficient(const Graph *graph, unsigned vertex);
+double subgraphDensity(const Graph *graph, const bool *subset);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
@@ -405,9 +406,10 @@ bool isWeaklyConnectedDirected(const Graph *graph) {
 
 bool isStronglyConnectedDirected(const Graph *graph) {
   if (graph->size < 2) return true;
-  Graph *transpose = copyTranspose(graph);
-  bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(transpose, 0);
-  destroyGraph(transpose);
+  Graph *copy = copyGraph(graph);
+  transpose(copy);
+  bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(copy, 0);
+  destroyGraph(copy);
   return reachable;
 }
 
@@ -1205,17 +1207,30 @@ int **toMatrix(const Graph *graph) {
 
 
 
-double normalizedDegree(const Graph *graph, unsigned vertex) {
-  if (graph->size < 2) return 0;
-  return (double)outDegree(graph, vertex) / (graph->size - 1);
-}
-
 double density(const Graph *graph) {
+  assert(isValid(graph));
   if (graph->size < 2) return 0;
   return (double)countEdges(graph) / (graph->size * (graph->size - 1));
 }
 
+double averageClusteringCoefficient(const Graph *graph) {
+  assert(isValid(graph));
+  if (graph->size == 0) return 0;
+  double total = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) total += localClusteringCoefficient(graph, vertex);
+  return total / graph->size;
+}
+
+double normalizedDegree(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
+  assert(vertex < graph->size);
+  if (graph->size < 2) return 0;
+  return (double)outDegree(graph, vertex) / (graph->size - 1);
+}
+
 double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
+  assert(vertex < graph->size);
   unsigned k = outDegree(graph, vertex);
   if (k < 2) return 0;
   unsigned edgesBetweenNeighbours = 0;
@@ -1226,11 +1241,20 @@ double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
   return (double)edgesBetweenNeighbours / (k * (k - 1));
 }
 
-double averageClusteringCoefficient(const Graph *graph) {
-  if (graph->size == 0) return 0;
-  double total = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) total += localClusteringCoefficient(graph, vertex);
-  return total / graph->size;
+double subgraphDensity(const Graph *graph, const bool *subset) {
+  assert(isValid(graph));
+  assert(subset != NULL);
+  unsigned vertices = 0;
+  unsigned edges = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (subset[v]) {
+      vertices++;
+      for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+        if (subset[e->destination])
+          edges++;
+    }
+  if (vertices <= 1) return 0;
+  return (double)edges / (vertices * (vertices - 1));
 }
 
 
