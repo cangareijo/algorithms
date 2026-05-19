@@ -104,6 +104,9 @@ bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned lengt
 bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
 bool isSubGraph(const Graph *sub, const Graph *main);
 
+bool *graphCenter(const Graph *graph);
+bool *graphPeriphery(const Graph *graph);
+
 Graph *createGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
@@ -114,6 +117,8 @@ Graph *removeVertex(const Graph *graph, unsigned vertex);
 Graph *contractEdge(Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
+Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
+Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 
 void destroyGraph(Graph *graph);
 void removeSelfLoops(Graph *graph);
@@ -157,14 +162,9 @@ double normalizedDegree(const Graph *graph, unsigned vertex);
 double localClusteringCoefficient(const Graph *graph, unsigned vertex);
 double subgraphDensity(const Graph *graph, const bool *subset);
 
-bool *graphCenter(const Graph *graph);
-bool *graphPeriphery(const Graph *graph);
-Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
-Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 void printGraph(const Graph *graph);
-bool *reachabilityFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
@@ -644,12 +644,16 @@ bool isUndirectedLeaf(const Graph *graph, unsigned vertex) {
 }
 
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
   assert(vertex < graph->size);
   for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next) if (e->destination == vertex) return true;
   return false;
 }
 
 bool isAdjacent(const Graph *graph, unsigned u, unsigned v) {
+  assert(isValid(graph));
+  assert(u < graph->size);
+  assert(v < graph->size);
   if (u >= graph->size || v >= graph->size) return false;
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v) return true;
   return false;
@@ -794,6 +798,34 @@ bool isSubGraph(const Graph *sub, const Graph *main) {
 
 
 
+bool *graphCenter(const Graph *graph) {
+  int *eccentricity = malloc(graph->size * sizeof(int));
+  int radius = INT_MAX;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    eccentricity[vertex] = graphEccentricity(graph, vertex);
+    if (eccentricity[vertex] < radius) radius = eccentricity[vertex];
+  }
+  bool *center = calloc(graph->size, sizeof(bool));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (eccentricity[vertex] == radius) center[vertex] = true;
+  free(eccentricity);
+  return center;
+}
+
+bool *graphPeriphery(const Graph *graph) {
+  int *eccentricity = malloc(graph->size * sizeof(int));
+  int diameter = INT_MIN;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    eccentricity[vertex] = graphEccentricity(graph, vertex);
+    if (eccentricity[vertex] > diameter) diameter = eccentricity[vertex];
+  }
+  bool *periphery = calloc(graph->size, sizeof(bool));
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (eccentricity[vertex] == diameter) periphery[vertex] = true;
+  free(eccentricity);
+  return periphery;
+}
+
+
+
 Graph *createGraph(unsigned size) {
   Graph *graph = malloc(sizeof(Graph));
   graph->size = size;
@@ -916,6 +948,18 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
       if (!isAdjacent(g3, v, e->destination))
         addEdgeToDirectedGraph(g3, v, e->destination, e->weight);
   return g3;
+}
+
+Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
+  Graph *graph = createGraph(size);
+  for (unsigned i = 0; i < count; i++) addEdgeToDirectedGraph(graph, edges[i].u, edges[i].v, edges[i].weight);
+  return graph;
+}
+
+Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
+  Graph *graph = createGraph(size);
+  for (unsigned i = 0; i < count; i++) addEdgeToUndirectedGraph(graph, edges[i].u, edges[i].v, edges[i].weight);
+  return graph;
 }
 
 
@@ -1314,48 +1358,6 @@ double subgraphDensity(const Graph *graph, const bool *subset) {
 
 
 
-bool *graphCenter(const Graph *graph) {
-  int *eccentricity = malloc(graph->size * sizeof(int));
-  int radius = INT_MAX;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    eccentricity[vertex] = graphEccentricity(graph, vertex);
-    if (eccentricity[vertex] < radius) radius = eccentricity[vertex];
-  }
-  bool *center = calloc(graph->size, sizeof(bool));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (eccentricity[vertex] == radius) center[vertex] = true;
-  free(eccentricity);
-  return center;
-}
-
-bool *graphPeriphery(const Graph *graph) {
-  int *eccentricity = malloc(graph->size * sizeof(int));
-  int diameter = INT_MIN;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    eccentricity[vertex] = graphEccentricity(graph, vertex);
-    if (eccentricity[vertex] > diameter) diameter = eccentricity[vertex];
-  }
-  bool *periphery = calloc(graph->size, sizeof(bool));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (eccentricity[vertex] == diameter) periphery[vertex] = true;
-  free(eccentricity);
-  return periphery;
-}
-
-Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
-  Graph *graph = createGraph(size);
-  for (unsigned i = 0; i < count; i++) {
-    addEdgeToDirectedGraph(graph, edges[i].u, edges[i].v, edges[i].weight);
-  }
-  return graph;
-}
-
-Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
-  Graph *graph = createGraph(size);
-  for (unsigned i = 0; i < count; i++) {
-    addEdgeToUndirectedGraph(graph, edges[i].u, edges[i].v, edges[i].weight);
-  }
-  return graph;
-}
-
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph) {
   FlatEdge *edges = malloc(countEdges(graph) * sizeof(FlatEdge));
   unsigned i = 0;
@@ -1396,27 +1398,17 @@ void printGraph(const Graph *graph) {
   }
 }
 
-bool *reachabilityFromVertexInGraph(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
-  unsigned *distances = unweightedDijkstra(graph, vertex);
-  bool *reachable = malloc(graph->size * sizeof(bool));
-  for (unsigned i = 0; i < graph->size; i++) reachable[i] = (distances[i] < INT_MAX);
-  free(distances);
-  return reachable;
-}
-
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   assert(isValid(graph));
   assert(vertex < graph->size);
-  bool *reachable = reachabilityFromVertexInGraph(graph, vertex);
+  unsigned *distances = unweightedDijkstra(graph, vertex);
   bool b = true;
-  for (unsigned i = 0; i < graph->size; i++)
-    if (!reachable[i]) {
+  for (unsigned v = 0; v < graph->size; v++)
+    if (distances[v] == UINT_MAX) {
       b = false;
       break;
     }
-  free(reachable);
+  free(distances);
   return b;
 }
 
