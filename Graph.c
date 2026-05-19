@@ -771,7 +771,7 @@ bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned lengt
 
 bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length) {
   assert(isValid(graph));
-  assert(path == NULL);
+  assert(path != NULL);
   bool b = true;
   if (length != graph->size) b = false;
   bool *visited = calloc(graph->size, sizeof(bool));
@@ -786,7 +786,7 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length
 
 bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length) {
   assert(isValid(graph));
-  assert(sequence == NULL);
+  assert(sequence != NULL);
   if (length == 0) return false;
   for (unsigned i = 0; i < length; i++) if (sequence[i] >= graph->size) return false;
   for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, sequence[i - 1], sequence[i])) return false;
