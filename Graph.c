@@ -103,6 +103,7 @@ bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
 bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSubGraph(const Graph *sub, const Graph *main);
 
 bool *graphCenter(const Graph *graph);
@@ -172,6 +173,7 @@ double subgraphDensity(const Graph *graph, const bool *subset);
 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
+
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
@@ -791,6 +793,34 @@ bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length) {
   for (unsigned i = 0; i < length; i++) if (sequence[i] >= graph->size) return false;
   for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, sequence[i - 1], sequence[i])) return false;
   return true;
+}
+
+bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
+  assert(isValid(graph));
+  assert(sequence != NULL);
+  if (!isWalk(graph, sequence, length)) return false;
+  if (length < 2) return true;
+  unsigned count = countEdges(graph);
+  FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
+  bool *used = calloc(count, sizeof(bool));
+  bool valid = true;
+  for (unsigned i = 1; i < length; i++) {
+    unsigned index = UINT_MAX;
+    for (unsigned j = 0; j < count; j++)
+      if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] || edges[j].v == sequence[i - 1] && edges[j].u == sequence[i])
+        if (!used[j]) {
+          index = j;
+          break;
+        }
+    if (index == UINT_MAX) {
+      valid = false;
+      break;
+    }
+    used[index] = true;
+  }
+  free(edges);
+  free(used);
+  return valid;
 }
 
 bool isSubGraph(const Graph *sub, const Graph *main) {
@@ -1454,6 +1484,8 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
       }
   return edges;
 }
+
+
 
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   assert(isValid(graph));
