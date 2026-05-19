@@ -114,12 +114,12 @@ Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
-Graph *contractEdge(Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 
+void printGraph(const Graph *graph);
 void destroyGraph(Graph *graph);
 void removeSelfLoops(Graph *graph);
 void removeParallelEdges(Graph *graph);
@@ -164,7 +164,6 @@ double subgraphDensity(const Graph *graph, const bool *subset);
 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
-void printGraph(const Graph *graph);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
@@ -365,6 +364,7 @@ bool isRegular(const Graph *graph) {
 }
 
 bool isComplete(const Graph *graph) {
+  assert(isValid(graph));
   if (graph->size < 2) return true;
   return countEdges(graph) == graph->size * (graph->size - 1);
 }
@@ -377,8 +377,11 @@ bool hasSelfLoops(const Graph *graph) {
 
 bool isBalancedDirected(const Graph *graph) {
   assert(isValid(graph));
-  for (unsigned v = 0; v < graph->size; v++) if (inDegree(graph, v) != outDegree(graph, v)) return false;
-  return true;
+  unsigned *a = inDegrees(graph);
+  bool b = true;
+  for (unsigned v = 0; v < graph->size; v++) if (a[v] != outDegree(graph, v)) { b = false; break; }
+  free(a);
+  return b;
 }
 
 bool isEulerianUndirected(const Graph *graph) {
@@ -906,22 +909,6 @@ Graph *removeVertex(const Graph *graph, unsigned vertex) {
   return removed;
 }
 
-Graph *contractEdge(Graph *graph, unsigned u, unsigned v) {
-  assert(u < graph->size);
-  assert(v < graph->size);
-  assert(u != v);
-  Graph *g = createGraph(graph->size);
-  for (unsigned i = 0; i < graph->size; i++)
-    for (Edge *e = graph->edges[i]; e; e = e->next) {
-      unsigned source = i;
-      unsigned destination = e->destination;
-      if (source == v) source = u;
-      if (destination == v) destination = u;
-      if (source != destination && !isAdjacent(g, source, destination)) addEdgeToDirectedGraph(g, source, destination, e->weight);
-    }
-  return g;
-}
-
 Graph *copySubgraph(const Graph *graph, const bool *vertices) {
   assert(isValid(graph));
   assert(vertices != NULL);
@@ -964,13 +951,24 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 
 
 
+void printGraph(const Graph *graph) {
+  unsigned i = 0;
+  printf("{");
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+      if (i++ > 0) printf(", ");
+      printf("(%u, %u, %d)", v, e->destination, e->weight);
+    }
+  printf("}\n");
+}
+
 void destroyGraph(Graph *graph) {
   for (unsigned i = 0; i < graph->size; i++) {
-    Edge *current = graph->edges[i];
-    while (current) {
-      Edge *next = current->next;
-      free(current);
-      current = next;
+    Edge *e = graph->edges[i];
+    while (e) {
+      Edge *next = e->next;
+      free(e);
+      e = next;
     }
   }
   free(graph->edges);
@@ -1180,7 +1178,7 @@ unsigned countComponents(const Graph *graph) {
 }
 
 unsigned outDegree(const Graph *graph, unsigned vertex) {
-  assert(graph != NULL);
+  assert(isValid(graph));
   assert(vertex < graph->size);
   unsigned count = 0;
   for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
@@ -1190,20 +1188,18 @@ unsigned outDegree(const Graph *graph, unsigned vertex) {
 }
 
 unsigned inDegree(const Graph *graph, unsigned vertex) {
-  assert(graph != NULL);
+  assert(isValid(graph));
   assert(vertex < graph->size);
-  unsigned count = 0;
-  for (unsigned i = 0; i < graph->size; i++) {
-    for (Edge *edge = graph->edges[i]; edge != NULL; edge = edge->next) {
-      if (edge->destination == vertex) {
-        count++;
-      }
-    }
-  }
-  return count;
+  unsigned *a = inDegrees(graph);
+  unsigned n = a[vertex];
+  free(a);
+  return n;
 }
 
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
+  assert(isValid(graph));
+  assert(u < graph->size);
+  assert(v < graph->size);
   if (u >= graph->size || v >= graph->size) return 0;
   bool *neighbors = calloc(graph->size, sizeof(bool));
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
@@ -1383,19 +1379,6 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
         i++;
       }
   return edges;
-}
-
-void printGraph(const Graph *graph) {
-  for (unsigned i = 0; i < graph->size; i++) {
-    Edge *current = graph->edges[i];
-    if (current) {
-      while (current) {
-        printf(" (%u, %u): %d,", i, current->destination, current->weight);
-        current = current->next;
-      }
-      printf("\n");
-    }
-  }
 }
 
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
