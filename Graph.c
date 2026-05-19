@@ -108,11 +108,14 @@ bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
 
 Graph *createGraph(unsigned size);
+Graph *createPathGraph(unsigned size);
+Graph *createCycleGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
+Graph *underlyingGraph(const Graph *graph);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
@@ -137,6 +140,8 @@ unsigned minDegree(const Graph *graph);
 unsigned maxDegree(const Graph *graph);
 unsigned countDirectedLeaves(const Graph *graph);
 unsigned countUndirectedLeaves(const Graph *graph);
+unsigned countSources(const Graph *graph);
+unsigned countSinks(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
@@ -655,8 +660,6 @@ bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
 
 bool isAdjacent(const Graph *graph, unsigned u, unsigned v) {
   assert(isValid(graph));
-  assert(u < graph->size);
-  assert(v < graph->size);
   if (u >= graph->size || v >= graph->size) return false;
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v) return true;
   return false;
@@ -836,6 +839,19 @@ Graph *createGraph(unsigned size) {
   return graph;
 }
 
+Graph *createPathGraph(unsigned size) {
+  Graph *g = createGraph(size);
+  for (unsigned i = 1; i < size; i++) addEdgeToUndirectedGraph(g, i - 1, i, 1);
+  return g;
+}
+
+Graph *createCycleGraph(unsigned size) {
+  if (size < 3) return createGraph(size);
+  Graph *g = createGraph(size);
+  for (unsigned i = 0; i < size; i++) addEdgeToUndirectedGraph(g, i, (i + 1) % size, 1);
+  return g;
+}
+
 Graph *copyGraph(const Graph *graph) {
   assert(isValid(graph));
   Graph *copy = createGraph(graph->size);
@@ -889,6 +905,16 @@ Graph *lineGraph(const Graph *graph) {
         addEdgeToUndirectedGraph(line, i, j, 1);
   free(edges);
   return line;
+}
+
+Graph *underlyingGraph(const Graph *graph) {
+  assert(isValid(graph));
+  Graph *simple = createGraph(graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (v != e->destination && !isAdjacent(simple, v, e->destination))
+        addEdgeToUndirectedGraph(simple, v, e->destination, 1);
+  return simple;
 }
 
 Graph *removeVertex(const Graph *graph, unsigned vertex) {
@@ -1141,9 +1167,7 @@ unsigned countDirectedLeaves(const Graph *graph) {
   assert(isValid(graph));
   unsigned *a = inDegrees(graph);
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (a[v] + outDegree(graph, v) == 1)
-      n++;
+  for (unsigned v = 0; v < graph->size; v++) if (a[v] + outDegree(graph, v) == 1) n++;
   free(a);
   return n;
 }
@@ -1152,10 +1176,22 @@ unsigned countUndirectedLeaves(const Graph *graph) {
   assert(isValid(graph));
   assert(isUndirected(graph));
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (outDegree(graph, v) == 1)
-      n++;
+  for (unsigned v = 0; v < graph->size; v++) if (outDegree(graph, v) == 1) n++;
   return n;
+}
+
+unsigned countSources(const Graph *graph) {
+  assert(isValid(graph));
+  unsigned count = 0;
+  for (unsigned v = 0; v < graph->size; v++) if (isSource(graph, v)) count++;
+  return count;
+}
+
+unsigned countSinks(const Graph *graph) {
+  assert(isValid(graph));
+  unsigned count = 0;
+  for (unsigned v = 0; v < graph->size; v++) if (isSink(graph, v)) count++;
+  return count;
 }
 
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
