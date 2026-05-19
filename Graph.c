@@ -102,6 +102,7 @@ bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
+bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSubGraph(const Graph *sub, const Graph *main);
 
 bool *graphCenter(const Graph *graph);
@@ -142,6 +143,8 @@ unsigned countDirectedLeaves(const Graph *graph);
 unsigned countUndirectedLeaves(const Graph *graph);
 unsigned countSources(const Graph *graph);
 unsigned countSinks(const Graph *graph);
+unsigned countParallelEdges(const Graph *graph);
+unsigned countIsolatedVertices(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
@@ -767,6 +770,8 @@ bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned lengt
 }
 
 bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length) {
+  assert(isValid(graph));
+  assert(path == NULL);
   bool b = true;
   if (length != graph->size) b = false;
   bool *visited = calloc(graph->size, sizeof(bool));
@@ -777,6 +782,15 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length
   free(visited);
   for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) b = false;
   return b;
+}
+
+bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length) {
+  assert(isValid(graph));
+  assert(sequence == NULL);
+  if (length == 0) return false;
+  for (unsigned i = 0; i < length; i++) if (sequence[i] >= graph->size) return false;
+  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, sequence[i - 1], sequence[i])) return false;
+  return true;
 }
 
 bool isSubGraph(const Graph *sub, const Graph *main) {
@@ -1191,6 +1205,30 @@ unsigned countSinks(const Graph *graph) {
   assert(isValid(graph));
   unsigned count = 0;
   for (unsigned v = 0; v < graph->size; v++) if (isSink(graph, v)) count++;
+  return count;
+}
+
+unsigned countParallelEdges(const Graph *graph) {
+  assert(isValid(graph));
+  bool *seen = calloc(graph->size, sizeof(bool));
+  unsigned count = 0;
+  for (unsigned u = 0; u < graph->size; u++) {
+    for (Edge *e = graph->edges[u]; e != NULL; e = e->next) {
+      if (seen[e->destination]) count++;
+      seen[e->destination] = true;
+    }
+    for (Edge *e = graph->edges[u]; e != NULL; e = e->next) seen[e->destination] = false;
+  }
+  free(seen);
+  return count;
+}
+
+unsigned countIsolatedVertices(const Graph *graph) {
+  assert(isValid(graph));
+  unsigned count = 0;
+  unsigned *in = inDegrees(graph);
+  for (unsigned v = 0; v < graph->size; v++) if (graph->edges[v] == NULL && in[v] == 0) count++;
+  free(in);
   return count;
 }
 
