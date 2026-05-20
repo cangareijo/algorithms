@@ -112,6 +112,7 @@ bool *graphPeriphery(const Graph *graph);
 Graph *createGraph(unsigned size);
 Graph *createPathGraph(unsigned size);
 Graph *createCycleGraph(unsigned size);
+Graph *createCompleteGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
@@ -152,9 +153,11 @@ unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 
-unsigned *degreeDistribution(const Graph *graph);
+unsigned *outDegreeDistribution(const Graph *graph);
+unsigned *inDegreeDistribution(const Graph *graph);
 unsigned *outDegrees(const Graph *graph);
 unsigned *inDegrees(const Graph *graph);
+unsigned *getNeighbors(const Graph *graph, unsigned vertex);
 
 int sumWeights(const Graph *graph);
 int graphRadius(const Graph *graph);
@@ -807,7 +810,7 @@ bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
   for (unsigned i = 1; i < length; i++) {
     unsigned index = UINT_MAX;
     for (unsigned j = 0; j < count; j++)
-      if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] || edges[j].v == sequence[i - 1] && edges[j].u == sequence[i])
+      if ((edges[j].u == sequence[i - 1] && edges[j].v == sequence[i]) || (edges[j].v == sequence[i - 1] && edges[j].u == sequence[i]))
         if (!used[j]) {
           index = j;
           break;
@@ -884,15 +887,22 @@ Graph *createGraph(unsigned size) {
 }
 
 Graph *createPathGraph(unsigned size) {
+  assert(size >= 2);
   Graph *g = createGraph(size);
   for (unsigned i = 1; i < size; i++) addEdgeToUndirectedGraph(g, i - 1, i, 1);
   return g;
 }
 
 Graph *createCycleGraph(unsigned size) {
-  if (size < 3) return createGraph(size);
+  assert(size >= 3);
   Graph *g = createGraph(size);
   for (unsigned i = 0; i < size; i++) addEdgeToUndirectedGraph(g, i, (i + 1) % size, 1);
+  return g;
+}
+
+Graph *createCompleteGraph(unsigned size) {
+  Graph *g = createGraph(size);
+  for (unsigned u = 0; u < size; u++) for (unsigned v = 0; v < size; v++) if (u != v) addEdgeToDirectedGraph(g, u, v, 1);
   return g;
 }
 
@@ -1320,9 +1330,16 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
 
 
 
-unsigned *degreeDistribution(const Graph *graph) {
+unsigned *outDegreeDistribution(const Graph *graph) {
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
   for (unsigned vertex = 0; vertex < graph->size; vertex++) distribution[outDegree(graph, vertex)]++;
+  return distribution;
+}
+
+unsigned *inDegreeDistribution(const Graph *graph) {
+  assert(isValid(graph));
+  unsigned *distribution = calloc(graph->size, sizeof(unsigned));
+  for (unsigned v = 0; v < graph->size; v++) if (in[v] < graph->size) distribution[inDegree(graph, v)]++;
   return distribution;
 }
 
@@ -1340,6 +1357,16 @@ unsigned *inDegrees(const Graph *graph) {
     for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
       degrees[edge->destination]++;
   return degrees;
+}
+
+unsigned *getNeighbors(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
+  assert(vertex < graph->size);
+  unsigned *neighbors = malloc((outDegree(graph, vertex) + 1) * sizeof(unsigned));
+  unsigned i = 0;
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next) neighbors[i++] = e->destination;
+  neighbors[i] = UINT_MAX;
+  return neighbors;
 }
 
 
