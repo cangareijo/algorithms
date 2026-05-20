@@ -53,9 +53,14 @@ typedef struct Edge {
 
 typedef struct {
   unsigned size;
+  unsigned *inDegree;
+  unsigned *outDegree;
   Edge **edges;
 } Graph;
 
+bool isValidEdge(const Graph *graph);
+bool isValidInDegree(const Graph *graph);
+bool isValidOutDegree(const Graph *graph);
 bool isValid(const Graph *graph);
 bool isNull(const Graph *graph);
 bool isTrivial(const Graph *graph);
@@ -344,14 +349,43 @@ int compareEdges(const void *a, const void *b) {
 
 
 
-bool isValid(const Graph *graph) {
-  if (graph == NULL) return false;
-  if (graph->edges == NULL) return false;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
-      if (edge->destination >= graph->size)
+bool isValidEdge(const Graph *graph) {
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (e->destination >= graph->size)
         return false;
   return true;
+}
+
+bool isValidInDegree(const Graph *graph) {
+  unsigned *degree = calloc(graph->size, sizeof(unsigned));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      degree[e->destination]++;
+  bool valid = true;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (graph->inDegree[v] != degree[v]) {
+      valid = false;
+      break;
+    }
+  free(degree);
+  return valid;
+}
+
+bool isValidOutDegree(const Graph *graph) {
+  for (unsigned v = 0; v < graph->size; v++) {
+    unsigned degree = 0;
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      degree++;
+    if (graph->outDegree[v] != degree)
+      return false;
+  }
+  return true;
+}
+
+bool isValid(const Graph *graph) {
+  if (graph == NULL || graph->inDegree == NULL || graph->outDegree == NULL || graph->edges == NULL) return false;
+  return isValidEdge(graph) && isValidInDegree(graph) && isValidOutDegree(graph);
 }
 
 bool isNull(const Graph *graph) {
@@ -359,26 +393,20 @@ bool isNull(const Graph *graph) {
 }
 
 bool isTrivial(const Graph *graph) {
-  if (graph->size != 1) return false;
-  return graph->edges[0] == NULL;
+  return graph->size == 1 && graph->edges[0] == NULL;
 }
 
 bool isEmpty(const Graph *graph) {
-  if (graph->size == 0) return false;
   for (unsigned v = 0; v < graph->size; v++) if (graph->edges[v] != NULL) return false;
   return true;
 }
 
 bool isRegular(const Graph *graph) {
-  if (graph->size < 2) return true;
-  unsigned degree = outDegree(graph, 0);
-  for (unsigned i = 1; i < graph->size; i++) if (outDegree(graph, i) != degree) return false;
+  for (unsigned v = 1; v < graph->size; v++) if (outDegree(graph, v - 1) != outDegree(graph, v)) return false;
   return true;
 }
 
 bool isComplete(const Graph *graph) {
-  assert(isValid(graph));
-  if (graph->size < 2) return true;
   return countEdges(graph) == graph->size * (graph->size - 1);
 }
 
