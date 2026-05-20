@@ -397,12 +397,16 @@ bool isTrivial(const Graph *graph) {
 }
 
 bool isEmpty(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) if (graph->edges[v] != NULL) return false;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (graph->edges[v] != NULL)
+      return false;
   return true;
 }
 
 bool isRegular(const Graph *graph) {
-  for (unsigned v = 1; v < graph->size; v++) if (outDegree(graph, v - 1) != outDegree(graph, v)) return false;
+  for (unsigned v = 1; v < graph->size; v++)
+    if (outDegree(graph, v - 1) != outDegree(graph, v))
+      return false;
   return true;
 }
 
@@ -411,17 +415,23 @@ bool isComplete(const Graph *graph) {
 }
 
 bool hasSelfLoops(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) if (hasSelfLoopsAtVertex(graph, v)) return true;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (hasSelfLoopsAtVertex(graph, v))
+      return true;
   return false;
 }
 
 bool isBalanced(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) if (inDegree(graph, v) != outDegree(graph, v)) return false;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (inDegree(graph, v) != outDegree(graph, v))
+      return false;
   return true;
 }
 
 bool isEulerianUndirected(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) if (outDegree(graph, v) % 2 != 0) return false;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (outDegree(graph, v) % 2 != 0)
+      return false;
   return isConnectedUndirected(graph);
 }
 
@@ -430,17 +440,15 @@ bool isEulerianDirected(const Graph *graph) {
 }
 
 bool isConnectedUndirected(const Graph *graph) {
-  assert(isValid(graph));
   if (graph->size < 2) return true;
   return allAreReachableFromVertexInGraph(graph, 0);
 }
 
 bool isWeaklyConnectedDirected(const Graph *graph) {
-  if (graph->size < 2) return true;
   Graph *undirected = copyUndirected(graph);
-  bool reachable = allAreReachableFromVertexInGraph(undirected, 0);
+  bool connected = isConnectedUndirected(undirected);
   destroyGraph(undirected);
-  return reachable;
+  return connected;
 }
 
 bool isStronglyConnectedDirected(const Graph *graph) {
