@@ -464,18 +464,18 @@ bool isBipartite(const Graph *graph) {
   int *colors = calloc(graph->size, sizeof(int));
   unsigned *queue = malloc(graph->size * sizeof(unsigned));
   bool bipartite = true;
-  for (unsigned u = 0; u < graph->size; u++)
+  for (unsigned u = 0; u < graph->size && bipartite; u++)
     if (colors[u] == 0) {
       colors[u] = 1;
       unsigned head = 0, tail = 0;
       queue[tail++] = u;
-      while (head < tail) {
+      while (head < tail && bipartite) {
         unsigned v = queue[head++];
-        for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
-          if (colors[edge->destination] == 0) {
-            colors[edge->destination] = (colors[v] == 1) ? 2 : 1;
-            queue[tail++] = edge->destination;
-          } else if (colors[edge->destination] == colors[v]) {
+        for (Edge *e = graph->edges[v]; e != NULL && bipartite; e = e->next)
+          if (colors[e->destination] == 0) {
+            colors[e->destination] = (colors[v] == 1) ? 2 : 1;
+            queue[tail++] = e->destination;
+          } else if (colors[e->destination] == colors[v]) {
             bipartite = false;
           }
       }
@@ -486,15 +486,14 @@ bool isBipartite(const Graph *graph) {
 }
 
 bool isUndirected(const Graph *graph) {
-  for (unsigned u = 0; u < graph->size; u++)
-    for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
-      if (!hasWeightedEdge(graph, e->destination, u, e->weight))
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (!hasWeightedEdge(graph, e->destination, v, e->weight))
         return false;
   return true;
 }
 
 bool isMultiGraph(const Graph *graph) {
-  assert(isValid(graph));
   bool multi = false;
   bool *seen = malloc(graph->size * sizeof(bool));
   for (unsigned v = 0; v < graph->size && !multi; v++) {
@@ -520,11 +519,13 @@ bool isStar(const Graph *graph) {
   if (graph->size < 2) return false;
   if (!isUndirected(graph)) return false;
   unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++) {
-    unsigned degree = outDegree(graph, v);
-    if (degree == graph->size - 1) count++; else if (degree != 1) return false;
-  }
-  if (graph->size == 2) return count == 2;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (outDegree(graph, v) == graph->size - 1)
+      count++;
+    else if (outDegree(graph, v) != 1)
+      return false;
+  if (graph->size == 2)
+    return count == 2;
   return count == 1;
 }
 
@@ -533,57 +534,44 @@ bool isWheel(const Graph *graph) {
   if (!isUndirected(graph)) return false;
   unsigned hub;
   unsigned hubCount = 0;
-  for (unsigned v = 0; v < graph->size; v++) {
-    unsigned degree = outDegree(graph, v);
-    if (degree == graph->size - 1) {
+  for (unsigned v = 0; v < graph->size; v++)
+    if (outDegree(graph, v) == graph->size - 1) {
       hub = v;
       hubCount++;
-    } else if (degree != 3) {
+    } else if (outDegree(graph, v) != 3) {
       return false;
     }
-  }
   if (graph->size == 4 && hubCount != 4) return false;
   if (graph->size > 4 && hubCount != 1) return false;
-  bool *visited = calloc(graph->size, sizeof(bool));
   unsigned visitedCount = 0;
+  unsigned previous = hub;
   unsigned current = hub;
   do {
-    visited[current] = true;
     visitedCount++;
     unsigned next = UINT_MAX;
-    for (Edge *edge = graph->edges[current]; edge != NULL; edge = edge->next)
-      if (!visited[edge->destination]) {
-        next = edge->destination;
+    for (Edge *e = graph->edges[current]; e != NULL; e = e->next)
+      if (e->destination != hub && e->destination != previous) {
+        next = e->destination;
         break;
       }
+    previous = current;
     current = next;
   } while (current != UINT_MAX);
-  free(visited);
   return visitedCount == graph->size;
 }
 
 bool hasIsolatedVertices(const Graph *graph) {
-  assert(isValid(graph));
-  bool *a = calloc(graph->size, sizeof(bool));
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      a[e->destination] = true;
-  bool b = false;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (graph->edges[v] == NULL && !a[v]) {
-      b = true;
-      break;
-    }
-  free(a);
-  return b;
+    if (isIsolated(graph, v))
+      return true;
+  return false;
 }
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
   visited[vertex] = 1;
-  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-    if (visited[edge->destination] == 1 ||
-      (visited[edge->destination] == 0 && isCyclicDirectedComponent(graph, edge->destination, visited)))
-        return true;
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    if (visited[e->destination] == 1 || (visited[e->destination] == 0 && isCyclicDirectedComponent(graph, e->destination, visited)))
+      return true;
   visited[vertex] = 2;
   return false;
 }
@@ -591,47 +579,49 @@ bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visite
 bool isCyclicDirected(const Graph *graph) {
   char *visited = calloc(graph->size, sizeof(char));
   bool cyclic = false;
-  for (unsigned vertex = 0; vertex < graph->size && !cyclic; vertex++)
-    cyclic = (visited[vertex] == 0 && isCyclicDirectedComponent(graph, vertex, visited));
+  for (unsigned v = 0; v < graph->size; v++)
+    if (visited[v] == 0 && isCyclicDirectedComponent(graph, v, visited)) {
+      cyclic = true;
+      break;
+    }
   free(visited);
   return cyclic;
 }
 
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
   visited[vertex] = true;
-  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-    if (visited[edge->destination]) {
-      if (edge->destination != parent)
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    if (visited[e->destination]) {
+      if (e->destination != parent)
         return true;
     } else {
-      if (isCyclicUndirectedComponent(graph, edge->destination, vertex, visited))
+      if (isCyclicUndirectedComponent(graph, e->destination, vertex, visited))
         return true;
     }
   return false;
 }
 
 bool isCyclicUndirected(const Graph *graph) {
-  assert(isValid(graph));
-  assert(isUndirected(graph));
   bool *visited = calloc(graph->size, sizeof(bool));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    if (!visited[vertex])
-      if (isCyclicUndirectedComponent(graph, vertex, graph->size, visited)) {
-        free(visited);
-        return true;
+  bool cyclic = false;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (!visited[v])
+      if (isCyclicUndirectedComponent(graph, v, graph->size, visited)) {
+        cyclic = true;
+        break;
       }
   free(visited);
-  return false;
+  return cyclic;
 }
 
 bool isKRegular(const Graph *graph, unsigned k) {
-  assert(isValid(graph));
-  for (unsigned v = 0; v < graph->size; v++) if (outDegree(graph, v) != k) return false;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (outDegree(graph, v) != k)
+      return false;
   return true;
 }
 
 bool hasConstantWeights(const Graph *graph, int weight) {
-  assert(isValid(graph));
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       if (e->weight != weight)
@@ -640,36 +630,26 @@ bool hasConstantWeights(const Graph *graph, int weight) {
 }
 
 bool isDense(const Graph *graph, double threshold) {
-  assert(isValid(graph));
-  assert(!isMultiGraph(graph));
-  assert(!hasSelfLoops(graph));
-  assert(threshold >= 0);
-  assert(threshold <= 1);
-  if (graph->size <= 1) return false;
-  return (double)countEdges(graph) / graph->size * (graph->size - 1) >= threshold;
+  return countEdges(graph) >= threshold * graph->size * (graph->size - 1);
 }
 
 bool isIsolated(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
 }
 
 bool isSource(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
   return inDegree(graph, vertex) == 0 && outDegree(graph, vertex) > 0;
 }
 
 bool isSink(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) > 0;
 }
 
+bool isUniversalSource(const Graph *graph, unsigned vertex) {
+  return inDegree(graph, vertex) == 0 && outDegree(graph, vertex) == graph->size - 1;
+}
+
 bool isUniversalSink(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
   return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == graph->size - 1;
 }
 
