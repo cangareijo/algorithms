@@ -68,7 +68,7 @@ bool isEmpty(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
-bool isBalancedDirected(const Graph *graph);
+bool isBalanced(const Graph *graph);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
 bool isConnectedUndirected(const Graph *graph);
@@ -411,31 +411,22 @@ bool isComplete(const Graph *graph) {
 }
 
 bool hasSelfLoops(const Graph *graph) {
-  assert(isValid(graph));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (hasSelfLoopsAtVertex(graph, vertex)) return true;
+  for (unsigned v = 0; v < graph->size; v++) if (hasSelfLoopsAtVertex(graph, v)) return true;
   return false;
 }
 
-bool isBalancedDirected(const Graph *graph) {
-  assert(isValid(graph));
-  unsigned *a = inDegrees(graph);
-  bool b = true;
-  for (unsigned v = 0; v < graph->size; v++) if (a[v] != outDegree(graph, v)) { b = false; break; }
-  free(a);
-  return b;
+bool isBalanced(const Graph *graph) {
+  for (unsigned v = 0; v < graph->size; v++) if (inDegree(graph, v) != outDegree(graph, v)) return false;
+  return true;
 }
 
 bool isEulerianUndirected(const Graph *graph) {
-  assert(isValid(graph));
-  if (graph->size < 2) return true;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (outDegree(graph, vertex) % 2 != 0) return false;
+  for (unsigned v = 0; v < graph->size; v++) if (outDegree(graph, v) % 2 != 0) return false;
   return isConnectedUndirected(graph);
 }
 
 bool isEulerianDirected(const Graph *graph) {
-  assert(isValid(graph));
-  if (graph->size < 2) return true;
-  return isBalancedDirected(graph) && isStronglyConnectedDirected(graph);
+  return isBalanced(graph) && isStronglyConnectedDirected(graph);
 }
 
 bool isConnectedUndirected(const Graph *graph) {
@@ -1360,14 +1351,13 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
 
 unsigned *outDegreeDistribution(const Graph *graph) {
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) distribution[outDegree(graph, vertex)]++;
+  for (unsigned v = 0; v < graph->size; v++) distribution[outDegree(graph, v)]++;
   return distribution;
 }
 
 unsigned *inDegreeDistribution(const Graph *graph) {
-  assert(isValid(graph));
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++) if (in[v] < graph->size) distribution[inDegree(graph, v)]++;
+  for (unsigned v = 0; v < graph->size; v++) distribution[inDegree(graph, v)]++;
   return distribution;
 }
 
