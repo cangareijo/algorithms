@@ -884,8 +884,8 @@ bool *graphPeriphery(const Graph *graph) {
 Graph *createGraph(unsigned size) {
   Graph *g = malloc(sizeof(Graph));
   g->size = size;
-  g->inDegree = 0;
-  g->outDegree = 0;
+  g->inDegree = calloc(size, sizeof(unsigned));
+  g->outDegree = calloc(size, sizeof(unsigned));
   g->edges = calloc(size, sizeof(Edge *));
   return g;
 }
