@@ -102,13 +102,14 @@ bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
 bool isVertexCover(const Graph *graph, const bool *subset);
+bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *graph, const unsigned *path, unsigned length);
+bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
+bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length);
 bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length);
-bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
-bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSubGraph(const Graph *sub, const Graph *main);
 
 bool *graphCenter(const Graph *graph);
@@ -739,71 +740,32 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
   return true;
 }
 
-bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
-  bool b = true;
-  for (unsigned i = 1; i < length; i++)
-    b = b && isAdjacent(graph, path[i - 1], path[i]);
-  return b;
-}
-
-bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  bool b = length >= 2 && path[0] == path[length - 1];
-  for (unsigned i = 1; i < length; i++)
-    b = b && isAdjacent(graph, path[i - 1], path[i]);
-  return b;
-}
-
-bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  bool b = length >= 4 && path[0] == path[length - 1];
-  bool *visited = calloc(graph->size, sizeof(bool));
-  for (unsigned i = 1; i < length; i++) {
-    b = b && isAdjacent(graph, path[i - 1], path[i]) && !visited[path[i]];
-    visited[path[i]] = true;
-  }
-  free(visited);
-  return b;
-}
-
-bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  bool b = length == graph->size + 1 && path[0] == path[length - 1];
-  bool *visited = calloc(graph->size, sizeof(bool));
-  for (unsigned i = 1; i < length; i++) {
-    b = b && isAdjacent(graph, path[i - 1], path[i]) && !visited[path[i]];
-    visited[path[i]] = true;
-  }
-  free(visited);
-  return b;
-}
-
-bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length) {
-  assert(isValid(graph));
-  assert(path != NULL);
-  bool b = true;
-  if (length != graph->size) b = false;
-  bool *visited = calloc(graph->size, sizeof(bool));
-  for (unsigned i = 0; i < length; i++) {
-    if (visited[path[i]]) b = false;
-    visited[path[i]] = true;
-  }
-  free(visited);
-  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) b = false;
-  return b;
-}
-
 bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length) {
-  assert(isValid(graph));
-  assert(sequence != NULL);
-  if (length == 0) return false;
-  for (unsigned i = 0; i < length; i++) if (sequence[i] >= graph->size) return false;
-  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, sequence[i - 1], sequence[i])) return false;
-  return true;
+  bool b = true;
+  for (unsigned i = 1; i < length && b; i++)
+    b = b && isAdjacent(graph, sequence[i - 1], sequence[i]);
+  return b;
+}
+
+bool isPath(const Graph *graph, const unsigned *sequence, unsigned length) {
+  bool b = isWalk(graph, sequence, length);
+  bool *visited = calloc(graph->size, sizeof(bool));
+  for (unsigned i = 0; i < length && b; i++) {
+    b = b && !visited[sequence[i]];
+    visited[sequence[i]] = true;
+  }
+  free(visited);
+  return b;
+}
+
+bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned length) {
+  return length == graph->size && isPath(graph, sequence, length);
 }
 
 bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
-  assert(isValid(graph));
-  assert(sequence != NULL);
+  bool b = isWalk(graph, sequence, length);
+
   if (!isWalk(graph, sequence, length)) return false;
-  if (length < 2) return true;
   unsigned count = countEdges(graph);
   FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
   bool *used = calloc(count, sizeof(bool));
@@ -826,6 +788,30 @@ bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
   free(used);
   return valid;
 }
+
+bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
+  bool b = length >= 2 && sequence[0] == sequence[length - 1];
+  for (unsigned i = 1; i < length && b; i++)
+    b = b && isAdjacent(graph, sequence[i - 1], sequence[i]);
+  return b;
+}
+
+bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
+  bool b = length >= 4 && isDirectedCycle(graph, sequence, length);
+  bool *visited = calloc(graph->size, sizeof(bool));
+  for (unsigned i = 1; i < length && b; i++) {
+    b = b && !visited[sequence[i]];
+    visited[sequence[i]] = true;
+  }
+  free(visited);
+  return b;
+}
+
+bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
+  return length == graph->size + 1 && isSimpleCycle(graph, sequence, length);
+}
+
+bool isCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {}
 
 bool isSubGraph(const Graph *sub, const Graph *main) {
   if (sub->size > main->size) return false;
