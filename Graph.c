@@ -452,10 +452,9 @@ bool isWeaklyConnectedDirected(const Graph *graph) {
 
 bool isStronglyConnectedDirected(const Graph *graph) {
   if (graph->size < 2) return true;
-  Graph *copy = copyGraph(graph);
-  transpose(copy);
-  bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(copy, 0);
-  destroyGraph(copy);
+  Graph *g = copyTranspose(graph);
+  bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(g, 0);
+  destroyGraph(g);
   return reachable;
 }
 
@@ -1060,8 +1059,8 @@ void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destina
       Edge *temporary = *e;
       *e = (*e)->next;
       free(temporary);
-      graph->outDegree[source]--;
       graph->inDegree[destination]--;
+      graph->outDegree[source]--;
     } else {
       e = &(*e)->next;
     }
