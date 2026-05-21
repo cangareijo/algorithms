@@ -654,29 +654,24 @@ bool isUniversalSink(const Graph *graph, unsigned vertex) {
 }
 
 bool isDirectedLeaf(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
   return outDegree(graph, vertex) + inDegree(graph, vertex) == 1;
 }
 
 bool isUndirectedLeaf(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(isUndirected(graph));
-  assert(vertex < graph->size);
   return outDegree(graph, vertex) == 1;
 }
 
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next) if (e->destination == vertex) return true;
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    if (e->destination == vertex)
+      return true;
   return false;
 }
 
 bool isAdjacent(const Graph *graph, unsigned u, unsigned v) {
-  assert(isValid(graph));
-  if (u >= graph->size || v >= graph->size) return false;
-  for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v) return true;
+  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+    if (e->destination == v)
+      return true;
   return false;
 }
 
@@ -690,16 +685,16 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target) {
   visited[start] = true;
   queue[tail++] = start;
   bool b = false;
-  while (head < tail) {
+  while (head < tail && !b) {
     unsigned u = queue[head++];
-    for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next) {
-      if (edge->destination == target) {
+    for (Edge *e = graph->edges[u]; e != NULL; e = e->next) {
+      if (e->destination == target) {
         b = true;
         break;
       }
-      if (!visited[edge->destination]) {
-        visited[edge->destination] = true;
-        queue[tail++] = edge->destination;
+      if (!visited[e->destination]) {
+        visited[e->destination] = true;
+        queue[tail++] = e->destination;
       }
     }
   }
@@ -709,8 +704,9 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target) {
 }
 
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
-  if (u >= graph->size || v >= graph->size) return false;
-  for (Edge *e = graph->edges[u]; e != NULL; e = e->next) if (e->destination == v && e->weight == weight) return true;
+  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+    if (e->destination == v && e->weight == weight)
+      return true;
   return false;
 }
 
@@ -737,22 +733,28 @@ bool isIndependentSet(const Graph *graph, const bool *subset) {
 bool isVertexCover(const Graph *graph, const bool *subset) {
   for (unsigned u = 0; u < graph->size; u++)
     if (!subset[u])
-      for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next)
-        if (!subset[edge->destination])
+      for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+        if (!subset[e->destination])
           return false;
   return true;
 }
 
 bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
-  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) return false;
+  for (unsigned i = 1; i < length; i++)
+    if (!isAdjacent(graph, path[i - 1], path[i]))
+      return false;
   return true;
 }
 
 bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  bool cycle = true;
-  if (length < 2 || path[0] != path[length - 1]) cycle = false;
-  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) cycle = false;
-  return cycle;
+  if (length < 2)
+    return false;
+  if (path[0] != path[length - 1])
+    return false;
+  for (unsigned i = 1; i < length; i++)
+    if (!isAdjacent(graph, path[i - 1], path[i]))
+      return false;
+  return true;
 }
 
 bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length) {
