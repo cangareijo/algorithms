@@ -120,6 +120,7 @@ Graph *createPathGraph(unsigned size);
 Graph *createCycleGraph(unsigned size);
 Graph *createCompleteGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
+Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
 Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
@@ -133,9 +134,6 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 
 void printGraph(const Graph *graph);
 void destroyGraph(Graph *graph);
-void removeSelfLoops(Graph *graph);
-void removeParallelEdges(Graph *graph);
-void transpose(Graph *graph);
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination);
 void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v);
 void mergeVertices(Graph *graph, unsigned u, unsigned v);
@@ -921,6 +919,14 @@ Graph *copyGraph(const Graph *graph) {
   return g;
 }
 
+Graph *copyTranspose(const Graph *graph) {
+  Graph *g = createGraph(graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      addEdgeToDirectedGraph(g, e->destination, v, e->weight);
+  return g;
+}
+
 Graph *copyUnweighted(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
@@ -983,19 +989,13 @@ Graph *removeVertex(const Graph *graph, unsigned vertex) {
 }
 
 Graph *copySubgraph(const Graph *graph, const bool *vertices) {
-  assert(isValid(graph));
-  assert(vertices != NULL);
-  Graph *subgraph = createGraph(graph->size);
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    if (vertices[vertex]) {
-      for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-        if (vertices[edge->destination]) {
-          addEdgeToDirectedGraph(subgraph, vertex, edge->destination, edge->weight);
-        }
-      }
-    }
-  }
-  return subgraph;
+  Graph *g = createGraph(graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
+    if (vertices[v])
+      for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+        if (vertices[e->destination])
+          addEdgeToDirectedGraph(g, v, e->destination, e->weight);
+  return g;
 }
 
 Graph *graphUnion(const Graph *g1, const Graph *g2) {
@@ -1011,108 +1011,60 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
 }
 
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
-  Graph *graph = createGraph(size);
-  for (unsigned i = 0; i < count; i++) addEdgeToDirectedGraph(graph, edges[i].u, edges[i].v, edges[i].weight);
-  return graph;
+  Graph *g = createGraph(size);
+  for (unsigned i = 0; i < count; i++)
+    addEdgeToDirectedGraph(g, edges[i].u, edges[i].v, edges[i].weight);
+  return g;
 }
 
 Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
-  Graph *graph = createGraph(size);
-  for (unsigned i = 0; i < count; i++) addEdgeToUndirectedGraph(graph, edges[i].u, edges[i].v, edges[i].weight);
-  return graph;
+  Graph *g = createGraph(size);
+  for (unsigned i = 0; i < count; i++)
+    addEdgeToUndirectedGraph(g, edges[i].u, edges[i].v, edges[i].weight);
+  return g;
 }
 
 
 
 void printGraph(const Graph *graph) {
-  unsigned i = 0;
   printf("{");
+  unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
-      if (i++ > 0) printf(", ");
+      if (i++ > 0)
+        printf(", ");
       printf("(%u, %u, %d)", v, e->destination, e->weight);
     }
   printf("}\n");
 }
 
 void destroyGraph(Graph *graph) {
-  for (unsigned i = 0; i < graph->size; i++) {
-    Edge *e = graph->edges[i];
-    while (e) {
+  for (unsigned v = 0; v < graph->size; v++) {
+    Edge *e = graph->edges[v];
+    while (e != NULL) {
       Edge *next = e->next;
       free(e);
       e = next;
     }
   }
+  free(graph->inDegree);
+  free(graph->outDegree);
   free(graph->edges);
   free(graph);
 }
 
-void removeSelfLoops(Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) {
-    Edge **current = &graph->edges[v];
-    while (*current != NULL)
-      if ((*current)->destination == v) {
-        Edge *duplicate = *current;
-        *current = (*current)->next;
-        free(duplicate);
-      } else {
-        current = &(*current)->next;
-      }
-  }
-}
-
-void removeParallelEdges(Graph *graph) {
-  int *minimum = malloc(graph->size * sizeof(int));
-  bool *seen = calloc(graph->size, sizeof(bool));
-  for (unsigned v = 0; v < graph->size; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
-      if (!seen[e->destination] || e->weight < minimum[e->destination]) minimum[e->destination] = e->weight;
-      seen[e->destination] = true;
-    }
-    Edge **e = &graph->edges[v];
-    while (*e != NULL) {
-      if (seen[(*e)->destination] && minimum[(*e)->destination] == (*e)->weight) {
-        seen[(*e)->destination] = false;
-        e = &(*e)->next;
-      } else {
-        Edge *parallel = *e;
-        *e = (*e)->next;
-        free(parallel);
-      }
-    }
-  }
-  free(minimum);
-  free(seen);
-}
-
-void transpose(Graph *graph) {
-  Edge **edges = calloc(graph->size, sizeof(Edge *));
-  for (unsigned v = 0; v < graph->size; v++) {
-    Edge *current = graph->edges[v];
-    while (current != NULL) {
-      unsigned destination = current->destination;
-      Edge *next = current->next;
-      current->destination = v;
-      current->next = edges[destination];
-      edges[destination] = current;
-      current = next;
-    }
-  }
-  free(graph->edges);
-  graph->edges = edges;
-}
-
 void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination) {
-  Edge *previous = NULL;
-  for (Edge *current = graph->edges[source]; current != NULL; current = current->next) {
-    if (current->destination == destination) {
-      if (previous == NULL) graph->edges[source] = current->next; else previous->next = current->next;
-      free(current);
-      return;
+  Edge **e = &graph->edges[source];
+  while (*e != NULL)
+    if ((*e)->destination == destination) {
+      Edge *temporary = *e;
+      *e = (*e)->next;
+      free(temporary);
+      graph->outDegree[source]--;
+      graph->inDegree[destination]--;
+    } else {
+      e = &(*e)->next;
     }
-    previous = current;
-  }
 }
 
 void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v) {
@@ -2591,4 +2543,63 @@ int main() {
   testFindBridges();
   printf("All tests passed!\n");
   return 0;
+}
+
+
+
+//
+
+void removeSelfLoops(Graph *graph) {
+  for (unsigned v = 0; v < graph->size; v++) {
+    Edge **current = &graph->edges[v];
+    while (*current != NULL)
+      if ((*current)->destination == v) {
+        Edge *duplicate = *current;
+        *current = (*current)->next;
+        free(duplicate);
+      } else {
+        current = &(*current)->next;
+      }
+  }
+}
+
+void removeParallelEdges(Graph *graph) {
+  int *minimum = malloc(graph->size * sizeof(int));
+  bool *seen = calloc(graph->size, sizeof(bool));
+  for (unsigned v = 0; v < graph->size; v++) {
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+      if (!seen[e->destination] || e->weight < minimum[e->destination]) minimum[e->destination] = e->weight;
+      seen[e->destination] = true;
+    }
+    Edge **e = &graph->edges[v];
+    while (*e != NULL) {
+      if (seen[(*e)->destination] && minimum[(*e)->destination] == (*e)->weight) {
+        seen[(*e)->destination] = false;
+        e = &(*e)->next;
+      } else {
+        Edge *parallel = *e;
+        *e = (*e)->next;
+        free(parallel);
+      }
+    }
+  }
+  free(minimum);
+  free(seen);
+}
+
+void transpose(Graph *graph) {
+  Edge **edges = calloc(graph->size, sizeof(Edge *));
+  for (unsigned v = 0; v < graph->size; v++) {
+    Edge *current = graph->edges[v];
+    while (current != NULL) {
+      unsigned destination = current->destination;
+      Edge *next = current->next;
+      current->destination = v;
+      current->next = edges[destination];
+      edges[destination] = current;
+      current = next;
+    }
+  }
+  free(graph->edges);
+  graph->edges = edges;
 }
