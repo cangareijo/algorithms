@@ -764,29 +764,23 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned le
 
 bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
   bool b = isWalk(graph, sequence, length);
-
-  if (!isWalk(graph, sequence, length)) return false;
   unsigned count = countEdges(graph);
   FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
   bool *used = calloc(count, sizeof(bool));
-  bool valid = true;
-  for (unsigned i = 1; i < length; i++) {
+  for (unsigned i = 1; i < length && b; i++) {
     unsigned index = UINT_MAX;
-    for (unsigned j = 0; j < count; j++)
+    for (unsigned j = 0; j < count && index == UINT_MAX; j++)
       if ((edges[j].u == sequence[i - 1] && edges[j].v == sequence[i]) || (edges[j].v == sequence[i - 1] && edges[j].u == sequence[i]))
-        if (!used[j]) {
+        if (!used[j])
           index = j;
-          break;
-        }
-    if (index == UINT_MAX) {
-      valid = false;
-      break;
-    }
-    used[index] = true;
+    if (index == UINT_MAX)
+      b = false;
+    else
+      used[index] = true;
   }
   free(edges);
   free(used);
-  return valid;
+  return b;
 }
 
 bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
@@ -811,29 +805,44 @@ bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned l
   return length == graph->size + 1 && isSimpleCycle(graph, sequence, length);
 }
 
-bool isCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {}
+bool isCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {
+  bool b = isDirectedCycle(graph, sequence, length);
+  unsigned count = countEdges(graph);
+  FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
+  bool *used = calloc(count, sizeof(bool));
+  for (unsigned i = 1; i < length && b; i++) {
+    unsigned index = UINT_MAX;
+    for (unsigned j = 0; j < count && index == UINT_MAX; j++)
+      if ((edges[j].u == sequence[i - 1] && edges[j].v == sequence[i]) || (edges[j].v == sequence[i - 1] && edges[j].u == sequence[i]))
+        if (!used[j])
+          index = j;
+    if (index == UINT_MAX)
+      b = false;
+    else
+      used[index] = true;
+  }
+  free(edges);
+  free(used);
+  return b;
+}
 
 bool isSubGraph(const Graph *sub, const Graph *main) {
-  if (sub->size > main->size) return false;
+  bool b = sub->size <= main->size;
   bool *edges = calloc(main->size, sizeof(bool));
   int *weights = malloc(main->size * sizeof(int));
-  bool match = true;
-  for (unsigned u = 0; u < sub->size; u++) {
-    for (Edge *e = main->edges[u]; e != NULL; e = e->next) {
+  for (unsigned v = 0; v < sub->size && b; v++) {
+    for (Edge *e = main->edges[v]; e != NULL; e = e->next) {
       edges[e->destination] = true;
       weights[e->destination] = e->weight;
     }
-    for (Edge *e = sub->edges[u]; e != NULL; e = e->next)
-      if (!edges[e->destination] || e->weight != weights[e->destination]) {
-        match = false;
-        break;
-      }
-    if (!match) break;
-    for (Edge *e = main->edges[u]; e != NULL; e = e->next) edges[e->destination] = false;
+    for (Edge *e = sub->edges[v]; e != NULL && b; e = e->next)
+      b = b && edges[e->destination] && e->weight == weights[e->destination];
+    for (Edge *e = main->edges[v]; e != NULL; e = e->next)
+      edges[e->destination] = false;
   }
   free(weights);
   free(edges);
-  return match;
+  return b;
 }
 
 
@@ -841,12 +850,15 @@ bool isSubGraph(const Graph *sub, const Graph *main) {
 bool *graphCenter(const Graph *graph) {
   int *eccentricity = malloc(graph->size * sizeof(int));
   int radius = INT_MAX;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    eccentricity[vertex] = graphEccentricity(graph, vertex);
-    if (eccentricity[vertex] < radius) radius = eccentricity[vertex];
+  for (unsigned v = 0; v < graph->size; v++) {
+    eccentricity[v] = graphEccentricity(graph, v);
+    if (eccentricity[v] < radius)
+      radius = eccentricity[v];
   }
   bool *center = calloc(graph->size, sizeof(bool));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (eccentricity[vertex] == radius) center[vertex] = true;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (eccentricity[v] == radius)
+      center[v] = true;
   free(eccentricity);
   return center;
 }
@@ -854,12 +866,15 @@ bool *graphCenter(const Graph *graph) {
 bool *graphPeriphery(const Graph *graph) {
   int *eccentricity = malloc(graph->size * sizeof(int));
   int diameter = INT_MIN;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    eccentricity[vertex] = graphEccentricity(graph, vertex);
-    if (eccentricity[vertex] > diameter) diameter = eccentricity[vertex];
+  for (unsigned v = 0; v < graph->size; v++) {
+    eccentricity[v] = graphEccentricity(graph, v);
+    if (eccentricity[v] > diameter)
+      diameter = eccentricity[v];
   }
   bool *periphery = calloc(graph->size, sizeof(bool));
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (eccentricity[vertex] == diameter) periphery[vertex] = true;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (eccentricity[v] == diameter)
+      periphery[v] = true;
   free(eccentricity);
   return periphery;
 }
@@ -867,63 +882,59 @@ bool *graphPeriphery(const Graph *graph) {
 
 
 Graph *createGraph(unsigned size) {
-  Graph *graph = malloc(sizeof(Graph));
-  graph->size = size;
-  graph->edges = calloc(size, sizeof(Edge *));
-  return graph;
+  Graph *g = malloc(sizeof(Graph));
+  g->size = size;
+  g->inDegree = 0;
+  g->outDegree = 0;
+  g->edges = calloc(size, sizeof(Edge *));
+  return g;
 }
 
 Graph *createPathGraph(unsigned size) {
-  assert(size >= 2);
   Graph *g = createGraph(size);
-  for (unsigned i = 1; i < size; i++) addEdgeToUndirectedGraph(g, i - 1, i, 1);
+  for (unsigned v = 1; v < size; v++)
+    addEdgeToUndirectedGraph(g, v - 1, v, 1);
   return g;
 }
 
 Graph *createCycleGraph(unsigned size) {
-  assert(size >= 3);
   Graph *g = createGraph(size);
-  for (unsigned i = 0; i < size; i++) addEdgeToUndirectedGraph(g, i, (i + 1) % size, 1);
+  for (unsigned v = 0; v < size; v++)
+    addEdgeToUndirectedGraph(g, v, (v + 1) % size, 1);
   return g;
 }
 
 Graph *createCompleteGraph(unsigned size) {
   Graph *g = createGraph(size);
-  for (unsigned u = 0; u < size; u++) for (unsigned v = 0; v < size; v++) if (u != v) addEdgeToDirectedGraph(g, u, v, 1);
+  for (unsigned u = 0; u < size; u++)
+    for (unsigned v = 0; v < size; v++)
+      if (u != v)
+        addEdgeToDirectedGraph(g, u, v, 1);
   return g;
 }
 
 Graph *copyGraph(const Graph *graph) {
-  assert(isValid(graph));
-  Graph *copy = createGraph(graph->size);
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-      addEdgeToDirectedGraph(copy, vertex, edge->destination, edge->weight);
-    }
-  }
-  return copy;
+  Graph *g = createGraph(graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      addEdgeToDirectedGraph(g, v, e->destination, e->weight);
+  return g;
 }
 
 Graph *copyUnweighted(const Graph *graph) {
-  assert(isValid(graph));
-  Graph *copy = createGraph(graph->size);
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-      addEdgeToDirectedGraph(copy, vertex, edge->destination, 1);
-    }
-  }
-  return copy;
+  Graph *g = createGraph(graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      addEdgeToDirectedGraph(g, v, e->destination, 1);
+  return g;
 }
 
 Graph *copyUndirected(const Graph *graph) {
-  assert(isValid(graph));
-  Graph *undirected = createGraph(graph->size);
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-      addEdgeToUndirectedGraph(undirected, vertex, edge->destination, edge->weight);
-    }
-  }
-  return undirected;
+  Graph *g = createGraph(graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      addEdgeToUndirectedGraph(g, v, e->destination, e->weight);
+  return g;
 }
 
 Graph *copyComplement(const Graph *graph) {
