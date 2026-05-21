@@ -740,47 +740,39 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
 }
 
 bool isPath(const Graph *graph, const unsigned *path, unsigned length) {
+  bool b = true;
   for (unsigned i = 1; i < length; i++)
-    if (!isAdjacent(graph, path[i - 1], path[i]))
-      return false;
-  return true;
+    b = b && isAdjacent(graph, path[i - 1], path[i]);
+  return b;
 }
 
 bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  if (length < 2)
-    return false;
-  if (path[0] != path[length - 1])
-    return false;
+  bool b = length >= 2 && path[0] == path[length - 1];
   for (unsigned i = 1; i < length; i++)
-    if (!isAdjacent(graph, path[i - 1], path[i]))
-      return false;
-  return true;
+    b = b && isAdjacent(graph, path[i - 1], path[i]);
+  return b;
 }
 
 bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  bool cycle = true;
-  if (length < 4 || path[0] != path[length - 1]) cycle = false;
+  bool b = length >= 4 && path[0] == path[length - 1];
   bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned i = 1; i < length; i++) {
-    if (visited[path[i]]) cycle = false;
+    b = b && isAdjacent(graph, path[i - 1], path[i]) && !visited[path[i]];
     visited[path[i]] = true;
   }
   free(visited);
-  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) cycle = false;
-  return cycle;
+  return b;
 }
 
 bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length) {
-  bool cycle = true;
-  if (length != graph->size + 1 || path[0] != path[length - 1]) cycle = false;
+  bool b = length == graph->size + 1 && path[0] == path[length - 1];
   bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned i = 1; i < length; i++) {
-    if (visited[path[i]]) cycle = false;
+    b = b && isAdjacent(graph, path[i - 1], path[i]) && !visited[path[i]];
     visited[path[i]] = true;
   }
   free(visited);
-  for (unsigned i = 1; i < length; i++) if (!isAdjacent(graph, path[i - 1], path[i])) cycle = false;
-  return cycle;
+  return b;
 }
 
 bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length) {
