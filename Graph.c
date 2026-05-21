@@ -950,41 +950,36 @@ Graph *copyComplement(const Graph *graph) {
 Graph *lineGraph(const Graph *graph) {
   unsigned count = countEdges(graph) / 2;
   FlatEdge *edges = getEdgeArrayFromUndirectedGraph(graph);
-  Graph *line = createGraph(count);
+  Graph *g = createGraph(count);
   for (unsigned i = 0; i < count; i++)
     for (unsigned j = i + 1; j < count; j++)
       if (edges[i].u == edges[j].u || edges[i].u == edges[j].v || edges[i].v == edges[j].u || edges[i].v == edges[j].v)
-        addEdgeToUndirectedGraph(line, i, j, 1);
+        addEdgeToUndirectedGraph(g, i, j, 1);
   free(edges);
-  return line;
+  return g;
 }
 
 Graph *underlyingGraph(const Graph *graph) {
-  assert(isValid(graph));
-  Graph *simple = createGraph(graph->size);
+  Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      if (v != e->destination && !isAdjacent(simple, v, e->destination))
-        addEdgeToUndirectedGraph(simple, v, e->destination, 1);
-  return simple;
+      if (v != e->destination && !isAdjacent(g, v, e->destination))
+        addEdgeToUndirectedGraph(g, v, e->destination, 1);
+  return g;
 }
 
 Graph *removeVertex(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
-  Graph *removed = createGraph(graph->size - 1);
-  assert(isValid(removed));
-  for (unsigned source = 0; source < graph->size; source++)
-    if (source != vertex) {
-      unsigned newSource = (source > vertex) ? source - 1 : source;
-      for (Edge *current = graph->edges[source]; current != NULL; current = current->next) {
-        if (current->destination != vertex) {
-          unsigned newDestination = (current->destination > vertex) ? current->destination - 1 : current->destination;
-          addEdgeToDirectedGraph(removed, newSource, newDestination, current->weight);
+  Graph *g = createGraph(graph->size - 1);
+  for (unsigned u = 0; u < graph->size; u++)
+    if (u != vertex) {
+      unsigned v = (u > vertex) ? u - 1 : u;
+      for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+        if (e->destination != vertex) {
+          unsigned w = (e->destination > vertex) ? e->destination - 1 : e->destination;
+          addEdgeToDirectedGraph(g, v, w, e->weight);
         }
-      }
     }
-  return removed;
+  return g;
 }
 
 Graph *copySubgraph(const Graph *graph, const bool *vertices) {
