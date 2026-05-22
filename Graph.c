@@ -1280,11 +1280,10 @@ unsigned *outDegrees(const Graph *graph) {
 }
 
 unsigned *getNeighbors(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
   unsigned *neighbors = malloc((outDegree(graph, vertex) + 1) * sizeof(unsigned));
   unsigned i = 0;
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next) neighbors[i++] = e->destination;
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    neighbors[i++] = e->destination;
   neighbors[i] = UINT_MAX;
   return neighbors;
 }
@@ -1292,30 +1291,29 @@ unsigned *getNeighbors(const Graph *graph, unsigned vertex) {
 
 
 int sumWeights(const Graph *graph) {
-  assert(isValid(graph));
   int weight = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
-      weight += edge->weight;
-    }
-  }
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      weight += e->weight;
   return weight;
 }
 
 int graphRadius(const Graph *graph) {
   int radius = INT_MAX;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    int eccentricity = graphEccentricity(graph, vertex);
-    if (eccentricity < radius) radius = eccentricity;
+  for (unsigned v = 0; v < graph->size; v++) {
+    int eccentricity = graphEccentricity(graph, v);
+    if (eccentricity < radius)
+      radius = eccentricity;
   }
   return radius;
 }
 
 int graphDiameter(const Graph *graph) {
   int diameter = INT_MIN;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    int eccentricity = graphEccentricity(graph, vertex);
-    if (eccentricity > diameter) diameter = eccentricity;
+  for (unsigned v = 0; v < graph->size; v++) {
+    int eccentricity = graphEccentricity(graph, v);
+    if (eccentricity > diameter)
+      diameter = eccentricity;
   }
   return diameter;
 }
@@ -1323,19 +1321,24 @@ int graphDiameter(const Graph *graph) {
 int graphEccentricity(const Graph *graph, unsigned vertex) {
   int *distance = weightedDijkstra(graph, vertex);
   int eccentricity = INT_MIN;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) if (distance[vertex] > eccentricity) eccentricity = distance[vertex];
+  for (unsigned v = 0; v < graph->size; v++)
+    if (distance[v] > eccentricity)
+      eccentricity = distance[v];
   free(distance);
   return eccentricity;
 }
 
 int edgeWeight(const Graph *graph, unsigned u, unsigned v) {
-  for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next) if (edge->destination == v) return edge->weight;
+  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+    if (e->destination == v)
+      return e->weight;
   return -1; 
 }
 
 int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
   int weight = 0;
-  for (unsigned i = 1; i < length; i++) weight += edgeWeight(graph, path[i - 1], path[i]);
+  for (unsigned i = 1; i < length; i++)
+    weight += edgeWeight(graph, path[i - 1], path[i]);
   return weight;
 }
 
@@ -1344,7 +1347,7 @@ int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
 int **toMatrix(const Graph *graph) {
   int **matrix = malloc(graph->size * sizeof(int *));
   for (unsigned v = 0; v < graph->size; v++)
-    matrix[v] = malloc(graph->size * sizeof(int));
+    matrix[v] = calloc(graph->size, sizeof(int));
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       matrix[v][e->destination] = e->weight;
@@ -1354,42 +1357,38 @@ int **toMatrix(const Graph *graph) {
 
 
 double density(const Graph *graph) {
-  assert(isValid(graph));
-  if (graph->size < 2) return 0;
+  if (graph->size < 2)
+    return 0;
   return (double)countEdges(graph) / (graph->size * (graph->size - 1));
 }
 
 double averageClusteringCoefficient(const Graph *graph) {
-  assert(isValid(graph));
-  if (graph->size == 0) return 0;
+  if (graph->size == 0)
+    return 0;
   double total = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) total += localClusteringCoefficient(graph, vertex);
+  for (unsigned v = 0; v < graph->size; v++)
+    total += localClusteringCoefficient(graph, v);
   return total / graph->size;
 }
 
 double normalizedDegree(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
-  if (graph->size < 2) return 0;
+  if (graph->size < 2)
+    return 0;
   return (double)outDegree(graph, vertex) / (graph->size - 1);
 }
 
 double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
-  unsigned k = outDegree(graph, vertex);
-  if (k < 2) return 0;
+  if (outDegree(graph, vertex) < 2)
+    return 0;
   unsigned edgesBetweenNeighbours = 0;
   for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
     for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
       if (isAdjacent(graph, d->destination, e->destination))
         edgesBetweenNeighbours++;
-  return (double)edgesBetweenNeighbours / (k * (k - 1));
+  return (double)edgesBetweenNeighbours / (outDegree(graph, vertex) * (outDegree(graph, vertex) - 1));
 }
 
 double subgraphDensity(const Graph *graph, const bool *subset) {
-  assert(isValid(graph));
-  assert(subset != NULL);
   unsigned vertices = 0;
   unsigned edges = 0;
   for (unsigned v = 0; v < graph->size; v++)
@@ -1399,7 +1398,8 @@ double subgraphDensity(const Graph *graph, const bool *subset) {
         if (subset[e->destination])
           edges++;
     }
-  if (vertices <= 1) return 0;
+  if (vertices < 2)
+    return 0;
   return (double)edges / (vertices * (vertices - 1));
 }
 
@@ -1409,7 +1409,7 @@ FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph) {
   FlatEdge *edges = malloc(countEdges(graph) * sizeof(FlatEdge));
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next) {
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
       edges[i].u = v;
       edges[i].v = e->destination;
       edges[i].weight = e->weight;
@@ -1422,7 +1422,7 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
   FlatEdge *edges = malloc(countEdges(graph) / 2 * sizeof(FlatEdge));
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       if (v < e->destination) {
         edges[i].u = v;
         edges[i].v = e->destination;
@@ -1439,11 +1439,8 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   assert(vertex < graph->size);
   unsigned *distances = unweightedDijkstra(graph, vertex);
   bool b = true;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (distances[v] == UINT_MAX) {
-      b = false;
-      break;
-    }
+  for (unsigned v = 0; v < graph->size && b; v++)
+    b = b && distances[v] != UINT_MAX;
   free(distances);
   return b;
 }
