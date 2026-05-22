@@ -127,6 +127,7 @@ Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
 Graph *underlyingGraph(const Graph *graph);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
+Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
@@ -134,11 +135,10 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 
 void printGraph(const Graph *graph);
 void destroyGraph(Graph *graph);
-void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination);
-void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v);
-void mergeVertices(Graph *graph, unsigned u, unsigned v);
-void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight);
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight);
+void removeDirectedEdge(Graph *graph, unsigned source, unsigned destination);
+void removeUndirectedEdge(Graph *graph, unsigned u, unsigned v);
+void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, int weight);
+void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, int weight);
 
 unsigned countEdges(const Graph *graph);
 unsigned countSelfLoops(const Graph *graph);
@@ -890,14 +890,14 @@ Graph *createGraph(unsigned size) {
 Graph *createPathGraph(unsigned size) {
   Graph *g = createGraph(size);
   for (unsigned v = 1; v < size; v++)
-    addEdgeToUndirectedGraph(g, v - 1, v, 1);
+    addUndirectedEdge(g, v - 1, v, 1);
   return g;
 }
 
 Graph *createCycleGraph(unsigned size) {
   Graph *g = createGraph(size);
   for (unsigned v = 0; v < size; v++)
-    addEdgeToUndirectedGraph(g, v, (v + 1) % size, 1);
+    addUndirectedEdge(g, v, (v + 1) % size, 1);
   return g;
 }
 
@@ -906,7 +906,7 @@ Graph *createCompleteGraph(unsigned size) {
   for (unsigned u = 0; u < size; u++)
     for (unsigned v = 0; v < size; v++)
       if (u != v)
-        addEdgeToDirectedGraph(g, u, v, 1);
+        addDirectedEdge(g, u, v, 1);
   return g;
 }
 
@@ -914,7 +914,7 @@ Graph *copyGraph(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      addEdgeToDirectedGraph(g, v, e->destination, e->weight);
+      addDirectedEdge(g, v, e->destination, e->weight);
   return g;
 }
 
@@ -922,7 +922,7 @@ Graph *copyTranspose(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      addEdgeToDirectedGraph(g, e->destination, v, e->weight);
+      addDirectedEdge(g, e->destination, v, e->weight);
   return g;
 }
 
@@ -930,7 +930,7 @@ Graph *copyUnweighted(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      addEdgeToDirectedGraph(g, v, e->destination, 1);
+      addDirectedEdge(g, v, e->destination, 1);
   return g;
 }
 
@@ -938,7 +938,7 @@ Graph *copyUndirected(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      addEdgeToUndirectedGraph(g, v, e->destination, e->weight);
+      addUndirectedEdge(g, v, e->destination, e->weight);
   return g;
 }
 
@@ -946,9 +946,8 @@ Graph *copyComplement(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned u = 0; u < graph->size; u++)
     for (unsigned v = 0; v < graph->size; v++)
-      if (u != v)
-        if (!isAdjacent(graph, u, v))
-          addEdgeToDirectedGraph(g, u, v, 1);
+      if (u != v && !isAdjacent(graph, u, v))
+        addDirectedEdge(g, u, v, 1);
   return g;
 }
 
@@ -959,17 +958,24 @@ Graph *lineGraph(const Graph *graph) {
   for (unsigned i = 0; i < count; i++)
     for (unsigned j = i + 1; j < count; j++)
       if (edges[i].u == edges[j].u || edges[i].u == edges[j].v || edges[i].v == edges[j].u || edges[i].v == edges[j].v)
-        addEdgeToUndirectedGraph(g, i, j, 1);
+        addUndirectedEdge(g, i, j, 1);
   free(edges);
   return g;
 }
 
 Graph *underlyingGraph(const Graph *graph) {
+  bool *seen = calloc(graph->size, sizeof(bool));
   Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++)
+  for (unsigned v = 0; v < graph->size; v++) {
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      if (v != e->destination && !isAdjacent(g, v, e->destination))
-        addEdgeToUndirectedGraph(g, v, e->destination, 1);
+      if (v != e->destination && !seen[e->destination]) {
+        addUndirectedEdge(g, v, e->destination, 1);
+        seen[e->destination] = true;
+      }
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      seen[e->destination] = false;
+  }
+  free(seen);
   return g;
 }
 
@@ -981,9 +987,21 @@ Graph *removeVertex(const Graph *graph, unsigned vertex) {
       for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
         if (e->destination != vertex) {
           unsigned w = (e->destination > vertex) ? e->destination - 1 : e->destination;
-          addEdgeToDirectedGraph(g, v, w, e->weight);
+          addDirectedEdge(g, v, w, e->weight);
         }
     }
+  return g;
+}
+
+Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v) {
+  Graph *g = createGraph(graph->size);
+  for (unsigned x = 0; x < graph->size; x++) {
+    unsigned y = x > v ? x - 1 : x == v ? u : x;
+    for (Edge *e = graph->edges[x]; e != NULL; e = e->next) {
+      unsigned z = e->destination > v ? e->destination - 1 : e->destination == v ? u : e->destination;
+      addDirectedEdge(g, y, z, e->weight);
+    }
+  }
   return g;
 }
 
@@ -993,7 +1011,7 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices) {
     if (vertices[v])
       for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
         if (vertices[e->destination])
-          addEdgeToDirectedGraph(g, v, e->destination, e->weight);
+          addDirectedEdge(g, v, e->destination, e->weight);
   return g;
 }
 
@@ -1001,25 +1019,25 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
   Graph *g3 = createGraph(maximumUnsigned(g1->size, g2->size));
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
-      addEdgeToDirectedGraph(g3, v, e->destination, e->weight);
+      addDirectedEdge(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
       if (!isAdjacent(g3, v, e->destination))
-        addEdgeToDirectedGraph(g3, v, e->destination, e->weight);
+        addDirectedEdge(g3, v, e->destination, e->weight);
   return g3;
 }
 
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
   Graph *g = createGraph(size);
   for (unsigned i = 0; i < count; i++)
-    addEdgeToDirectedGraph(g, edges[i].u, edges[i].v, edges[i].weight);
+    addDirectedEdge(g, edges[i].u, edges[i].v, edges[i].weight);
   return g;
 }
 
 Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
   Graph *g = createGraph(size);
   for (unsigned i = 0; i < count; i++)
-    addEdgeToUndirectedGraph(g, edges[i].u, edges[i].v, edges[i].weight);
+    addUndirectedEdge(g, edges[i].u, edges[i].v, edges[i].weight);
   return g;
 }
 
@@ -1052,7 +1070,7 @@ void destroyGraph(Graph *graph) {
   free(graph);
 }
 
-void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destination) {
+void removeDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
   Edge **e = &graph->edges[source];
   while (*e != NULL)
     if ((*e)->destination == destination) {
@@ -1066,45 +1084,24 @@ void removeEdgeFromDirectedGraph(Graph *graph, unsigned source, unsigned destina
     }
 }
 
-void removeEdgeFromUndirectedGraph(Graph *graph, unsigned u, unsigned v) {
-  removeEdgeFromDirectedGraph(graph, u, v);
-  removeEdgeFromDirectedGraph(graph, v, u);
+void removeUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
+  removeDirectedEdge(graph, u, v);
+  removeDirectedEdge(graph, v, u);
 }
 
-void mergeVertices(Graph *graph, unsigned u, unsigned v) {
-  assert(u < graph->size);
-  assert(v < graph->size);
-  assert(u != v);
-  for (unsigned w = 0; w < graph->size; w++)
-    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
-      if (e->destination == v)
-        e->destination = u;
-  for (unsigned w = 0; w < graph->size; w++)
-    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
-      if (e->destination > v)
-        e->destination = e->destination - 1;
-  while (graph->edges[v] != NULL) {
-    Edge *e = graph->edges[v];
-    graph->edges[v] = e->next;
-    e->next = graph->edges[u];
-    graph->edges[u] = e;
-  }
-  for (unsigned w = v + 1; w < graph->size; w++)
-    graph->edges[w - 1] = graph->edges[w];
-  graph->size--;
+void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, int weight) {
+  Edge *e = malloc(sizeof(Edge));
+  e->destination = destination;
+  e->weight = weight;
+  e->next = graph->edges[source];
+  graph->edges[source] = e;
+  graph->inDegree[destination]++;
+  graph->outDegree[source]++;
 }
 
-void addEdgeToDirectedGraph(Graph *graph, unsigned source, unsigned destination, int weight) {
-  Edge *edge = malloc(sizeof(Edge));
-  edge->destination = destination;
-  edge->weight = weight;
-  edge->next = graph->edges[source];
-  graph->edges[source] = edge;
-}
-
-void addEdgeToUndirectedGraph(Graph *graph, unsigned u, unsigned v, int weight) {
-  addEdgeToDirectedGraph(graph, u, v, weight);
-  addEdgeToDirectedGraph(graph, v, u, weight);
+void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, int weight) {
+  addDirectedEdge(graph, u, v, weight);
+  addDirectedEdge(graph, v, u, weight);
 }
 
 
@@ -1673,7 +1670,7 @@ Graph *prim(const Graph *graph, unsigned source) {
     if (visited[vertex]) continue;
     visited[vertex] = true;
     if (parents[vertex] != UINT_MAX)
-      addEdgeToUndirectedGraph(tree, parents[vertex], vertex, weights[vertex]);
+      addUndirectedEdge(tree, parents[vertex], vertex, weights[vertex]);
     for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
       if (!visited[edge->destination] && edge->weight < weights[edge->destination]) {
         parents[edge->destination] = vertex;
@@ -1694,7 +1691,7 @@ Graph *kruskal(const Graph *graph) {
   for (unsigned i = 0; i < count; i++)
     if (findDsu(dsu, edges[i].u) != findDsu(dsu, edges[i].v)) {
       unionDsu(dsu, edges[i].u, edges[i].v);
-      addEdgeToUndirectedGraph(mst, edges[i].u, edges[i].v, edges[i].weight);
+      addUndirectedEdge(mst, edges[i].u, edges[i].v, edges[i].weight);
     }
   free(edges);
   freeDsu(dsu);
@@ -1809,31 +1806,31 @@ unsigned **findBridges(const Graph *graph) {
 
 void testIsDirectedCyclicGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToDirectedGraph(g1, 0, 1, 1);
-  addEdgeToDirectedGraph(g1, 1, 2, 1);
-  addEdgeToDirectedGraph(g1, 2, 0, 1);
+  addDirectedEdge(g1, 0, 1, 1);
+  addDirectedEdge(g1, 1, 2, 1);
+  addDirectedEdge(g1, 2, 0, 1);
   assert(isCyclicDirected(g1) == true);
   printf("Directed cyclic test 1 passed: Simple cycle found.\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToDirectedGraph(g2, 0, 1, 1);
-  addEdgeToDirectedGraph(g2, 1, 2, 1);
-  addEdgeToDirectedGraph(g2, 0, 2, 1);
+  addDirectedEdge(g2, 0, 1, 1);
+  addDirectedEdge(g2, 1, 2, 1);
+  addDirectedEdge(g2, 0, 2, 1);
   assert(isCyclicDirected(g2) == false);
   printf("Directed cyclic test 2 passed: DAG correctly identified as acyclic.\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(1);
-  addEdgeToDirectedGraph(g3, 0, 0, 1);
+  addDirectedEdge(g3, 0, 0, 1);
   assert(isCyclicDirected(g3) == true);
   printf("Directed cyclic test 3 passed: Self-loop detected.\n");
   destroyGraph(g3);
 
   Graph *g4 = createGraph(4);
-  addEdgeToDirectedGraph(g4, 0, 1, 1);
-  addEdgeToDirectedGraph(g4, 2, 3, 1);
-  addEdgeToDirectedGraph(g4, 3, 2, 1);
+  addDirectedEdge(g4, 0, 1, 1);
+  addDirectedEdge(g4, 2, 3, 1);
+  addDirectedEdge(g4, 3, 2, 1);
   assert(isCyclicDirected(g4) == true);
   printf("Directed cyclic test 4 passed: Cycle in disconnected component found.\n");
   destroyGraph(g4);
@@ -1846,8 +1843,8 @@ void testIsDirectedCyclicGraph() {
 
 void testIsUndirectedCyclicGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToUndirectedGraph(g1, 0, 1, 1);
-  addEdgeToUndirectedGraph(g1, 1, 2, 1);
+  addUndirectedEdge(g1, 0, 1, 1);
+  addUndirectedEdge(g1, 1, 2, 1);
   if (!isCyclicUndirected(g1))
     printf("Undirected Test 1 passed: Tree is acyclic.\n");
   else
@@ -1855,9 +1852,9 @@ void testIsUndirectedCyclicGraph() {
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToUndirectedGraph(g2, 0, 1, 1);
-  addEdgeToUndirectedGraph(g2, 1, 2, 1);
-  addEdgeToUndirectedGraph(g2, 2, 0, 1);
+  addUndirectedEdge(g2, 0, 1, 1);
+  addUndirectedEdge(g2, 1, 2, 1);
+  addUndirectedEdge(g2, 2, 0, 1);
   if (isCyclicUndirected(g2))
     printf("Undirected Test 2 passed: Triangle cycle detected.\n");
   else
@@ -1865,10 +1862,10 @@ void testIsUndirectedCyclicGraph() {
   destroyGraph(g2);
 
   Graph *g3 = createGraph(5);
-  addEdgeToUndirectedGraph(g3, 0, 1, 1);
-  addEdgeToUndirectedGraph(g3, 2, 3, 1);
-  addEdgeToUndirectedGraph(g3, 3, 4, 1);
-  addEdgeToUndirectedGraph(g3, 4, 2, 1);
+  addUndirectedEdge(g3, 0, 1, 1);
+  addUndirectedEdge(g3, 2, 3, 1);
+  addUndirectedEdge(g3, 3, 4, 1);
+  addUndirectedEdge(g3, 4, 2, 1);
   if (isCyclicUndirected(g3))
     printf("Undirected Test 3 passed: Cycle in disconnected component detected.\n");
   else
@@ -1876,7 +1873,7 @@ void testIsUndirectedCyclicGraph() {
   destroyGraph(g3);
 
   Graph *g4 = createGraph(2);
-  addEdgeToUndirectedGraph(g4, 0, 1, 1);
+  addUndirectedEdge(g4, 0, 1, 1);
   if (!isCyclicUndirected(g4))
     printf("Undirected Test 4 passed: Simple edge is acyclic.\n");
   else
@@ -1891,32 +1888,32 @@ void testIsConnectedUndirected() {
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToUndirectedGraph(g2, 0, 1, 1);
-  addEdgeToUndirectedGraph(g2, 1, 2, 1);
+  addUndirectedEdge(g2, 0, 1, 1);
+  addUndirectedEdge(g2, 1, 2, 1);
   assert(isConnectedUndirected(g2) == true);
   printf("Undirected connected test 2 passed: Simple line graph\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(4);
-  addEdgeToUndirectedGraph(g3, 0, 1, 1);
-  addEdgeToUndirectedGraph(g3, 2, 3, 1);
+  addUndirectedEdge(g3, 0, 1, 1);
+  addUndirectedEdge(g3, 2, 3, 1);
   assert(isConnectedUndirected(g3) == false);
   printf("Undirected connected test 3 passed: Disconnected components\n");
   destroyGraph(g3);
 
   Graph *g4 = createGraph(3);
-  addEdgeToUndirectedGraph(g4, 0, 1, 1);
+  addUndirectedEdge(g4, 0, 1, 1);
   assert(isConnectedUndirected(g4) == false);
   printf("Undirected connected test 4 passed: Isolated vertex\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(4);
-  addEdgeToUndirectedGraph(g5, 0, 1, 1);
-  addEdgeToUndirectedGraph(g5, 0, 2, 1);
-  addEdgeToUndirectedGraph(g5, 0, 3, 1);
-  addEdgeToUndirectedGraph(g5, 1, 2, 1);
-  addEdgeToUndirectedGraph(g5, 1, 3, 1);
-  addEdgeToUndirectedGraph(g5, 2, 3, 1);
+  addUndirectedEdge(g5, 0, 1, 1);
+  addUndirectedEdge(g5, 0, 2, 1);
+  addUndirectedEdge(g5, 0, 3, 1);
+  addUndirectedEdge(g5, 1, 2, 1);
+  addUndirectedEdge(g5, 1, 3, 1);
+  addUndirectedEdge(g5, 2, 3, 1);
   assert(isConnectedUndirected(g5) == true);
   printf("Undirected connected test 5 passed: Complete graph\n");
   destroyGraph(g5);
@@ -1924,36 +1921,36 @@ void testIsConnectedUndirected() {
 
 void testIsWeaklyConnectedDirected() {
   Graph *g1 = createGraph(3);
-  addEdgeToDirectedGraph(g1, 0, 1, 1);
-  addEdgeToDirectedGraph(g1, 1, 2, 1);
+  addDirectedEdge(g1, 0, 1, 1);
+  addDirectedEdge(g1, 1, 2, 1);
   assert(isWeaklyConnectedDirected(g1) == true);
   printf("Weakly Test 1 passed: Simple chain\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToDirectedGraph(g2, 0, 1, 1);
-  addEdgeToDirectedGraph(g2, 2, 1, 1);
+  addDirectedEdge(g2, 0, 1, 1);
+  addDirectedEdge(g2, 2, 1, 1);
   assert(isWeaklyConnectedDirected(g2) == true);
   printf("Weakly Test 2 passed: Source/Sink structure\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(4);
-  addEdgeToDirectedGraph(g3, 0, 1, 1);
-  addEdgeToDirectedGraph(g3, 2, 3, 1);
+  addDirectedEdge(g3, 0, 1, 1);
+  addDirectedEdge(g3, 2, 3, 1);
   assert(isWeaklyConnectedDirected(g3) == false);
   printf("Weakly Test 3 passed: Truly disconnected components\n");
   destroyGraph(g3);
 
   Graph *g4 = createGraph(4);
-  addEdgeToDirectedGraph(g4, 0, 1, 1);
-  addEdgeToDirectedGraph(g4, 0, 2, 1);
-  addEdgeToDirectedGraph(g4, 0, 3, 1);
+  addDirectedEdge(g4, 0, 1, 1);
+  addDirectedEdge(g4, 0, 2, 1);
+  addDirectedEdge(g4, 0, 3, 1);
   assert(isWeaklyConnectedDirected(g4) == true);
   printf("Weakly Test 4 passed: Star pattern\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(2);
-  addEdgeToDirectedGraph(g5, 0, 0, 1);
+  addDirectedEdge(g5, 0, 0, 1);
   assert(isWeaklyConnectedDirected(g5) == false);
   printf("Weakly Test 5 passed: Isolated vertex with self-loop\n");
   destroyGraph(g5);
@@ -1961,34 +1958,34 @@ void testIsWeaklyConnectedDirected() {
 
 void testIsStronglyConnectedDirected() {
   Graph *g1 = createGraph(3);
-  addEdgeToDirectedGraph(g1, 0, 1, 1);
-  addEdgeToDirectedGraph(g1, 1, 2, 1);
-  addEdgeToDirectedGraph(g1, 2, 0, 1);
+  addDirectedEdge(g1, 0, 1, 1);
+  addDirectedEdge(g1, 1, 2, 1);
+  addDirectedEdge(g1, 2, 0, 1);
   assert(isStronglyConnectedDirected(g1) == true);
   printf("Strongly Test 1 passed: Simple cycle\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToDirectedGraph(g2, 0, 1, 1);
-  addEdgeToDirectedGraph(g2, 1, 2, 1);
+  addDirectedEdge(g2, 0, 1, 1);
+  addDirectedEdge(g2, 1, 2, 1);
   assert(isStronglyConnectedDirected(g2) == false);
   printf("Strongly Test 2 passed: Linear chain (not strong)\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(4);
-  addEdgeToDirectedGraph(g3, 0, 1, 1);
-  addEdgeToDirectedGraph(g3, 1, 0, 1);
-  addEdgeToDirectedGraph(g3, 2, 3, 1);
-  addEdgeToDirectedGraph(g3, 3, 2, 1);
+  addDirectedEdge(g3, 0, 1, 1);
+  addDirectedEdge(g3, 1, 0, 1);
+  addDirectedEdge(g3, 2, 3, 1);
+  addDirectedEdge(g3, 3, 2, 1);
   assert(isStronglyConnectedDirected(g3) == false);
   printf("Strongly Test 3 passed: Disconnected cycles\n");
   destroyGraph(g3);
 
   Graph *g4 = createGraph(3);
-  addEdgeToDirectedGraph(g4, 0, 1, 1);
-  addEdgeToDirectedGraph(g4, 1, 0, 1);
-  addEdgeToDirectedGraph(g4, 1, 2, 1);
-  addEdgeToDirectedGraph(g4, 2, 1, 1);
+  addDirectedEdge(g4, 0, 1, 1);
+  addDirectedEdge(g4, 1, 0, 1);
+  addDirectedEdge(g4, 1, 2, 1);
+  addDirectedEdge(g4, 2, 1, 1);
   assert(isStronglyConnectedDirected(g4) == true);
   printf("Strongly Test 4 passed: Bidirectional chain\n");
   destroyGraph(g4);
@@ -2001,8 +1998,8 @@ void testIsStronglyConnectedDirected() {
 
 void testDepthFirstSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToDirectedGraph(g1, 0, 1, 1);
-  addEdgeToDirectedGraph(g1, 1, 2, 1);
+  addDirectedEdge(g1, 0, 1, 1);
+  addDirectedEdge(g1, 1, 2, 1);
   unsigned *order1 = depthFirstSortOfGraph(g1, 0);
   assert(order1[0] == 0);
   assert(order1[1] == 1);
@@ -2012,8 +2009,8 @@ void testDepthFirstSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToDirectedGraph(g2, 0, 2, 1);
-  addEdgeToDirectedGraph(g2, 0, 1, 1);
+  addDirectedEdge(g2, 0, 2, 1);
+  addDirectedEdge(g2, 0, 1, 1);
   unsigned *order2 = depthFirstSortOfGraph(g2, 0);
   assert(order2[0] == 0);
   assert(order2[1] == 1);
@@ -2023,7 +2020,7 @@ void testDepthFirstSortOfGraph() {
   free(order2);
 
   Graph *g3 = createGraph(3);
-  addEdgeToDirectedGraph(g3, 0, 1, 1);
+  addDirectedEdge(g3, 0, 1, 1);
   unsigned *order3 = depthFirstSortOfGraph(g3, 0);
   assert(order3[0] == 0);
   assert(order3[1] == 1);
@@ -2033,8 +2030,8 @@ void testDepthFirstSortOfGraph() {
   free(order3);
 
   Graph *g4 = createGraph(2);
-  addEdgeToDirectedGraph(g4, 0, 1, 1);
-  addEdgeToDirectedGraph(g4, 1, 0, 1);
+  addDirectedEdge(g4, 0, 1, 1);
+  addDirectedEdge(g4, 1, 0, 1);
   unsigned *order4 = depthFirstSortOfGraph(g4, 0);
   assert(order4[0] == 0);
   assert(order4[1] == 1);
@@ -2045,8 +2042,8 @@ void testDepthFirstSortOfGraph() {
 
 void testBreadthFirstSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToDirectedGraph(g1, 0, 1, 1);
-  addEdgeToDirectedGraph(g1, 1, 2, 1);
+  addDirectedEdge(g1, 0, 1, 1);
+  addDirectedEdge(g1, 1, 2, 1);
   unsigned *order1 = breadthFirstSortOfGraph(g1, 0);
   assert(order1[0] == 0);
   assert(order1[1] == 1);
@@ -2056,8 +2053,8 @@ void testBreadthFirstSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToDirectedGraph(g2, 0, 2, 1);
-  addEdgeToDirectedGraph(g2, 0, 1, 1);
+  addDirectedEdge(g2, 0, 2, 1);
+  addDirectedEdge(g2, 0, 1, 1);
   unsigned *order2 = breadthFirstSortOfGraph(g2, 0);
   assert(order2[0] == 0);
   assert(order2[1] == 1);
@@ -2067,7 +2064,7 @@ void testBreadthFirstSortOfGraph() {
   free(order2);
 
   Graph *g3 = createGraph(3);
-  addEdgeToDirectedGraph(g3, 0, 1, 1);
+  addDirectedEdge(g3, 0, 1, 1);
   unsigned *order3 = breadthFirstSortOfGraph(g3, 0);
   assert(order3[0] == 0);
   assert(order3[1] == 1);
@@ -2077,8 +2074,8 @@ void testBreadthFirstSortOfGraph() {
   free(order3);
 
   Graph *g4 = createGraph(2);
-  addEdgeToDirectedGraph(g4, 0, 1, 1);
-  addEdgeToDirectedGraph(g4, 1, 0, 1);
+  addDirectedEdge(g4, 0, 1, 1);
+  addDirectedEdge(g4, 1, 0, 1);
   unsigned *order4 = breadthFirstSortOfGraph(g4, 0);
   assert(order4[0] == 0);
   assert(order4[1] == 1);
@@ -2100,8 +2097,8 @@ bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
 
 void testTopologicalSortOfGraph() {
   Graph *g1 = createGraph(3);
-  addEdgeToDirectedGraph(g1, 0, 1, 1);
-  addEdgeToDirectedGraph(g1, 1, 2, 1);
+  addDirectedEdge(g1, 0, 1, 1);
+  addDirectedEdge(g1, 1, 2, 1);
   unsigned *order1 = topologicalSortOfGraph(g1);
   assert(isValidTopologicalSort(g1, order1));
   printf("Topo test 1 (linear) passed!\n");
@@ -2109,10 +2106,10 @@ void testTopologicalSortOfGraph() {
   free(order1);
 
   Graph *g2 = createGraph(4);
-  addEdgeToDirectedGraph(g2, 0, 1, 1);
-  addEdgeToDirectedGraph(g2, 0, 2, 1);
-  addEdgeToDirectedGraph(g2, 1, 3, 1);
-  addEdgeToDirectedGraph(g2, 2, 3, 1);
+  addDirectedEdge(g2, 0, 1, 1);
+  addDirectedEdge(g2, 0, 2, 1);
+  addDirectedEdge(g2, 1, 3, 1);
+  addDirectedEdge(g2, 2, 3, 1);
   unsigned *order2 = topologicalSortOfGraph(g2);
   assert(isValidTopologicalSort(g2, order2));
   printf("Topo test 2 (diamond) passed!\n");
@@ -2120,8 +2117,8 @@ void testTopologicalSortOfGraph() {
   free(order2);
 
   Graph *g3 = createGraph(4);
-  addEdgeToDirectedGraph(g3, 0, 1, 1);
-  addEdgeToDirectedGraph(g3, 2, 3, 1);
+  addDirectedEdge(g3, 0, 1, 1);
+  addDirectedEdge(g3, 2, 3, 1);
   unsigned *order3 = topologicalSortOfGraph(g3);
   assert(isValidTopologicalSort(g3, order3));
   printf("Topo test 3 (disconnected) passed!\n");
@@ -2138,17 +2135,17 @@ void testTopologicalSortOfGraph() {
 
 void testBellmanFord() {
   Graph *g = createGraph(4);
-  addEdgeToDirectedGraph(g, 0, 1, 5);
-  addEdgeToDirectedGraph(g, 1, 2, 1);
-  addEdgeToDirectedGraph(g, 0, 2, 10);
-  addEdgeToDirectedGraph(g, 2, 3, 1);
+  addDirectedEdge(g, 0, 1, 5);
+  addDirectedEdge(g, 1, 2, 1);
+  addDirectedEdge(g, 0, 2, 10);
+  addDirectedEdge(g, 2, 3, 1);
   int *d1 = bellmanFord(g, 0);
   assert(d1 != NULL);
   assert(d1[3] == 7);
   printf("Bellman-Ford test 1 (positive) passed!\n");
   free(d1);
 
-  addEdgeToDirectedGraph(g, 3, 1, -10);
+  addDirectedEdge(g, 3, 1, -10);
   int *d2 = bellmanFord(g, 0);
   assert(d2 == NULL);
   printf("Bellman-Ford test 2 (negative cycle) passed!\n");
@@ -2160,8 +2157,8 @@ void testUnweightedDijkstra() {
 
   {
     Graph *g = createGraph(3);
-    addEdgeToDirectedGraph(g, 0, 1, 10);
-    addEdgeToDirectedGraph(g, 1, 2, 20);
+    addDirectedEdge(g, 0, 1, 10);
+    addDirectedEdge(g, 1, 2, 20);
 
     unsigned *distances = unweightedDijkstra(g, 0);
     assert(distances[0] == 0);
@@ -2175,9 +2172,9 @@ void testUnweightedDijkstra() {
 
   {
     Graph *g = createGraph(3);
-    addEdgeToDirectedGraph(g, 0, 2, 100);
-    addEdgeToDirectedGraph(g, 0, 1, 1);
-    addEdgeToDirectedGraph(g, 1, 2, 1);
+    addDirectedEdge(g, 0, 2, 100);
+    addDirectedEdge(g, 0, 1, 1);
+    addDirectedEdge(g, 1, 2, 1);
 
     unsigned *distances = unweightedDijkstra(g, 0);
     assert(distances[2] == 1);
@@ -2189,7 +2186,7 @@ void testUnweightedDijkstra() {
 
   {
     Graph *g = createGraph(3);
-    addEdgeToDirectedGraph(g, 0, 1, 1);
+    addDirectedEdge(g, 0, 1, 1);
 
     unsigned *distances = unweightedDijkstra(g, 0);
     assert(distances[0] == 0);
@@ -2203,9 +2200,9 @@ void testUnweightedDijkstra() {
 
   {
     Graph *g = createGraph(3);
-    addEdgeToDirectedGraph(g, 0, 1, 1);
-    addEdgeToDirectedGraph(g, 1, 2, 1);
-    addEdgeToDirectedGraph(g, 2, 0, 1);
+    addDirectedEdge(g, 0, 1, 1);
+    addDirectedEdge(g, 1, 2, 1);
+    addDirectedEdge(g, 2, 0, 1);
 
     unsigned *distances = unweightedDijkstra(g, 0);
     assert(distances[0] == 0);
@@ -2220,8 +2217,8 @@ void testUnweightedDijkstra() {
 
 void testWeightedDijkstra() {
   Graph *g1 = createGraph(3);
-  addEdgeToDirectedGraph(g1, 0, 1, 5);
-  addEdgeToDirectedGraph(g1, 1, 2, 10);
+  addDirectedEdge(g1, 0, 1, 5);
+  addDirectedEdge(g1, 1, 2, 10);
   int *dist1 = weightedDijkstra(g1, 0);
   assert(dist1[0] == 0);
   assert(dist1[1] == 5);
@@ -2231,9 +2228,9 @@ void testWeightedDijkstra() {
   free(dist1);
 
   Graph *g2 = createGraph(3);
-  addEdgeToDirectedGraph(g2, 0, 2, 10);
-  addEdgeToDirectedGraph(g2, 0, 1, 2);
-  addEdgeToDirectedGraph(g2, 1, 2, 3);
+  addDirectedEdge(g2, 0, 2, 10);
+  addDirectedEdge(g2, 0, 1, 2);
+  addDirectedEdge(g2, 1, 2, 3);
   int *dist2 = weightedDijkstra(g2, 0);
   assert(dist2[2] == 5);
   printf("Dijkstra test 2 passed: Shortest path selection\n");
@@ -2249,9 +2246,9 @@ void testWeightedDijkstra() {
   free(dist3);
 
   Graph *g4 = createGraph(3);
-  addEdgeToDirectedGraph(g4, 0, 1, 1);
-  addEdgeToDirectedGraph(g4, 1, 2, 1);
-  addEdgeToDirectedGraph(g4, 2, 0, 1);
+  addDirectedEdge(g4, 0, 1, 1);
+  addDirectedEdge(g4, 1, 2, 1);
+  addDirectedEdge(g4, 2, 0, 1);
   int *dist4 = weightedDijkstra(g4, 0);
   assert(dist4[0] == 0);
   assert(dist4[1] == 1);
@@ -2265,9 +2262,9 @@ void testFloydWarshall() {
   {
     printf("Floyd-Warshall: Testing basic shortest path... ");
     Graph *g = createGraph(3);
-    addEdgeToDirectedGraph(g, 0, 1, 10);
-    addEdgeToDirectedGraph(g, 1, 2, 5);
-    addEdgeToDirectedGraph(g, 0, 2, 20);
+    addDirectedEdge(g, 0, 1, 10);
+    addDirectedEdge(g, 1, 2, 5);
+    addDirectedEdge(g, 0, 2, 20);
 
     int **distances = floydWarshall(g);
 
@@ -2283,9 +2280,9 @@ void testFloydWarshall() {
   {
     printf("Floyd-Warshall: Testing negative weight (no cycle)... ");
     Graph *g = createGraph(3);
-    addEdgeToDirectedGraph(g, 0, 1, 4);
-    addEdgeToDirectedGraph(g, 0, 2, 5);
-    addEdgeToDirectedGraph(g, 1, 2, -2);
+    addDirectedEdge(g, 0, 1, 4);
+    addDirectedEdge(g, 0, 2, 5);
+    addDirectedEdge(g, 1, 2, -2);
 
     int **distances = floydWarshall(g);
 
@@ -2299,8 +2296,8 @@ void testFloydWarshall() {
   {
     printf("Floyd-Warshall: Testing disconnected components... ");
     Graph *g = createGraph(4);
-    addEdgeToDirectedGraph(g, 0, 1, 1);
-    addEdgeToDirectedGraph(g, 2, 3, 1);
+    addDirectedEdge(g, 0, 1, 1);
+    addDirectedEdge(g, 2, 3, 1);
 
     int **distances = floydWarshall(g);
 
@@ -2317,9 +2314,9 @@ void testFloydWarshall() {
     unsigned n = 3;
     Graph *g = createGraph(n);
 
-    addEdgeToDirectedGraph(g, 0, 1, 1);
-    addEdgeToDirectedGraph(g, 1, 2, 1);
-    addEdgeToDirectedGraph(g, 2, 0, -5);
+    addDirectedEdge(g, 0, 1, 1);
+    addDirectedEdge(g, 1, 2, 1);
+    addDirectedEdge(g, 2, 0, -5);
 
     int **distances = floydWarshall(g);
 
@@ -2340,9 +2337,9 @@ void testFloydWarshall() {
 void testPrim() {
   {
     Graph *g = createGraph(3);
-    addEdgeToUndirectedGraph(g, 0, 1, 1);
-    addEdgeToUndirectedGraph(g, 1, 2, 3);
-    addEdgeToUndirectedGraph(g, 0, 2, 4);
+    addUndirectedEdge(g, 0, 1, 1);
+    addUndirectedEdge(g, 1, 2, 3);
+    addUndirectedEdge(g, 0, 2, 4);
     Graph *mst = prim(g, 0);
     int w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 4);
@@ -2353,13 +2350,13 @@ void testPrim() {
   }
   {
     Graph *g = createGraph(5);
-    addEdgeToUndirectedGraph(g, 0, 1, 2);
-    addEdgeToUndirectedGraph(g, 0, 3, 6);
-    addEdgeToUndirectedGraph(g, 1, 2, 3);
-    addEdgeToUndirectedGraph(g, 1, 3, 8);
-    addEdgeToUndirectedGraph(g, 1, 4, 5);
-    addEdgeToUndirectedGraph(g, 2, 4, 7);
-    addEdgeToUndirectedGraph(g, 3, 4, 9);
+    addUndirectedEdge(g, 0, 1, 2);
+    addUndirectedEdge(g, 0, 3, 6);
+    addUndirectedEdge(g, 1, 2, 3);
+    addUndirectedEdge(g, 1, 3, 8);
+    addUndirectedEdge(g, 1, 4, 5);
+    addUndirectedEdge(g, 2, 4, 7);
+    addUndirectedEdge(g, 3, 4, 9);
     Graph *mst = prim(g, 0);
     int w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 8);
@@ -2382,11 +2379,11 @@ void testPrim() {
 
 void testKruskal() {
   Graph *g = createGraph(4);
-  addEdgeToUndirectedGraph(g, 0, 1, 10);
-  addEdgeToUndirectedGraph(g, 1, 3, 15);
-  addEdgeToUndirectedGraph(g, 3, 2, 4);
-  addEdgeToUndirectedGraph(g, 2, 0, 6);
-  addEdgeToUndirectedGraph(g, 0, 3, 5);
+  addUndirectedEdge(g, 0, 1, 10);
+  addUndirectedEdge(g, 1, 3, 15);
+  addUndirectedEdge(g, 3, 2, 4);
+  addUndirectedEdge(g, 2, 0, 6);
+  addUndirectedEdge(g, 0, 3, 5);
   Graph *mst = kruskal(g);
   int weight = sumWeights(mst) / 2;
   assert(countEdges(mst) == 6);
@@ -2400,8 +2397,8 @@ void testFindArticulationPoints() {
   {
     unsigned n = 3;
     Graph *g = createGraph(n);
-    addEdgeToUndirectedGraph(g, 0, 1, 1);
-    addEdgeToUndirectedGraph(g, 1, 2, 1);
+    addUndirectedEdge(g, 0, 1, 1);
+    addUndirectedEdge(g, 1, 2, 1);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, true, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -2412,9 +2409,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 3;
     Graph *g = createGraph(n);
-    addEdgeToUndirectedGraph(g, 0, 1, 1);
-    addEdgeToUndirectedGraph(g, 1, 2, 1);
-    addEdgeToUndirectedGraph(g, 2, 0, 1);
+    addUndirectedEdge(g, 0, 1, 1);
+    addUndirectedEdge(g, 1, 2, 1);
+    addUndirectedEdge(g, 2, 0, 1);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -2425,9 +2422,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 4;
     Graph *g = createGraph(n);
-    addEdgeToUndirectedGraph(g, 0, 1, 1);
-    addEdgeToUndirectedGraph(g, 0, 2, 1);
-    addEdgeToUndirectedGraph(g, 0, 3, 1);
+    addUndirectedEdge(g, 0, 1, 1);
+    addUndirectedEdge(g, 0, 2, 1);
+    addUndirectedEdge(g, 0, 3, 1);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {true, false, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -2438,9 +2435,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 6;
     Graph *g = createGraph(n);
-    addEdgeToUndirectedGraph(g, 0, 1, 1); addEdgeToUndirectedGraph(g, 1, 2, 1); addEdgeToUndirectedGraph(g, 2, 0, 1);
-    addEdgeToUndirectedGraph(g, 2, 3, 1);
-    addEdgeToUndirectedGraph(g, 3, 4, 1); addEdgeToUndirectedGraph(g, 4, 5, 1); addEdgeToUndirectedGraph(g, 5, 3, 1);
+    addUndirectedEdge(g, 0, 1, 1); addUndirectedEdge(g, 1, 2, 1); addUndirectedEdge(g, 2, 0, 1);
+    addUndirectedEdge(g, 2, 3, 1);
+    addUndirectedEdge(g, 3, 4, 1); addUndirectedEdge(g, 4, 5, 1); addUndirectedEdge(g, 5, 3, 1);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, false, true, true, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -2451,9 +2448,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 5;
     Graph *g = createGraph(n);
-    addEdgeToUndirectedGraph(g, 0, 1, 1);
-    addEdgeToUndirectedGraph(g, 2, 3, 1);
-    addEdgeToUndirectedGraph(g, 3, 4, 1);
+    addUndirectedEdge(g, 0, 1, 1);
+    addUndirectedEdge(g, 2, 3, 1);
+    addUndirectedEdge(g, 3, 4, 1);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, false, false, true, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -2485,8 +2482,8 @@ void testFindBridges() {
   printf("Running Bridge Detection Tests...\n");
 
   Graph *line = createGraph(3);
-  addEdgeToUndirectedGraph(line, 0, 1, 1);
-  addEdgeToUndirectedGraph(line, 1, 2, 1);
+  addUndirectedEdge(line, 0, 1, 1);
+  addUndirectedEdge(line, 1, 2, 1);
 
   unsigned **b1 = findBridges(line);
   assert(hasBridge(b1, 0, 1));
@@ -2496,9 +2493,9 @@ void testFindBridges() {
   printf("Passed: Line Graph\n");
 
   Graph *cycle = createGraph(3);
-  addEdgeToUndirectedGraph(cycle, 0, 1, 1);
-  addEdgeToUndirectedGraph(cycle, 1, 2, 1);
-  addEdgeToUndirectedGraph(cycle, 2, 0, 1);
+  addUndirectedEdge(cycle, 0, 1, 1);
+  addUndirectedEdge(cycle, 1, 2, 1);
+  addUndirectedEdge(cycle, 2, 0, 1);
 
   unsigned **b2 = findBridges(cycle);
   assert(b2[0] == NULL);
@@ -2507,13 +2504,13 @@ void testFindBridges() {
   printf("Passed: Cycle (No Bridges)\n");
 
   Graph *dumbbell = createGraph(6);
-  addEdgeToUndirectedGraph(dumbbell, 0, 1, 1);
-  addEdgeToUndirectedGraph(dumbbell, 1, 2, 1);
-  addEdgeToUndirectedGraph(dumbbell, 2, 0, 1);
-  addEdgeToUndirectedGraph(dumbbell, 1, 3, 1);
-  addEdgeToUndirectedGraph(dumbbell, 3, 4, 1);
-  addEdgeToUndirectedGraph(dumbbell, 4, 5, 1);
-  addEdgeToUndirectedGraph(dumbbell, 5, 3, 1);
+  addUndirectedEdge(dumbbell, 0, 1, 1);
+  addUndirectedEdge(dumbbell, 1, 2, 1);
+  addUndirectedEdge(dumbbell, 2, 0, 1);
+  addUndirectedEdge(dumbbell, 1, 3, 1);
+  addUndirectedEdge(dumbbell, 3, 4, 1);
+  addUndirectedEdge(dumbbell, 4, 5, 1);
+  addUndirectedEdge(dumbbell, 5, 3, 1);
 
   unsigned **b3 = findBridges(dumbbell);
   assert(hasBridge(b3, 1, 3));
@@ -2548,7 +2545,7 @@ int main() {
 
 //
 
-void removeSelfLoops(Graph *graph) {
+void _removeSelfLoops(Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++) {
     Edge **current = &graph->edges[v];
     while (*current != NULL)
@@ -2562,7 +2559,7 @@ void removeSelfLoops(Graph *graph) {
   }
 }
 
-void removeParallelEdges(Graph *graph) {
+void _removeParallelEdges(Graph *graph) {
   int *minimum = malloc(graph->size * sizeof(int));
   bool *seen = calloc(graph->size, sizeof(bool));
   for (unsigned v = 0; v < graph->size; v++) {
@@ -2586,7 +2583,7 @@ void removeParallelEdges(Graph *graph) {
   free(seen);
 }
 
-void transpose(Graph *graph) {
+void _transpose(Graph *graph) {
   Edge **edges = calloc(graph->size, sizeof(Edge *));
   for (unsigned v = 0; v < graph->size; v++) {
     Edge *current = graph->edges[v];
@@ -2601,4 +2598,24 @@ void transpose(Graph *graph) {
   }
   free(graph->edges);
   graph->edges = edges;
+}
+
+void _mergeVertices(Graph *graph, unsigned u, unsigned v) {
+  for (unsigned w = 0; w < graph->size; w++)
+    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
+      if (e->destination == v)
+        e->destination = u;
+  for (unsigned w = 0; w < graph->size; w++)
+    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
+      if (e->destination > v)
+        e->destination = e->destination - 1;
+  while (graph->edges[v] != NULL) {
+    Edge *e = graph->edges[v];
+    graph->edges[v] = e->next;
+    e->next = graph->edges[u];
+    graph->edges[u] = e;
+  }
+  for (unsigned w = v + 1; w < graph->size; w++)
+    graph->edges[w - 1] = graph->edges[w];
+  graph->size--;
 }
