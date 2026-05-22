@@ -1108,29 +1108,32 @@ void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, int weight) {
 
 unsigned countEdges(const Graph *graph) {
   unsigned count = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next)
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       count++;
   return count;
 }
 
 unsigned countSelfLoops(const Graph *graph) {
   unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++) for (Edge *e = graph->edges[v]; e != NULL; e = e->next) if (e->destination == v) count++;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (e->destination == v)
+        count++;
   return count;
 }
 
 unsigned countTriangles(const Graph *graph) {
-  unsigned triangles = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
-      if (d->destination > vertex)
+  unsigned count = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *d = graph->edges[v]; d != NULL; d = d->next)
+      if (d->destination != v)
         for (Edge *e = graph->edges[d->destination]; e != NULL; e = e->next)
-          if (e->destination > d->destination)
+          if (e->destination != v && e->destination != d->destination)
             for (Edge *f = graph->edges[e->destination]; f != NULL; f = f->next)
-              if (f->destination == vertex)
-                triangles++;
-  return triangles;
+              if (f->destination == v)
+                count++;
+  return count;
 }
 
 unsigned minDegree(const Graph *graph) {
@@ -2540,8 +2543,6 @@ int main() {
   printf("All tests passed!\n");
   return 0;
 }
-
-
 
 //
 
