@@ -160,12 +160,11 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 
 unsigned *outDegreeDistribution(const Graph *graph);
 unsigned *inDegreeDistribution(const Graph *graph);
-unsigned *outDegrees(const Graph *graph);
-unsigned *inDegrees(const Graph *graph);
 unsigned *coloring(const Graph *graph);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
 unsigned *getNeighbors(const Graph *graph, unsigned vertex);
+unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -179,6 +178,7 @@ int edgeWeight(const Graph *graph, unsigned source, unsigned destination);
 int pathWeight(const Graph *graph, const unsigned *path, unsigned length);
 
 int *bellmanFord(const Graph *graph, unsigned source);
+int *weightedDijkstra(const Graph *graph, unsigned source);
 
 int **toMatrix(const Graph *graph);
 
@@ -191,8 +191,6 @@ double subgraphDensity(const Graph *graph, const bool *subset);
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 
-unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
-int *weightedDijkstra(const Graph *graph, unsigned source);
 int **floydWarshall(const Graph *graph);
 Graph *prim(const Graph *graph, unsigned source);
 Graph *kruskal(const Graph *graph);
@@ -1277,20 +1275,6 @@ unsigned *outDegreeDistribution(const Graph *graph) {
   return distribution;
 }
 
-unsigned *inDegrees(const Graph *graph) {
-  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    degrees[v] = inDegree(graph, v);
-  return degrees;
-}
-
-unsigned *outDegrees(const Graph *graph) {
-  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    degrees[v] = outDegree(graph, v);
-  return degrees;
-}
-
 unsigned *coloring(const Graph *graph) {
   unsigned *colors = malloc(graph->size  *sizeof(unsigned));
   colors[0] = 0;
@@ -1339,6 +1323,26 @@ unsigned *getNeighbors(const Graph *graph, unsigned vertex) {
     neighbors[i++] = e->destination;
   neighbors[i] = UINT_MAX;
   return neighbors;
+}
+
+unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
+  unsigned *distances = malloc(graph->size * sizeof(unsigned));
+  distances[source] = 0;
+  for (unsigned v = 1; v < graph->size; v++)
+    distances[v] = INT_MAX;
+  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+  unsigned head = 0, tail = 0;
+  queue[tail++] = source;
+  while (head < tail) {
+    unsigned u = queue[head++];
+    for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+      if (distances[e->destination] == INT_MAX) {
+        distances[e->destination] = distances[u] + 1;
+        queue[tail++] = e->destination;
+      }
+  }
+  free(queue);
+  return distances;
 }
 
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
@@ -1467,6 +1471,26 @@ int *bellmanFord(const Graph *graph, unsigned source) {
   return distance;
 }
 
+int *weightedDijkstra(const Graph *graph, unsigned source) {
+  int *weights = malloc(graph->size * sizeof(int));
+  weights[source] = 0;
+  for (unsigned v = 1; v < graph->size; v++)
+    weights[v] = INT_MAX;
+  Heap *heap = createHeap();
+  insertInHeap(heap, source, 0);
+  while (heap->size > 0) {
+    unsigned v = getMinimumFromHeap(heap);
+    removeMinimumFromHeap(heap);
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (weights[v] + e->weight < weights[e->destination]) {
+        weights[e->destination] = weights[v] + e->weight;
+        insertInHeap(heap, e->destination, weights[e->destination]);
+      }
+  }
+  freeHeap(heap);
+  return weights;
+}
+
 
 
 int **toMatrix(const Graph *graph) {
@@ -1558,49 +1582,6 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
 }
 
 
-
-unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
-  assert(isValid(graph));
-  assert(source < graph->size);
-  unsigned *distances = malloc(graph->size * sizeof(unsigned));
-  for (unsigned i = 0; i < graph->size; i++) distances[i] = INT_MAX;
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
-  unsigned head = 0, tail = 0;
-  distances[source] = 0;
-  queue[tail++] = source;
-  while (head < tail) {
-    unsigned u = queue[head++];
-    for (Edge *edge = graph->edges[u]; edge != NULL; edge = edge->next) {
-      if (distances[edge->destination] == INT_MAX) {
-        distances[edge->destination] = distances[u] + 1;
-        queue[tail++] = edge->destination;
-      }
-    }
-  }
-  free(queue);
-  return distances;
-}
-
-int *weightedDijkstra(const Graph *graph, unsigned source) {
-  assert(isValid(graph));
-  assert(source < graph->size);
-  int *weights = malloc(graph->size * sizeof(int));
-  for (unsigned v = 0; v < graph->size; v++) weights[v] = INT_MAX;
-  weights[source] = 0;
-  Heap *heap = createHeap();
-  insertInHeap(heap, source, 0);
-  while (heap->size > 0) {
-    unsigned vertex = getMinimumFromHeap(heap);
-    removeMinimumFromHeap(heap);
-    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-      if (weights[vertex] + edge->weight < weights[edge->destination]) {
-        weights[edge->destination] = weights[vertex] + edge->weight;
-        insertInHeap(heap, edge->destination, weights[edge->destination]);
-      }
-  }
-  freeHeap(heap);
-  return weights;
-}
 
 int **floydWarshall(const Graph *graph) {
   int **distance = malloc(graph->size * sizeof(int *));
@@ -2589,4 +2570,18 @@ void _mergeVertices(Graph *graph, unsigned u, unsigned v) {
   for (unsigned w = v + 1; w < graph->size; w++)
     graph->edges[w - 1] = graph->edges[w];
   graph->size--;
+}
+
+unsigned *inDegrees(const Graph *graph) {
+  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
+  for (unsigned v = 0; v < graph->size; v++)
+    degrees[v] = inDegree(graph, v);
+  return degrees;
+}
+
+unsigned *outDegrees(const Graph *graph) {
+  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
+  for (unsigned v = 0; v < graph->size; v++)
+    degrees[v] = outDegree(graph, v);
+  return degrees;
 }
