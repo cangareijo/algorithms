@@ -96,6 +96,7 @@ bool isUniversalSink(const Graph *graph, unsigned vertex);
 bool isDirectedLeaf(const Graph *graph, unsigned vertex);
 bool isUndirectedLeaf(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
+bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool isAdjacent(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
@@ -181,7 +182,6 @@ double subgraphDensity(const Graph *graph, const bool *subset);
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 
-bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -664,6 +664,17 @@ bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
     if (e->destination == vertex)
       return true;
   return false;
+}
+
+bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
+  assert(isValid(graph));
+  assert(vertex < graph->size);
+  unsigned *distances = unweightedDijkstra(graph, vertex);
+  bool b = true;
+  for (unsigned v = 0; v < graph->size && b; v++)
+    b = b && distances[v] < UINT_MAX;
+  free(distances);
+  return b;
 }
 
 bool isAdjacent(const Graph *graph, unsigned u, unsigned v) {
@@ -1433,17 +1444,6 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
 }
 
 
-
-bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
-  unsigned *distances = unweightedDijkstra(graph, vertex);
-  bool b = true;
-  for (unsigned v = 0; v < graph->size && b; v++)
-    b = b && distances[v] != UINT_MAX;
-  free(distances);
-  return b;
-}
 
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
   assert(source < graph->size);
