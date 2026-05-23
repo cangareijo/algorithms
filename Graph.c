@@ -151,8 +151,10 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 
 void printGraph(const Graph *graph);
 void destroyGraph(Graph *graph);
-void removeDirectedEdge(Graph *graph, unsigned source, unsigned destination);
-void removeUndirectedEdge(Graph *graph, unsigned u, unsigned v);
+void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination);
+void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v);
+void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination);
+void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v);
 void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, int weight);
 void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, int weight);
 
@@ -786,6 +788,15 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned le
 }
 
 bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
+  // Graph *copy = copyGraph(graph);
+  // bool result = true;
+  // for (unsigned i = 1; i < length && result; i++)
+  //   if (hasUnweightedDirectedEdge(copy, sequence[i - 1], sequence[i]))
+  //     removeFirstDirectedEdge(copy, sequence[i - 1], sequence[i]);
+  //   else
+  //     result = false;
+  // destroyGraph(copy);
+  // return result;
   bool b = isWalk(graph, sequence, length);
   unsigned count = countEdges(graph);
   FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
@@ -1213,7 +1224,28 @@ void destroyGraph(Graph *graph) {
   free(graph);
 }
 
-void removeDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
+void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
+  bool done = false;
+  Edge **e = &graph->edges[source];
+  while (*e != NULL && !done)
+    if ((*e)->destination == destination) {
+      Edge *temporary = *e;
+      *e = (*e)->next;
+      free(temporary);
+      graph->inDegree[destination]--;
+      graph->outDegree[source]--;
+      done = true;
+    } else {
+      e = &(*e)->next;
+    }
+}
+
+void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
+  removeFirstDirectedEdge(graph, u, v);
+  removeFirstDirectedEdge(graph, v, u);
+}
+
+void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination) {
   Edge **e = &graph->edges[source];
   while (*e != NULL)
     if ((*e)->destination == destination) {
@@ -1227,9 +1259,9 @@ void removeDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
     }
 }
 
-void removeUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
-  removeDirectedEdge(graph, u, v);
-  removeDirectedEdge(graph, v, u);
+void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v) {
+  removeAllDirectedEdges(graph, u, v);
+  removeAllDirectedEdges(graph, v, u);
 }
 
 void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, int weight) {
