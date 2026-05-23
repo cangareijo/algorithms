@@ -68,6 +68,7 @@ bool isEmpty(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
+bool hasParallelEdges(const Graph *graph);
 bool isBalanced(const Graph *graph);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
@@ -182,6 +183,18 @@ unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
 
+void recursivelyFindBridges(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  unsigned **bridges,
+  unsigned *count,
+  unsigned *timer);
+unsigned **findBridges(const Graph *graph);
+
 int sumWeights(const Graph *graph);
 int graphRadius(const Graph *graph);
 int graphDiameter(const Graph *graph);
@@ -203,18 +216,6 @@ double subgraphDensity(const Graph *graph, const bool *subset);
 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
-
-void recursivelyFindBridges(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  unsigned **bridges,
-  unsigned *count,
-  unsigned *timer);
-unsigned **findBridges(const Graph *graph);
 
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
@@ -342,7 +343,11 @@ void unionDsu(Dsu *dsu, unsigned i, unsigned j) {
 
 
 int compareEdges(const void *a, const void *b) {
-  return ((FlatEdge *)a)->weight - ((FlatEdge *)b)->weight;
+  if (((FlatEdge *)a)->weight < ((FlatEdge *)b)->weight)
+    return -1;
+  if (((FlatEdge *)a)->weight > ((FlatEdge *)b)->weight)
+    return 1;
+  return 0;
 }
 
 
@@ -382,8 +387,8 @@ bool isValidOutDegree(const Graph *graph) {
 }
 
 bool isValid(const Graph *graph) {
-  if (graph == NULL || graph->inDegree == NULL || graph->outDegree == NULL || graph->edges == NULL) return false;
-  return isValidEdge(graph) && isValidInDegree(graph) && isValidOutDegree(graph);
+  return graph != NULL && graph->inDegree != NULL && graph->outDegree != NULL && graph->edges != NULL &&
+    isValidEdge(graph) && isValidInDegree(graph) && isValidOutDegree(graph);
 }
 
 bool isNull(const Graph *graph) {
@@ -409,7 +414,7 @@ bool isRegular(const Graph *graph) {
 }
 
 bool isComplete(const Graph *graph) {
-  return countEdges(graph) == graph->size * (graph->size - 1);
+  return !hasSelfLoops(graph) && !hasParallelEdges(graph) && countEdges(graph) == graph->size * (graph->size - 1);
 }
 
 bool hasSelfLoops(const Graph *graph) {
@@ -417,6 +422,22 @@ bool hasSelfLoops(const Graph *graph) {
     if (hasSelfLoopsAtVertex(graph, v))
       return true;
   return false;
+}
+
+bool hasParallelEdges(const Graph *graph) {
+  bool b = false;
+  bool *seen = malloc(graph->size * sizeof(bool));
+  for (unsigned v = 0; v < graph->size && !b; v++) {
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      seen[e->destination] = false;
+    for (Edge *e = graph->edges[v]; e != NULL && !b; e = e->next)
+      if (seen[e->destination])
+        b = true;
+      else
+        seen[e->destination] = true;
+  }
+  free(seen);
+  return b;
 }
 
 bool isBalanced(const Graph *graph) {
@@ -1489,6 +1510,57 @@ unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source) {
 
 
 
+void recursivelyFindBridges(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  unsigned **bridges,
+  unsigned *count,
+  unsigned *timer)
+{
+  visited[vertex] = true;
+  discovery[vertex] = low[vertex] = ++(*timer);
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    if (!visited[e->destination]) {
+      parent[e->destination] = vertex;
+      recursivelyFindBridges(graph, e->destination, visited, discovery, low, parent, bridges, count, timer);
+      low[vertex] = minimumUnsigned(low[vertex], low[e->destination]);
+      if (low[e->destination] > discovery[vertex]) {
+        bridges[*count] = malloc(2 * sizeof(unsigned));
+        bridges[*count][0] = vertex;
+        bridges[*count][1] = e->destination;
+        (*count)++;
+      }
+    } else if (e->destination != parent[vertex]) {
+      low[vertex] = minimumUnsigned(low[vertex], discovery[e->destination]);
+    }
+}
+
+unsigned **findBridges(const Graph *graph) {
+  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
+  unsigned *low = calloc(graph->size, sizeof(unsigned));
+  unsigned *parent = malloc(graph->size * sizeof(unsigned));
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned **bridges = calloc(graph->size, sizeof(unsigned *));
+  unsigned count = 0;
+  unsigned timer = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    parent[v] = UINT_MAX;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (!visited[v])
+      recursivelyFindBridges(graph, v, visited, discovery, low, parent, bridges, &count, &timer);
+  free(discovery);
+  free(low);
+  free(parent);
+  free(visited);
+  return bridges;
+}
+
+
+
 int sumWeights(const Graph *graph) {
   int weight = 0;
   for (unsigned v = 0; v < graph->size; v++)
@@ -1694,58 +1766,6 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
         i++;
       }
   return edges;
-}
-
-
-
-void recursivelyFindBridges(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  unsigned **bridges,
-  unsigned *count,
-  unsigned *timer)
-{
-  visited[vertex] = true;
-  discovery[vertex] = low[vertex] = ++(*timer);
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
-    if (!visited[e->destination]) {
-      parent[e->destination] = vertex;
-      recursivelyFindBridges(graph, e->destination, visited, discovery, low, parent, bridges, count, timer);
-      low[vertex] = minimumUnsigned(low[vertex], low[e->destination]);
-      if (low[e->destination] > discovery[vertex]) {
-        bridges[*count] = malloc(2 * sizeof(unsigned));
-        bridges[*count][0] = vertex;
-        bridges[*count][1] = e->destination;
-        (*count)++;
-      }
-    } else if (e->destination != parent[vertex]) {
-      low[vertex] = minimumUnsigned(low[vertex], discovery[e->destination]);
-    }
-}
-
-unsigned **findBridges(const Graph *graph) {
-  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
-  unsigned *low = calloc(graph->size, sizeof(unsigned));
-  unsigned *parent = malloc(graph->size * sizeof(unsigned));
-  bool *visited = calloc(graph->size, sizeof(bool));
-  unsigned **bridges = calloc(graph->size, sizeof(unsigned *));
-  unsigned count = 0;
-  unsigned timer = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) parent[vertex] = UINT_MAX;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    if (!visited[vertex]) {
-      recursivelyFindBridges(graph, vertex, visited, discovery, low, parent, bridges, &count, &timer);
-    }
-  }
-  free(discovery);
-  free(low);
-  free(parent);
-  free(visited);
-  return bridges;
 }
 
 
