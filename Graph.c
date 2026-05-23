@@ -787,32 +787,35 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned le
   return length == graph->size && isPath(graph, sequence, length);
 }
 
+// bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
+//   bool b = isWalk(graph, sequence, length);
+//   unsigned count = countEdges(graph);
+//   FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
+//   bool *used = calloc(count, sizeof(bool));
+//   for (unsigned i = 1; i < length && b; i++) {
+//     bool found = false;
+//     for (unsigned j = 0; j < count && !found; j++)
+//       if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] && !used[j]) {
+//         used[j] = true;
+//         found = true;
+//       }
+//     b = b && found;
+//   }
+//   free(edges);
+//   free(used);
+//   return b;
+// }
+
 bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
-  // Graph *copy = copyGraph(graph);
-  // bool result = true;
-  // for (unsigned i = 1; i < length && result; i++)
-  //   if (hasUnweightedDirectedEdge(copy, sequence[i - 1], sequence[i]))
-  //     removeFirstDirectedEdge(copy, sequence[i - 1], sequence[i]);
-  //   else
-  //     result = false;
-  // destroyGraph(copy);
-  // return result;
-  bool b = isWalk(graph, sequence, length);
-  unsigned count = countEdges(graph);
-  FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
-  bool *used = calloc(count, sizeof(bool));
-  for (unsigned i = 1; i < length && b; i++) {
-    bool found = false;
-    for (unsigned j = 0; j < count && !found; j++)
-      if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] && !used[j]) {
-        used[j] = true;
-        found = true;
-      }
-    b = b && found;
-  }
-  free(edges);
-  free(used);
-  return b;
+  Graph *copy = copyGraph(graph);
+  bool result = true;
+  for (unsigned i = 1; i < length && result == true; i++)
+    if (hasUnweightedDirectedEdge(copy, sequence[i - 1], sequence[i]))
+      removeFirstDirectedEdge(copy, sequence[i - 1], sequence[i]);
+    else
+      result = false;
+  destroyGraph(copy);
+  return result;
 }
 
 bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
