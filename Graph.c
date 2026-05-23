@@ -58,7 +58,7 @@ typedef struct {
   Edge **edges;
 } Graph;
 
-bool isValidEdge(const Graph *graph);
+bool isValidDestinations(const Graph *graph);
 bool isValidInDegree(const Graph *graph);
 bool isValidOutDegree(const Graph *graph);
 bool isValid(const Graph *graph);
@@ -68,7 +68,6 @@ bool isEmpty(const Graph *graph);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
-bool hasParallelEdges(const Graph *graph);
 bool isBalanced(const Graph *graph);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
@@ -105,12 +104,13 @@ bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
 bool isVertexCover(const Graph *graph, const bool *subset);
 bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isPath(const Graph *graph, const unsigned *path, unsigned length);
-bool isHamiltonianPath(const Graph *graph, const unsigned *path, unsigned length);
-bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isDirectedCycle(const Graph *graph, const unsigned *path, unsigned length);
-bool isSimpleCycle(const Graph *graph, const unsigned *path, unsigned length);
-bool isHamiltonianCycle(const Graph *graph, const unsigned *path, unsigned length);
+bool isPath(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSubGraph(const Graph *sub, const Graph *main);
 
@@ -248,8 +248,8 @@ unsigned maximumUnsigned(unsigned a, unsigned b) { return a >= b ? a : b; }
 
 
 void freeMatrix(int **matrix, unsigned n) {
-  if (matrix == NULL) return;
-  for (unsigned i = 0; i < n; i++) free(matrix[i]);
+  for (unsigned i = 0; i < n; i++)
+    free(matrix[i]);
   free(matrix);
 }
 
@@ -343,16 +343,16 @@ void unionDsu(Dsu *dsu, unsigned i, unsigned j) {
 
 
 int compareEdges(const void *a, const void *b) {
-  if (((FlatEdge *)a)->weight < ((FlatEdge *)b)->weight)
+  if (((const FlatEdge *)a)->weight < ((const FlatEdge *)b)->weight)
     return -1;
-  if (((FlatEdge *)a)->weight > ((FlatEdge *)b)->weight)
+  if (((const FlatEdge *)a)->weight > ((const FlatEdge *)b)->weight)
     return 1;
   return 0;
 }
 
 
 
-bool isValidEdge(const Graph *graph) {
+bool isValidDestinations(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       if (e->destination >= graph->size)
@@ -388,7 +388,7 @@ bool isValidOutDegree(const Graph *graph) {
 
 bool isValid(const Graph *graph) {
   return graph != NULL && graph->inDegree != NULL && graph->outDegree != NULL && graph->edges != NULL &&
-    isValidEdge(graph) && isValidInDegree(graph) && isValidOutDegree(graph);
+    isValidDestinations(graph) && isValidInDegree(graph) && isValidOutDegree(graph);
 }
 
 bool isNull(const Graph *graph) {
@@ -414,7 +414,7 @@ bool isRegular(const Graph *graph) {
 }
 
 bool isComplete(const Graph *graph) {
-  return !hasSelfLoops(graph) && !hasParallelEdges(graph) && countEdges(graph) == graph->size * (graph->size - 1);
+  return !hasSelfLoops(graph) && !isMultiGraph(graph) && countEdges(graph) == graph->size * (graph->size - 1);
 }
 
 bool hasSelfLoops(const Graph *graph) {
@@ -422,22 +422,6 @@ bool hasSelfLoops(const Graph *graph) {
     if (hasSelfLoopsAtVertex(graph, v))
       return true;
   return false;
-}
-
-bool hasParallelEdges(const Graph *graph) {
-  bool b = false;
-  bool *seen = malloc(graph->size * sizeof(bool));
-  for (unsigned v = 0; v < graph->size && !b; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      seen[e->destination] = false;
-    for (Edge *e = graph->edges[v]; e != NULL && !b; e = e->next)
-      if (seen[e->destination])
-        b = true;
-      else
-        seen[e->destination] = true;
-  }
-  free(seen);
-  return b;
 }
 
 bool isBalanced(const Graph *graph) {
@@ -512,17 +496,19 @@ bool isUndirected(const Graph *graph) {
 }
 
 bool isMultiGraph(const Graph *graph) {
-  bool multi = false;
+  bool b = false;
   bool *seen = malloc(graph->size * sizeof(bool));
-  for (unsigned v = 0; v < graph->size && !multi; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) seen[e->destination] = false;
-    for (Edge *e = graph->edges[v]; e != NULL && !multi; e = e->next) {
-      if (seen[e->destination]) multi = true;
-      seen[e->destination] = true;
-    }
+  for (unsigned v = 0; v < graph->size && !b; v++) {
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      seen[e->destination] = false;
+    for (Edge *e = graph->edges[v]; e != NULL && !b; e = e->next)
+      if (seen[e->destination])
+        b = true;
+      else
+        seen[e->destination] = true;
   }
   free(seen);
-  return multi;
+  return b;
 }
 
 bool isForest(const Graph *graph) {
@@ -790,21 +776,45 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned le
   return length == graph->size && isPath(graph, sequence, length);
 }
 
-bool isTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
+bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
   bool b = isWalk(graph, sequence, length);
   unsigned count = countEdges(graph);
   FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
   bool *used = calloc(count, sizeof(bool));
   for (unsigned i = 1; i < length && b; i++) {
-    unsigned index = UINT_MAX;
-    for (unsigned j = 0; j < count && index == UINT_MAX; j++)
-      if ((edges[j].u == sequence[i - 1] && edges[j].v == sequence[i]) || (edges[j].v == sequence[i - 1] && edges[j].u == sequence[i]))
-        if (!used[j])
-          index = j;
-    if (index == UINT_MAX)
-      b = false;
-    else
-      used[index] = true;
+    bool found = false;
+    for (unsigned j = 0; j < count && !found; j++)
+      if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] && !used[j]) {
+        used[j] = true;
+        found = true;
+      }
+    b = b && found;
+  }
+  free(edges);
+  free(used);
+  return b;
+}
+
+bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
+  bool b = isWalk(graph, sequence, length);
+  unsigned count = countEdges(graph);
+  FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
+  bool *used = calloc(count, sizeof(bool));
+  for (unsigned i = 1; i < length && b; i++) {
+    bool found = false;
+    for (unsigned j = 0; j < count && !found; j++)
+      if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] && !used[j]) {
+        used[j] = true;
+        found = true;
+      }
+    b = b && found;
+    found = false;
+    for (unsigned j = 0; j < count && b && !found; j++)
+      if (edges[j].v == sequence[i - 1] && edges[j].u == sequence[i] && !used[j]) {
+        used[j] = true;
+        found = true;
+      }
+    b = b && found;
   }
   free(edges);
   free(used);
