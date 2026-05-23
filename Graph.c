@@ -443,8 +443,7 @@ bool isEulerianDirected(const Graph *graph) {
 }
 
 bool isConnectedUndirected(const Graph *graph) {
-  if (graph->size < 2) return true;
-  return allAreReachableFromVertexInGraph(graph, 0);
+  return graph->size < 2 || allAreReachableFromVertexInGraph(graph, 0);
 }
 
 bool isWeaklyConnectedDirected(const Graph *graph) {
@@ -1453,14 +1452,14 @@ unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
   unsigned *distances = malloc(graph->size * sizeof(unsigned));
   distances[source] = 0;
   for (unsigned v = 1; v < graph->size; v++)
-    distances[v] = INT_MAX;
+    distances[v] = UINT_MAX;
   unsigned *queue = malloc(graph->size * sizeof(unsigned));
   unsigned head = 0, tail = 0;
   queue[tail++] = source;
   while (head < tail) {
     unsigned u = queue[head++];
     for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
-      if (distances[e->destination] == INT_MAX) {
+      if (distances[e->destination] == UINT_MAX) {
         distances[e->destination] = distances[u] + 1;
         queue[tail++] = e->destination;
       }
