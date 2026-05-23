@@ -2176,9 +2176,9 @@ void testUnweightedDijkstra() {
     unsigned *distances = unweightedDijkstra(g, 0);
     assert(distances[0] == 0);
     assert(distances[1] == 1);
-    assert(distances[2] == INT_MAX);
+    assert(distances[2] == UINT_MAX);
 
-    printf("Passed: Unreachable node (INT_MAX)\n");
+    printf("Passed: Unreachable node (UINT_MAX)\n");
     free(distances);
     destroyGraph(g);
   }
