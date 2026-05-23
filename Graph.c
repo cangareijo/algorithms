@@ -115,6 +115,16 @@ bool isSubGraph(const Graph *sub, const Graph *main);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
+void recursivelyFindArticulationPoints(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  bool *articulations,
+  unsigned *timer);
+bool *findArticulationPoints(const Graph *graph);
 
 Graph *createGraph(unsigned size);
 Graph *createPathGraph(unsigned size);
@@ -127,7 +137,9 @@ Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
 Graph *underlyingGraph(const Graph *graph);
+Graph *kruskal(const Graph *graph);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
+Graph *prim(const Graph *graph, unsigned source);
 Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *vertices);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
@@ -181,6 +193,7 @@ int *bellmanFord(const Graph *graph, unsigned source);
 int *weightedDijkstra(const Graph *graph, unsigned source);
 
 int **toMatrix(const Graph *graph);
+int **floydWarshall(const Graph *graph);
 
 double density(const Graph *graph);
 double averageClusteringCoefficient(const Graph *graph);
@@ -191,19 +204,6 @@ double subgraphDensity(const Graph *graph, const bool *subset);
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
 
-int **floydWarshall(const Graph *graph);
-Graph *prim(const Graph *graph, unsigned source);
-Graph *kruskal(const Graph *graph);
-void recursivelyFindArticulationPoints(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  bool *articulations,
-  unsigned *timer);
-bool *findArticulationPoints(const Graph *graph);
 void recursivelyFindBridges(
   const Graph *graph,
   unsigned vertex,
@@ -886,6 +886,51 @@ bool *graphPeriphery(const Graph *graph) {
   return periphery;
 }
 
+void recursivelyFindArticulationPoints(
+  const Graph *graph,
+  unsigned vertex,
+  bool *visited,
+  unsigned *discovery,
+  unsigned *low,
+  unsigned *parent,
+  bool *articulations,
+  unsigned *timer)
+{
+  unsigned children = 0;
+  visited[vertex] = true;
+  discovery[vertex] = low[vertex] = ++(*timer);
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    if (!visited[e->destination]) {
+      children++;
+      parent[e->destination] = vertex;
+      recursivelyFindArticulationPoints(graph, e->destination, visited, discovery, low, parent, articulations, timer);
+      low[vertex] = minimumUnsigned(low[vertex], low[e->destination]);
+      if ((parent[vertex] == UINT_MAX && children >= 2) || (parent[vertex] != UINT_MAX && low[e->destination] >= discovery[vertex]))
+        articulations[vertex] = true;
+    } else if (e->destination != parent[vertex]) {
+      low[vertex] = minimumUnsigned(low[vertex], discovery[e->destination]);
+    }
+}
+
+bool *findArticulationPoints(const Graph *graph) {
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
+  unsigned *low = calloc(graph->size, sizeof(unsigned));
+  unsigned *parent = malloc(graph->size * sizeof(unsigned));
+  bool *articulations = calloc(graph->size, sizeof(bool));
+  unsigned timer = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    parent[v] = UINT_MAX;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (!visited[v])
+      recursivelyFindArticulationPoints(graph, v, visited, discovery, low, parent, articulations, &timer);
+  free(visited);
+  free(discovery);
+  free(low);
+  free(parent);
+  return articulations;
+}
+
 
 
 Graph *createGraph(unsigned size) {
@@ -989,6 +1034,22 @@ Graph *underlyingGraph(const Graph *graph) {
   return g;
 }
 
+Graph *kruskal(const Graph *graph) {
+  unsigned count = countEdges(graph) / 2;
+  FlatEdge *edges = getEdgeArrayFromUndirectedGraph(graph);
+  qsort(edges, count, sizeof(FlatEdge), compareEdges);
+  Dsu *dsu = createDsu(graph->size);
+  Graph *mst = createGraph(graph->size);
+  for (unsigned i = 0; i < count; i++)
+    if (findDsu(dsu, edges[i].u) != findDsu(dsu, edges[i].v)) {
+      unionDsu(dsu, edges[i].u, edges[i].v);
+      addUndirectedEdge(mst, edges[i].u, edges[i].v, edges[i].weight);
+    }
+  free(edges);
+  freeDsu(dsu);
+  return mst;
+}
+
 Graph *removeVertex(const Graph *graph, unsigned vertex) {
   Graph *g = createGraph(graph->size - 1);
   for (unsigned u = 0; u < graph->size; u++)
@@ -1000,6 +1061,38 @@ Graph *removeVertex(const Graph *graph, unsigned vertex) {
           addDirectedEdge(g, v, w, e->weight);
         }
     }
+  return g;
+}
+
+Graph *prim(const Graph *graph, unsigned source) {
+  unsigned parents[graph->size];
+  int weights[graph->size];
+  bool visited[graph->size];
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    parents[vertex] = UINT_MAX;
+    weights[vertex] = INT_MAX;
+    visited[vertex] = false;
+  }
+  weights[source] = 0;
+  Heap *heap = createHeap();
+  insertInHeap(heap, source, 0);
+  Graph *g = createGraph(graph->size);
+  while (heap->size > 0) {
+    unsigned vertex = getMinimumFromHeap(heap);
+    removeMinimumFromHeap(heap);
+    if (!visited[vertex]) {
+      visited[vertex] = true;
+      if (parents[vertex] != UINT_MAX)
+        addUndirectedEdge(g, parents[vertex], vertex, weights[vertex]);
+      for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+        if (!visited[e->destination] && e->weight < weights[e->destination]) {
+          parents[e->destination] = vertex;
+          weights[e->destination] = e->weight;
+          insertInHeap(heap, e->destination, e->weight);
+        }
+    }
+  }
+  freeHeap(heap);
   return g;
 }
 
@@ -1503,6 +1596,28 @@ int **toMatrix(const Graph *graph) {
   return matrix;
 }
 
+int **floydWarshall(const Graph *graph) {
+  int **distance = malloc(graph->size * sizeof(int *));
+  for (unsigned i = 0; i < graph->size; i++) {
+    distance[i] = malloc(graph->size * sizeof(int));
+    for (unsigned j = 0; j < graph->size; j++)
+      if (i == j)
+        distance[i][j] = 0;
+      else
+        distance[i][j] = INT_MAX;
+  }
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (e->weight < distance[v][e->destination])
+        distance[v][e->destination] = e->weight;
+  for (unsigned k = 0; k < graph->size; k++)
+    for (unsigned i = 0; i < graph->size; i++)
+      for (unsigned j = 0; j < graph->size; j++)
+        if (distance[i][k] < INT_MAX && distance[k][j] < INT_MAX && distance[i][k] + distance[k][j] < distance[i][j])
+          distance[i][j] = distance[i][k] + distance[k][j];
+  return distance;
+}
+
 
 
 double density(const Graph *graph) {
@@ -1583,128 +1698,6 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
 
 
 
-int **floydWarshall(const Graph *graph) {
-  int **distance = malloc(graph->size * sizeof(int *));
-  for (unsigned i = 0; i < graph->size; i++) {
-    distance[i] = malloc(graph->size * sizeof(int));
-    for (unsigned j = 0; j < graph->size; j++) {
-      if (i == j) distance[i][j] = 0;
-      else distance[i][j] = INT_MAX;
-    }
-  }
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (e->weight < distance[v][e->destination])
-        distance[v][e->destination] = e->weight;
-  for (unsigned k = 0; k < graph->size; k++)
-    for (unsigned i = 0; i < graph->size; i++)
-      for (unsigned j = 0; j < graph->size; j++)
-        if (distance[i][k] < INT_MAX && distance[k][j] < INT_MAX)
-          if (distance[i][k] + distance[k][j] < distance[i][j])
-            distance[i][j] = distance[i][k] + distance[k][j];
-  return distance;
-}
-
-Graph *prim(const Graph *graph, unsigned source) {
-  unsigned parents[graph->size];
-  int weights[graph->size];
-  bool visited[graph->size];
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    parents[vertex] = UINT_MAX;
-    weights[vertex] = INT_MAX;
-    visited[vertex] = false;
-  }
-  weights[source] = 0;
-  Heap *heap = createHeap();
-  insertInHeap(heap, source, 0);
-  Graph *tree = createGraph(graph->size);
-  while (heap->size > 0) {
-    unsigned vertex = getMinimumFromHeap(heap);
-    removeMinimumFromHeap(heap);
-    if (visited[vertex]) continue;
-    visited[vertex] = true;
-    if (parents[vertex] != UINT_MAX)
-      addUndirectedEdge(tree, parents[vertex], vertex, weights[vertex]);
-    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-      if (!visited[edge->destination] && edge->weight < weights[edge->destination]) {
-        parents[edge->destination] = vertex;
-        weights[edge->destination] = edge->weight;
-        insertInHeap(heap, edge->destination, edge->weight);
-      }
-  }
-  freeHeap(heap);
-  return tree;
-}
-
-Graph *kruskal(const Graph *graph) {
-  unsigned count = countEdges(graph) / 2;
-  FlatEdge *edges = getEdgeArrayFromUndirectedGraph(graph);
-  qsort(edges, count, sizeof(FlatEdge), compareEdges);
-  Dsu *dsu = createDsu(graph->size);
-  Graph *mst = createGraph(graph->size);
-  for (unsigned i = 0; i < count; i++)
-    if (findDsu(dsu, edges[i].u) != findDsu(dsu, edges[i].v)) {
-      unionDsu(dsu, edges[i].u, edges[i].v);
-      addUndirectedEdge(mst, edges[i].u, edges[i].v, edges[i].weight);
-    }
-  free(edges);
-  freeDsu(dsu);
-  return mst;
-}
-
-void recursivelyFindArticulationPoints(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  bool *articulations,
-  unsigned *timer)
-{
-  unsigned children = 0;
-  visited[vertex] = true;
-  discovery[vertex] = low[vertex] = ++(*timer);
-  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-    if (!visited[edge->destination]) {
-      children++;
-      parent[edge->destination] = vertex;
-      recursivelyFindArticulationPoints(graph, edge->destination, visited, discovery, low, parent, articulations, timer);
-      low[vertex] = minimumUnsigned(low[vertex], low[edge->destination]);
-      if (parent[vertex] == UINT_MAX && children >= 2) {
-        articulations[vertex] = true;
-      }
-      if (parent[vertex] != UINT_MAX && low[edge->destination] >= discovery[vertex]) {
-        articulations[vertex] = true;
-      }
-    } else if (edge->destination != parent[vertex]) {
-      low[vertex] = minimumUnsigned(low[vertex], discovery[edge->destination]);
-    }
-  }
-}
-
-bool *findArticulationPoints(const Graph *graph) {
-  bool *visited = calloc(graph->size, sizeof(bool));
-  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
-  unsigned *low = calloc(graph->size, sizeof(unsigned));
-  unsigned *parent = malloc(graph->size * sizeof(unsigned));
-  bool *articulations = calloc(graph->size, sizeof(bool));
-  unsigned timer = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    parent[vertex] = UINT_MAX;
-  }
-  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
-    if (!visited[vertex]) {
-      recursivelyFindArticulationPoints(graph, vertex, visited, discovery, low, parent, articulations, &timer);
-    }
-  }
-  free(visited);
-  free(discovery);
-  free(low);
-  free(parent);
-  return articulations;
-}
-
 void recursivelyFindBridges(
   const Graph *graph,
   unsigned vertex,
@@ -1718,21 +1711,20 @@ void recursivelyFindBridges(
 {
   visited[vertex] = true;
   discovery[vertex] = low[vertex] = ++(*timer);
-  for (Edge *edge = graph->edges[vertex]; edge != NULL; edge = edge->next) {
-    if (!visited[edge->destination]) {
-      parent[edge->destination] = vertex;
-      recursivelyFindBridges(graph, edge->destination, visited, discovery, low, parent, bridges, count, timer);
-      low[vertex] = minimumUnsigned(low[vertex], low[edge->destination]);
-      if (low[edge->destination] > discovery[vertex]) {
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    if (!visited[e->destination]) {
+      parent[e->destination] = vertex;
+      recursivelyFindBridges(graph, e->destination, visited, discovery, low, parent, bridges, count, timer);
+      low[vertex] = minimumUnsigned(low[vertex], low[e->destination]);
+      if (low[e->destination] > discovery[vertex]) {
         bridges[*count] = malloc(2 * sizeof(unsigned));
         bridges[*count][0] = vertex;
-        bridges[*count][1] = edge->destination;
+        bridges[*count][1] = e->destination;
         (*count)++;
       }
-    } else if (edge->destination != parent[vertex]) {
-      low[vertex] = minimumUnsigned(low[vertex], discovery[edge->destination]);
+    } else if (e->destination != parent[vertex]) {
+      low[vertex] = minimumUnsigned(low[vertex], discovery[e->destination]);
     }
-  }
 }
 
 unsigned **findBridges(const Graph *graph) {
