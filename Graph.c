@@ -97,9 +97,11 @@ bool isDirectedLeaf(const Graph *graph, unsigned vertex);
 bool isUndirectedLeaf(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
-bool isAdjacent(const Graph *graph, unsigned u, unsigned v);
+bool hasUnweightedDirectedEdge(const Graph *graph, unsigned u, unsigned v);
+bool hasUnweightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
-bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
+bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
+bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
 bool isVertexCover(const Graph *graph, const bool *subset);
@@ -489,7 +491,7 @@ bool isBipartite(const Graph *graph) {
 bool isUndirected(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      if (!hasWeightedEdge(graph, e->destination, v, e->weight))
+      if (!hasWeightedDirectedEdge(graph, e->destination, v, e->weight))
         return false;
   return true;
 }
@@ -682,11 +684,15 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   return b;
 }
 
-bool isAdjacent(const Graph *graph, unsigned u, unsigned v) {
+bool hasUnweightedDirectedEdge(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
     if (e->destination == v)
       return true;
   return false;
+}
+
+bool hasUnweightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v) {
+  return hasUnweightedDirectedEdge(graph, u, v) && hasUnweightedDirectedEdge(graph, v, u);
 }
 
 bool isReachable(const Graph *graph, unsigned start, unsigned target) {
@@ -717,11 +723,15 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target) {
   return b;
 }
 
-bool hasWeightedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
+bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
     if (e->destination == v && e->weight == weight)
       return true;
   return false;
+}
+
+bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
+  return hasWeightedDirectedEdge(graph, u, v, weight) && hasWeightedDirectedEdge(graph, v, u, weight);
 }
 
 bool isClique(const Graph *graph, const bool *subset) {
@@ -729,7 +739,7 @@ bool isClique(const Graph *graph, const bool *subset) {
     if (subset[u])
       for (unsigned v = u + 1; v < graph->size; v++)
         if (subset[v])
-          if (!isAdjacent(graph, u, v))
+          if (!hasUnweightedDirectedEdge(graph, u, v))
             return false;
   return true;
 }
@@ -739,7 +749,7 @@ bool isIndependentSet(const Graph *graph, const bool *subset) {
     if (subset[u])
       for (unsigned v = u + 1; v < graph->size; v++)
         if (subset[v])
-          if (isAdjacent(graph, u, v))
+          if (hasUnweightedDirectedEdge(graph, u, v))
             return false;
   return true;
 }
@@ -756,7 +766,7 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
 bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length) {
   bool b = true;
   for (unsigned i = 1; i < length && b; i++)
-    b = b && isAdjacent(graph, sequence[i - 1], sequence[i]);
+    b = b && hasUnweightedDirectedEdge(graph, sequence[i - 1], sequence[i]);
   return b;
 }
 
@@ -823,7 +833,7 @@ bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned le
 bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
   bool b = length >= 2 && sequence[0] == sequence[length - 1];
   for (unsigned i = 1; i < length && b; i++)
-    b = b && isAdjacent(graph, sequence[i - 1], sequence[i]);
+    b = b && hasUnweightedDirectedEdge(graph, sequence[i - 1], sequence[i]);
   return b;
 }
 
@@ -1031,7 +1041,7 @@ Graph *copyComplement(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned u = 0; u < graph->size; u++)
     for (unsigned v = 0; v < graph->size; v++)
-      if (u != v && !isAdjacent(graph, u, v))
+      if (u != v && !hasUnweightedDirectedEdge(graph, u, v))
         addDirectedEdge(g, u, v, 1);
   return g;
 }
@@ -1155,7 +1165,7 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
       addDirectedEdge(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
-      if (!isAdjacent(g3, v, e->destination))
+      if (!hasUnweightedDirectedEdge(g3, v, e->destination))
         addDirectedEdge(g3, v, e->destination, e->weight);
   return g3;
 }
@@ -1728,7 +1738,7 @@ double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
   unsigned edgesBetweenNeighbours = 0;
   for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
     for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
-      if (isAdjacent(graph, d->destination, e->destination))
+      if (hasUnweightedDirectedEdge(graph, d->destination, e->destination))
         edgesBetweenNeighbours++;
   return (double)edgesBetweenNeighbours / (outDegree(graph, vertex) * (outDegree(graph, vertex) - 1));
 }
