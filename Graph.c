@@ -787,61 +787,28 @@ bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned le
   return length == graph->size && isPath(graph, sequence, length);
 }
 
-// bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
-//   bool b = isWalk(graph, sequence, length);
-//   unsigned count = countEdges(graph);
-//   FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
-//   bool *used = calloc(count, sizeof(bool));
-//   for (unsigned i = 1; i < length && b; i++) {
-//     bool found = false;
-//     for (unsigned j = 0; j < count && !found; j++)
-//       if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] && !used[j]) {
-//         used[j] = true;
-//         found = true;
-//       }
-//     b = b && found;
-//   }
-//   free(edges);
-//   free(used);
-//   return b;
-// }
-
 bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
   Graph *copy = copyGraph(graph);
-  bool result = true;
-  for (unsigned i = 1; i < length && result == true; i++)
+  bool valid = true;
+  for (unsigned i = 1; i < length && valid; i++)
     if (hasUnweightedDirectedEdge(copy, sequence[i - 1], sequence[i]))
       removeFirstDirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
-      result = false;
+      valid = false;
   destroyGraph(copy);
-  return result;
+  return valid;
 }
 
 bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool b = isWalk(graph, sequence, length);
-  unsigned count = countEdges(graph);
-  FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
-  bool *used = calloc(count, sizeof(bool));
-  for (unsigned i = 1; i < length && b; i++) {
-    bool found = false;
-    for (unsigned j = 0; j < count && !found; j++)
-      if (edges[j].u == sequence[i - 1] && edges[j].v == sequence[i] && !used[j]) {
-        used[j] = true;
-        found = true;
-      }
-    b = b && found;
-    found = false;
-    for (unsigned j = 0; j < count && b && !found; j++)
-      if (edges[j].v == sequence[i - 1] && edges[j].u == sequence[i] && !used[j]) {
-        used[j] = true;
-        found = true;
-      }
-    b = b && found;
-  }
-  free(edges);
-  free(used);
-  return b;
+  Graph *copy = copyGraph(graph);
+  bool valid = true;
+  for (unsigned i = 1; i < length && valid; i++)
+    if (hasUnweightedUndirectedEdge(copy, sequence[i - 1], sequence[i]))
+      removeFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
+    else
+      valid = false;
+  destroyGraph(copy);
+  return valid;
 }
 
 bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
