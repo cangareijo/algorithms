@@ -97,8 +97,8 @@ bool isDirectedLeaf(const Graph *graph, unsigned vertex);
 bool isUndirectedLeaf(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
-bool hasUnweightedDirectedEdge(const Graph *graph, unsigned u, unsigned v);
-bool hasUnweightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
+bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
+bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
@@ -113,7 +113,8 @@ bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned le
 bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSubGraph(const Graph *sub, const Graph *main);
 
 bool *graphCenter(const Graph *graph);
@@ -686,15 +687,15 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   return b;
 }
 
-bool hasUnweightedDirectedEdge(const Graph *graph, unsigned u, unsigned v) {
+bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
     if (e->destination == v)
       return true;
   return false;
 }
 
-bool hasUnweightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v) {
-  return hasUnweightedDirectedEdge(graph, u, v) && hasUnweightedDirectedEdge(graph, v, u);
+bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v) {
+  return hasDirectedEdge(graph, u, v) && hasDirectedEdge(graph, v, u);
 }
 
 bool isReachable(const Graph *graph, unsigned start, unsigned target) {
@@ -741,7 +742,7 @@ bool isClique(const Graph *graph, const bool *subset) {
     if (subset[u])
       for (unsigned v = u + 1; v < graph->size; v++)
         if (subset[v])
-          if (!hasUnweightedDirectedEdge(graph, u, v))
+          if (!hasDirectedEdge(graph, u, v))
             return false;
   return true;
 }
@@ -751,7 +752,7 @@ bool isIndependentSet(const Graph *graph, const bool *subset) {
     if (subset[u])
       for (unsigned v = u + 1; v < graph->size; v++)
         if (subset[v])
-          if (hasUnweightedDirectedEdge(graph, u, v))
+          if (hasDirectedEdge(graph, u, v))
             return false;
   return true;
 }
@@ -768,7 +769,7 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
 bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length) {
   bool b = true;
   for (unsigned i = 1; i < length && b; i++)
-    b = b && hasUnweightedDirectedEdge(graph, sequence[i - 1], sequence[i]);
+    b = b && hasDirectedEdge(graph, sequence[i - 1], sequence[i]);
   return b;
 }
 
@@ -791,7 +792,7 @@ bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned leng
   Graph *copy = copyGraph(graph);
   bool valid = true;
   for (unsigned i = 1; i < length && valid; i++)
-    if (hasUnweightedDirectedEdge(copy, sequence[i - 1], sequence[i]))
+    if (hasDirectedEdge(copy, sequence[i - 1], sequence[i]))
       removeFirstDirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
@@ -803,7 +804,7 @@ bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned le
   Graph *copy = copyGraph(graph);
   bool valid = true;
   for (unsigned i = 1; i < length && valid; i++)
-    if (hasUnweightedUndirectedEdge(copy, sequence[i - 1], sequence[i]))
+    if (hasUndirectedEdge(copy, sequence[i - 1], sequence[i]))
       removeFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
@@ -812,46 +813,49 @@ bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned le
 }
 
 bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool b = length >= 2 && sequence[0] == sequence[length - 1];
-  for (unsigned i = 1; i < length && b; i++)
-    b = b && hasUnweightedDirectedEdge(graph, sequence[i - 1], sequence[i]);
-  return b;
+  bool valid = length >= 1;
+  for (unsigned i = 0; i < length && valid; i++)
+    valid = valid && hasDirectedEdge(graph, sequence[i], sequence[(i + 1) % length]);
+  return valid;
 }
 
 bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool b = length >= 4 && isDirectedCycle(graph, sequence, length);
+  bool valid = isDirectedCycle(graph, sequence, length);
   bool *visited = calloc(graph->size, sizeof(bool));
-  for (unsigned i = 1; i < length && b; i++) {
-    b = b && !visited[sequence[i]];
+  for (unsigned i = 0; i < length && valid; i++) {
+    valid = valid && !visited[sequence[i]];
     visited[sequence[i]] = true;
   }
   free(visited);
-  return b;
+  return valid;
 }
 
 bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
-  return length == graph->size + 1 && isSimpleCycle(graph, sequence, length);
+  return length == graph->size && isSimpleCycle(graph, sequence, length);
 }
 
-bool isCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool b = isDirectedCycle(graph, sequence, length);
-  unsigned count = countEdges(graph);
-  FlatEdge *edges = getEdgeArrayFromDirectedGraph(graph);
-  bool *used = calloc(count, sizeof(bool));
-  for (unsigned i = 1; i < length && b; i++) {
-    unsigned index = UINT_MAX;
-    for (unsigned j = 0; j < count && index == UINT_MAX; j++)
-      if ((edges[j].u == sequence[i - 1] && edges[j].v == sequence[i]) || (edges[j].v == sequence[i - 1] && edges[j].u == sequence[i]))
-        if (!used[j])
-          index = j;
-    if (index == UINT_MAX)
-      b = false;
+bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {
+  bool valid = length >= 1;
+  Graph *copy = copyGraph(graph);
+  for (unsigned i = 0; i < length && valid; i++)
+    if (hasDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
+      removeFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
-      used[index] = true;
-  }
-  free(edges);
-  free(used);
-  return b;
+      valid = false;
+  destroyGraph(copy);
+  return valid;
+}
+
+bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {
+  bool valid = length >= 1;
+  Graph *copy = copyGraph(graph);
+  for (unsigned i = 0; i < length && valid; i++)
+    if (hasUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
+      removeFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
+    else
+      valid = false;
+  destroyGraph(copy);
+  return valid;
 }
 
 bool isSubGraph(const Graph *sub, const Graph *main) {
@@ -1022,7 +1026,7 @@ Graph *copyComplement(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned u = 0; u < graph->size; u++)
     for (unsigned v = 0; v < graph->size; v++)
-      if (u != v && !hasUnweightedDirectedEdge(graph, u, v))
+      if (u != v && !hasDirectedEdge(graph, u, v))
         addDirectedEdge(g, u, v, 1);
   return g;
 }
@@ -1146,7 +1150,7 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
       addDirectedEdge(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
-      if (!hasUnweightedDirectedEdge(g3, v, e->destination))
+      if (!hasDirectedEdge(g3, v, e->destination))
         addDirectedEdge(g3, v, e->destination, e->weight);
   return g3;
 }
@@ -1740,7 +1744,7 @@ double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
   unsigned edgesBetweenNeighbours = 0;
   for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
     for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
-      if (hasUnweightedDirectedEdge(graph, d->destination, e->destination))
+      if (hasDirectedEdge(graph, d->destination, e->destination))
         edgesBetweenNeighbours++;
   return (double)edgesBetweenNeighbours / (outDegree(graph, vertex) * (outDegree(graph, vertex) - 1));
 }
