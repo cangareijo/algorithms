@@ -1044,18 +1044,11 @@ Graph *lineGraph(const Graph *graph) {
 }
 
 Graph *underlyingGraph(const Graph *graph) {
-  bool *seen = calloc(graph->size, sizeof(bool));
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++) {
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      if (v != e->destination && !seen[e->destination]) {
+      if (v != e->destination && !hasUndirectedEdge(g, v, e->destination))
         addUndirectedEdge(g, v, e->destination, 1);
-        seen[e->destination] = true;
-      }
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      seen[e->destination] = false;
-  }
-  free(seen);
   return g;
 }
 
@@ -1090,13 +1083,12 @@ Graph *removeVertex(const Graph *graph, unsigned vertex) {
 }
 
 Graph *prim(const Graph *graph, unsigned source) {
-  unsigned parents[graph->size];
-  int weights[graph->size];
-  bool visited[graph->size];
+  unsigned *parents = malloc(graph->size * sizeof(unsigned));
+  int *weights = malloc(graph->size * sizeof(int));
+  bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     parents[vertex] = UINT_MAX;
     weights[vertex] = INT_MAX;
-    visited[vertex] = false;
   }
   weights[source] = 0;
   Heap *heap = createHeap();
@@ -1117,12 +1109,15 @@ Graph *prim(const Graph *graph, unsigned source) {
         }
     }
   }
+  free(parents);
+  free(weights);
+  free(visited);
   freeHeap(heap);
   return g;
 }
 
 Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v) {
-  Graph *g = createGraph(graph->size);
+  Graph *g = createGraph(graph->size - 1);
   for (unsigned x = 0; x < graph->size; x++) {
     unsigned y = x > v ? x - 1 : x == v ? u : x;
     for (Edge *e = graph->edges[x]; e != NULL; e = e->next) {
