@@ -1045,7 +1045,7 @@ Graph *lineGraph(const Graph *graph) {
 
 Graph *underlyingGraph(const Graph *graph) {
   Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++) {
+  for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       if (v != e->destination && !hasUndirectedEdge(g, v, e->destination))
         addUndirectedEdge(g, v, e->destination, 1);
