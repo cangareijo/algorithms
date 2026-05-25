@@ -1032,14 +1032,26 @@ Graph *copyComplement(const Graph *graph) {
 }
 
 Graph *lineGraph(const Graph *graph) {
-  unsigned count = countEdges(graph) / 2;
-  FlatEdge *edges = getEdgeArrayFromUndirectedGraph(graph);
-  Graph *g = createGraph(count);
-  for (unsigned i = 0; i < count; i++)
-    for (unsigned j = i + 1; j < count; j++)
-      if (edges[i].u == edges[j].u || edges[i].u == edges[j].v || edges[i].v == edges[j].u || edges[i].v == edges[j].v)
-        addUndirectedEdge(g, i, j, 1);
-  free(edges);
+  unsigned n = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (v <= e->destination)
+        n++;
+  Graph *g = createGraph(n);
+  unsigned i = 0;
+  for (unsigned u = 0; u < graph->size; u++)
+    for (Edge *d = graph->edges[u]; d != NULL; d = d->next)
+      if (u <= d->destination) {
+        unsigned j = 0;
+        for (unsigned v = 0; v < graph->size; v++)
+          for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+            if (v <= e->destination) {
+              if (i < j && (u == v || u == e->destination || d->destination == v || d->destination == e->destination))
+                addUndirectedEdge(g, i, j, 1);
+              j++;
+            }
+        i++;
+      }
   return g;
 }
 
@@ -1397,15 +1409,19 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
 
 unsigned *inDegreeDistribution(const Graph *graph) {
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
+  for (unsigned v = 0; v < graph->size; v++) {
+    assert(inDegree(graph, v) < graph->size);
     distribution[inDegree(graph, v)]++;
+  }
   return distribution;
 }
 
 unsigned *outDegreeDistribution(const Graph *graph) {
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
+  for (unsigned v = 0; v < graph->size; v++) {
+    assert(outDegree(graph, v) < graph->size);
     distribution[outDegree(graph, v)]++;
+  }
   return distribution;
 }
 
@@ -1461,9 +1477,9 @@ unsigned *getNeighbors(const Graph *graph, unsigned vertex) {
 
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
   unsigned *distances = malloc(graph->size * sizeof(unsigned));
-  distances[source] = 0;
-  for (unsigned v = 1; v < graph->size; v++)
+  for (unsigned v = 0; v < graph->size; v++)
     distances[v] = UINT_MAX;
+  distances[source] = 0;
   unsigned *queue = malloc(graph->size * sizeof(unsigned));
   unsigned head = 0, tail = 0;
   queue[tail++] = source;
