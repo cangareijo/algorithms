@@ -82,6 +82,7 @@ bool isTree(const Graph *graph);
 bool isStar(const Graph *graph);
 bool isWheel(const Graph *graph);
 bool hasIsolatedVertices(const Graph *graph);
+bool isTournament(const Graph *graph);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -574,6 +575,25 @@ bool hasIsolatedVertices(const Graph *graph) {
     if (isIsolated(graph, v))
       return true;
   return false;
+}
+
+bool isTournament(const Graph *graph) {
+  unsigned **m = malloc(graph->size * sizeof(unsigned *));
+  for (unsigned v = 0; v < graph->size; v++)
+    m[v] = calloc(graph->size, sizeof(unsigned));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      m[v][e->destination] += 1;
+  bool b = true;
+  for (unsigned v = 0; v < graph->size && b; v++)
+    b = b && m[v][v] == 0;
+  for (unsigned u = 0; u < graph->size && b; u++)
+    for (unsigned v = u + 1; v < graph->size && b; v++)
+      b = b && m[u][v] + m[v][u] == 1;
+  for (unsigned v = 0; v < graph->size; v++)
+    free(m[v]);
+  free(m);
+  return b;
 }
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
@@ -1767,7 +1787,7 @@ double subgraphDensity(const Graph *graph, const bool *subset) {
     }
   if (vertices < 2)
     return 0;
-  return (double)edges / (vertices * (vertices - 1));
+  return (double)edges / vertices / (vertices - 1);
 }
 
 
