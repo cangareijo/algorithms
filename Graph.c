@@ -178,7 +178,7 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 
 unsigned *outDegreeDistribution(const Graph *graph);
 unsigned *inDegreeDistribution(const Graph *graph);
-unsigned *coloring(const Graph *graph);
+unsigned *undirectedColoring(const Graph *graph);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
 unsigned *getNeighbors(const Graph *graph, unsigned vertex);
@@ -677,8 +677,6 @@ bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
 }
 
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
-  assert(isValid(graph));
-  assert(vertex < graph->size);
   unsigned *distances = unweightedDijkstra(graph, vertex);
   bool b = true;
   for (unsigned v = 0; v < graph->size && b; v++)
@@ -1409,23 +1407,19 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
 
 unsigned *inDegreeDistribution(const Graph *graph) {
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++) {
-    assert(inDegree(graph, v) < graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
     distribution[inDegree(graph, v)]++;
-  }
   return distribution;
 }
 
 unsigned *outDegreeDistribution(const Graph *graph) {
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++) {
-    assert(outDegree(graph, v) < graph->size);
+  for (unsigned v = 0; v < graph->size; v++)
     distribution[outDegree(graph, v)]++;
-  }
   return distribution;
 }
 
-unsigned *coloring(const Graph *graph) {
+unsigned *undirectedColoring(const Graph *graph) {
   unsigned *colors = malloc(graph->size  *sizeof(unsigned));
   colors[0] = 0;
   for (unsigned v = 1; v < graph->size; v++)
@@ -1639,7 +1633,7 @@ int edgeWeight(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
     if (e->destination == v)
       return e->weight;
-  return -1; 
+  return 0; 
 }
 
 int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
@@ -1674,9 +1668,9 @@ int *bellmanFord(const Graph *graph, unsigned source) {
 
 int *weightedDijkstra(const Graph *graph, unsigned source) {
   int *weights = malloc(graph->size * sizeof(int));
-  weights[source] = 0;
-  for (unsigned v = 1; v < graph->size; v++)
+  for (unsigned v = 0; v < graph->size; v++)
     weights[v] = INT_MAX;
+  weights[source] = 0;
   Heap *heap = createHeap();
   insertInHeap(heap, source, 0);
   while (heap->size > 0) {
