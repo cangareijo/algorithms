@@ -241,6 +241,7 @@ void testFindArticulationPoints();
 bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v);
 void freeBridgeResult(unsigned **bridges);
 void testFindBridges();
+void testDensity();
 
 int main();
 
@@ -1725,7 +1726,7 @@ int **floydWarshall(const Graph *graph) {
 double density(const Graph *graph) {
   if (graph->size < 2)
     return 0;
-  return (double)countEdges(graph) / (graph->size * (graph->size - 1));
+  return (double)countEdges(graph) / graph->size / (graph->size - 1);
 }
 
 double averageClusteringCoefficient(const Graph *graph) {
@@ -2516,6 +2517,14 @@ void testFindBridges() {
   printf("Passed: Dumbbell Graph\n");
 }
 
+void testDensity() {
+  Graph *graph = createGraph(65537);
+  for (unsigned i = 0; i < 65536; i++)
+    addDirectedEdge(graph, i, i + 1, 1);
+  assert(density(graph) <= 0.99);
+  destroyGraph(graph);
+}
+
 int main() {
   testIsDirectedCyclicGraph();
   testIsUndirectedCyclicGraph();
@@ -2533,6 +2542,7 @@ int main() {
   testKruskal();
   testFindArticulationPoints();
   testFindBridges();
+  testDensity();
   printf("All tests passed!\n");
   return 0;
 }
@@ -2614,14 +2624,14 @@ void _mergeVertices(Graph *graph, unsigned u, unsigned v) {
   graph->size--;
 }
 
-unsigned *inDegrees(const Graph *graph) {
+unsigned *_inDegrees(const Graph *graph) {
   unsigned *degrees = calloc(graph->size, sizeof(unsigned));
   for (unsigned v = 0; v < graph->size; v++)
     degrees[v] = inDegree(graph, v);
   return degrees;
 }
 
-unsigned *outDegrees(const Graph *graph) {
+unsigned *_outDegrees(const Graph *graph) {
   unsigned *degrees = calloc(graph->size, sizeof(unsigned));
   for (unsigned v = 0; v < graph->size; v++)
     degrees[v] = outDegree(graph, v);
