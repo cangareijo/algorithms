@@ -101,6 +101,7 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
+bool shareNeighbor(const Graph *graph, unsigned u, unsigned v);
 bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool isClique(const Graph *graph, const bool *subset);
@@ -184,8 +185,9 @@ unsigned *inDegreeDistribution(const Graph *graph);
 unsigned *undirectedColoring(const Graph *graph);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
-unsigned *getNeighbors(const Graph *graph, unsigned vertex);
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
+unsigned *getInNeighbors(const Graph *graph, unsigned vertex);
+unsigned *getOutNeighbors(const Graph *graph, unsigned vertex);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
@@ -611,7 +613,7 @@ bool isCyclicDirected(const Graph *graph) {
   char *visited = calloc(graph->size, sizeof(char));
   bool b = false;
   for (unsigned v = 0; v < graph->size && !b; v++)
-    b = b || (visited[v] == 0 && isCyclicDirectedComponent(graph, v, visited))
+    b = b || (visited[v] == 0 && isCyclicDirectedComponent(graph, v, visited));
   free(visited);
   return b;
 }
@@ -741,6 +743,17 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target) {
   }
   free(visited);
   free(queue);
+  return b;
+}
+
+bool shareNeighbor(const Graph *graph, unsigned u, unsigned v) {
+  bool *neighbors = calloc(graph->size, sizeof(bool));
+  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+    neighbors[e->destination] = true;
+  bool b = false;
+  for (Edge *e = graph->edges[v]; e != NULL && !b; e = e->next)
+    b = b || neighbors[e->destination];
+  free(neighbors);
   return b;
 }
 
@@ -1494,15 +1507,6 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
   return ordering;
 }
 
-unsigned *getNeighbors(const Graph *graph, unsigned vertex) {
-  unsigned *neighbors = malloc((outDegree(graph, vertex) + 1) * sizeof(unsigned));
-  unsigned i = 0;
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
-    neighbors[i++] = e->destination;
-  neighbors[i] = UINT_MAX;
-  return neighbors;
-}
-
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
   unsigned *distances = malloc(graph->size * sizeof(unsigned));
   for (unsigned v = 0; v < graph->size; v++)
@@ -1521,6 +1525,24 @@ unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
   }
   free(queue);
   return distances;
+}
+
+unsigned *getInNeighbors(const Graph *graph, unsigned vertex) {
+  unsigned *neighbors = malloc(inDegree(graph, vertex) * sizeof(unsigned));
+  unsigned i = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (e->destination == vertex)
+        neighbors[i++] = v;
+  return neighbors;
+}
+
+unsigned *getOutNeighbors(const Graph *graph, unsigned vertex) {
+  unsigned *neighbors = malloc(outDegree(graph, vertex) * sizeof(unsigned));
+  unsigned i = 0;
+  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+    neighbors[i++] = e->destination;
+  return neighbors;
 }
 
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
