@@ -135,6 +135,8 @@ Graph *createGraph(unsigned size);
 Graph *createPathGraph(unsigned size);
 Graph *createCycleGraph(unsigned size);
 Graph *createCompleteGraph(unsigned size);
+Graph *createStarGraph(unsigned size);
+Graph *createWheelGraph(unsigned size);
 Graph *copyGraph(const Graph *graph);
 Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
@@ -607,14 +609,11 @@ bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visite
 
 bool isCyclicDirected(const Graph *graph) {
   char *visited = calloc(graph->size, sizeof(char));
-  bool cyclic = false;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (visited[v] == 0 && isCyclicDirectedComponent(graph, v, visited)) {
-      cyclic = true;
-      break;
-    }
+  bool b = false;
+  for (unsigned v = 0; v < graph->size && !b; v++)
+    b = b || (visited[v] == 0 && isCyclicDirectedComponent(graph, v, visited))
   free(visited);
-  return cyclic;
+  return b;
 }
 
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
@@ -1006,6 +1005,20 @@ Graph *createCompleteGraph(unsigned size) {
     for (unsigned v = 0; v < size; v++)
       if (u != v)
         addDirectedEdge(g, u, v, 1);
+  return g;
+}
+
+Graph *createStarGraph(unsigned size) {
+  Graph *g = createGraph(size);
+  for (unsigned v = 1; v < size; v++) addUndirectedEdge(g, 0, v, 1);
+  return g;
+}
+
+Graph *createWheelGraph(unsigned size) {
+  Graph *g = createGraph(size);
+  for (unsigned v = 1; v < size; v++) addUndirectedEdge(g, 0, v, 1);
+  for (unsigned v = 2; v < size; v++) addUndirectedEdge(g, v - 1, v, 1);
+  addUndirectedEdge(g, size - 1, 1, 1);
   return g;
 }
 
@@ -1418,7 +1431,7 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
     if (neighbors[e->destination]) {
       n++;
-      neighbors[e->destination] = false; 
+      neighbors[e->destination] = false;
     }
   free(neighbors);
   return n;
@@ -1654,7 +1667,7 @@ int edgeWeight(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
     if (e->destination == v)
       return e->weight;
-  return 0; 
+  return 0;
 }
 
 int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
