@@ -88,6 +88,7 @@ bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
 bool isCyclicUndirected(const Graph *graph);
 bool isKRegular(const Graph *graph, unsigned k);
+bool isProperColoring(const Graph *graph, const unsigned *coloring);
 bool hasConstantWeights(const Graph *graph, int weight);
 bool isDense(const Graph *graph, double threshold);
 bool isIsolated(const Graph *graph, unsigned vertex);
@@ -104,6 +105,7 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool shareNeighbor(const Graph *graph, unsigned u, unsigned v);
 bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
 bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
+bool isTriangle(const Graph *graph, unsigned u, unsigned v, unsigned w);
 bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
 bool isVertexCover(const Graph *graph, const bool *subset);
@@ -118,6 +120,8 @@ bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned l
 bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSubGraph(const Graph *sub, const Graph *main);
+bool IsSpanningUndirectedTree(const Graph *subgraph, const Graph *graph);
+bool IsSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
@@ -651,6 +655,14 @@ bool isKRegular(const Graph *graph, unsigned k) {
   return true;
 }
 
+bool isProperColoring(const Graph *graph, const unsigned *coloring) {
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      if (coloring[v] == coloring[e->destination])
+        return false;
+  return true;
+}
+
 bool hasConstantWeights(const Graph *graph, int weight) {
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
@@ -766,6 +778,10 @@ bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int wei
 
 bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
   return hasWeightedDirectedEdge(graph, u, v, weight) && hasWeightedDirectedEdge(graph, v, u, weight);
+}
+
+bool isTriangle(const Graph *graph, unsigned u, unsigned v, unsigned w) {
+  return u != v && v != w && w != u && hasDirectedEdge(graph, u, v) && hasDirectedEdge(graph, v, w) && hasDirectedEdge(graph, w, u);
 }
 
 bool isClique(const Graph *graph, const bool *subset) {
@@ -889,23 +905,39 @@ bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned 
   return valid;
 }
 
-bool isSubGraph(const Graph *sub, const Graph *main) {
-  bool b = sub->size <= main->size;
-  bool *edges = calloc(main->size, sizeof(bool));
-  int *weights = malloc(main->size * sizeof(int));
-  for (unsigned v = 0; v < sub->size && b; v++) {
-    for (Edge *e = main->edges[v]; e != NULL; e = e->next) {
+bool isSubGraph(const Graph *subgraph, const Graph *graph) {
+  bool b = subgraph->size <= graph->size;
+  bool *edges = calloc(graph->size, sizeof(bool));
+  int *weights = malloc(graph->size * sizeof(int));
+  for (unsigned v = 0; v < subgraph->size && b; v++) {
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
       edges[e->destination] = true;
       weights[e->destination] = e->weight;
     }
-    for (Edge *e = sub->edges[v]; e != NULL && b; e = e->next)
+    for (Edge *e = subgraph->edges[v]; e != NULL && b; e = e->next)
       b = b && edges[e->destination] && e->weight == weights[e->destination];
-    for (Edge *e = main->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       edges[e->destination] = false;
   }
   free(weights);
   free(edges);
   return b;
+}
+
+bool IsSpanningUndirectedTree(const Graph *subgraph, const Graph *graph) {
+  return subgraph->size == graph->size &&
+    subgraph->size > 0 &&
+    isSubGraph(subgraph, graph) &&
+    countEdges(subgraph) == 2 * (subgraph->size - 1) &&
+    isConnectedUndirected(subgraph);
+}
+
+bool IsSpanningDirectedTree(const Graph *subgraph, const Graph *graph) {
+  return subgraph->size == graph->size &&
+    subgraph->size > 0 &&
+    isSubGraph(subgraph, graph) &&
+    countEdges(subgraph) == subgraph->size - 1 &&
+    isWeaklyConnectedDirected(subgraph);
 }
 
 
