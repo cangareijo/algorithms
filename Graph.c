@@ -474,7 +474,7 @@ bool isEulerianDirected(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
     if (graph->inDegree[v] != graph->outDegree[v])
       return false;
-  int start = UINT_MAX;
+  unsigned start = UINT_MAX;
   for (unsigned v = 0; v < graph->size; v++)
     if (graph->outDegree[v] > 0) {
       start = v;
