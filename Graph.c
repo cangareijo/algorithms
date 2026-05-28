@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +8,7 @@
 unsigned minimumUnsigned(unsigned a, unsigned b);
 unsigned maximumUnsigned(unsigned a, unsigned b);
 
-void freeMatrix(int **matrix, unsigned n);
+void freeMatrix(double **matrix, unsigned n);
 
 typedef struct {
   unsigned vertex;
@@ -40,14 +41,14 @@ void unionDsu(Dsu *dsu, unsigned i, unsigned j);
 
 typedef struct {
   unsigned u, v;
-  int weight;
+  double weight;
 } FlatEdge;
 
 int compareEdges(const void *a, const void *b);
 
 typedef struct Edge {
   unsigned destination;
-  int weight;
+  double weight;
   struct Edge *next;
 } Edge;
 
@@ -89,7 +90,7 @@ bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned p
 bool isCyclicUndirected(const Graph *graph);
 bool isKRegular(const Graph *graph, unsigned k);
 bool isProperColoring(const Graph *graph, const unsigned *coloring);
-bool hasConstantWeights(const Graph *graph, int weight);
+bool hasConstantWeights(const Graph *graph, double weight);
 bool isDense(const Graph *graph, double threshold);
 bool isIsolated(const Graph *graph, unsigned vertex);
 bool isSource(const Graph *graph, unsigned vertex);
@@ -103,8 +104,8 @@ bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool shareNeighbor(const Graph *graph, unsigned u, unsigned v);
-bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
-bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight);
+bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight);
+bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight);
 bool isTriangle(const Graph *graph, unsigned u, unsigned v, unsigned w);
 bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
@@ -119,7 +120,7 @@ bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length
 bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isSubGraph(const Graph *sub, const Graph *main);
+bool isSubGraph(const Graph *subgraph, const Graph *graph);
 bool IsSpanningUndirectedTree(const Graph *subgraph, const Graph *graph);
 bool IsSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
 
@@ -164,8 +165,8 @@ void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination
 void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v);
 void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination);
 void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v);
-void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, int weight);
-void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, int weight);
+void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double weight);
+void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 
 unsigned countEdges(const Graph *graph);
 unsigned countSelfLoops(const Graph *graph);
@@ -209,27 +210,29 @@ void recursivelyFindBridges(
   unsigned *timer);
 unsigned **findBridges(const Graph *graph);
 
-int sumWeights(const Graph *graph);
-int graphRadius(const Graph *graph);
-int graphDiameter(const Graph *graph);
-int graphEccentricity(const Graph *graph, unsigned vertex);
-int edgeWeight(const Graph *graph, unsigned source, unsigned destination);
-int pathWeight(const Graph *graph, const unsigned *path, unsigned length);
-
-int *bellmanFord(const Graph *graph, unsigned source);
-int *weightedDijkstra(const Graph *graph, unsigned source);
-
-int **toMatrix(const Graph *graph);
-int **floydWarshall(const Graph *graph);
-
+double sumWeights(const Graph *graph);
+double graphRadius(const Graph *graph);
+double graphDiameter(const Graph *graph);
 double density(const Graph *graph);
 double averageClusteringCoefficient(const Graph *graph);
+double graphEccentricity(const Graph *graph, unsigned vertex);
 double normalizedDegree(const Graph *graph, unsigned vertex);
 double localClusteringCoefficient(const Graph *graph, unsigned vertex);
+double edgeWeight(const Graph *graph, unsigned source, unsigned destination);
 double subgraphDensity(const Graph *graph, const bool *subset);
+double pathWeight(const Graph *graph, const unsigned *path, unsigned length);
+
+double *bellmanFord(const Graph *graph, unsigned source);
+double *weightedDijkstra(const Graph *graph, unsigned source);
+
+double **toMatrix(const Graph *graph);
+double **floydWarshall(const Graph *graph);
 
 FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
 FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
+
+Edge **inNeighbors(const Graph *graph);
+Edge **outNeighbors(const Graph *graph);
 
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
@@ -262,7 +265,7 @@ unsigned maximumUnsigned(unsigned a, unsigned b) { return a >= b ? a : b; }
 
 
 
-void freeMatrix(int **matrix, unsigned n) {
+void freeMatrix(double **matrix, unsigned n) {
   for (unsigned i = 0; i < n; i++)
     free(matrix[i]);
   free(matrix);
@@ -446,15 +449,83 @@ bool isBalanced(const Graph *graph) {
   return true;
 }
 
-bool isEulerianUndirected(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
+bool isEulerianUndirected(const Graph* graph) {
+  unsigned vertex = UINT_MAX;
+  for (unsigned v = 0; v < graph->size; v++) {
     if (outDegree(graph, v) % 2 != 0)
       return false;
-  return isConnectedUndirected(graph);
+    if (outDegree(graph, v) > 0 && vertex == UINT_MAX)
+      vertex = v;
+  }
+  if (vertex == UINT_MAX)
+    return true;
+  bool* visited = calloc(graph->size, sizeof(bool));
+  traverseComponent(graph, vertex, visited);
+  for (unsigned v = 0; v < graph->size; v++)
+    if (outDegree(graph, v) > 0 && !visited[v]) {
+      free(visited);
+      return false;
+    }
+  free(visited);
+  return true;
 }
 
 bool isEulerianDirected(const Graph *graph) {
-  return isBalanced(graph) && isStronglyConnectedDirected(graph);
+  for (unsigned v = 0; v < graph->size; v++)
+    if (graph->inDegree[v] != graph->outDegree[v])
+      return false;
+  int start = UINT_MAX;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (graph->outDegree[v] > 0) {
+      start = v;
+      break;
+    }
+  if (start == UINT_MAX)
+    return true;
+  Edge **inNeighbors = calloc(graph->size, sizeof(Edge *));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *d = graph->edges[v]; d != nullptr; d = d->next) {
+      Edge *e = malloc(sizeof(Edge));
+      e->destination = v;
+      e->weight = d->weight;
+      e->next = inNeighbors[d->destination];
+      inNeighbors[d->destination] = e;
+    }
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned *stack = malloc(graph->size * sizeof(unsigned));
+  unsigned size = 0;
+  stack[size++] = start;
+  visited[start] = true;
+  while (size > 0) {
+    unsigned v = stack[--size];
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+      if (!visited[e->destination]) {
+        visited[e->destination] = true;
+        stack[size++] = e->destination;
+      }
+    for (Edge *e = inNeighbors[v]; e != nullptr; e = e->next)
+      if (!visited[e->destination]) {
+        visited[e->destination] = true;
+        stack[size++] = e->destination;
+      }
+  }
+  for (unsigned v = 0; v < graph->size; v++) {
+    Edge *e = inNeighbors[v];
+    while (e != nullptr) {
+      Edge *next = e->next;
+      free(e);
+      e = next;
+    }
+  }
+  free(inNeighbors);
+  free(stack);
+  for (unsigned v = 0; v < graph->size; v++)
+    if ((graph->inDegree[v] > 0 || graph->outDegree[v] > 0) && !visited[v]) {
+      free(visited);
+      return false;
+    }
+  free(visited);
+  return true;
 }
 
 bool isConnectedUndirected(const Graph *graph) {
@@ -477,7 +548,7 @@ bool isStronglyConnectedDirected(const Graph *graph) {
 }
 
 bool isBipartite(const Graph *graph) {
-  int *colors = calloc(graph->size, sizeof(int));
+  unsigned *colors = calloc(graph->size, sizeof(unsigned));
   unsigned *queue = malloc(graph->size * sizeof(unsigned));
   bool bipartite = true;
   for (unsigned u = 0; u < graph->size && bipartite; u++)
@@ -567,11 +638,9 @@ bool isWheel(const Graph *graph) {
   do {
     visitedCount++;
     unsigned next = UINT_MAX;
-    for (Edge *e = graph->edges[current]; e != NULL; e = e->next)
-      if (e->destination != hub && e->destination != previous) {
+    for (Edge *e = graph->edges[current]; e != NULL && next == UINT_MAX; e = e->next)
+      if (e->destination != hub && e->destination != previous)
         next = e->destination;
-        break;
-      }
     previous = current;
     current = next;
   } while (current != UINT_MAX);
@@ -663,7 +732,7 @@ bool isProperColoring(const Graph *graph, const unsigned *coloring) {
   return true;
 }
 
-bool hasConstantWeights(const Graph *graph, int weight) {
+bool hasConstantWeights(const Graph *graph, double weight) {
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       if (e->weight != weight)
@@ -769,14 +838,14 @@ bool shareNeighbor(const Graph *graph, unsigned u, unsigned v) {
   return b;
 }
 
-bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
+bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight) {
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
     if (e->destination == v && e->weight == weight)
       return true;
   return false;
 }
 
-bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, int weight) {
+bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight) {
   return hasWeightedDirectedEdge(graph, u, v, weight) && hasWeightedDirectedEdge(graph, v, u, weight);
 }
 
@@ -908,7 +977,7 @@ bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned 
 bool isSubGraph(const Graph *subgraph, const Graph *graph) {
   bool b = subgraph->size <= graph->size;
   bool *edges = calloc(graph->size, sizeof(bool));
-  int *weights = malloc(graph->size * sizeof(int));
+  double *weights = malloc(graph->size * sizeof(double));
   for (unsigned v = 0; v < subgraph->size && b; v++) {
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
       edges[e->destination] = true;
@@ -943,8 +1012,8 @@ bool IsSpanningDirectedTree(const Graph *subgraph, const Graph *graph) {
 
 
 bool *graphCenter(const Graph *graph) {
-  int *eccentricity = malloc(graph->size * sizeof(int));
-  int radius = INT_MAX;
+  double *eccentricity = malloc(graph->size * sizeof(double));
+  double radius = INFINITY;
   for (unsigned v = 0; v < graph->size; v++) {
     eccentricity[v] = graphEccentricity(graph, v);
     if (eccentricity[v] < radius)
@@ -959,8 +1028,8 @@ bool *graphCenter(const Graph *graph) {
 }
 
 bool *graphPeriphery(const Graph *graph) {
-  int *eccentricity = malloc(graph->size * sizeof(int));
-  int diameter = INT_MIN;
+  double *eccentricity = malloc(graph->size * sizeof(double));
+  double diameter = -INFINITY;
   for (unsigned v = 0; v < graph->size; v++) {
     eccentricity[v] = graphEccentricity(graph, v);
     if (eccentricity[v] > diameter)
@@ -1173,11 +1242,11 @@ Graph *removeVertex(const Graph *graph, unsigned vertex) {
 
 Graph *prim(const Graph *graph, unsigned source) {
   unsigned *parents = malloc(graph->size * sizeof(unsigned));
-  int *weights = malloc(graph->size * sizeof(int));
+  double *weights = malloc(graph->size * sizeof(double));
   bool *visited = calloc(graph->size, sizeof(bool));
   for (unsigned vertex = 0; vertex < graph->size; vertex++) {
     parents[vertex] = UINT_MAX;
-    weights[vertex] = INT_MAX;
+    weights[vertex] = INFINITY;
   }
   weights[source] = 0;
   Heap *heap = createHeap();
@@ -1262,7 +1331,7 @@ void printGraph(const Graph *graph) {
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
       if (i++ > 0)
         printf(", ");
-      printf("(%u, %u, %d)", v, e->destination, e->weight);
+      printf("(%u, %u, %lf)", v, e->destination, e->weight);
     }
   printf("}\n");
 }
@@ -1322,7 +1391,7 @@ void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v) {
   removeAllDirectedEdges(graph, v, u);
 }
 
-void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, int weight) {
+void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double weight) {
   Edge *e = malloc(sizeof(Edge));
   e->destination = destination;
   e->weight = weight;
@@ -1332,7 +1401,7 @@ void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, int we
   graph->outDegree[source]++;
 }
 
-void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, int weight) {
+void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
   addDirectedEdge(graph, u, v, weight);
   addDirectedEdge(graph, v, u, weight);
 }
@@ -1679,37 +1748,52 @@ unsigned **findBridges(const Graph *graph) {
 
 
 
-int sumWeights(const Graph *graph) {
-  int weight = 0;
+double sumWeights(const Graph *graph) {
+  double sum = 0;
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-      weight += e->weight;
-  return weight;
+      sum += e->weight;
+  return sum;
 }
 
-int graphRadius(const Graph *graph) {
-  int radius = INT_MAX;
+double graphRadius(const Graph *graph) {
+  double radius = INFINITY;
   for (unsigned v = 0; v < graph->size; v++) {
-    int eccentricity = graphEccentricity(graph, v);
+    double eccentricity = graphEccentricity(graph, v);
     if (eccentricity < radius)
       radius = eccentricity;
   }
   return radius;
 }
 
-int graphDiameter(const Graph *graph) {
-  int diameter = INT_MIN;
+double graphDiameter(const Graph *graph) {
+  double diameter = -INFINITY;
   for (unsigned v = 0; v < graph->size; v++) {
-    int eccentricity = graphEccentricity(graph, v);
+    double eccentricity = graphEccentricity(graph, v);
     if (eccentricity > diameter)
       diameter = eccentricity;
   }
   return diameter;
 }
 
-int graphEccentricity(const Graph *graph, unsigned vertex) {
-  int *distance = weightedDijkstra(graph, vertex);
-  int eccentricity = INT_MIN;
+double density(const Graph *graph) {
+  if (graph->size < 2)
+    return 0;
+  return (double)countEdges(graph) / graph->size / (graph->size - 1);
+}
+
+double averageClusteringCoefficient(const Graph *graph) {
+  if (graph->size == 0)
+    return 0;
+  double total = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    total += localClusteringCoefficient(graph, v);
+  return total / graph->size;
+}
+
+double graphEccentricity(const Graph *graph, unsigned vertex) {
+  double *distance = weightedDijkstra(graph, vertex);
+  double eccentricity = -INFINITY;
   for (unsigned v = 0; v < graph->size; v++)
     if (distance[v] > eccentricity)
       eccentricity = distance[v];
@@ -1717,15 +1801,47 @@ int graphEccentricity(const Graph *graph, unsigned vertex) {
   return eccentricity;
 }
 
-int edgeWeight(const Graph *graph, unsigned u, unsigned v) {
+double normalizedDegree(const Graph *graph, unsigned vertex) {
+  if (graph->size < 2)
+    return 0;
+  return (double)outDegree(graph, vertex) / (graph->size - 1);
+}
+
+double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
+  if (outDegree(graph, vertex) < 2)
+    return 0;
+  unsigned edgesBetweenNeighbours = 0;
+  for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
+    for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+      if (hasDirectedEdge(graph, d->destination, e->destination))
+        edgesBetweenNeighbours++;
+  return (double)edgesBetweenNeighbours / outDegree(graph, vertex) / (outDegree(graph, vertex) - 1);
+}
+
+double edgeWeight(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
     if (e->destination == v)
       return e->weight;
   return 0;
 }
 
-int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
-  int weight = 0;
+double subgraphDensity(const Graph *graph, const bool *subset) {
+  unsigned vertices = 0;
+  unsigned edges = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (subset[v]) {
+      vertices++;
+      for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+        if (subset[e->destination])
+          edges++;
+    }
+  if (vertices < 2)
+    return 0;
+  return (double)edges / vertices / (vertices - 1);
+}
+
+double pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
+  double weight = 0;
   for (unsigned i = 1; i < length; i++)
     weight += edgeWeight(graph, path[i - 1], path[i]);
   return weight;
@@ -1733,19 +1849,19 @@ int pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
 
 
 
-int *bellmanFord(const Graph *graph, unsigned source) {
-  int *distance = malloc(graph->size * sizeof(int));
+double *bellmanFord(const Graph *graph, unsigned source) {
+  double *distance = malloc(graph->size * sizeof(double));
   for (unsigned v = 0; v < graph->size; v++)
-    distance[v] = INT_MAX;
+    distance[v] = INFINITY;
   distance[source] = 0;
   for (unsigned i = 1; i < graph->size; i++)
     for (unsigned v = 0; v < graph->size; v++)
-      if (distance[v] < INT_MAX)
+      if (distance[v] < INFINITY)
         for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
           if (distance[v] + e->weight < distance[e->destination])
             distance[e->destination] = distance[v] + e->weight;
   for (unsigned v = 0; v < graph->size && distance != NULL; v++)
-    if (distance[v] < INT_MAX)
+    if (distance[v] < INFINITY)
       for (Edge *e = graph->edges[v]; e != NULL && distance != NULL; e = e->next)
         if (distance[v] + e->weight < distance[e->destination]) {
           free(distance);
@@ -1754,10 +1870,10 @@ int *bellmanFord(const Graph *graph, unsigned source) {
   return distance;
 }
 
-int *weightedDijkstra(const Graph *graph, unsigned source) {
-  int *weights = malloc(graph->size * sizeof(int));
+double *weightedDijkstra(const Graph *graph, unsigned source) {
+  double *weights = malloc(graph->size * sizeof(double));
   for (unsigned v = 0; v < graph->size; v++)
-    weights[v] = INT_MAX;
+    weights[v] = INFINITY;
   weights[source] = 0;
   Heap *heap = createHeap();
   insertInHeap(heap, source, 0);
@@ -1776,25 +1892,25 @@ int *weightedDijkstra(const Graph *graph, unsigned source) {
 
 
 
-int **toMatrix(const Graph *graph) {
-  int **matrix = malloc(graph->size * sizeof(int *));
+double **toMatrix(const Graph *graph) {
+  double **matrix = malloc(graph->size * sizeof(double *));
   for (unsigned v = 0; v < graph->size; v++)
-    matrix[v] = calloc(graph->size, sizeof(int));
+    matrix[v] = calloc(graph->size, sizeof(double));
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
       matrix[v][e->destination] = e->weight;
   return matrix;
 }
 
-int **floydWarshall(const Graph *graph) {
-  int **distance = malloc(graph->size * sizeof(int *));
+double **floydWarshall(const Graph *graph) {
+  double **distance = malloc(graph->size * sizeof(double *));
   for (unsigned i = 0; i < graph->size; i++) {
-    distance[i] = malloc(graph->size * sizeof(int));
+    distance[i] = malloc(graph->size * sizeof(double));
     for (unsigned j = 0; j < graph->size; j++)
       if (i == j)
         distance[i][j] = 0;
       else
-        distance[i][j] = INT_MAX;
+        distance[i][j] = INFINITY;
   }
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e; e = e->next)
@@ -1803,58 +1919,9 @@ int **floydWarshall(const Graph *graph) {
   for (unsigned k = 0; k < graph->size; k++)
     for (unsigned i = 0; i < graph->size; i++)
       for (unsigned j = 0; j < graph->size; j++)
-        if (distance[i][k] < INT_MAX && distance[k][j] < INT_MAX && distance[i][k] + distance[k][j] < distance[i][j])
+        if (distance[i][k] < INFINITY && distance[k][j] < INFINITY && distance[i][k] + distance[k][j] < distance[i][j])
           distance[i][j] = distance[i][k] + distance[k][j];
   return distance;
-}
-
-
-
-double density(const Graph *graph) {
-  if (graph->size < 2)
-    return 0;
-  return (double)countEdges(graph) / graph->size / (graph->size - 1);
-}
-
-double averageClusteringCoefficient(const Graph *graph) {
-  if (graph->size == 0)
-    return 0;
-  double total = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    total += localClusteringCoefficient(graph, v);
-  return total / graph->size;
-}
-
-double normalizedDegree(const Graph *graph, unsigned vertex) {
-  if (graph->size < 2)
-    return 0;
-  return (double)outDegree(graph, vertex) / (graph->size - 1);
-}
-
-double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
-  if (outDegree(graph, vertex) < 2)
-    return 0;
-  unsigned edgesBetweenNeighbours = 0;
-  for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
-    for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
-      if (hasDirectedEdge(graph, d->destination, e->destination))
-        edgesBetweenNeighbours++;
-  return (double)edgesBetweenNeighbours / (outDegree(graph, vertex) * (outDegree(graph, vertex) - 1));
-}
-
-double subgraphDensity(const Graph *graph, const bool *subset) {
-  unsigned vertices = 0;
-  unsigned edges = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (subset[v]) {
-      vertices++;
-      for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
-        if (subset[e->destination])
-          edges++;
-    }
-  if (vertices < 2)
-    return 0;
-  return (double)edges / vertices / (vertices - 1);
 }
 
 
@@ -1884,6 +1951,34 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
         i++;
       }
   return edges;
+}
+
+
+
+Edge **inNeighbors(const Graph *graph) {
+  Edge **neighbors = calloc(graph->size, sizeof(Edge *));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
+      Edge *neighbor = malloc(sizeof(Edge));
+      neighbor->destination = v;
+      neighbor->weight = e->weight;
+      neighbor->next = neighbors[e->destination];
+      neighbors[e->destination] = neighbor;
+    }
+  return neighbors;
+}
+
+Edge **outNeighbors(const Graph *graph) {
+  Edge **neighbors = calloc(graph->size, sizeof(Edge *));
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
+      Edge *neighbor = malloc(sizeof(Edge));
+      neighbor->destination = e->destination;
+      neighbor->weight = e->weight;
+      neighbor->next = neighbors[v];
+      neighbors[v] = neighbor;
+    }
+  return neighbors;
 }
 
 
@@ -2223,14 +2318,14 @@ void testBellmanFord() {
   addDirectedEdge(g, 1, 2, 1);
   addDirectedEdge(g, 0, 2, 10);
   addDirectedEdge(g, 2, 3, 1);
-  int *d1 = bellmanFord(g, 0);
+  double *d1 = bellmanFord(g, 0);
   assert(d1 != NULL);
   assert(d1[3] == 7);
   printf("Bellman-Ford test 1 (positive) passed!\n");
   free(d1);
 
   addDirectedEdge(g, 3, 1, -10);
-  int *d2 = bellmanFord(g, 0);
+  double *d2 = bellmanFord(g, 0);
   assert(d2 == NULL);
   printf("Bellman-Ford test 2 (negative cycle) passed!\n");
   destroyGraph(g);
@@ -2303,7 +2398,7 @@ void testWeightedDijkstra() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 5);
   addDirectedEdge(g1, 1, 2, 10);
-  int *dist1 = weightedDijkstra(g1, 0);
+  double *dist1 = weightedDijkstra(g1, 0);
   assert(dist1[0] == 0);
   assert(dist1[1] == 5);
   assert(dist1[2] == 15);
@@ -2315,17 +2410,17 @@ void testWeightedDijkstra() {
   addDirectedEdge(g2, 0, 2, 10);
   addDirectedEdge(g2, 0, 1, 2);
   addDirectedEdge(g2, 1, 2, 3);
-  int *dist2 = weightedDijkstra(g2, 0);
+  double *dist2 = weightedDijkstra(g2, 0);
   assert(dist2[2] == 5);
   printf("Dijkstra test 2 passed: Shortest path selection\n");
   destroyGraph(g2);
   free(dist2);
 
   Graph *g3 = createGraph(2);
-  int *dist3 = weightedDijkstra(g3, 0);
+  double *dist3 = weightedDijkstra(g3, 0);
   assert(dist3[0] == 0);
-  assert(dist3[1] == INT_MAX);
-  printf("Dijkstra test 3 passed: Unreachable vertex (INT_MAX)\n");
+  assert(dist3[1] == INFINITY);
+  printf("Dijkstra test 3 passed: Unreachable vertex (INFINITY)\n");
   destroyGraph(g3);
   free(dist3);
 
@@ -2333,7 +2428,7 @@ void testWeightedDijkstra() {
   addDirectedEdge(g4, 0, 1, 1);
   addDirectedEdge(g4, 1, 2, 1);
   addDirectedEdge(g4, 2, 0, 1);
-  int *dist4 = weightedDijkstra(g4, 0);
+  double *dist4 = weightedDijkstra(g4, 0);
   assert(dist4[0] == 0);
   assert(dist4[1] == 1);
   assert(dist4[2] == 2);
@@ -2350,12 +2445,12 @@ void testFloydWarshall() {
     addDirectedEdge(g, 1, 2, 5);
     addDirectedEdge(g, 0, 2, 20);
 
-    int **distances = floydWarshall(g);
+    double **distances = floydWarshall(g);
 
     assert(distances[0][1] == 10);
     assert(distances[1][2] == 5);
     assert(distances[0][2] == 15);
-    assert(distances[2][0] == INT_MAX);
+    assert(distances[2][0] == INFINITY);
 
     freeMatrix(distances, 3);
     destroyGraph(g);
@@ -2368,7 +2463,7 @@ void testFloydWarshall() {
     addDirectedEdge(g, 0, 2, 5);
     addDirectedEdge(g, 1, 2, -2);
 
-    int **distances = floydWarshall(g);
+    double **distances = floydWarshall(g);
 
     assert(distances[0][2] == 2);
     assert(distances[1][2] == -2);
@@ -2383,11 +2478,11 @@ void testFloydWarshall() {
     addDirectedEdge(g, 0, 1, 1);
     addDirectedEdge(g, 2, 3, 1);
 
-    int **distances = floydWarshall(g);
+    double **distances = floydWarshall(g);
 
     assert(distances[0][1] == 1);
-    assert(distances[0][2] == INT_MAX);
-    assert(distances[3][0] == INT_MAX);
+    assert(distances[0][2] == INFINITY);
+    assert(distances[3][0] == INFINITY);
 
     freeMatrix(distances, 4);
     destroyGraph(g);
@@ -2402,7 +2497,7 @@ void testFloydWarshall() {
     addDirectedEdge(g, 1, 2, 1);
     addDirectedEdge(g, 2, 0, -5);
 
-    int **distances = floydWarshall(g);
+    double **distances = floydWarshall(g);
 
     bool hasNegativeCycle = false;
     for (unsigned i = 0; i < n; i++)
@@ -2425,10 +2520,10 @@ void testPrim() {
     addUndirectedEdge(g, 1, 2, 3);
     addUndirectedEdge(g, 0, 2, 4);
     Graph *mst = prim(g, 0);
-    int w = sumWeights(mst) / 2;
+    double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 4);
     assert(w == 4);
-    printf("Prim test 1 (triangle) passed: weight %d\n", w);
+    printf("Prim test 1 (triangle) passed: weight %lf\n", w);
     destroyGraph(g);
     destroyGraph(mst);
   }
@@ -2442,17 +2537,17 @@ void testPrim() {
     addUndirectedEdge(g, 2, 4, 7);
     addUndirectedEdge(g, 3, 4, 9);
     Graph *mst = prim(g, 0);
-    int w = sumWeights(mst) / 2;
+    double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 8);
     assert(w == 16);
-    printf("Prim test 2 (complex) passed: weight %d\n", w);
+    printf("Prim test 2 (complex) passed: weight %lf\n", w);
     destroyGraph(g);
     destroyGraph(mst);
   }
   {
     Graph *g = createGraph(1);
     Graph *mst = prim(g, 0);
-    int w = sumWeights(mst);
+    double w = sumWeights(mst);
     assert(countEdges(mst) == 0);
     assert(w == 0);
     printf("Prim test 3 (single vertex) passed!\n");
@@ -2469,10 +2564,10 @@ void testKruskal() {
   addUndirectedEdge(g, 2, 0, 6);
   addUndirectedEdge(g, 0, 3, 5);
   Graph *mst = kruskal(g);
-  int weight = sumWeights(mst) / 2;
+  double weight = sumWeights(mst) / 2;
   assert(countEdges(mst) == 6);
   assert(weight == 19);
-  printf("Kruskal test passed: weight %d\n", weight);
+  printf("Kruskal test passed: weight %lf\n", weight);
   destroyGraph(g);
   destroyGraph(mst);
 }
@@ -2606,8 +2701,8 @@ void testFindBridges() {
 
 void testDensity() {
   Graph *graph = createGraph(65537);
-  for (unsigned i = 0; i < 65536; i++)
-    addDirectedEdge(graph, i, i + 1, 1);
+  for (unsigned v = 0; v < 65536; v++)
+    addDirectedEdge(graph, v, v + 1, 1);
   assert(density(graph) <= 0.99);
   destroyGraph(graph);
 }
