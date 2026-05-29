@@ -12,7 +12,7 @@ void freeMatrix(double **matrix, unsigned n);
 
 typedef struct {
   unsigned vertex;
-  unsigned priority;
+  double priority;
 } HeapNode;
 
 void swapHeapNodes(HeapNode *a, HeapNode *b);
@@ -25,7 +25,7 @@ typedef struct {
 
 Heap *createHeap();
 void freeHeap(Heap *heap);
-void insertInHeap(Heap *heap, unsigned vertex, unsigned priority);
+void insertInHeap(Heap *heap, unsigned vertex, double priority);
 unsigned getMinimumFromHeap(const Heap *heap);
 void removeMinimumFromHeap(Heap *heap);
 
@@ -121,8 +121,8 @@ bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned l
 bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isSubGraph(const Graph *subgraph, const Graph *graph);
-bool IsSpanningUndirectedTree(const Graph *subgraph, const Graph *graph);
-bool IsSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
+bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *graph);
+bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
@@ -293,7 +293,7 @@ void freeHeap(Heap *heap) {
   free(heap);
 }
 
-void insertInHeap(Heap *heap, unsigned vertex, unsigned priority) {
+void insertInHeap(Heap *heap, unsigned vertex, double priority) {
   if (heap->size >= heap->capacity) {
     heap->capacity *= 2;
     heap->nodes = realloc(heap->nodes, heap->capacity * sizeof(HeapNode));
@@ -372,7 +372,7 @@ int compareEdges(const void *a, const void *b) {
 
 bool isValidDestinations(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (e->destination >= graph->size)
         return false;
   return true;
@@ -381,7 +381,7 @@ bool isValidDestinations(const Graph *graph) {
 bool isValidInDegree(const Graph *graph) {
   unsigned *degree = calloc(graph->size, sizeof(unsigned));
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       degree[e->destination]++;
   bool valid = true;
   for (unsigned v = 0; v < graph->size; v++)
@@ -396,7 +396,7 @@ bool isValidInDegree(const Graph *graph) {
 bool isValidOutDegree(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++) {
     unsigned degree = 0;
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       degree++;
     if (graph->outDegree[v] != degree)
       return false;
@@ -405,7 +405,7 @@ bool isValidOutDegree(const Graph *graph) {
 }
 
 bool isValid(const Graph *graph) {
-  return graph != NULL && graph->inDegree != NULL && graph->outDegree != NULL && graph->edges != NULL &&
+  return graph != nullptr && graph->inDegree != nullptr && graph->outDegree != nullptr && graph->edges != nullptr &&
     isValidDestinations(graph) && isValidInDegree(graph) && isValidOutDegree(graph);
 }
 
@@ -414,12 +414,12 @@ bool isNull(const Graph *graph) {
 }
 
 bool isTrivial(const Graph *graph) {
-  return graph->size == 1 && graph->edges[0] == NULL;
+  return graph->size == 1 && graph->edges[0] == nullptr;
 }
 
 bool isEmpty(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
-    if (graph->edges[v] != NULL)
+    if (graph->edges[v] != nullptr)
       return false;
   return true;
 }
@@ -558,7 +558,7 @@ bool isBipartite(const Graph *graph) {
       queue[tail++] = u;
       while (head < tail && bipartite) {
         unsigned v = queue[head++];
-        for (Edge *e = graph->edges[v]; e != NULL && bipartite; e = e->next)
+        for (Edge *e = graph->edges[v]; e != nullptr && bipartite; e = e->next)
           if (colors[e->destination] == 0) {
             colors[e->destination] = (colors[v] == 1) ? 2 : 1;
             queue[tail++] = e->destination;
@@ -574,7 +574,7 @@ bool isBipartite(const Graph *graph) {
 
 bool isUndirected(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (!hasWeightedDirectedEdge(graph, e->destination, v, e->weight))
         return false;
   return true;
@@ -584,9 +584,9 @@ bool isMultiGraph(const Graph *graph) {
   bool b = false;
   bool *seen = malloc(graph->size * sizeof(bool));
   for (unsigned v = 0; v < graph->size && !b; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       seen[e->destination] = false;
-    for (Edge *e = graph->edges[v]; e != NULL && !b; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr && !b; e = e->next)
       if (seen[e->destination])
         b = true;
       else
@@ -638,7 +638,7 @@ bool isWheel(const Graph *graph) {
   do {
     visitedCount++;
     unsigned next = UINT_MAX;
-    for (Edge *e = graph->edges[current]; e != NULL && next == UINT_MAX; e = e->next)
+    for (Edge *e = graph->edges[current]; e != nullptr && next == UINT_MAX; e = e->next)
       if (e->destination != hub && e->destination != previous)
         next = e->destination;
     previous = current;
@@ -659,7 +659,7 @@ bool isTournament(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
     m[v] = calloc(graph->size, sizeof(unsigned));
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       m[v][e->destination] += 1;
   bool b = true;
   for (unsigned v = 0; v < graph->size && b; v++)
@@ -675,7 +675,7 @@ bool isTournament(const Graph *graph) {
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
   visited[vertex] = 1;
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     if (visited[e->destination] == 1 || (visited[e->destination] == 0 && isCyclicDirectedComponent(graph, e->destination, visited)))
       return true;
   visited[vertex] = 2;
@@ -693,7 +693,7 @@ bool isCyclicDirected(const Graph *graph) {
 
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
   visited[vertex] = true;
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     if (visited[e->destination]) {
       if (e->destination != parent)
         return true;
@@ -726,7 +726,7 @@ bool isKRegular(const Graph *graph, unsigned k) {
 
 bool isProperColoring(const Graph *graph, const unsigned *coloring) {
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (coloring[v] == coloring[e->destination])
         return false;
   return true;
@@ -734,7 +734,7 @@ bool isProperColoring(const Graph *graph, const unsigned *coloring) {
 
 bool hasConstantWeights(const Graph *graph, double weight) {
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (e->weight != weight)
         return false;
   return true;
@@ -773,7 +773,7 @@ bool isUndirectedLeaf(const Graph *graph, unsigned vertex) {
 }
 
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     if (e->destination == vertex)
       return true;
   return false;
@@ -789,7 +789,7 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
 }
 
 bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v) {
-  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     if (e->destination == v)
       return true;
   return false;
@@ -811,7 +811,7 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target) {
   bool b = false;
   while (head < tail && !b) {
     unsigned u = queue[head++];
-    for (Edge *e = graph->edges[u]; e != NULL; e = e->next) {
+    for (Edge *e = graph->edges[u]; e != nullptr; e = e->next) {
       if (e->destination == target) {
         b = true;
         break;
@@ -829,17 +829,17 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target) {
 
 bool shareNeighbor(const Graph *graph, unsigned u, unsigned v) {
   bool *neighbors = calloc(graph->size, sizeof(bool));
-  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     neighbors[e->destination] = true;
   bool b = false;
-  for (Edge *e = graph->edges[v]; e != NULL && !b; e = e->next)
+  for (Edge *e = graph->edges[v]; e != nullptr && !b; e = e->next)
     b = b || neighbors[e->destination];
   free(neighbors);
   return b;
 }
 
 bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight) {
-  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     if (e->destination == v && e->weight == weight)
       return true;
   return false;
@@ -876,7 +876,7 @@ bool isIndependentSet(const Graph *graph, const bool *subset) {
 bool isVertexCover(const Graph *graph, const bool *subset) {
   for (unsigned u = 0; u < graph->size; u++)
     if (!subset[u])
-      for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+      for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
         if (!subset[e->destination])
           return false;
   return true;
@@ -979,13 +979,13 @@ bool isSubGraph(const Graph *subgraph, const Graph *graph) {
   bool *edges = calloc(graph->size, sizeof(bool));
   double *weights = malloc(graph->size * sizeof(double));
   for (unsigned v = 0; v < subgraph->size && b; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
       edges[e->destination] = true;
       weights[e->destination] = e->weight;
     }
-    for (Edge *e = subgraph->edges[v]; e != NULL && b; e = e->next)
+    for (Edge *e = subgraph->edges[v]; e != nullptr && b; e = e->next)
       b = b && edges[e->destination] && e->weight == weights[e->destination];
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       edges[e->destination] = false;
   }
   free(weights);
@@ -993,7 +993,7 @@ bool isSubGraph(const Graph *subgraph, const Graph *graph) {
   return b;
 }
 
-bool IsSpanningUndirectedTree(const Graph *subgraph, const Graph *graph) {
+bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *graph) {
   return subgraph->size == graph->size &&
     subgraph->size > 0 &&
     isSubGraph(subgraph, graph) &&
@@ -1001,7 +1001,7 @@ bool IsSpanningUndirectedTree(const Graph *subgraph, const Graph *graph) {
     isConnectedUndirected(subgraph);
 }
 
-bool IsSpanningDirectedTree(const Graph *subgraph, const Graph *graph) {
+bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph) {
   return subgraph->size == graph->size &&
     subgraph->size > 0 &&
     isSubGraph(subgraph, graph) &&
@@ -1056,7 +1056,7 @@ void recursivelyFindArticulationPoints(
   unsigned children = 0;
   visited[vertex] = true;
   discovery[vertex] = low[vertex] = ++(*timer);
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     if (!visited[e->destination]) {
       children++;
       parent[e->destination] = vertex;
@@ -1139,7 +1139,7 @@ Graph *createWheelGraph(unsigned size) {
 Graph *copyGraph(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       addDirectedEdge(g, v, e->destination, e->weight);
   return g;
 }
@@ -1147,7 +1147,7 @@ Graph *copyGraph(const Graph *graph) {
 Graph *copyTranspose(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       addDirectedEdge(g, e->destination, v, e->weight);
   return g;
 }
@@ -1155,7 +1155,7 @@ Graph *copyTranspose(const Graph *graph) {
 Graph *copyUnweighted(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       addDirectedEdge(g, v, e->destination, 1);
   return g;
 }
@@ -1163,7 +1163,7 @@ Graph *copyUnweighted(const Graph *graph) {
 Graph *copyUndirected(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       addUndirectedEdge(g, v, e->destination, e->weight);
   return g;
 }
@@ -1180,17 +1180,17 @@ Graph *copyComplement(const Graph *graph) {
 Graph *lineGraph(const Graph *graph) {
   unsigned n = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (v <= e->destination)
         n++;
   Graph *g = createGraph(n);
   unsigned i = 0;
   for (unsigned u = 0; u < graph->size; u++)
-    for (Edge *d = graph->edges[u]; d != NULL; d = d->next)
+    for (Edge *d = graph->edges[u]; d != nullptr; d = d->next)
       if (u <= d->destination) {
         unsigned j = 0;
         for (unsigned v = 0; v < graph->size; v++)
-          for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+          for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
             if (v <= e->destination) {
               if (i < j && (u == v || u == e->destination || d->destination == v || d->destination == e->destination))
                 addUndirectedEdge(g, i, j, 1);
@@ -1204,7 +1204,7 @@ Graph *lineGraph(const Graph *graph) {
 Graph *underlyingGraph(const Graph *graph) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (v != e->destination && !hasUndirectedEdge(g, v, e->destination))
         addUndirectedEdge(g, v, e->destination, 1);
   return g;
@@ -1231,7 +1231,7 @@ Graph *removeVertex(const Graph *graph, unsigned vertex) {
   for (unsigned u = 0; u < graph->size; u++)
     if (u != vertex) {
       unsigned v = (u > vertex) ? u - 1 : u;
-      for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+      for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
         if (e->destination != vertex) {
           unsigned w = (e->destination > vertex) ? e->destination - 1 : e->destination;
           addDirectedEdge(g, v, w, e->weight);
@@ -1259,7 +1259,7 @@ Graph *prim(const Graph *graph, unsigned source) {
       visited[vertex] = true;
       if (parents[vertex] != UINT_MAX)
         addUndirectedEdge(g, parents[vertex], vertex, weights[vertex]);
-      for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+      for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
         if (!visited[e->destination] && e->weight < weights[e->destination]) {
           parents[e->destination] = vertex;
           weights[e->destination] = e->weight;
@@ -1278,7 +1278,7 @@ Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v) {
   Graph *g = createGraph(graph->size - 1);
   for (unsigned x = 0; x < graph->size; x++) {
     unsigned y = x > v ? x - 1 : x == v ? u : x;
-    for (Edge *e = graph->edges[x]; e != NULL; e = e->next) {
+    for (Edge *e = graph->edges[x]; e != nullptr; e = e->next) {
       unsigned z = e->destination > v ? e->destination - 1 : e->destination == v ? u : e->destination;
       addDirectedEdge(g, y, z, e->weight);
     }
@@ -1290,7 +1290,7 @@ Graph *copySubgraph(const Graph *graph, const bool *vertices) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
     if (vertices[v])
-      for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
         if (vertices[e->destination])
           addDirectedEdge(g, v, e->destination, e->weight);
   return g;
@@ -1328,7 +1328,7 @@ void printGraph(const Graph *graph) {
   printf("{");
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
       if (i++ > 0)
         printf(", ");
       printf("(%u, %u, %lf)", v, e->destination, e->weight);
@@ -1339,7 +1339,7 @@ void printGraph(const Graph *graph) {
 void destroyGraph(Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++) {
     Edge *e = graph->edges[v];
-    while (e != NULL) {
+    while (e != nullptr) {
       Edge *next = e->next;
       free(e);
       e = next;
@@ -1354,7 +1354,7 @@ void destroyGraph(Graph *graph) {
 void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
   bool done = false;
   Edge **e = &graph->edges[source];
-  while (*e != NULL && !done)
+  while (*e != nullptr && !done)
     if ((*e)->destination == destination) {
       Edge *temporary = *e;
       *e = (*e)->next;
@@ -1374,7 +1374,7 @@ void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
 
 void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination) {
   Edge **e = &graph->edges[source];
-  while (*e != NULL)
+  while (*e != nullptr)
     if ((*e)->destination == destination) {
       Edge *temporary = *e;
       *e = (*e)->next;
@@ -1411,7 +1411,7 @@ void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
 unsigned countEdges(const Graph *graph) {
   unsigned count = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       count++;
   return count;
 }
@@ -1419,7 +1419,7 @@ unsigned countEdges(const Graph *graph) {
 unsigned countSelfLoops(const Graph *graph) {
   unsigned count = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (e->destination == v)
         count++;
   return count;
@@ -1428,11 +1428,11 @@ unsigned countSelfLoops(const Graph *graph) {
 unsigned countTriangles(const Graph *graph) {
   unsigned count = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *d = graph->edges[v]; d != NULL; d = d->next)
+    for (Edge *d = graph->edges[v]; d != nullptr; d = d->next)
       if (d->destination != v)
-        for (Edge *e = graph->edges[d->destination]; e != NULL; e = e->next)
+        for (Edge *e = graph->edges[d->destination]; e != nullptr; e = e->next)
           if (e->destination != v && e->destination != d->destination)
-            for (Edge *f = graph->edges[e->destination]; f != NULL; f = f->next)
+            for (Edge *f = graph->edges[e->destination]; f != nullptr; f = f->next)
               if (f->destination == v)
                 count++;
   return count;
@@ -1490,12 +1490,12 @@ unsigned countParallelEdges(const Graph *graph) {
   bool *seen = calloc(graph->size, sizeof(bool));
   unsigned count = 0;
   for (unsigned v = 0; v < graph->size; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (seen[e->destination])
         count++;
       else
         seen[e->destination] = true;
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       seen[e->destination] = false;
   }
   free(seen);
@@ -1512,7 +1512,7 @@ unsigned countIsolatedVertices(const Graph *graph) {
 
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
   visited[vertex] = true;
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     if (!visited[e->destination])
       traverseComponent(graph, e->destination, visited);
 }
@@ -1539,10 +1539,10 @@ unsigned inDegree(const Graph *graph, unsigned vertex) {
 
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
   bool *neighbors = calloc(graph->size, sizeof(bool));
-  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     neighbors[e->destination] = true;
   unsigned n = 0;
-  for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
     if (neighbors[e->destination]) {
       n++;
       neighbors[e->destination] = false;
@@ -1574,14 +1574,14 @@ unsigned *undirectedColoring(const Graph *graph) {
     colors[v] = UINT_MAX;
   bool *taken = calloc(graph->size, sizeof(bool));
   for (unsigned v = 1; v < graph->size; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (colors[e->destination] < UINT_MAX)
         taken[colors[e->destination]] = true;
     unsigned color = 0;
     while (taken[color])
       color++;
     colors[v] = color;
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (colors[e->destination] < UINT_MAX)
         taken[colors[e->destination]] = false;
   }
@@ -1591,7 +1591,7 @@ unsigned *undirectedColoring(const Graph *graph) {
 
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned vertex, unsigned *ordering, unsigned *index, bool *visited) {
   visited[vertex] = true;
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     if (!visited[e->destination])
       topologicalSortOfGraphComponent(graph, e->destination, ordering, index, visited);
   ordering[--(*index)] = vertex;
@@ -1618,7 +1618,7 @@ unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
   queue[tail++] = source;
   while (head < tail) {
     unsigned u = queue[head++];
-    for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
       if (distances[e->destination] == UINT_MAX) {
         distances[e->destination] = distances[u] + 1;
         queue[tail++] = e->destination;
@@ -1632,7 +1632,7 @@ unsigned *getInNeighbors(const Graph *graph, unsigned vertex) {
   unsigned *neighbors = malloc(inDegree(graph, vertex) * sizeof(unsigned));
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (e->destination == vertex)
         neighbors[i++] = v;
   return neighbors;
@@ -1641,7 +1641,7 @@ unsigned *getInNeighbors(const Graph *graph, unsigned vertex) {
 unsigned *getOutNeighbors(const Graph *graph, unsigned vertex) {
   unsigned *neighbors = malloc(outDegree(graph, vertex) * sizeof(unsigned));
   unsigned i = 0;
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     neighbors[i++] = e->destination;
   return neighbors;
 }
@@ -1649,7 +1649,7 @@ unsigned *getOutNeighbors(const Graph *graph, unsigned vertex) {
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
   ordering[(*count)++] = source;
   visited[source] = true;
-  for (Edge *e = graph->edges[source]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[source]; e != nullptr; e = e->next)
     if (!visited[e->destination])
       depthFirstSortOfGraphComponent(graph, e->destination, ordering, count, visited);
 }
@@ -1674,7 +1674,7 @@ void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsig
   while (head < tail) {
     unsigned current = queue[head++];
     ordering[(*count)++] = current;
-    for (Edge *e = graph->edges[current]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[current]; e != nullptr; e = e->next)
       if (!visited[e->destination]) {
         visited[e->destination] = true;
         queue[tail++] = e->destination;
@@ -1710,7 +1710,7 @@ void recursivelyFindBridges(
 {
   visited[vertex] = true;
   discovery[vertex] = low[vertex] = ++(*timer);
-  for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
     if (!visited[e->destination]) {
       parent[e->destination] = vertex;
       recursivelyFindBridges(graph, e->destination, visited, discovery, low, parent, bridges, count, timer);
@@ -1751,7 +1751,7 @@ unsigned **findBridges(const Graph *graph) {
 double sumWeights(const Graph *graph) {
   double sum = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       sum += e->weight;
   return sum;
 }
@@ -1811,15 +1811,15 @@ double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
   if (outDegree(graph, vertex) < 2)
     return 0;
   unsigned edgesBetweenNeighbours = 0;
-  for (Edge *d = graph->edges[vertex]; d != NULL; d = d->next)
-    for (Edge *e = graph->edges[vertex]; e != NULL; e = e->next)
+  for (Edge *d = graph->edges[vertex]; d != nullptr; d = d->next)
+    for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
       if (hasDirectedEdge(graph, d->destination, e->destination))
         edgesBetweenNeighbours++;
   return (double)edgesBetweenNeighbours / outDegree(graph, vertex) / (outDegree(graph, vertex) - 1);
 }
 
 double edgeWeight(const Graph *graph, unsigned u, unsigned v) {
-  for (Edge *e = graph->edges[u]; e != NULL; e = e->next)
+  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     if (e->destination == v)
       return e->weight;
   return 0;
@@ -1831,7 +1831,7 @@ double subgraphDensity(const Graph *graph, const bool *subset) {
   for (unsigned v = 0; v < graph->size; v++)
     if (subset[v]) {
       vertices++;
-      for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+      for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
         if (subset[e->destination])
           edges++;
     }
@@ -1857,15 +1857,15 @@ double *bellmanFord(const Graph *graph, unsigned source) {
   for (unsigned i = 1; i < graph->size; i++)
     for (unsigned v = 0; v < graph->size; v++)
       if (distance[v] < INFINITY)
-        for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+        for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
           if (distance[v] + e->weight < distance[e->destination])
             distance[e->destination] = distance[v] + e->weight;
-  for (unsigned v = 0; v < graph->size && distance != NULL; v++)
+  for (unsigned v = 0; v < graph->size && distance != nullptr; v++)
     if (distance[v] < INFINITY)
-      for (Edge *e = graph->edges[v]; e != NULL && distance != NULL; e = e->next)
+      for (Edge *e = graph->edges[v]; e != nullptr && distance != nullptr; e = e->next)
         if (distance[v] + e->weight < distance[e->destination]) {
           free(distance);
-          distance = NULL;
+          distance = nullptr;
         }
   return distance;
 }
@@ -1897,7 +1897,7 @@ double **toMatrix(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
     matrix[v] = calloc(graph->size, sizeof(double));
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       matrix[v][e->destination] = e->weight;
   return matrix;
 }
@@ -1930,7 +1930,7 @@ FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph) {
   FlatEdge *edges = malloc(countEdges(graph) * sizeof(FlatEdge));
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
       edges[i].u = v;
       edges[i].v = e->destination;
       edges[i].weight = e->weight;
@@ -1943,7 +1943,7 @@ FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
   FlatEdge *edges = malloc(countEdges(graph) / 2 * sizeof(FlatEdge));
   unsigned i = 0;
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (v < e->destination) {
         edges[i].u = v;
         edges[i].v = e->destination;
@@ -2319,14 +2319,14 @@ void testBellmanFord() {
   addDirectedEdge(g, 0, 2, 10);
   addDirectedEdge(g, 2, 3, 1);
   double *d1 = bellmanFord(g, 0);
-  assert(d1 != NULL);
+  assert(d1 != nullptr);
   assert(d1[3] == 7);
   printf("Bellman-Ford test 1 (positive) passed!\n");
   free(d1);
 
   addDirectedEdge(g, 3, 1, -10);
   double *d2 = bellmanFord(g, 0);
-  assert(d2 == NULL);
+  assert(d2 == nullptr);
   printf("Bellman-Ford test 2 (negative cycle) passed!\n");
   destroyGraph(g);
 }
@@ -2641,7 +2641,7 @@ void testFindArticulationPoints() {
 
 bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v) {
   if (!bridges) return false;
-  for (int i = 0; bridges[i] != NULL; i++) {
+  for (int i = 0; bridges[i] != nullptr; i++) {
     if ((bridges[i][0] == u && bridges[i][1] == v) || (bridges[i][0] == v && bridges[i][1] == u)) {
       return true;
     }
@@ -2651,7 +2651,7 @@ bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v) {
 
 void freeBridgeResult(unsigned **bridges) {
   if (!bridges) return;
-  for (int i = 0; bridges[i] != NULL; i++) {
+  for (int i = 0; bridges[i] != nullptr; i++) {
     free(bridges[i]);
   }
   free(bridges);
@@ -2677,7 +2677,7 @@ void testFindBridges() {
   addUndirectedEdge(cycle, 2, 0, 1);
 
   unsigned **b2 = findBridges(cycle);
-  assert(b2[0] == NULL);
+  assert(b2[0] == nullptr);
   freeBridgeResult(b2);
   destroyGraph(cycle);
   printf("Passed: Cycle (No Bridges)\n");
@@ -2734,7 +2734,7 @@ int main() {
 void _removeSelfLoops(Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++) {
     Edge **current = &graph->edges[v];
-    while (*current != NULL)
+    while (*current != nullptr)
       if ((*current)->destination == v) {
         Edge *duplicate = *current;
         *current = (*current)->next;
@@ -2749,12 +2749,12 @@ void _removeParallelEdges(Graph *graph) {
   int *minimum = malloc(graph->size * sizeof(int));
   bool *seen = calloc(graph->size, sizeof(bool));
   for (unsigned v = 0; v < graph->size; v++) {
-    for (Edge *e = graph->edges[v]; e != NULL; e = e->next) {
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
       if (!seen[e->destination] || e->weight < minimum[e->destination]) minimum[e->destination] = e->weight;
       seen[e->destination] = true;
     }
     Edge **e = &graph->edges[v];
-    while (*e != NULL) {
+    while (*e != nullptr) {
       if (seen[(*e)->destination] && minimum[(*e)->destination] == (*e)->weight) {
         seen[(*e)->destination] = false;
         e = &(*e)->next;
@@ -2773,7 +2773,7 @@ void _transpose(Graph *graph) {
   Edge **edges = calloc(graph->size, sizeof(Edge *));
   for (unsigned v = 0; v < graph->size; v++) {
     Edge *current = graph->edges[v];
-    while (current != NULL) {
+    while (current != nullptr) {
       unsigned destination = current->destination;
       Edge *next = current->next;
       current->destination = v;
@@ -2788,14 +2788,14 @@ void _transpose(Graph *graph) {
 
 void _mergeVertices(Graph *graph, unsigned u, unsigned v) {
   for (unsigned w = 0; w < graph->size; w++)
-    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[w]; e != nullptr; e = e->next)
       if (e->destination == v)
         e->destination = u;
   for (unsigned w = 0; w < graph->size; w++)
-    for (Edge *e = graph->edges[w]; e != NULL; e = e->next)
+    for (Edge *e = graph->edges[w]; e != nullptr; e = e->next)
       if (e->destination > v)
         e->destination = e->destination - 1;
-  while (graph->edges[v] != NULL) {
+  while (graph->edges[v] != nullptr) {
     Edge *e = graph->edges[v];
     graph->edges[v] = e->next;
     e->next = graph->edges[u];
