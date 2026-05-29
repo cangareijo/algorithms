@@ -426,7 +426,7 @@ bool isEmpty(const Graph *graph) {
 
 bool isRegular(const Graph *graph) {
   for (unsigned v = 1; v < graph->size; v++)
-    if (outDegree(graph, v - 1) != outDegree(graph, v))
+    if (inDegree(graph, v - 1) != inDegree(graph, v) || outDegree(graph, v - 1) != outDegree(graph, v))
       return false;
   return true;
 }
@@ -481,16 +481,7 @@ bool isEulerianDirected(const Graph *graph) {
       break;
     }
   if (start == UINT_MAX)
-    return true;
-  Edge **inNeighbors = calloc(graph->size, sizeof(Edge *));
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *d = graph->edges[v]; d != nullptr; d = d->next) {
-      Edge *e = malloc(sizeof(Edge));
-      e->destination = v;
-      e->weight = d->weight;
-      e->next = inNeighbors[d->destination];
-      inNeighbors[d->destination] = e;
-    }
+    return graph->size <= 1;
   bool *visited = calloc(graph->size, sizeof(bool));
   unsigned *stack = malloc(graph->size * sizeof(unsigned));
   unsigned size = 0;
@@ -500,24 +491,10 @@ bool isEulerianDirected(const Graph *graph) {
     unsigned v = stack[--size];
     for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
       if (!visited[e->destination]) {
-        visited[e->destination] = true;
         stack[size++] = e->destination;
-      }
-    for (Edge *e = inNeighbors[v]; e != nullptr; e = e->next)
-      if (!visited[e->destination]) {
         visited[e->destination] = true;
-        stack[size++] = e->destination;
       }
   }
-  for (unsigned v = 0; v < graph->size; v++) {
-    Edge *e = inNeighbors[v];
-    while (e != nullptr) {
-      Edge *next = e->next;
-      free(e);
-      e = next;
-    }
-  }
-  free(inNeighbors);
   free(stack);
   for (unsigned v = 0; v < graph->size; v++)
     if ((graph->inDegree[v] > 0 || graph->outDegree[v] > 0) && !visited[v]) {
