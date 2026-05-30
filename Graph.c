@@ -182,7 +182,6 @@ unsigned countSources(const Graph *graph);
 unsigned countSinks(const Graph *graph);
 unsigned countParallelEdges(const Graph *graph);
 unsigned countIsolatedVertices(const Graph *graph);
-unsigned getConnectedVertex(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
@@ -201,6 +200,7 @@ void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigne
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
 void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
+unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length);
 
 void recursivelyFindBridges(
   const Graph *graph,
@@ -1538,13 +1538,6 @@ unsigned countIsolatedVertices(const Graph *graph) {
   return n;
 }
 
-unsigned getConnectedVertex(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    if (graph->edges[v])
-      return v;
-  return UINT_MAX;
-}
-
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
   visited[vertex] = true;
   for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
@@ -1728,6 +1721,57 @@ unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source) {
       breadthFirstSortOfGraphComponent(graph, v, ordering, &count, visited);
   free(visited);
   return ordering;
+}
+
+unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length) {
+  *length = 0;
+  if (source >= graph->size || target >= graph->size)
+    return nullptr;
+  double *distance = malloc(graph->size * sizeof(double));
+  unsigned *parent = malloc(graph->size * sizeof(unsigned));
+  bool *visited = malloc(graph->size * sizeof(bool));
+  for (unsigned v = 0; v < graph->size; v++) {
+    distance[v] = DBL_MAX;
+    parent[v] = UINT_MAX;
+    visited[v] = false;
+  }
+  distance[source] = 0;
+  for (unsigned count = 0; count < graph->size; count++) {
+    unsigned u = UINT_MAX;
+    double minimum = DBL_MAX;
+    for (unsigned v = 0; v < graph->size; v++)
+      if (!visited[v] && distance[v] < minimum) {
+        minimum = distance[v];
+        u = v;
+      }
+    if (u == UINT_MAX || u == target)
+      break;
+    visited[u] = true;
+    for (Edge *e = graph->edges[u]; e; e = e->next)
+      if (!visited[e->destination] && distance[u] + e->weight < distance[e->destination]) {
+        distance[e->destination] = distance[u] + e->weight;
+        parent[e->destination] = u;
+      }
+  }
+  unsigned *path = nullptr;
+  if (distance[target] != DBL_MAX) {
+    unsigned v = target;
+    do {
+      (*length)++;
+      v = parent[v];
+    } while (v != UINT_MAX);
+    path = malloc((*length) * sizeof(unsigned));
+    v = target;
+    unsigned i = *length;
+    do {
+      path[--i] = v;
+      v = parent[v];
+    } while (v != UINT_MAX);
+  }
+  free(distance);
+  free(parent);
+  free(visited);
+  return path;
 }
 
 
