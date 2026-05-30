@@ -1276,15 +1276,15 @@ Graph *copySubgraph(const Graph *graph, const bool *subset) {
 }
 
 Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset) {
-  Graph *subgraph = createGraph(graph->size);
+  Graph *g = createGraph(graph->size);
   unsigned n = 0;
   for (unsigned v = 0; v < graph->size; v++)
     for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
       if (subset[n])
-        addDirectedEdge(subgraph, v, e->destination, e->weight);
+        addDirectedEdge(g, v, e->destination, e->weight);
       n++;
     }
-  return subgraph;
+  return g;
 }
 
 Graph *graphUnion(const Graph *g1, const Graph *g2) {
@@ -1353,16 +1353,17 @@ void printGraph(const Graph *graph) {
 }
 
 void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
-  bool done = false;
+  if (source >= graph->size || destination >= graph->size)
+    return;
   Edge **e = &graph->edges[source];
-  while (*e != nullptr && !done)
+  while (*e != nullptr)
     if ((*e)->destination == destination) {
       Edge *temporary = *e;
       *e = (*e)->next;
       free(temporary);
       graph->inDegree[destination]--;
       graph->outDegree[source]--;
-      done = true;
+      break;
     } else {
       e = &(*e)->next;
     }
@@ -1393,8 +1394,6 @@ void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v) {
 }
 
 void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
-  if (u >= graph->size || v >= graph->size || !hasDirectedEdge(graph, u, v))
-    return;
   double weight = edgeWeight(graph, u, v);
   removeFirstDirectedEdge(graph, u, v);
   addVertex(graph);
@@ -1403,6 +1402,8 @@ void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
 }
 
 void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double weight) {
+  if (source >= graph->size || destination >= graph->size)
+    return;
   Edge *e = malloc(sizeof(Edge));
   e->destination = destination;
   e->weight = weight;
@@ -1830,6 +1831,8 @@ double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
 }
 
 double edgeWeight(const Graph *graph, unsigned u, unsigned v) {
+  if (u >= graph->size || v >= graph->size)
+    return 0;
   for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     if (e->destination == v)
       return e->weight;
