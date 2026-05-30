@@ -156,6 +156,7 @@ Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *subset);
 Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
+Graph *cartesianProduct(const Graph *g1, const Graph *g2);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 
@@ -1299,6 +1300,18 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
   return g3;
 }
 
+Graph *cartesianProduct(const Graph *g1, const Graph *g2) {
+  Graph *g3 = createGraph(g1->size * g2->size);
+  for (unsigned u = 0; u < g1->size; u++)
+    for (unsigned v = 0; v < g2->size; v++) {
+      for (Edge *e = g2->edges[v]; e; e = e->next)
+        addDirectedEdge(g3, u * g2->size + v, u * g2->size + e->destination, e->weight);
+      for (Edge *e = g1->edges[u]; e; e = e->next)
+        addDirectedEdge(g3, u * g2->size + v, e->destination * g2->size + v, e->weight);
+    }
+  return g3;
+}
+
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
   Graph *g = createGraph(size);
   for (unsigned i = 0; i < count; i++)
@@ -1375,6 +1388,8 @@ void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
 }
 
 void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination) {
+  if (source >= graph->size || destination >= graph->size)
+    return;
   Edge **e = &graph->edges[source];
   while (*e != nullptr)
     if ((*e)->destination == destination) {
