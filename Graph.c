@@ -152,7 +152,7 @@ Graph *underlyingGraph(const Graph *graph);
 Graph *kruskal(const Graph *graph);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
 Graph *prim(const Graph *graph, unsigned source);
-Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v);
+Graph *contractVertices(const Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *subset);
 Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
@@ -182,6 +182,7 @@ unsigned countSources(const Graph *graph);
 unsigned countSinks(const Graph *graph);
 unsigned countParallelEdges(const Graph *graph);
 unsigned countIsolatedVertices(const Graph *graph);
+unsigned getConnectedVertex(const Graph *graph);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
@@ -1254,7 +1255,7 @@ Graph *prim(const Graph *graph, unsigned source) {
   return g;
 }
 
-Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v) {
+Graph *contractVertices(const Graph *graph, unsigned u, unsigned v) {
   Graph *g = createGraph(graph->size - 1);
   for (unsigned x = 0; x < graph->size; x++) {
     unsigned y = x > v ? x - 1 : x == v ? u : x;
@@ -1535,6 +1536,13 @@ unsigned countIsolatedVertices(const Graph *graph) {
     if (isIsolated(graph, v))
       n++;
   return n;
+}
+
+unsigned getConnectedVertex(const Graph *graph) {
+  for (unsigned v = 0; v < graph->size; v++)
+    if (graph->edges[v])
+      return v;
+  return UINT_MAX;
 }
 
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
@@ -2815,7 +2823,7 @@ void _transpose(Graph *graph) {
   graph->edges = edges;
 }
 
-void _mergeVertices(Graph *graph, unsigned u, unsigned v) {
+void _contractVertices(Graph *graph, unsigned u, unsigned v) {
   for (unsigned w = 0; w < graph->size; w++)
     for (Edge *e = graph->edges[w]; e != nullptr; e = e->next)
       if (e->destination == v)
