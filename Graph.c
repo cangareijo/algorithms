@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -154,17 +153,20 @@ Graph *kruskal(const Graph *graph);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
 Graph *prim(const Graph *graph, unsigned source);
 Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v);
-Graph *copySubgraph(const Graph *graph, const bool *vertices);
+Graph *copySubgraph(const Graph *graph, const bool *subset);
+Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 
-void printGraph(const Graph *graph);
 void destroyGraph(Graph *graph);
+void addVertex(Graph *graph);
+void printGraph(const Graph *graph);
 void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination);
 void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v);
 void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination);
 void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v);
+void subdivideEdge(Graph *graph, unsigned u, unsigned v);
 void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double weight);
 void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 
@@ -1263,14 +1265,26 @@ Graph *mergeVertices(const Graph *graph, unsigned u, unsigned v) {
   return g;
 }
 
-Graph *copySubgraph(const Graph *graph, const bool *vertices) {
+Graph *copySubgraph(const Graph *graph, const bool *subset) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
-    if (vertices[v])
+    if (subset[v])
       for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-        if (vertices[e->destination])
+        if (subset[e->destination])
           addDirectedEdge(g, v, e->destination, e->weight);
   return g;
+}
+
+Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset) {
+  Graph *subgraph = createGraph(graph->size);
+  unsigned n = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
+      if (subset[n])
+        addDirectedEdge(subgraph, v, e->destination, e->weight);
+      n++;
+    }
+  return subgraph;
 }
 
 Graph *graphUnion(const Graph *g1, const Graph *g2) {
@@ -1301,18 +1315,6 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 
 
 
-void printGraph(const Graph *graph) {
-  printf("{");
-  unsigned i = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      if (i++ > 0)
-        printf(", ");
-      printf("(%u, %u, %lf)", v, e->destination, e->weight);
-    }
-  printf("}\n");
-}
-
 void destroyGraph(Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++) {
     Edge *e = graph->edges[v];
@@ -1326,6 +1328,28 @@ void destroyGraph(Graph *graph) {
   free(graph->outDegree);
   free(graph->edges);
   free(graph);
+}
+
+void addVertex(Graph *graph) {
+  graph->size = graph->size + 1;
+  graph->inDegree = realloc(graph->inDegree, graph->size * sizeof(unsigned));
+  graph->outDegree = realloc(graph->outDegree, graph->size * sizeof(unsigned));
+  graph->edges = realloc(graph->edges, graph->size * sizeof(Edge *));
+  graph->inDegree[graph->size - 1] = 0;
+  graph->outDegree[graph->size - 1] = 0;
+  graph->edges[graph->size - 1] = nullptr;
+}
+
+void printGraph(const Graph *graph) {
+  printf("{");
+  unsigned i = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
+      if (i++ > 0)
+        printf(", ");
+      printf("(%u, %u, %lf)", v, e->destination, e->weight);
+    }
+  printf("}\n");
 }
 
 void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
@@ -1366,6 +1390,16 @@ void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination)
 void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v) {
   removeAllDirectedEdges(graph, u, v);
   removeAllDirectedEdges(graph, v, u);
+}
+
+void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
+  if (u >= graph->size || v >= graph->size || !hasDirectedEdge(graph, u, v))
+    return;
+  double weight = edgeWeight(graph, u, v);
+  removeFirstDirectedEdge(graph, u, v);
+  addVertex(graph);
+  addDirectedEdge(graph, u, graph->size - 1, weight / 2);
+  addDirectedEdge(graph, graph->size - 1, v, weight / 2);
 }
 
 void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double weight) {
