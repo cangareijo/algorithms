@@ -188,6 +188,7 @@ unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
+unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target);
 
 unsigned *outDegreeDistribution(const Graph *graph);
 unsigned *inDegreeDistribution(const Graph *graph);
@@ -1582,6 +1583,48 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
   return n;
 }
 
+unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target) {
+  if (graph == nullptr || source >= graph->size || target >= graph->size)
+    return 0;
+  double *distance = malloc(graph->size * sizeof(*distance));
+  unsigned *paths = malloc(graph->size * sizeof(*paths));
+  bool *visited = malloc(graph->size * sizeof(*visited));
+  for (unsigned v = 0; v < graph->size; v++) {
+    distance[v] = INFINITY;
+    paths[v] = 0;
+    visited[v] = false;
+  }
+  distance[source] = 0;
+  paths[source] = 1;
+  for (unsigned count = 0; count < graph->size; count++) {
+    unsigned u = graph->size;
+    double minimum = INFINITY;
+    for (unsigned v = 0; v < graph->size; v++) {
+      if (!visited[v] && distance[v] < minimum) {
+        minimum = distance[v];
+        u = v;
+      }
+    }
+    if (u == graph->size || u == target)
+      break;
+    visited[u] = true;
+    for (const Edge *e = graph->edges[u]; e != nullptr; e = e->next)
+      if (!visited[e->destination]) {
+        if (distance[u] + e->weight < distance[e->destination]) {
+          distance[e->destination] = distance[u] + e->weight;
+          paths[e->destination] = paths[u];
+        } else if (distance[u] + e->weight == distance[e->destination]) {
+          paths[e->destination] += paths[u];
+        }
+      }
+  }
+  unsigned n = paths[target];
+  free(distance);
+  free(paths);
+  free(visited);
+  return n;
+}
+
 
 
 unsigned *inDegreeDistribution(const Graph *graph) {
@@ -1734,14 +1777,14 @@ unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, uns
   unsigned *parent = malloc(graph->size * sizeof(unsigned));
   bool *visited = malloc(graph->size * sizeof(bool));
   for (unsigned v = 0; v < graph->size; v++) {
-    distance[v] = DBL_MAX;
+    distance[v] = INFINITY;
     parent[v] = UINT_MAX;
     visited[v] = false;
   }
   distance[source] = 0;
   for (unsigned count = 0; count < graph->size; count++) {
     unsigned u = UINT_MAX;
-    double minimum = DBL_MAX;
+    double minimum = INFINITY;
     for (unsigned v = 0; v < graph->size; v++)
       if (!visited[v] && distance[v] < minimum) {
         minimum = distance[v];
@@ -1757,7 +1800,7 @@ unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, uns
       }
   }
   unsigned *path = nullptr;
-  if (distance[target] != DBL_MAX) {
+  if (distance[target] != INFINITY) {
     unsigned v = target;
     do {
       (*length)++;
@@ -1908,7 +1951,7 @@ double averageClusteringCoefficient(const Graph *graph) {
 }
 
 double graphGirth(const Graph *graph) {
-  double girth = DBL_MAX;
+  double girth = INFINITY;
   if (graph == nullptr || graph->size == 0)
     return girth;
   double *distance = malloc(graph->size * sizeof(double));
@@ -1916,7 +1959,7 @@ double graphGirth(const Graph *graph) {
   unsigned *queue = malloc(graph->size * sizeof(unsigned));
   for (unsigned start = 0; start < graph->size; start++) {
     for (unsigned v = 0; v < graph->size; v++) {
-      distance[v] = DBL_MAX;
+      distance[v] = INFINITY;
       parent[v] = graph->size;
     }
     unsigned head = 0;
@@ -1926,7 +1969,7 @@ double graphGirth(const Graph *graph) {
     while (head < tail) {
       unsigned v = queue[head++];
       for (const Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-        if (distance[e->destination] == DBL_MAX) {
+        if (distance[e->destination] == INFINITY) {
           distance[e->destination] = distance[v] + e->weight;
           parent[e->destination] = v;
           queue[tail++] = e->destination;
