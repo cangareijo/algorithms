@@ -203,6 +203,7 @@ void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsig
 unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
 unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length);
 
+unsigned **allPairsShortestPathsUnweighted(const Graph *graph);
 void recursivelyFindBridges(
   const Graph *graph,
   unsigned vertex,
@@ -220,6 +221,7 @@ double graphRadius(const Graph *graph);
 double graphDiameter(const Graph *graph);
 double density(const Graph *graph);
 double averageClusteringCoefficient(const Graph *graph);
+double graphGirth(const Graph *graph);
 double graphEccentricity(const Graph *graph, unsigned vertex);
 double normalizedDegree(const Graph *graph, unsigned vertex);
 double localClusteringCoefficient(const Graph *graph, unsigned vertex);
@@ -1777,6 +1779,40 @@ unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, uns
 
 
 
+unsigned **allPairsShortestPathsUnweighted(const Graph *graph) {
+  if (graph == nullptr || graph->size == 0)
+    return nullptr;
+  unsigned **distances = malloc(graph->size * sizeof(unsigned *));
+  for (unsigned u = 0; u < graph->size; u++) {
+    distances[u] = malloc(graph->size * sizeof(unsigned));
+    for (unsigned v = 0; v < graph->size; v++)
+      distances[u][v] = UINT_MAX;
+  }
+  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+  bool *visited = malloc(graph->size * sizeof(bool));
+  for (unsigned start = 0; start < graph->size; start++) {
+    for (unsigned v = 0; v < graph->size; v++)
+      visited[v] = false;
+    unsigned head = 0;
+    unsigned tail = 0;
+    distances[start][start] = 0;
+    visited[start] = true;
+    queue[tail++] = start;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+        if (!visited[e->destination]) {
+          visited[e->destination] = true;
+          distances[start][e->destination] = distances[start][v] + 1;
+          queue[tail++] = e->destination;
+        }
+    }
+  }
+  free(queue);
+  free(visited);
+  return distances;
+}
+
 void recursivelyFindBridges(
   const Graph *graph,
   unsigned vertex,
@@ -1869,6 +1905,42 @@ double averageClusteringCoefficient(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
     total += localClusteringCoefficient(graph, v);
   return total / graph->size;
+}
+
+double graphGirth(const Graph *graph) {
+  double girth = DBL_MAX;
+  if (graph == nullptr || graph->size == 0)
+    return girth;
+  double *distance = malloc(graph->size * sizeof(double));
+  unsigned *parent = malloc(graph->size * sizeof(unsigned));
+  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+  for (unsigned start = 0; start < graph->size; start++) {
+    for (unsigned v = 0; v < graph->size; v++) {
+      distance[v] = DBL_MAX;
+      parent[v] = graph->size;
+    }
+    unsigned head = 0;
+    unsigned tail = 0;
+    distance[start] = 0;
+    queue[tail++] = start;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (const Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+        if (distance[e->destination] == DBL_MAX) {
+          distance[e->destination] = distance[v] + e->weight;
+          parent[e->destination] = v;
+          queue[tail++] = e->destination;
+        } else if (parent[v] != e->destination && parent[e->destination] != v) {
+          double length = distance[v] + distance[e->destination] + e->weight;
+          if (length < girth)
+            girth = length;
+        }
+    }
+  }
+  free(distance);
+  free(parent);
+  free(queue);
+  return girth;
 }
 
 double graphEccentricity(const Graph *graph, unsigned vertex) {
@@ -2812,81 +2884,6 @@ int main() {
 }
 
 //
-
-void _removeSelfLoops(Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) {
-    Edge **current = &graph->edges[v];
-    while (*current != nullptr)
-      if ((*current)->destination == v) {
-        Edge *duplicate = *current;
-        *current = (*current)->next;
-        free(duplicate);
-      } else {
-        current = &(*current)->next;
-      }
-  }
-}
-
-void _removeParallelEdges(Graph *graph) {
-  int *minimum = malloc(graph->size * sizeof(int));
-  bool *seen = calloc(graph->size, sizeof(bool));
-  for (unsigned v = 0; v < graph->size; v++) {
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      if (!seen[e->destination] || e->weight < minimum[e->destination]) minimum[e->destination] = e->weight;
-      seen[e->destination] = true;
-    }
-    Edge **e = &graph->edges[v];
-    while (*e != nullptr) {
-      if (seen[(*e)->destination] && minimum[(*e)->destination] == (*e)->weight) {
-        seen[(*e)->destination] = false;
-        e = &(*e)->next;
-      } else {
-        Edge *parallel = *e;
-        *e = (*e)->next;
-        free(parallel);
-      }
-    }
-  }
-  free(minimum);
-  free(seen);
-}
-
-void _transpose(Graph *graph) {
-  Edge **edges = calloc(graph->size, sizeof(Edge *));
-  for (unsigned v = 0; v < graph->size; v++) {
-    Edge *current = graph->edges[v];
-    while (current != nullptr) {
-      unsigned destination = current->destination;
-      Edge *next = current->next;
-      current->destination = v;
-      current->next = edges[destination];
-      edges[destination] = current;
-      current = next;
-    }
-  }
-  free(graph->edges);
-  graph->edges = edges;
-}
-
-void _contractVertices(Graph *graph, unsigned u, unsigned v) {
-  for (unsigned w = 0; w < graph->size; w++)
-    for (Edge *e = graph->edges[w]; e != nullptr; e = e->next)
-      if (e->destination == v)
-        e->destination = u;
-  for (unsigned w = 0; w < graph->size; w++)
-    for (Edge *e = graph->edges[w]; e != nullptr; e = e->next)
-      if (e->destination > v)
-        e->destination = e->destination - 1;
-  while (graph->edges[v] != nullptr) {
-    Edge *e = graph->edges[v];
-    graph->edges[v] = e->next;
-    e->next = graph->edges[u];
-    graph->edges[u] = e;
-  }
-  for (unsigned w = v + 1; w < graph->size; w++)
-    graph->edges[w - 1] = graph->edges[w];
-  graph->size--;
-}
 
 unsigned *_inDegrees(const Graph *graph) {
   unsigned *degrees = calloc(graph->size, sizeof(unsigned));
