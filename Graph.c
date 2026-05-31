@@ -220,7 +220,7 @@ unsigned **findBridges(const Graph *graph);
 double sumWeights(const Graph *graph);
 double graphRadius(const Graph *graph);
 double graphDiameter(const Graph *graph);
-double density(const Graph *graph);
+double graphDensity(const Graph *graph);
 double averageClusteringCoefficient(const Graph *graph);
 double graphGirth(const Graph *graph);
 double graphEccentricity(const Graph *graph, unsigned vertex);
@@ -230,6 +230,7 @@ double edgeWeight(const Graph *graph, unsigned source, unsigned destination);
 double subgraphDensity(const Graph *graph, const bool *subset);
 double pathWeight(const Graph *graph, const unsigned *path, unsigned length);
 
+double *closenessCentrality(const Graph *graph);
 double *bellmanFord(const Graph *graph, unsigned source);
 double *weightedDijkstra(const Graph *graph, unsigned source);
 
@@ -261,7 +262,7 @@ void testFindArticulationPoints();
 bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v);
 void freeBridgeResult(unsigned **bridges);
 void testFindBridges();
-void testDensity();
+void testGraphDensity();
 
 int main();
 
@@ -1935,7 +1936,7 @@ double graphDiameter(const Graph *graph) {
   return diameter;
 }
 
-double density(const Graph *graph) {
+double graphDensity(const Graph *graph) {
   if (graph->size < 2)
     return 0;
   return (double)countEdges(graph) / graph->size / (graph->size - 1);
@@ -2045,6 +2046,27 @@ double pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
 }
 
 
+
+double *closenessCentrality(const Graph *graph) {
+  if (graph == nullptr) return nullptr;
+  double *centrality = calloc(graph->size, sizeof(double));
+  double **distance = floydWarshall(graph);
+  for (unsigned u = 0; u < graph->size; u++) {
+    double total = 0;
+    unsigned count = 0;
+    for (unsigned v = 0; v < graph->size; v++)
+      if (u != v && distance[u][v] != INFINITY) {
+        total += distance[u][v];
+        count++;
+      }
+    if (total > 0 && count > 0)
+      centrality[u] = count / total;
+    else
+      centrality[u] = 0;
+  }
+  freeMatrix(distance, graph->size);
+  return centrality;
+}
 
 double *bellmanFord(const Graph *graph, unsigned source) {
   double *distance = malloc(graph->size * sizeof(double));
@@ -2896,11 +2918,11 @@ void testFindBridges() {
   printf("Passed: Dumbbell Graph\n");
 }
 
-void testDensity() {
+void testGraphDensity() {
   Graph *graph = createGraph(65537);
   for (unsigned v = 0; v < 65536; v++)
     addDirectedEdge(graph, v, v + 1, 1);
-  assert(density(graph) <= 0.99);
+  assert(graphDensity(graph) <= 0.99);
   destroyGraph(graph);
 }
 
@@ -2921,7 +2943,7 @@ int main() {
   testKruskal();
   testFindArticulationPoints();
   testFindBridges();
-  testDensity();
+  testGraphDensity();
   printf("All tests passed!\n");
   return 0;
 }
