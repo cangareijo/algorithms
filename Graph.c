@@ -106,6 +106,8 @@ bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
 bool shareNeighbor(const Graph *graph, unsigned u, unsigned v);
+bool isDirectedBridge(const Graph *graph, unsigned u, unsigned v);
+bool isUndirectedBridge(const Graph *graph, unsigned u, unsigned v);
 bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight);
 bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight);
 bool isTriangle(const Graph *graph, unsigned u, unsigned v, unsigned w);
@@ -168,11 +170,11 @@ void addVertex(Graph *graph);
 void printGraph(const Graph *graph);
 void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination);
 void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v);
-void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination);
-void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v);
 void subdivideEdge(Graph *graph, unsigned u, unsigned v);
 void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double weight);
 void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
+void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
+void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 
 unsigned countEdges(const Graph *graph);
 unsigned countSelfLoops(const Graph *graph);
@@ -834,17 +836,33 @@ bool isReachable(const Graph *graph, unsigned start, unsigned target) {
 
 bool shareNeighbor(const Graph *graph, unsigned u, unsigned v) {
   bool *neighbors = calloc(graph->size, sizeof(bool));
-  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
+  for (Edge *e = graph->edges[u]; e; e = e->next)
     neighbors[e->destination] = true;
   bool b = false;
-  for (Edge *e = graph->edges[v]; e != nullptr && !b; e = e->next)
+  for (Edge *e = graph->edges[v]; e && !b; e = e->next)
     b = b || neighbors[e->destination];
   free(neighbors);
   return b;
 }
 
+bool isDirectedBridge(const Graph *graph, unsigned u, unsigned v) {
+  Graph *g = copyGraph(graph);
+  removeFirstDirectedEdge(g, u, v);
+  unsigned n = countComponents(g);
+  freeGraph(g);
+  return n > countComponents(graph);
+}
+
+bool isUndirectedBridge(const Graph *graph, unsigned u, unsigned v) {
+  Graph *g = copyGraph(graph);
+  removeFirstUndirectedEdge(g, u, v);
+  unsigned n = countComponents(g);
+  freeGraph(g);
+  return n > countComponents(graph);
+}
+
 bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight) {
-  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
+  for (Edge *e = graph->edges[u]; e; e = e->next)
     if (e->destination == v && e->weight == weight)
       return true;
   return false;
@@ -1390,17 +1408,18 @@ void printGraph(const Graph *graph) {
   printf("}\n");
 }
 
-void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination) {
-  if (source >= graph->size || destination >= graph->size)
-    return;
-  Edge **e = &graph->edges[source];
+void removeFirstDirectedEdge(Graph *graph, unsigned u, unsigned v) {
+  assert(u < graph->size);
+  assert(v < graph->size);
+  assert(hasDirectedEdge(graph, u, v));
+  Edge **e = &graph->edges[u];
   while (*e != nullptr)
-    if ((*e)->destination == destination) {
+    if ((*e)->destination == v) {
       Edge *temporary = *e;
       *e = (*e)->next;
       free(temporary);
-      graph->inDegree[destination]--;
-      graph->outDegree[source]--;
+      graph->inDegree[v]--;
+      graph->outDegree[u]--;
       break;
     } else {
       e = &(*e)->next;
@@ -1408,29 +1427,10 @@ void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination
 }
 
 void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
-  removeFirstDirectedEdge(graph, u, v);
-  removeFirstDirectedEdge(graph, v, u);
-}
-
-void removeAllDirectedEdges(Graph *graph, unsigned source, unsigned destination) {
-  if (source >= graph->size || destination >= graph->size)
-    return;
-  Edge **e = &graph->edges[source];
-  while (*e != nullptr)
-    if ((*e)->destination == destination) {
-      Edge *temporary = *e;
-      *e = (*e)->next;
-      free(temporary);
-      graph->inDegree[destination]--;
-      graph->outDegree[source]--;
-    } else {
-      e = &(*e)->next;
-    }
-}
-
-void removeAllUndirectedEdges(Graph *graph, unsigned u, unsigned v) {
-  removeAllDirectedEdges(graph, u, v);
-  removeAllDirectedEdges(graph, v, u);
+  assert(isUndirected(graph));
+  double weight = edgeWeight(graph, u, v);
+  removeFirstWeightedDirectedEdge(graph, u, v, weight);
+  removeFirstWeightedDirectedEdge(graph, v, u, weight);
 }
 
 void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
@@ -1454,8 +1454,33 @@ void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double
 }
 
 void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
+  assert(isUndirected(graph));
   addDirectedEdge(graph, u, v, weight);
   addDirectedEdge(graph, v, u, weight);
+}
+
+void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
+  assert(u < graph->size);
+  assert(v < graph->size);
+  assert(hasWeightedDirectedEdge(graph, u, v, weight));
+  Edge **e = &graph->edges[u];
+  while (*e != nullptr)
+    if ((*e)->destination == v && (*e)->weight == weight) {
+      Edge *temporary = *e;
+      *e = (*e)->next;
+      free(temporary);
+      graph->inDegree[v]--;
+      graph->outDegree[u]--;
+      break;
+    } else {
+      e = &(*e)->next;
+    }
+}
+
+void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
+  assert(isUndirected(graph));
+  removeFirstWeightedDirectedEdge(graph, u, v, weight);
+  removeFirstWeightedDirectedEdge(graph, v, u, weight);
 }
 
 
