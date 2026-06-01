@@ -84,6 +84,7 @@ bool isStar(const Graph *graph);
 bool isWheel(const Graph *graph);
 bool hasIsolatedVertices(const Graph *graph);
 bool isTournament(const Graph *graph);
+bool hasNegativeWeights(const Graph *graph);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -223,6 +224,8 @@ double graphDiameter(const Graph *graph);
 double graphDensity(const Graph *graph);
 double averageClusteringCoefficient(const Graph *graph);
 double graphGirth(const Graph *graph);
+double minimumEdgeWeight(const Graph *graph);
+double maximumEdgeWeight(const Graph *graph);
 double graphEccentricity(const Graph *graph, unsigned vertex);
 double normalizedDegree(const Graph *graph, unsigned vertex);
 double localClusteringCoefficient(const Graph *graph, unsigned vertex);
@@ -657,6 +660,14 @@ bool isTournament(const Graph *graph) {
     free(m[v]);
   free(m);
   return b;
+}
+
+bool hasNegativeWeights(const Graph *graph) {
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (e->weight < 0)
+        return true;
+  return false;
 }
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
@@ -1985,6 +1996,24 @@ double graphGirth(const Graph *graph) {
   free(parent);
   free(queue);
   return girth;
+}
+
+double minimumEdgeWeight(const Graph *graph) {
+  double minimum = INFINITY;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (e->weight < minimum)
+        minimum = e->weight;
+  return minimum;
+}
+
+double maximumEdgeWeight(const Graph *graph) {
+  double maximum = -INFINITY;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (e->weight > maximum)
+        maximum = e->weight;
+  return maximum;
 }
 
 double graphEccentricity(const Graph *graph, unsigned vertex) {
