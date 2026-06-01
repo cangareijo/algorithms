@@ -101,6 +101,7 @@ bool isDirectedLeaf(const Graph *graph, unsigned vertex);
 bool isUndirectedLeaf(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
+bool isArticulationVertex(const Graph *graph, unsigned vertex);
 bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
@@ -162,7 +163,7 @@ Graph *cartesianProduct(const Graph *g1, const Graph *g2);
 Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 
-void destroyGraph(Graph *graph);
+void freeGraph(Graph *graph);
 void addVertex(Graph *graph);
 void printGraph(const Graph *graph);
 void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination);
@@ -524,7 +525,7 @@ bool isConnectedUndirected(const Graph *graph) {
 bool isWeaklyConnectedDirected(const Graph *graph) {
   Graph *undirected = copyUndirected(graph);
   bool connected = isConnectedUndirected(undirected);
-  destroyGraph(undirected);
+  freeGraph(undirected);
   return connected;
 }
 
@@ -532,7 +533,7 @@ bool isStronglyConnectedDirected(const Graph *graph) {
   if (graph->size < 2) return true;
   Graph *g = copyTranspose(graph);
   bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(g, 0);
-  destroyGraph(g);
+  freeGraph(g);
   return reachable;
 }
 
@@ -785,6 +786,13 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
   return b;
 }
 
+bool isArticulationVertex(const Graph *graph, unsigned vertex) {
+  Graph *g = removeVertex(graph, vertex);
+  unsigned n = countComponents(g);
+  freeGraph(g);
+  return n > countComponents(graph);
+}
+
 bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     if (e->destination == v)
@@ -909,7 +917,7 @@ bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned leng
       removeFirstDirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
-  destroyGraph(copy);
+  freeGraph(copy);
   return valid;
 }
 
@@ -921,7 +929,7 @@ bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned le
       removeFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
-  destroyGraph(copy);
+  freeGraph(copy);
   return valid;
 }
 
@@ -955,7 +963,7 @@ bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned le
       removeFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
-  destroyGraph(copy);
+  freeGraph(copy);
   return valid;
 }
 
@@ -967,7 +975,7 @@ bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned 
       removeFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
-  destroyGraph(copy);
+  freeGraph(copy);
   return valid;
 }
 
@@ -1345,7 +1353,7 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 
 
 
-void destroyGraph(Graph *graph) {
+void freeGraph(Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++) {
     Edge *e = graph->edges[v];
     while (e != nullptr) {
@@ -2238,7 +2246,7 @@ void testIsDirectedCyclicGraph() {
   addDirectedEdge(g1, 2, 0, 1);
   assert(isCyclicDirected(g1) == true);
   printf("Directed cyclic test 1 passed: Simple cycle found.\n");
-  destroyGraph(g1);
+  freeGraph(g1);
 
   Graph *g2 = createGraph(3);
   addDirectedEdge(g2, 0, 1, 1);
@@ -2246,13 +2254,13 @@ void testIsDirectedCyclicGraph() {
   addDirectedEdge(g2, 0, 2, 1);
   assert(isCyclicDirected(g2) == false);
   printf("Directed cyclic test 2 passed: DAG correctly identified as acyclic.\n");
-  destroyGraph(g2);
+  freeGraph(g2);
 
   Graph *g3 = createGraph(1);
   addDirectedEdge(g3, 0, 0, 1);
   assert(isCyclicDirected(g3) == true);
   printf("Directed cyclic test 3 passed: Self-loop detected.\n");
-  destroyGraph(g3);
+  freeGraph(g3);
 
   Graph *g4 = createGraph(4);
   addDirectedEdge(g4, 0, 1, 1);
@@ -2260,12 +2268,12 @@ void testIsDirectedCyclicGraph() {
   addDirectedEdge(g4, 3, 2, 1);
   assert(isCyclicDirected(g4) == true);
   printf("Directed cyclic test 4 passed: Cycle in disconnected component found.\n");
-  destroyGraph(g4);
+  freeGraph(g4);
 
   Graph *g5 = createGraph(0);
   assert(isCyclicDirected(g5) == false);
   printf("Directed cyclic test 5 passed: Empty graph is acyclic.\n");
-  destroyGraph(g5);
+  freeGraph(g5);
 }
 
 void testIsUndirectedCyclicGraph() {
@@ -2276,7 +2284,7 @@ void testIsUndirectedCyclicGraph() {
     printf("Undirected Test 1 passed: Tree is acyclic.\n");
   else
     printf("Undirected Test 1 failed: False positive in tree.\n");
-  destroyGraph(g1);
+  freeGraph(g1);
 
   Graph *g2 = createGraph(3);
   addUndirectedEdge(g2, 0, 1, 1);
@@ -2286,7 +2294,7 @@ void testIsUndirectedCyclicGraph() {
     printf("Undirected Test 2 passed: Triangle cycle detected.\n");
   else
     printf("Undirected Test 2 failed: Triangle cycle missed.\n");
-  destroyGraph(g2);
+  freeGraph(g2);
 
   Graph *g3 = createGraph(5);
   addUndirectedEdge(g3, 0, 1, 1);
@@ -2297,7 +2305,7 @@ void testIsUndirectedCyclicGraph() {
     printf("Undirected Test 3 passed: Cycle in disconnected component detected.\n");
   else
     printf("Undirected Test 3 failed: Missed cycle in disconnected component.\n");
-  destroyGraph(g3);
+  freeGraph(g3);
 
   Graph *g4 = createGraph(2);
   addUndirectedEdge(g4, 0, 1, 1);
@@ -2305,34 +2313,34 @@ void testIsUndirectedCyclicGraph() {
     printf("Undirected Test 4 passed: Simple edge is acyclic.\n");
   else
     printf("Undirected Test 4 failed: Parent incorrectly triggered cycle.\n");
-  destroyGraph(g4);
+  freeGraph(g4);
 }
 
 void testIsConnectedUndirected() {
   Graph *g1 = createGraph(1);
   assert(isConnectedUndirected(g1) == true);
   printf("Undirected connected test 1 passed: Single vertex\n");
-  destroyGraph(g1);
+  freeGraph(g1);
 
   Graph *g2 = createGraph(3);
   addUndirectedEdge(g2, 0, 1, 1);
   addUndirectedEdge(g2, 1, 2, 1);
   assert(isConnectedUndirected(g2) == true);
   printf("Undirected connected test 2 passed: Simple line graph\n");
-  destroyGraph(g2);
+  freeGraph(g2);
 
   Graph *g3 = createGraph(4);
   addUndirectedEdge(g3, 0, 1, 1);
   addUndirectedEdge(g3, 2, 3, 1);
   assert(isConnectedUndirected(g3) == false);
   printf("Undirected connected test 3 passed: Disconnected components\n");
-  destroyGraph(g3);
+  freeGraph(g3);
 
   Graph *g4 = createGraph(3);
   addUndirectedEdge(g4, 0, 1, 1);
   assert(isConnectedUndirected(g4) == false);
   printf("Undirected connected test 4 passed: Isolated vertex\n");
-  destroyGraph(g4);
+  freeGraph(g4);
 
   Graph *g5 = createGraph(4);
   addUndirectedEdge(g5, 0, 1, 1);
@@ -2343,7 +2351,7 @@ void testIsConnectedUndirected() {
   addUndirectedEdge(g5, 2, 3, 1);
   assert(isConnectedUndirected(g5) == true);
   printf("Undirected connected test 5 passed: Complete graph\n");
-  destroyGraph(g5);
+  freeGraph(g5);
 }
 
 void testIsWeaklyConnectedDirected() {
@@ -2352,21 +2360,21 @@ void testIsWeaklyConnectedDirected() {
   addDirectedEdge(g1, 1, 2, 1);
   assert(isWeaklyConnectedDirected(g1) == true);
   printf("Weakly Test 1 passed: Simple chain\n");
-  destroyGraph(g1);
+  freeGraph(g1);
 
   Graph *g2 = createGraph(3);
   addDirectedEdge(g2, 0, 1, 1);
   addDirectedEdge(g2, 2, 1, 1);
   assert(isWeaklyConnectedDirected(g2) == true);
   printf("Weakly Test 2 passed: Source/Sink structure\n");
-  destroyGraph(g2);
+  freeGraph(g2);
 
   Graph *g3 = createGraph(4);
   addDirectedEdge(g3, 0, 1, 1);
   addDirectedEdge(g3, 2, 3, 1);
   assert(isWeaklyConnectedDirected(g3) == false);
   printf("Weakly Test 3 passed: Truly disconnected components\n");
-  destroyGraph(g3);
+  freeGraph(g3);
 
   Graph *g4 = createGraph(4);
   addDirectedEdge(g4, 0, 1, 1);
@@ -2374,13 +2382,13 @@ void testIsWeaklyConnectedDirected() {
   addDirectedEdge(g4, 0, 3, 1);
   assert(isWeaklyConnectedDirected(g4) == true);
   printf("Weakly Test 4 passed: Star pattern\n");
-  destroyGraph(g4);
+  freeGraph(g4);
 
   Graph *g5 = createGraph(2);
   addDirectedEdge(g5, 0, 0, 1);
   assert(isWeaklyConnectedDirected(g5) == false);
   printf("Weakly Test 5 passed: Isolated vertex with self-loop\n");
-  destroyGraph(g5);
+  freeGraph(g5);
 }
 
 void testIsStronglyConnectedDirected() {
@@ -2390,14 +2398,14 @@ void testIsStronglyConnectedDirected() {
   addDirectedEdge(g1, 2, 0, 1);
   assert(isStronglyConnectedDirected(g1) == true);
   printf("Strongly Test 1 passed: Simple cycle\n");
-  destroyGraph(g1);
+  freeGraph(g1);
 
   Graph *g2 = createGraph(3);
   addDirectedEdge(g2, 0, 1, 1);
   addDirectedEdge(g2, 1, 2, 1);
   assert(isStronglyConnectedDirected(g2) == false);
   printf("Strongly Test 2 passed: Linear chain (not strong)\n");
-  destroyGraph(g2);
+  freeGraph(g2);
 
   Graph *g3 = createGraph(4);
   addDirectedEdge(g3, 0, 1, 1);
@@ -2406,7 +2414,7 @@ void testIsStronglyConnectedDirected() {
   addDirectedEdge(g3, 3, 2, 1);
   assert(isStronglyConnectedDirected(g3) == false);
   printf("Strongly Test 3 passed: Disconnected cycles\n");
-  destroyGraph(g3);
+  freeGraph(g3);
 
   Graph *g4 = createGraph(3);
   addDirectedEdge(g4, 0, 1, 1);
@@ -2415,12 +2423,12 @@ void testIsStronglyConnectedDirected() {
   addDirectedEdge(g4, 2, 1, 1);
   assert(isStronglyConnectedDirected(g4) == true);
   printf("Strongly Test 4 passed: Bidirectional chain\n");
-  destroyGraph(g4);
+  freeGraph(g4);
 
   Graph *g5 = createGraph(1);
   assert(isStronglyConnectedDirected(g5) == true);
   printf("Strongly Test 5 passed: Single vertex\n");
-  destroyGraph(g5);
+  freeGraph(g5);
 }
 
 void testDepthFirstSortOfGraph() {
@@ -2432,7 +2440,7 @@ void testDepthFirstSortOfGraph() {
   assert(order1[1] == 1);
   assert(order1[2] == 2);
   printf("DFS test 1 (Linear) passed!\n");
-  destroyGraph(g1);
+  freeGraph(g1);
   free(order1);
 
   Graph *g2 = createGraph(3);
@@ -2443,7 +2451,7 @@ void testDepthFirstSortOfGraph() {
   assert(order2[1] == 1);
   assert(order2[2] == 2);
   printf("DFS test 2 (Fork) passed!\n");
-  destroyGraph(g2);
+  freeGraph(g2);
   free(order2);
 
   Graph *g3 = createGraph(3);
@@ -2453,7 +2461,7 @@ void testDepthFirstSortOfGraph() {
   assert(order3[1] == 1);
   assert(order3[2] == 2);
   printf("DFS test 3 (Disconnected) passed!\n");
-  destroyGraph(g3);
+  freeGraph(g3);
   free(order3);
 
   Graph *g4 = createGraph(2);
@@ -2463,7 +2471,7 @@ void testDepthFirstSortOfGraph() {
   assert(order4[0] == 0);
   assert(order4[1] == 1);
   printf("DFS test 4 (Cyclic) passed!\n");
-  destroyGraph(g4);
+  freeGraph(g4);
   free(order4);
 }
 
@@ -2476,7 +2484,7 @@ void testBreadthFirstSortOfGraph() {
   assert(order1[1] == 1);
   assert(order1[2] == 2);
   printf("BFS test 1 (linear) passed!\n");
-  destroyGraph(g1);
+  freeGraph(g1);
   free(order1);
 
   Graph *g2 = createGraph(3);
@@ -2487,7 +2495,7 @@ void testBreadthFirstSortOfGraph() {
   assert(order2[1] == 1);
   assert(order2[2] == 2);
   printf("BFS test 2 (fork) passed!\n");
-  destroyGraph(g2);
+  freeGraph(g2);
   free(order2);
 
   Graph *g3 = createGraph(3);
@@ -2497,7 +2505,7 @@ void testBreadthFirstSortOfGraph() {
   assert(order3[1] == 1);
   assert(order3[2] == 2);
   printf("BFS test 3 (disconnected) passed!\n");
-  destroyGraph(g3);
+  freeGraph(g3);
   free(order3);
 
   Graph *g4 = createGraph(2);
@@ -2507,7 +2515,7 @@ void testBreadthFirstSortOfGraph() {
   assert(order4[0] == 0);
   assert(order4[1] == 1);
   printf("BFS test 4 (cycle) passed!\n");
-  destroyGraph(g4);
+  freeGraph(g4);
   free(order4);
 }
 
@@ -2529,7 +2537,7 @@ void testTopologicalSortOfGraph() {
   unsigned *order1 = topologicalSortOfGraph(g1);
   assert(isValidTopologicalSort(g1, order1));
   printf("Topo test 1 (linear) passed!\n");
-  destroyGraph(g1);
+  freeGraph(g1);
   free(order1);
 
   Graph *g2 = createGraph(4);
@@ -2540,7 +2548,7 @@ void testTopologicalSortOfGraph() {
   unsigned *order2 = topologicalSortOfGraph(g2);
   assert(isValidTopologicalSort(g2, order2));
   printf("Topo test 2 (diamond) passed!\n");
-  destroyGraph(g2);
+  freeGraph(g2);
   free(order2);
 
   Graph *g3 = createGraph(4);
@@ -2549,14 +2557,14 @@ void testTopologicalSortOfGraph() {
   unsigned *order3 = topologicalSortOfGraph(g3);
   assert(isValidTopologicalSort(g3, order3));
   printf("Topo test 3 (disconnected) passed!\n");
-  destroyGraph(g3);
+  freeGraph(g3);
   free(order3);
 
   Graph *g4 = createGraph(1);
   unsigned *order4 = topologicalSortOfGraph(g4);
   assert(order4[0] == 0);
   printf("Topo test 4 (single vertex) passed!\n");
-  destroyGraph(g4);
+  freeGraph(g4);
   free(order4);
 }
 
@@ -2576,7 +2584,7 @@ void testBellmanFord() {
   double *d2 = bellmanFord(g, 0);
   assert(d2 == nullptr);
   printf("Bellman-Ford test 2 (negative cycle) passed!\n");
-  destroyGraph(g);
+  freeGraph(g);
 }
 
 void testUnweightedDijkstra() {
@@ -2594,7 +2602,7 @@ void testUnweightedDijkstra() {
 
     printf("Passed: Simple path (weights ignored)\n");
     free(distances);
-    destroyGraph(g);
+    freeGraph(g);
   }
 
   {
@@ -2608,7 +2616,7 @@ void testUnweightedDijkstra() {
 
     printf("Passed: Shortest hops selection\n");
     free(distances);
-    destroyGraph(g);
+    freeGraph(g);
   }
 
   {
@@ -2622,7 +2630,7 @@ void testUnweightedDijkstra() {
 
     printf("Passed: Unreachable node (UINT_MAX)\n");
     free(distances);
-    destroyGraph(g);
+    freeGraph(g);
   }
 
   {
@@ -2638,7 +2646,7 @@ void testUnweightedDijkstra() {
 
     printf("Passed: Cyclic graph\n");
     free(distances);
-    destroyGraph(g);
+    freeGraph(g);
   }
 }
 
@@ -2651,7 +2659,7 @@ void testWeightedDijkstra() {
   assert(dist1[1] == 5);
   assert(dist1[2] == 15);
   printf("Dijkstra test 1 passed: Simple path\n");
-  destroyGraph(g1);
+  freeGraph(g1);
   free(dist1);
 
   Graph *g2 = createGraph(3);
@@ -2661,7 +2669,7 @@ void testWeightedDijkstra() {
   double *dist2 = weightedDijkstra(g2, 0);
   assert(dist2[2] == 5);
   printf("Dijkstra test 2 passed: Shortest path selection\n");
-  destroyGraph(g2);
+  freeGraph(g2);
   free(dist2);
 
   Graph *g3 = createGraph(2);
@@ -2669,7 +2677,7 @@ void testWeightedDijkstra() {
   assert(dist3[0] == 0);
   assert(dist3[1] == INFINITY);
   printf("Dijkstra test 3 passed: Unreachable vertex (INFINITY)\n");
-  destroyGraph(g3);
+  freeGraph(g3);
   free(dist3);
 
   Graph *g4 = createGraph(3);
@@ -2681,7 +2689,7 @@ void testWeightedDijkstra() {
   assert(dist4[1] == 1);
   assert(dist4[2] == 2);
   printf("Dijkstra test 4 passed: Cyclic graph\n");
-  destroyGraph(g4);
+  freeGraph(g4);
   free(dist4);
 }
 
@@ -2701,7 +2709,7 @@ void testFloydWarshall() {
     assert(distances[2][0] == INFINITY);
 
     freeMatrix(distances, 3);
-    destroyGraph(g);
+    freeGraph(g);
     printf("Passed!\n");
   }
   {
@@ -2717,7 +2725,7 @@ void testFloydWarshall() {
     assert(distances[1][2] == -2);
 
     freeMatrix(distances, 3);
-    destroyGraph(g);
+    freeGraph(g);
     printf("Passed!\n");
   }
   {
@@ -2733,7 +2741,7 @@ void testFloydWarshall() {
     assert(distances[3][0] == INFINITY);
 
     freeMatrix(distances, 4);
-    destroyGraph(g);
+    freeGraph(g);
     printf("Passed!\n");
   }
   {
@@ -2756,7 +2764,7 @@ void testFloydWarshall() {
     assert(distances[0][0] == -3);
 
     freeMatrix(distances, n);
-    destroyGraph(g);
+    freeGraph(g);
     printf("Passed!\n");
   }
 }
@@ -2772,8 +2780,8 @@ void testPrim() {
     assert(countEdges(mst) == 4);
     assert(w == 4);
     printf("Prim test 1 (triangle) passed: weight %lf\n", w);
-    destroyGraph(g);
-    destroyGraph(mst);
+    freeGraph(g);
+    freeGraph(mst);
   }
   {
     Graph *g = createGraph(5);
@@ -2789,8 +2797,8 @@ void testPrim() {
     assert(countEdges(mst) == 8);
     assert(w == 16);
     printf("Prim test 2 (complex) passed: weight %lf\n", w);
-    destroyGraph(g);
-    destroyGraph(mst);
+    freeGraph(g);
+    freeGraph(mst);
   }
   {
     Graph *g = createGraph(1);
@@ -2799,8 +2807,8 @@ void testPrim() {
     assert(countEdges(mst) == 0);
     assert(w == 0);
     printf("Prim test 3 (single vertex) passed!\n");
-    destroyGraph(g);
-    destroyGraph(mst);
+    freeGraph(g);
+    freeGraph(mst);
   }
 }
 
@@ -2816,8 +2824,8 @@ void testKruskal() {
   assert(countEdges(mst) == 6);
   assert(weight == 19);
   printf("Kruskal test passed: weight %lf\n", weight);
-  destroyGraph(g);
-  destroyGraph(mst);
+  freeGraph(g);
+  freeGraph(mst);
 }
 
 void testFindArticulationPoints() {
@@ -2830,7 +2838,7 @@ void testFindArticulationPoints() {
     bool expected[] = {false, true, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
     printf("Articulation test passed: linear path\n");
-    destroyGraph(g);
+    freeGraph(g);
     free(articulations);
   }
   {
@@ -2843,7 +2851,7 @@ void testFindArticulationPoints() {
     bool expected[] = {false, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
     printf("Articulation test passed: simple cycle\n");
-    destroyGraph(g);
+    freeGraph(g);
     free(articulations);
   }
   {
@@ -2856,7 +2864,7 @@ void testFindArticulationPoints() {
     bool expected[] = {true, false, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
     printf("Articulation test passed: star graph\n");
-    destroyGraph(g);
+    freeGraph(g);
     free(articulations);
   }
   {
@@ -2869,7 +2877,7 @@ void testFindArticulationPoints() {
     bool expected[] = {false, false, true, true, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
     printf("Articulation test passed: two triangles connected by a bridge\n");
-    destroyGraph(g);
+    freeGraph(g);
     free(articulations);
   }
   {
@@ -2882,7 +2890,7 @@ void testFindArticulationPoints() {
     bool expected[] = {false, false, false, true, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
     printf("Articulation test passed: disconnected components\n");
-    destroyGraph(g);
+    freeGraph(g);
     free(articulations);
   }
 }
@@ -2916,7 +2924,7 @@ void testFindBridges() {
   assert(hasBridge(b1, 0, 1));
   assert(hasBridge(b1, 1, 2));
   freeBridgeResult(b1);
-  destroyGraph(line);
+  freeGraph(line);
   printf("Passed: Line Graph\n");
 
   Graph *cycle = createGraph(3);
@@ -2927,7 +2935,7 @@ void testFindBridges() {
   unsigned **b2 = findBridges(cycle);
   assert(b2[0] == nullptr);
   freeBridgeResult(b2);
-  destroyGraph(cycle);
+  freeGraph(cycle);
   printf("Passed: Cycle (No Bridges)\n");
 
   Graph *dumbbell = createGraph(6);
@@ -2943,7 +2951,7 @@ void testFindBridges() {
   assert(hasBridge(b3, 1, 3));
   assert(!hasBridge(b3, 0, 1));
   freeBridgeResult(b3);
-  destroyGraph(dumbbell);
+  freeGraph(dumbbell);
   printf("Passed: Dumbbell Graph\n");
 }
 
@@ -2952,7 +2960,7 @@ void testGraphDensity() {
   for (unsigned v = 0; v < 65536; v++)
     addDirectedEdge(graph, v, v + 1, 1);
   assert(graphDensity(graph) <= 0.99);
-  destroyGraph(graph);
+  freeGraph(graph);
 }
 
 int main() {
