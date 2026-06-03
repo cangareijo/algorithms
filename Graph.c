@@ -158,6 +158,7 @@ Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
 Graph *underlyingGraph(const Graph *graph);
 Graph *kruskal(const Graph *graph);
+Graph *graphPower(const Graph *g, unsigned k);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
 Graph *prim(const Graph *graph, unsigned source);
 Graph *contractVertices(const Graph *graph, unsigned u, unsigned v);
@@ -1286,6 +1287,43 @@ Graph *kruskal(const Graph *graph) {
   free(edges);
   freeDsu(dsu);
   return mst;
+}
+
+Graph *graphPower(const Graph *g, unsigned k) {
+  if (g == nullptr) return nullptr;
+  Graph *result = createGraph(g->size);
+  if (result == nullptr) return nullptr;
+  if (k == 0) return result;
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  unsigned *distance = malloc(g->size * sizeof(unsigned));
+  if (queue == nullptr || distance == nullptr) {
+    free(queue);
+    free(distance);
+    freeGraph(result);
+    return nullptr;
+  }
+  for (unsigned source = 0; source < g->size; source++) {
+    for (unsigned v = 0; v < g->size; v++) distance[v] = UINT_MAX;
+    unsigned head = 0;
+    unsigned tail = 0;
+    distance[source] = 0;
+    queue[tail++] = source;
+    while (head < tail) {
+      unsigned u = queue[head++];
+      if (distance[u] >= k) break;
+      for (Edge *e = g->edges[u]; e != nullptr; e = e->next)
+        if (distance[e->destination] == UINT_MAX) {
+          distance[e->destination] = distance[u] + 1;
+          queue[tail++] = e->destination;
+        }
+    }
+    for (unsigned target = 0; target < g->size; target++)
+      if (target != source && distance[target] <= k)
+        addDirectedEdge(result, source, target, 1);
+  }
+  free(queue);
+  free(distance);
+  return result;
 }
 
 Graph *removeVertex(const Graph *graph, unsigned vertex) {
