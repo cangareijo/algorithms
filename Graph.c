@@ -65,7 +65,7 @@ bool isValidOutDegree(const Graph *graph);
 bool isValid(const Graph *graph);
 bool isNull(const Graph *graph);
 bool isTrivial(const Graph *graph);
-bool isEmpty(const Graph *graph);
+bool isEmpty(const Graph *g);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
@@ -80,11 +80,14 @@ bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
 bool isForest(const Graph *graph);
 bool isTree(const Graph *graph);
+bool isPathGraph(const Graph *g);
+bool isCycleGraph(const Graph *g);
 bool isStar(const Graph *graph);
 bool isWheel(const Graph *graph);
 bool hasIsolatedVertices(const Graph *graph);
 bool isTournament(const Graph *graph);
 bool hasNegativeWeights(const Graph *graph);
+bool isCubic(const Graph *g);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -187,10 +190,12 @@ unsigned countSources(const Graph *graph);
 unsigned countSinks(const Graph *graph);
 unsigned countParallelEdges(const Graph *graph);
 unsigned countIsolatedVertices(const Graph *graph);
+unsigned getSize(const Graph *g);
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
+unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target);
 
@@ -432,9 +437,10 @@ bool isTrivial(const Graph *graph) {
   return graph->size == 1 && graph->edges[0] == nullptr;
 }
 
-bool isEmpty(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    if (graph->edges[v] != nullptr)
+bool isEmpty(const Graph *g) {
+  if (!g || !g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (g->edges[v] != nullptr)
       return false;
   return true;
 }
@@ -566,7 +572,7 @@ bool isBipartite(const Graph *graph) {
 
 bool isUndirected(const Graph *graph) {
   for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
       if (!hasWeightedDirectedEdge(graph, e->destination, v, e->weight))
         return false;
   return true;
@@ -594,6 +600,35 @@ bool isForest(const Graph *graph) {
 
 bool isTree(const Graph *graph) {
   return isUndirected(graph) && !isCyclicUndirected(graph) && isConnectedUndirected(graph);
+}
+
+bool isPathGraph(const Graph *g) {
+  if (getSize(g) == 0) return false;
+  if (getSize(g) == 1) return isEmpty(g);
+  if (hasSelfLoops(g)) return false;
+  if (isMultiGraph(g)) return false;
+  if (!isConnectedUndirected(g)) return false;
+  unsigned endpoints = 0;
+  unsigned internal = 0;
+  for (unsigned v = 0; v < getSize(g); v++)
+    if (inDegree(g, v) == 1 && outDegree(g, v) == 1)
+      endpoints++;
+    else if (inDegree(g, v) == 2 && outDegree(g, v) == 2)
+      internal++;
+    else
+      return false;
+  if (endpoints != 2) return false;
+  if (internal != getSize(g) - 2) return false;
+  return true;
+}
+
+bool isCycleGraph(const Graph *g) {
+  if (getSize(g) < 3) return false;
+  if (hasSelfLoops(g)) return false;
+  if (isMultiGraph(g)) return false;
+  if (!isConnectedUndirected(g)) return false;
+  if (!isKRegular(g, 2)) return false;
+  return true;
 }
 
 bool isStar(const Graph *graph) {
@@ -673,6 +708,10 @@ bool hasNegativeWeights(const Graph *graph) {
   return false;
 }
 
+bool isCubic(const Graph *g) {
+  return isKRegular(g, 3);
+}
+
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
   visited[vertex] = 1;
   for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
@@ -719,7 +758,7 @@ bool isCyclicUndirected(const Graph *graph) {
 
 bool isKRegular(const Graph *graph, unsigned k) {
   for (unsigned v = 0; v < graph->size; v++)
-    if (outDegree(graph, v) != k)
+    if (inDegree(graph, v) != k || outDegree(graph, v) != k)
       return false;
   return true;
 }
@@ -1435,7 +1474,7 @@ void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
 
 void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
   double weight = edgeWeight(graph, u, v);
-  removeFirstDirectedEdge(graph, u, v);
+  removeFirstWeightedDirectedEdge(graph, u, v, weight);
   addVertex(graph);
   addDirectedEdge(graph, u, graph->size - 1, weight / 2);
   addDirectedEdge(graph, graph->size - 1, v, weight / 2);
@@ -1587,6 +1626,11 @@ unsigned countIsolatedVertices(const Graph *graph) {
   return n;
 }
 
+unsigned getSize(const Graph *g) {
+  if (!g) return 0;
+  return g->size;
+}
+
 void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
   visited[vertex] = true;
   for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
@@ -1612,6 +1656,16 @@ unsigned outDegree(const Graph *graph, unsigned vertex) {
 
 unsigned inDegree(const Graph *graph, unsigned vertex) {
   return graph->inDegree[vertex];
+}
+
+unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
+  if (!g || v >= g->size) return UINT_MAX;
+  unsigned j = 0;
+  for (Edge *e = g->edges[v]; e; e = e->next) {
+    if (j == i) return e->destination;
+    j++;
+  }
+  return UINT_MAX;
 }
 
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
