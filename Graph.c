@@ -181,6 +181,7 @@ void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double
 void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
+void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 
 unsigned countEdges(const Graph *graph);
 unsigned countSelfLoops(const Graph *graph);
@@ -194,7 +195,6 @@ unsigned countSinks(const Graph *graph);
 unsigned countParallelEdges(const Graph *graph);
 unsigned countIsolatedVertices(const Graph *graph);
 unsigned getSize(const Graph *g);
-void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 unsigned countComponents(const Graph *graph);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
@@ -1591,6 +1591,13 @@ void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, dou
   removeFirstWeightedDirectedEdge(graph, v, u, weight);
 }
 
+void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
+  visited[vertex] = true;
+  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
+    if (!visited[e->destination])
+      traverseComponent(graph, e->destination, visited);
+}
+
 
 
 unsigned countEdges(const Graph *graph) {
@@ -1700,22 +1707,30 @@ unsigned getSize(const Graph *g) {
   return g->size;
 }
 
-void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
-  visited[vertex] = true;
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-    if (!visited[e->destination])
-      traverseComponent(graph, e->destination, visited);
-}
-
-unsigned countComponents(const Graph *graph) {
-  bool *visited = calloc(graph->size, sizeof(bool));
+// The initialization clause of the for loop only runs once per while iteration.
+// Parallel edges are only pushed once onto the stack.
+unsigned countComponents(const Graph *g) {
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!visited[v]) {
-      n++;
-      traverseComponent(graph, v, visited);
-    }
-  free(visited);
+  if (g && g->edges) {
+    bool *visited = calloc(g->size, sizeof(bool));
+    unsigned *stack = malloc(g->size * sizeof(unsigned));
+    if (visited && stack)
+      for (unsigned u = 0; u < g->size; u++)
+        if (!visited[u]) {
+          n++;
+          unsigned size = 0;
+          stack[size++] = u;
+          visited[u] = true;
+          while (size > 0)
+            for (Edge *e = g->edges[stack[--size]]; e; e = e->next)
+              if (!visited[e->destination]) {
+                visited[e->destination] = true;
+                stack[size++] = e->destination;
+              }
+        }
+    free(stack);
+    free(visited);
+  }
   return n;
 }
 
