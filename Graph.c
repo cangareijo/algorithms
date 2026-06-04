@@ -158,6 +158,8 @@ Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
 Graph *underlyingGraph(const Graph *graph);
 Graph *kruskal(const Graph *graph);
+Graph *directedSubdivisionGraph(const Graph *g);
+Graph *undirectedSubdivisionGraph(const Graph *g);
 Graph *graphPower(const Graph *g, unsigned k);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
 Graph *prim(const Graph *graph, unsigned source);
@@ -1287,6 +1289,35 @@ Graph *kruskal(const Graph *graph) {
   free(edges);
   freeDsu(dsu);
   return mst;
+}
+
+Graph *directedSubdivisionGraph(const Graph *g) {
+  if (!g) return nullptr;
+  Graph *g2 = createGraph(g->size + countEdges(g));
+  if (!g2) return nullptr;
+  unsigned u = g->size;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      addDirectedEdge(g2, v, u, e->weight);
+      addDirectedEdge(g2, u, e->destination, e->weight);
+      u++;
+    }
+  return g2;
+}
+
+Graph *undirectedSubdivisionGraph(const Graph *g) {
+  if (!g) return nullptr;
+  Graph *g2 = createGraph(g->size + countEdges(g) / 2);
+  if (!g2) return nullptr;
+  unsigned u = g->size;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (v < e->destination) {
+        addUndirectedEdge(g2, v, u, e->weight);
+        addUndirectedEdge(g2, u, e->destination, e->weight);
+        u++;
+      }
+  return g2;
 }
 
 Graph *graphPower(const Graph *g, unsigned k) {
