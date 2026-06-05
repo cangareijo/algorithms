@@ -181,7 +181,6 @@ void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double
 void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
-void traverseComponent(const Graph *graph, unsigned vertex, bool *visited);
 
 unsigned countEdges(const Graph *graph);
 unsigned countSelfLoops(const Graph *graph);
@@ -195,7 +194,11 @@ unsigned countSinks(const Graph *graph);
 unsigned countParallelEdges(const Graph *graph);
 unsigned countIsolatedVertices(const Graph *graph);
 unsigned getSize(const Graph *g);
-unsigned countComponents(const Graph *graph);
+unsigned countComponents(const Graph *g);
+unsigned minimumInDegree(const Graph *g);
+unsigned maximumInDegree(const Graph *g);
+unsigned minimumOutDegree(const Graph *g);
+unsigned maximumOutDegree(const Graph *g);
 unsigned outDegree(const Graph *graph, unsigned vertex);
 unsigned inDegree(const Graph *graph, unsigned vertex);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
@@ -473,24 +476,47 @@ bool isBalanced(const Graph *graph) {
   return true;
 }
 
-bool isEulerianUndirected(const Graph* graph) {
-  unsigned vertex = UINT_MAX;
-  for (unsigned v = 0; v < graph->size; v++) {
-    if (outDegree(graph, v) % 2 != 0)
-      return false;
-    if (outDegree(graph, v) > 0 && vertex == UINT_MAX)
-      vertex = v;
-  }
-  if (vertex == UINT_MAX)
+bool isEulerianUndirected(const Graph *graph) {
+  if (!graph || !graph->edges)
     return true;
-  bool* visited = calloc(graph->size, sizeof(bool));
-  traverseComponent(graph, vertex, visited);
+  bool edges = false;
+  for (unsigned v = 0; v < graph->size && !edges; v++)
+    edges = edges || graph->edges[v];
+  if (!edges)
+    return true;
   for (unsigned v = 0; v < graph->size; v++)
-    if (outDegree(graph, v) > 0 && !visited[v]) {
-      free(visited);
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (e->destination >= graph->size)
+        return false;
+  unsigned degree[graph->size];
+  for (unsigned v = 0; v < graph->size; v++)
+    degree[v] = 0;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      degree[v]++;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (degree[v] % 2 != 0)
       return false;
-    }
-  free(visited);
+  unsigned start = graph->size;
+  for (unsigned v = 0; v < graph->size && start == graph->size; v++)
+    if (graph->edges[v])
+      start = v;
+  bool visited[graph->size];
+  for (unsigned v = 0; v < graph->size; v++)
+    visited[v] = false;
+  unsigned stack[graph->size];
+  unsigned size = 0;
+  stack[size++] = start;
+  visited[start] = true;
+  while (size > 0)
+    for (Edge *e = graph->edges[stack[--size]]; e; e = e->next)
+      if (!visited[e->destination]) {
+        visited[e->destination] = true;
+        stack[size++] = e->destination;
+      }
+  for (unsigned v = 0; v < graph->size; v++)
+    if (!visited[v] && graph->edges[v])
+      return false;
   return true;
 }
 
@@ -1591,13 +1617,6 @@ void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, dou
   removeFirstWeightedDirectedEdge(graph, v, u, weight);
 }
 
-void traverseComponent(const Graph *graph, unsigned vertex, bool *visited) {
-  visited[vertex] = true;
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-    if (!visited[e->destination])
-      traverseComponent(graph, e->destination, visited);
-}
-
 
 
 unsigned countEdges(const Graph *graph) {
@@ -1707,8 +1726,6 @@ unsigned getSize(const Graph *g) {
   return g->size;
 }
 
-// The initialization clause of the for loop only runs once per while iteration.
-// Parallel edges are only pushed once onto the stack.
 unsigned countComponents(const Graph *g) {
   unsigned n = 0;
   if (g && g->edges) {
@@ -1723,7 +1740,7 @@ unsigned countComponents(const Graph *g) {
           visited[u] = true;
           while (size > 0)
             for (Edge *e = g->edges[stack[--size]]; e; e = e->next)
-              if (!visited[e->destination]) {
+              if (e->destination < g->size && !visited[e->destination]) {
                 visited[e->destination] = true;
                 stack[size++] = e->destination;
               }
@@ -1732,6 +1749,42 @@ unsigned countComponents(const Graph *g) {
     free(visited);
   }
   return n;
+}
+
+unsigned minimumInDegree(const Graph *g) {
+  if (!g || !g->inDegree) return UINT_MAX;
+  unsigned minimum = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (g->inDegree[v] < minimum)
+      minimum = g->inDegree[v];
+  return minimum;
+}
+
+unsigned maximumInDegree(const Graph *g) {
+  if (!g || !g->inDegree) return 0;
+  unsigned maximum = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (g->inDegree[v] > maximum)
+      maximum = g->inDegree[v];
+  return maximum;
+}
+
+unsigned minimumOutDegree(const Graph *g) {
+  if (!g || !g->outDegree) return UINT_MAX;
+  unsigned minimum = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (g->outDegree[v] < minimum)
+      minimum = g->outDegree[v];
+  return minimum;
+}
+
+unsigned maximumOutDegree(const Graph *g) {
+  if (!g || !g->outDegree) return 0;
+  unsigned maximum = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (g->outDegree[v] > maximum)
+      maximum = g->outDegree[v];
+  return maximum;
 }
 
 unsigned outDegree(const Graph *graph, unsigned vertex) {
