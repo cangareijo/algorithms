@@ -174,6 +174,7 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 void freeGraph(Graph *graph);
 void addVertex(Graph *graph);
 void printGraph(const Graph *graph);
+void removeDirectedEdgeByIndex(Graph *g, unsigned i);
 void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination);
 void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v);
 void subdivideEdge(Graph *graph, unsigned u, unsigned v);
@@ -1542,6 +1543,23 @@ void printGraph(const Graph *graph) {
       printf("(%u, %u, %lf)", v, e->destination, e->weight);
     }
   printf("}\n");
+}
+
+void removeDirectedEdgeByIndex(Graph *g, unsigned i) {
+  if (!g || !g->edges) return;
+  unsigned j = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge **e = &g->edges[v]; *e; e = &(*e)->next) {
+      if (j == i) {
+        Edge *edge = *e;
+        if (g->outDegree) g->outDegree[v]--;
+        if (g->inDegree) g->inDegree[edge->destination]--;
+        *e = edge->next;
+        free(edge);
+        return;
+      }
+      j++;
+    }
 }
 
 void removeFirstDirectedEdge(Graph *graph, unsigned u, unsigned v) {
