@@ -199,8 +199,9 @@ unsigned minimumInDegree(const Graph *g);
 unsigned maximumInDegree(const Graph *g);
 unsigned minimumOutDegree(const Graph *g);
 unsigned maximumOutDegree(const Graph *g);
-unsigned outDegree(const Graph *graph, unsigned vertex);
-unsigned inDegree(const Graph *graph, unsigned vertex);
+unsigned outDegree(const Graph *g, unsigned v);
+unsigned inDegree(const Graph *g, unsigned v);
+unsigned degree(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target);
@@ -1788,12 +1789,19 @@ unsigned maximumOutDegree(const Graph *g) {
   return maximum;
 }
 
-unsigned outDegree(const Graph *graph, unsigned vertex) {
-  return graph->outDegree[vertex];
+unsigned outDegree(const Graph *g, unsigned v) {
+  if (!g || !g->outDegree || v >= g->size) return 0;
+  return g->outDegree[v];
 }
 
-unsigned inDegree(const Graph *graph, unsigned vertex) {
-  return graph->inDegree[vertex];
+unsigned inDegree(const Graph *g, unsigned v) {
+  if (!g || !g->inDegree || v >= g->size) return 0;
+  return g->inDegree[v];
+}
+
+unsigned degree(const Graph *g, unsigned v) {
+  if (!g || !g->inDegree || !g->outDegree || v >= g->size) return 0;
+  return g->inDegree[v] + g->outDegree[v];
 }
 
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
