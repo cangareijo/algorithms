@@ -204,6 +204,7 @@ unsigned inDegree(const Graph *graph, unsigned vertex);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target);
+unsigned distance(const Graph *g, unsigned u, unsigned v);
 
 unsigned *outDegreeDistribution(const Graph *graph);
 unsigned *inDegreeDistribution(const Graph *graph);
@@ -1859,6 +1860,40 @@ unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target
   free(paths);
   free(visited);
   return n;
+}
+
+unsigned distance(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return UINT_MAX;
+  bool *visited = calloc(g->size, sizeof(bool));
+  unsigned *distances = malloc(g->size * sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  if (!visited || !distances || !queue) {
+    free(visited);
+    free(distances);
+    free(queue);
+    return UINT_MAX;
+  }
+  visited[u] = true;
+  for (unsigned v = 0; v < g->size; v++) distances[v] = UINT_MAX;
+  distances[u] = 0;
+  unsigned head = 0;
+  unsigned tail = 0;
+  queue[tail++] = u;
+  while (head < tail) {
+    unsigned current = queue[head++];
+    if (current == v) break;
+    for (Edge *e = g->edges[current]; e; e = e->next)
+      if (e->destination < g->size && !visited[e->destination]) {
+        visited[e->destination] = true;
+        distances[e->destination] = distances[current] + 1;
+        queue[tail++] = e->destination;
+      }
+  }
+  unsigned distance = distances[v];
+  free(visited);
+  free(distances);
+  free(queue);
+  return distance;
 }
 
 
