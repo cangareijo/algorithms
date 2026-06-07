@@ -66,6 +66,7 @@ bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
 bool isBalanced(const Graph *graph);
+bool allOutDegreesAreEven(const Graph *g);
 bool isEulerianUndirected(const Graph *graph);
 bool isEulerianDirected(const Graph *graph);
 bool isConnectedUndirected(const Graph *graph);
@@ -196,6 +197,7 @@ unsigned countParallelEdges(const Graph *graph);
 unsigned countIsolatedVertices(const Graph *graph);
 unsigned getSize(const Graph *g);
 unsigned countComponents(const Graph *g);
+unsigned firstActiveVertex(const Graph *g);
 unsigned inDegree(const Graph *g, unsigned v);
 unsigned outDegree(const Graph *g, unsigned v);
 unsigned degree(const Graph *g, unsigned v);
@@ -451,29 +453,20 @@ bool isBalanced(const Graph *graph) {
   return true;
 }
 
-bool isEulerianUndirected(const Graph *graph) {
-  if (!graph || (graph->size < 2 && !graph->edges)) return true;
-  if (graph->size >= 2 && !graph->edges) return false;
-  bool edges = false;
-  for (unsigned v = 0; v < graph->size && !edges; v++)
-    edges = edges || graph->edges[v];
-  if (!edges)
-    return true;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (e->destination >= graph->size)
-        return false;
-  for (unsigned v = 0; v < graph->size; v++) {
-    unsigned degree = 0;
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      degree++;
-    if (degree % 2 != 0)
+bool allOutDegreesAreEven(const Graph *g) {
+  if (!g) return true;
+  for (unsigned v = 0; v < g->size; v++)
+    if (outDegree(g, v) % 2 != 0)
       return false;
-  }
-  unsigned start = graph->size;
-  for (unsigned v = 0; v < graph->size && start == graph->size; v++)
-    if (graph->edges[v])
-      start = v;
+  return true;
+}
+
+bool isEulerianUndirected(const Graph *graph) {
+  if (!graph) return true;
+  if (isEmpty(graph)) return true;
+  if (!destinationsAreValid(graph)) return false;
+  if (!allOutDegreesAreEven(graph)) return false;
+  unsigned start = firstActiveVertex(graph);
   bool visited[graph->size];
   for (unsigned v = 0; v < graph->size; v++)
     visited[v] = false;
@@ -1793,6 +1786,14 @@ unsigned countComponents(const Graph *g) {
     free(visited);
   }
   return n;
+}
+
+unsigned firstActiveVertex(const Graph *g) {
+  if (!g || !g->edges) return UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (g->edges[v])
+      return v;
+  return UINT_MAX;
 }
 
 unsigned outDegree(const Graph *g, unsigned v) {
