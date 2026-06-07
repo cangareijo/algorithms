@@ -130,6 +130,7 @@ bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
+bool *getReachableFromFirstActive(const Graph *g);
 void recursivelyFindArticulationPoints(
   const Graph *graph,
   unsigned vertex,
@@ -412,8 +413,8 @@ bool isValid(const Graph *g) {
   return g && (g->size == 0 || g->edges) && destinationsAreValid(g);
 }
 
-bool isNull(const Graph *graph) {
-  return graph->size == 0;
+bool isNull(const Graph *g) {
+  return !g || g->size == 0;
 }
 
 bool isTrivial(const Graph *g) {
@@ -462,27 +463,14 @@ bool allOutDegreesAreEven(const Graph *g) {
 }
 
 bool isEulerianUndirected(const Graph *graph) {
-  if (!graph) return true;
   if (isEmpty(graph)) return true;
-  if (!destinationsAreValid(graph)) return false;
   if (!allOutDegreesAreEven(graph)) return false;
-  unsigned start = firstActiveVertex(graph);
-  bool visited[graph->size];
+  bool *reachable = getReachableFromFirstActive(graph);
+  if (!reachable) return false;
   for (unsigned v = 0; v < graph->size; v++)
-    visited[v] = false;
-  unsigned stack[graph->size];
-  unsigned size = 0;
-  stack[size++] = start;
-  visited[start] = true;
-  while (size > 0)
-    for (Edge *e = graph->edges[stack[--size]]; e; e = e->next)
-      if (!visited[e->destination]) {
-        visited[e->destination] = true;
-        stack[size++] = e->destination;
-      }
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!visited[v] && graph->edges[v])
+    if (!reachable[v] && graph->edges[v])
       return false;
+  free(reachable);
   return true;
 }
 
@@ -1129,6 +1117,24 @@ bool *graphPeriphery(const Graph *graph) {
       periphery[v] = true;
   free(eccentricity);
   return periphery;
+}
+
+bool *getReachableFromFirstActive(const Graph *g) {
+  if (!g || !g->edges || isEmpty(g) || !destinationsAreValid(g)) return nullptr;
+  bool *reachable = calloc(g->size, sizeof(bool));
+  if (!reachable) return nullptr;
+  unsigned start = firstActiveVertex(g);
+  reachable[start] = true;
+  unsigned stack[g->size];
+  unsigned size = 0;
+  stack[size++] = start;
+  while (size > 0)
+    for (Edge *e = g->edges[stack[--size]]; e; e = e->next)
+      if (!reachable[e->destination]) {
+        reachable[e->destination] = true;
+        stack[size++] = e->destination;
+      }
+  return reachable;
 }
 
 void recursivelyFindArticulationPoints(
