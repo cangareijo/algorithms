@@ -54,15 +54,11 @@ typedef struct Edge {
 
 typedef struct {
   unsigned size;
-  unsigned *inDegree;
-  unsigned *outDegree;
   Edge **edges;
 } Graph;
 
-bool isValidDestinations(const Graph *graph);
-bool isValidInDegree(const Graph *graph);
-bool isValidOutDegree(const Graph *graph);
-bool isValid(const Graph *graph);
+bool destinationsAreValid(const Graph *g);
+bool isValid(const Graph *g);
 bool isNull(const Graph *graph);
 bool isTrivial(const Graph *graph);
 bool isEmpty(const Graph *g);
@@ -186,8 +182,12 @@ void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, dou
 unsigned countEdges(const Graph *graph);
 unsigned countSelfLoops(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
-unsigned minDegree(const Graph *graph);
-unsigned maxDegree(const Graph *graph);
+unsigned minimumInDegree(const Graph *g);
+unsigned maximumInDegree(const Graph *g);
+unsigned minimumOutDegree(const Graph *g);
+unsigned maximumOutDegree(const Graph *g);
+unsigned minimumDegree(const Graph *g);
+unsigned maximumDegree(const Graph *g);
 unsigned countDirectedLeaves(const Graph *graph);
 unsigned countUndirectedLeaves(const Graph *graph);
 unsigned countSources(const Graph *graph);
@@ -196,18 +196,16 @@ unsigned countParallelEdges(const Graph *graph);
 unsigned countIsolatedVertices(const Graph *graph);
 unsigned getSize(const Graph *g);
 unsigned countComponents(const Graph *g);
-unsigned minimumInDegree(const Graph *g);
-unsigned maximumInDegree(const Graph *g);
-unsigned minimumOutDegree(const Graph *g);
-unsigned maximumOutDegree(const Graph *g);
-unsigned outDegree(const Graph *g, unsigned v);
 unsigned inDegree(const Graph *g, unsigned v);
+unsigned outDegree(const Graph *g, unsigned v);
 unsigned degree(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target);
 unsigned distance(const Graph *g, unsigned u, unsigned v);
 
+unsigned *inDegrees(const Graph *g);
+unsigned *outDegrees(const Graph *g);
 unsigned *outDegreeDistribution(const Graph *graph);
 unsigned *inDegreeDistribution(const Graph *graph);
 unsigned *undirectedColoring(const Graph *graph);
@@ -399,43 +397,17 @@ int compareEdges(const void *a, const void *b) {
 
 
 
-bool isValidDestinations(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      if (e->destination >= graph->size)
+bool destinationsAreValid(const Graph *g) {
+  if (!g || !g->edges) return true;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
         return false;
   return true;
 }
 
-bool isValidInDegree(const Graph *graph) {
-  unsigned *degree = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      degree[e->destination]++;
-  bool valid = true;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (graph->inDegree[v] != degree[v]) {
-      valid = false;
-      break;
-    }
-  free(degree);
-  return valid;
-}
-
-bool isValidOutDegree(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) {
-    unsigned degree = 0;
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      degree++;
-    if (graph->outDegree[v] != degree)
-      return false;
-  }
-  return true;
-}
-
-bool isValid(const Graph *graph) {
-  return graph != nullptr && graph->inDegree != nullptr && graph->outDegree != nullptr && graph->edges != nullptr &&
-    isValidDestinations(graph) && isValidInDegree(graph) && isValidOutDegree(graph);
+bool isValid(const Graph *g) {
+  return g && (g->size == 0 || g->edges) && destinationsAreValid(g);
 }
 
 bool isNull(const Graph *graph) {
@@ -447,9 +419,9 @@ bool isTrivial(const Graph *graph) {
 }
 
 bool isEmpty(const Graph *g) {
-  if (!g || !g->edges) return false;
+  if (!g || !g->edges) return true;
   for (unsigned v = 0; v < g->size; v++)
-    if (g->edges[v] != nullptr)
+    if (g->edges[v])
       return false;
   return true;
 }
@@ -480,8 +452,8 @@ bool isBalanced(const Graph *graph) {
 }
 
 bool isEulerianUndirected(const Graph *graph) {
-  if (!graph || !graph->edges)
-    return true;
+  if (!graph || (graph->size < 2 && !graph->edges)) return true;
+  if (graph->size >= 2 && !graph->edges) return false;
   bool edges = false;
   for (unsigned v = 0; v < graph->size && !edges; v++)
     edges = edges || graph->edges[v];
@@ -524,36 +496,67 @@ bool isEulerianUndirected(const Graph *graph) {
 }
 
 bool isEulerianDirected(const Graph *graph) {
+  if (!graph || (graph->size < 2 && !graph->edges)) return true;
+  if (graph->size >= 2 && !graph->edges) return false;
   for (unsigned v = 0; v < graph->size; v++)
-    if (graph->inDegree[v] != graph->outDegree[v])
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      if (e->destination >= graph->size)
+        return false;
+  unsigned *inDegree = calloc(graph->size, sizeof(unsigned));
+  unsigned *outDegree = calloc(graph->size, sizeof(unsigned));
+  bool *visited = calloc(graph->size, sizeof(bool));
+  unsigned *stack = malloc(graph->size * sizeof(unsigned));
+  if (!inDegree || !outDegree || !visited || !stack) {
+    free(inDegree);
+    free(outDegree);
+    free(visited);
+    free(stack);
+    return false;
+  }
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      inDegree[e->destination]++;
+  for (unsigned v = 0; v < graph->size; v++)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
+      outDegree[v]++;
+  for (unsigned v = 0; v < graph->size; v++)
+    if (inDegree[v] != outDegree[v]) {
+      free(inDegree);
+      free(outDegree);
+      free(stack);
+      free(visited);
       return false;
+    }
   unsigned start = UINT_MAX;
   for (unsigned v = 0; v < graph->size; v++)
-    if (graph->outDegree[v] > 0) {
+    if (outDegree[v] > 0) {
       start = v;
       break;
     }
   if (start == UINT_MAX)
     return graph->size <= 1;
-  bool *visited = calloc(graph->size, sizeof(bool));
-  unsigned *stack = malloc(graph->size * sizeof(unsigned));
   unsigned size = 0;
   stack[size++] = start;
   visited[start] = true;
   while (size > 0) {
     unsigned v = stack[--size];
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+    for (Edge *e = graph->edges[v]; e; e = e->next)
       if (!visited[e->destination]) {
         stack[size++] = e->destination;
         visited[e->destination] = true;
       }
   }
-  free(stack);
   for (unsigned v = 0; v < graph->size; v++)
-    if ((graph->inDegree[v] > 0 || graph->outDegree[v] > 0) && !visited[v]) {
+    if ((inDegree[v] > 0 || outDegree[v] > 0) && !visited[v]) {
+      free(inDegree);
+      free(outDegree);
+      free(stack);
       free(visited);
       return false;
     }
+  free(inDegree);
+  free(outDegree);
+  free(stack);
   free(visited);
   return true;
 }
@@ -1187,8 +1190,6 @@ bool *findArticulationPoints(const Graph *graph) {
 Graph *createGraph(unsigned size) {
   Graph *g = malloc(sizeof(Graph));
   g->size = size;
-  g->inDegree = calloc(size, sizeof(unsigned));
-  g->outDegree = calloc(size, sizeof(unsigned));
   g->edges = calloc(size, sizeof(Edge *));
   return g;
 }
@@ -1508,29 +1509,29 @@ Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, 
 
 
 
-void freeGraph(Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++) {
-    Edge *e = graph->edges[v];
-    while (e != nullptr) {
+void freeGraph(Graph *g) {
+  if (!g) return;
+  if (!g->edges) {
+    free(g);
+    return;
+  }
+  for (unsigned v = 0; v < g->size; v++) {
+    Edge *e = g->edges[v];
+    while (e) {
       Edge *next = e->next;
       free(e);
       e = next;
     }
   }
-  free(graph->inDegree);
-  free(graph->outDegree);
-  free(graph->edges);
-  free(graph);
+  free(g->edges);
+  free(g);
 }
 
-void addVertex(Graph *graph) {
-  graph->size = graph->size + 1;
-  graph->inDegree = realloc(graph->inDegree, graph->size * sizeof(unsigned));
-  graph->outDegree = realloc(graph->outDegree, graph->size * sizeof(unsigned));
-  graph->edges = realloc(graph->edges, graph->size * sizeof(Edge *));
-  graph->inDegree[graph->size - 1] = 0;
-  graph->outDegree[graph->size - 1] = 0;
-  graph->edges[graph->size - 1] = nullptr;
+void addVertex(Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return;
+  g->edges = realloc(g->edges, (g->size + 1) * sizeof(Edge *));
+  g->edges[g->size] = nullptr;
+  g->size = g->size + 1;
 }
 
 void printGraph(const Graph *graph) {
@@ -1552,8 +1553,6 @@ void removeDirectedEdgeByIndex(Graph *g, unsigned i) {
     for (Edge **e = &g->edges[v]; *e; e = &(*e)->next) {
       if (j == i) {
         Edge *edge = *e;
-        if (g->outDegree) g->outDegree[v]--;
-        if (g->inDegree) g->inDegree[edge->destination]--;
         *e = edge->next;
         free(edge);
         return;
@@ -1562,22 +1561,19 @@ void removeDirectedEdgeByIndex(Graph *g, unsigned i) {
     }
 }
 
-void removeFirstDirectedEdge(Graph *graph, unsigned u, unsigned v) {
-  assert(u < graph->size);
-  assert(v < graph->size);
-  assert(hasDirectedEdge(graph, u, v));
-  Edge **e = &graph->edges[u];
-  while (*e != nullptr)
-    if ((*e)->destination == v) {
-      Edge *temporary = *e;
-      *e = (*e)->next;
+void removeFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return;
+  Edge **e = &g->edges[u];
+  while (*e) {
+    Edge *temporary = *e;
+    if (temporary->destination == v) {
+      *e = temporary->next;
       free(temporary);
-      graph->inDegree[v]--;
-      graph->outDegree[u]--;
       break;
     } else {
-      e = &(*e)->next;
+      e = &temporary->next;
     }
+  }
 }
 
 void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
@@ -1603,8 +1599,6 @@ void addDirectedEdge(Graph *graph, unsigned source, unsigned destination, double
   e->weight = weight;
   e->next = graph->edges[source];
   graph->edges[source] = e;
-  graph->inDegree[destination]++;
-  graph->outDegree[source]++;
 }
 
 void addUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
@@ -1623,8 +1617,6 @@ void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, doubl
       Edge *temporary = *e;
       *e = (*e)->next;
       free(temporary);
-      graph->inDegree[v]--;
-      graph->outDegree[u]--;
       break;
     } else {
       e = &(*e)->next;
@@ -1669,20 +1661,54 @@ unsigned countTriangles(const Graph *graph) {
   return count;
 }
 
-unsigned minDegree(const Graph *graph) {
+unsigned minimumInDegree(const Graph *g) {
+  if (!g) return UINT_MAX;
+  unsigned *inDegree = inDegrees(g);
+  if (!inDegree) return UINT_MAX;
   unsigned minimum = UINT_MAX;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (inDegree(graph, v) + outDegree(graph, v) < minimum)
-      minimum = inDegree(graph, v) + outDegree(graph, v);
+  for (unsigned v = 0; v < g->size; v++)
+    if (inDegree[v] < minimum)
+      minimum = inDegree[v];
+  free(inDegree);
   return minimum;
 }
 
-unsigned maxDegree(const Graph *graph) {
+unsigned maximumInDegree(const Graph *g) {
+  if (!g) return 0;
+  unsigned *inDegree = inDegrees(g);
+  if (!inDegree) return 0;
   unsigned maximum = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (inDegree(graph, v) + outDegree(graph, v) > maximum)
-      maximum = inDegree(graph, v) + outDegree(graph, v);
+  for (unsigned v = 0; v < g->size; v++)
+    if (inDegree[v] > maximum)
+      maximum = inDegree[v];
+  free(inDegree);
   return maximum;
+}
+
+unsigned minimumOutDegree(const Graph *g) {
+  if (!g) return UINT_MAX;
+  unsigned minimum = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (outDegree(g, v) < minimum)
+      minimum = outDegree(g, v);
+  return minimum;
+}
+
+unsigned maximumOutDegree(const Graph *g) {
+  if (!g) return 0;
+  unsigned maximum = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (outDegree(g, v) > maximum)
+      maximum = outDegree(g, v);
+  return maximum;
+}
+
+unsigned minimumDegree(const Graph *g) {
+  return minimumInDegree(g) + minimumOutDegree(g);
+}
+
+unsigned maximumDegree(const Graph *g) {
+  return maximumInDegree(g) + maximumOutDegree(g);
 }
 
 unsigned countDirectedLeaves(const Graph *graph) {
@@ -1771,55 +1797,26 @@ unsigned countComponents(const Graph *g) {
   return n;
 }
 
-unsigned minimumInDegree(const Graph *g) {
-  if (!g || !g->inDegree) return UINT_MAX;
-  unsigned minimum = UINT_MAX;
-  for (unsigned v = 0; v < g->size; v++)
-    if (g->inDegree[v] < minimum)
-      minimum = g->inDegree[v];
-  return minimum;
-}
-
-unsigned maximumInDegree(const Graph *g) {
-  if (!g || !g->inDegree) return 0;
-  unsigned maximum = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (g->inDegree[v] > maximum)
-      maximum = g->inDegree[v];
-  return maximum;
-}
-
-unsigned minimumOutDegree(const Graph *g) {
-  if (!g || !g->outDegree) return UINT_MAX;
-  unsigned minimum = UINT_MAX;
-  for (unsigned v = 0; v < g->size; v++)
-    if (g->outDegree[v] < minimum)
-      minimum = g->outDegree[v];
-  return minimum;
-}
-
-unsigned maximumOutDegree(const Graph *g) {
-  if (!g || !g->outDegree) return 0;
-  unsigned maximum = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (g->outDegree[v] > maximum)
-      maximum = g->outDegree[v];
-  return maximum;
-}
-
 unsigned outDegree(const Graph *g, unsigned v) {
-  if (!g || !g->outDegree || v >= g->size) return 0;
-  return g->outDegree[v];
+  if (!g || !g->edges || v >= g->size) return 0;
+  unsigned degree = 0;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    degree++;
+  return degree;
 }
 
 unsigned inDegree(const Graph *g, unsigned v) {
-  if (!g || !g->inDegree || v >= g->size) return 0;
-  return g->inDegree[v];
+  if (!g || !g->edges || v >= g->size) return 0;
+  unsigned degree = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination == v)
+        degree++;
+  return degree;
 }
 
 unsigned degree(const Graph *g, unsigned v) {
-  if (!g || !g->inDegree || !g->outDegree || v >= g->size) return 0;
-  return g->inDegree[v] + g->outDegree[v];
+  return inDegree(g, v) + outDegree(g, v);
 }
 
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
@@ -1923,6 +1920,26 @@ unsigned distance(const Graph *g, unsigned u, unsigned v) {
 }
 
 
+
+unsigned *inDegrees(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  unsigned *degrees = calloc(g->size, sizeof(unsigned));
+  if (!degrees) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        degrees[e->destination]++;
+  return degrees;
+}
+
+unsigned *outDegrees(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  unsigned *degrees = calloc(g->size, sizeof(unsigned));
+  if (!degrees) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    degrees[v] = outDegree(g, v);
+  return degrees;
+}
 
 unsigned *inDegreeDistribution(const Graph *graph) {
   unsigned *distribution = calloc(graph->size, sizeof(unsigned));
@@ -3260,20 +3277,4 @@ int main() {
   testGraphDensity();
   printf("All tests passed!\n");
   return 0;
-}
-
-//
-
-unsigned *_inDegrees(const Graph *graph) {
-  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    degrees[v] = inDegree(graph, v);
-  return degrees;
-}
-
-unsigned *_outDegrees(const Graph *graph) {
-  unsigned *degrees = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    degrees[v] = outDegree(graph, v);
-  return degrees;
 }
