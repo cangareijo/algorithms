@@ -60,7 +60,7 @@ typedef struct {
 bool destinationsAreValid(const Graph *g);
 bool isValid(const Graph *g);
 bool isNull(const Graph *graph);
-bool isTrivial(const Graph *graph);
+bool isTrivial(const Graph *g);
 bool isEmpty(const Graph *g);
 bool isRegular(const Graph *graph);
 bool isComplete(const Graph *graph);
@@ -414,8 +414,8 @@ bool isNull(const Graph *graph) {
   return graph->size == 0;
 }
 
-bool isTrivial(const Graph *graph) {
-  return graph->size == 1 && graph->edges[0] == nullptr;
+bool isTrivial(const Graph *g) {
+  return g && g->size == 1 && (!g->edges || !g->edges[0]);
 }
 
 bool isEmpty(const Graph *g) {
@@ -463,15 +463,13 @@ bool isEulerianUndirected(const Graph *graph) {
     for (Edge *e = graph->edges[v]; e; e = e->next)
       if (e->destination >= graph->size)
         return false;
-  unsigned degree[graph->size];
-  for (unsigned v = 0; v < graph->size; v++)
-    degree[v] = 0;
-  for (unsigned v = 0; v < graph->size; v++)
+  for (unsigned v = 0; v < graph->size; v++) {
+    unsigned degree = 0;
     for (Edge *e = graph->edges[v]; e; e = e->next)
-      degree[v]++;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (degree[v] % 2 != 0)
+      degree++;
+    if (degree % 2 != 0)
       return false;
+  }
   unsigned start = graph->size;
   for (unsigned v = 0; v < graph->size && start == graph->size; v++)
     if (graph->edges[v])
@@ -591,7 +589,7 @@ bool isBipartite(const Graph *graph) {
       queue[tail++] = u;
       while (head < tail && bipartite) {
         unsigned v = queue[head++];
-        for (Edge *e = graph->edges[v]; e != nullptr && bipartite; e = e->next)
+        for (Edge *e = graph->edges[v]; e && bipartite; e = e->next)
           if (colors[e->destination] == 0) {
             colors[e->destination] = (colors[v] == 1) ? 2 : 1;
             queue[tail++] = e->destination;
