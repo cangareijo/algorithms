@@ -1994,10 +1994,15 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
 unsigned *unweightedDijkstra(const Graph *g, unsigned v) {
   if (!g || !g->edges || !hasValidDestinations(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  if (!distances || !queue) {
+    free(distances);
+    free(queue);
+    return nullptr;
+  }
   for (unsigned u = 0; u < g->size; u++)
     distances[u] = UINT_MAX;
   distances[v] = 0;
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
   unsigned head = 0, tail = 0;
   queue[tail++] = v;
   while (head < tail) {
