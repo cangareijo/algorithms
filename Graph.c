@@ -57,7 +57,7 @@ typedef struct {
   Edge **edges;
 } Graph;
 
-bool destinationsAreValid(const Graph *g);
+bool hasValidDestinations(const Graph *g);
 bool isValid(const Graph *g);
 bool isNull(const Graph *graph);
 bool isTrivial(const Graph *g);
@@ -102,6 +102,7 @@ bool isUndirectedLeaf(const Graph *graph, unsigned vertex);
 bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
 bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool isArticulationVertex(const Graph *graph, unsigned vertex);
+bool hasValidDestinationsFromVertex(const Graph *g, unsigned v);
 bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool isReachable(const Graph *graph, unsigned start, unsigned target);
@@ -400,17 +401,16 @@ int compareEdges(const void *a, const void *b) {
 
 
 
-bool destinationsAreValid(const Graph *g) {
+bool hasValidDestinations(const Graph *g) {
   if (!g || !g->edges) return true;
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size)
-        return false;
+    if (!hasValidDestinationsFromVertex(g, v))
+      return false;
   return true;
 }
 
 bool isValid(const Graph *g) {
-  return g && (g->size == 0 || g->edges) && destinationsAreValid(g);
+  return g && (g->size == 0 || g->edges) && hasValidDestinations(g);
 }
 
 bool isNull(const Graph *g) {
@@ -849,6 +849,14 @@ bool isArticulationVertex(const Graph *graph, unsigned vertex) {
   return n > countComponents(graph);
 }
 
+bool hasValidDestinationsFromVertex(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination >= g->size)
+      return false;
+  return true;
+}
+
 bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v) {
   for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
     if (e->destination == v)
@@ -1166,7 +1174,7 @@ bool *findArticulationPoints(const Graph *graph) {
 }
 
 bool *getReachable(const Graph *g, unsigned v) {
-  if (!g || !g->edges || !destinationsAreValid(g) || v >= g->size) return nullptr;
+  if (!g || !g->edges || !hasValidDestinations(g) || v >= g->size) return nullptr;
   bool *visited = calloc(g->size, sizeof(bool));
   if (!visited) return nullptr;
   visited[v] = true;
