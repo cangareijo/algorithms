@@ -141,7 +141,6 @@ void recursivelyFindArticulationPoints(
   bool *articulations,
   unsigned *timer);
 bool *findArticulationPoints(const Graph *graph);
-bool *getReachable(const Graph *g, unsigned v);
 
 Graph *createGraph(unsigned size);
 Graph *createPathGraph(unsigned size);
@@ -466,12 +465,12 @@ bool isEulerianUndirected(const Graph *g) {
   if (isEmpty(g)) return true;
   if (!allOutDegreesAreEven(g)) return false;
   unsigned v = firstActiveVertex(g);
-  bool *reachable = getReachable(g, v);
-  if (!reachable) return false;
+  unsigned *distances = unweightedDijkstra(g, v);
+  if (!distances) return false;
   for (unsigned v = 0; v < g->size; v++)
-    if (!reachable[v] && g->edges[v])
+    if (distances[v] == UINT_MAX && g->edges[v])
       return false;
-  free(reachable);
+  free(distances);
   return true;
 }
 
@@ -1171,23 +1170,6 @@ bool *findArticulationPoints(const Graph *graph) {
   free(low);
   free(parent);
   return articulations;
-}
-
-bool *getReachable(const Graph *g, unsigned v) {
-  if (!g || !g->edges || !hasValidDestinations(g) || v >= g->size) return nullptr;
-  bool *visited = calloc(g->size, sizeof(bool));
-  if (!visited) return nullptr;
-  visited[v] = true;
-  unsigned stack[g->size];
-  unsigned size = 0;
-  stack[size++] = v;
-  while (size > 0)
-    for (Edge *e = g->edges[stack[--size]]; e; e = e->next)
-      if (!visited[e->destination]) {
-        visited[e->destination] = true;
-        stack[size++] = e->destination;
-      }
-  return visited;
 }
 
 
@@ -2009,17 +1991,18 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
   return ordering;
 }
 
-unsigned *unweightedDijkstra(const Graph *graph, unsigned source) {
-  unsigned *distances = malloc(graph->size * sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    distances[v] = UINT_MAX;
-  distances[source] = 0;
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+unsigned *unweightedDijkstra(const Graph *g, unsigned v) {
+  if (!g || !g->edges || !hasValidDestinations(g) || v >= g->size) return nullptr;
+  unsigned *distances = malloc(g->size * sizeof(unsigned));
+  for (unsigned u = 0; u < g->size; u++)
+    distances[u] = UINT_MAX;
+  distances[v] = 0;
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
   unsigned head = 0, tail = 0;
-  queue[tail++] = source;
+  queue[tail++] = v;
   while (head < tail) {
     unsigned u = queue[head++];
-    for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
+    for (Edge *e = g->edges[u]; e; e = e->next)
       if (distances[e->destination] == UINT_MAX) {
         distances[e->destination] = distances[u] + 1;
         queue[tail++] = e->destination;
