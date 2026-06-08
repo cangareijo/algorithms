@@ -211,7 +211,8 @@ unsigned *inDegrees(const Graph *g);
 unsigned *outDegrees(const Graph *g);
 unsigned *outDegreeDistribution(const Graph *graph);
 unsigned *inDegreeDistribution(const Graph *graph);
-unsigned *undirectedColoring(const Graph *graph);
+unsigned *undirectedColoring(const Graph *g);
+unsigned *stronglyConnectedComponents(const Graph *g);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
@@ -1950,26 +1951,91 @@ unsigned *outDegreeDistribution(const Graph *graph) {
   return distribution;
 }
 
-unsigned *undirectedColoring(const Graph *graph) {
-  unsigned *colors = malloc(graph->size  *sizeof(unsigned));
+unsigned *undirectedColoring(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return nullptr;
+  unsigned *colors = malloc(g->size  *sizeof(unsigned));
+  bool *taken = calloc(g->size, sizeof(bool));
+  if (!colors || !taken) {
+    free(colors);
+    free(taken);
+    return nullptr;
+  }
   colors[0] = 0;
-  for (unsigned v = 1; v < graph->size; v++)
+  for (unsigned v = 1; v < g->size; v++)
     colors[v] = UINT_MAX;
-  bool *taken = calloc(graph->size, sizeof(bool));
-  for (unsigned v = 1; v < graph->size; v++) {
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+  for (unsigned v = 1; v < g->size; v++) {
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (colors[e->destination] < UINT_MAX)
         taken[colors[e->destination]] = true;
     unsigned color = 0;
     while (taken[color])
       color++;
     colors[v] = color;
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (colors[e->destination] < UINT_MAX)
         taken[colors[e->destination]] = false;
   }
   free(taken);
   return colors;
+}
+
+unsigned *stronglyConnectedComponents(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return nullptr;
+  unsigned *components = malloc(g->size * sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  bool *canReach = malloc(g->size * sizeof(bool));
+  bool *canBeReachedBy = malloc(g->size * sizeof(bool));
+  if (!components || !queue || !canReach || !canBeReachedBy) {
+    free(components);
+    free(queue);
+    free(canReach);
+    free(canBeReachedBy);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++) components[v] = UINT_MAX;
+  unsigned component = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    if (components[u] != UINT_MAX) continue;
+    for (unsigned v = 0; v < g->size; v++) canReach[v] = false;
+    unsigned head = 0, tail = 0;
+    canReach[u] = true;
+    queue[tail++] = u;
+    while (head < tail)
+      for (Edge *e = g->edges[queue[head++]]; e; e = e->next)
+        if (!canReach[e->destination]) {
+          canReach[e->destination] = true;
+          queue[tail++] = e->destination;
+        }
+    for (unsigned v = 0; v < g->size; v++) canBeReachedBy[v] = false;
+    head = 0; tail = 0;
+    canBeReachedBy[u] = true;
+    queue[tail++] = u;
+    while (head < tail) {
+      unsigned target = queue[head++];
+      for (unsigned v = 0; v < g->size; v++)
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination == target && !canBeReachedBy[v]) {
+            canBeReachedBy[v] = true;
+            queue[tail++] = v;
+          }
+    }
+    for (unsigned v = 0; v < g->size; v++)
+      if (canReach[v] && canBeReachedBy[v])
+        components[v] = component;
+    component++;
+  }
+  free(queue);
+  free(canReach);
+  free(canBeReachedBy);
+  return components;
 }
 
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned vertex, unsigned *ordering, unsigned *index, bool *visited) {
@@ -1992,7 +2058,7 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
 }
 
 unsigned *unweightedDijkstra(const Graph *g, unsigned v) {
-  if (!g || !g->edges || !hasValidDestinations(g) || v >= g->size) return nullptr;
+  if (!isValid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
   if (!distances || !queue) {
