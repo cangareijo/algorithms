@@ -67,7 +67,7 @@ bool isComplete(const Graph *graph);
 bool hasSelfLoops(const Graph *graph);
 bool isBalanced(const Graph *graph);
 bool allOutDegreesAreEven(const Graph *g);
-bool isEulerianUndirected(const Graph *graph);
+bool isEulerianUndirected(const Graph *g);
 bool isEulerianDirected(const Graph *graph);
 bool isConnectedUndirected(const Graph *graph);
 bool isWeaklyConnectedDirected(const Graph *graph);
@@ -130,7 +130,6 @@ bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
-bool *getReachableFromFirstActive(const Graph *g);
 void recursivelyFindArticulationPoints(
   const Graph *graph,
   unsigned vertex,
@@ -141,6 +140,7 @@ void recursivelyFindArticulationPoints(
   bool *articulations,
   unsigned *timer);
 bool *findArticulationPoints(const Graph *graph);
+bool *getReachable(const Graph *g, unsigned v);
 
 Graph *createGraph(unsigned size);
 Graph *createPathGraph(unsigned size);
@@ -462,13 +462,14 @@ bool allOutDegreesAreEven(const Graph *g) {
   return true;
 }
 
-bool isEulerianUndirected(const Graph *graph) {
-  if (isEmpty(graph)) return true;
-  if (!allOutDegreesAreEven(graph)) return false;
-  bool *reachable = getReachableFromFirstActive(graph);
+bool isEulerianUndirected(const Graph *g) {
+  if (isEmpty(g)) return true;
+  if (!allOutDegreesAreEven(g)) return false;
+  unsigned v = firstActiveVertex(g);
+  bool *reachable = getReachable(g, v);
   if (!reachable) return false;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!reachable[v] && graph->edges[v])
+  for (unsigned v = 0; v < g->size; v++)
+    if (!reachable[v] && g->edges[v])
       return false;
   free(reachable);
   return true;
@@ -1119,24 +1120,6 @@ bool *graphPeriphery(const Graph *graph) {
   return periphery;
 }
 
-bool *getReachableFromFirstActive(const Graph *g) {
-  if (!g || !g->edges || isEmpty(g) || !destinationsAreValid(g)) return nullptr;
-  bool *reachable = calloc(g->size, sizeof(bool));
-  if (!reachable) return nullptr;
-  unsigned start = firstActiveVertex(g);
-  reachable[start] = true;
-  unsigned stack[g->size];
-  unsigned size = 0;
-  stack[size++] = start;
-  while (size > 0)
-    for (Edge *e = g->edges[stack[--size]]; e; e = e->next)
-      if (!reachable[e->destination]) {
-        reachable[e->destination] = true;
-        stack[size++] = e->destination;
-      }
-  return reachable;
-}
-
 void recursivelyFindArticulationPoints(
   const Graph *graph,
   unsigned vertex,
@@ -1180,6 +1163,23 @@ bool *findArticulationPoints(const Graph *graph) {
   free(low);
   free(parent);
   return articulations;
+}
+
+bool *getReachable(const Graph *g, unsigned v) {
+  if (!g || !g->edges || !destinationsAreValid(g) || v >= g->size) return nullptr;
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (!visited) return nullptr;
+  visited[v] = true;
+  unsigned stack[g->size];
+  unsigned size = 0;
+  stack[size++] = v;
+  while (size > 0)
+    for (Edge *e = g->edges[stack[--size]]; e; e = e->next)
+      if (!visited[e->destination]) {
+        visited[e->destination] = true;
+        stack[size++] = e->destination;
+      }
+  return visited;
 }
 
 
