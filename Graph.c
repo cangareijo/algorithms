@@ -70,7 +70,7 @@ bool allOutDegreesAreEven(const Graph *g);
 bool isEulerianUndirected(const Graph *g);
 bool isEulerianDirected(const Graph *graph);
 bool isConnectedUndirected(const Graph *graph);
-bool isWeaklyConnectedDirected(const Graph *graph);
+bool isWeaklyConnected(const Graph *g);
 bool isStronglyConnectedDirected(const Graph *graph);
 bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
@@ -268,7 +268,7 @@ Edge **outNeighbors(const Graph *graph);
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
 void testIsConnectedUndirected();
-void testIsWeaklyConnectedDirected();
+void testIsWeaklyConnected();
 void testIsStronglyConnectedDirected();
 void testDepthFirstSortOfGraph();
 void testBreadthFirstSortOfGraph();
@@ -545,10 +545,48 @@ bool isConnectedUndirected(const Graph *graph) {
   return graph->size < 2 || allAreReachableFromVertexInGraph(graph, 0);
 }
 
-bool isWeaklyConnectedDirected(const Graph *graph) {
-  Graph *undirected = copyUndirected(graph);
-  bool connected = isConnectedUndirected(undirected);
-  freeGraph(undirected);
+bool isWeaklyConnected(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return false;
+  if (g->size < 2) return true;
+  bool *visited = calloc(g->size, sizeof(bool));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  if (!visited || !queue) {
+    free(visited);
+    free(queue);
+    return false;
+  }
+  unsigned head = 0;
+  unsigned tail = 0;
+  visited[0] = true;
+  queue[tail++] = 0;
+  while (head < tail) {
+    unsigned u = queue[head++];
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (!visited[e->destination]) {
+        visited[e->destination] = true;
+        queue[tail++] = e->destination;
+      }
+    for (unsigned v = 0; v < g->size; v++)
+      if (!visited[v])
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination == u) {
+            visited[v] = true;
+            queue[tail++] = v;
+            break;
+          }
+  }
+  bool connected = true;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!visited[v]) {
+      connected = false;
+      break;
+    }
+  free(visited);
+  free(queue);
   return connected;
 }
 
@@ -1091,7 +1129,7 @@ bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph) {
     subgraph->size > 0 &&
     isSubGraph(subgraph, graph) &&
     countEdges(subgraph) == subgraph->size - 1 &&
-    isWeaklyConnectedDirected(subgraph);
+    isWeaklyConnected(subgraph);
 }
 
 
@@ -2715,25 +2753,25 @@ void testIsConnectedUndirected() {
   freeGraph(g5);
 }
 
-void testIsWeaklyConnectedDirected() {
+void testIsWeaklyConnected() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 1);
   addDirectedEdge(g1, 1, 2, 1);
-  assert(isWeaklyConnectedDirected(g1) == true);
+  assert(isWeaklyConnected(g1) == true);
   printf("Weakly Test 1 passed: Simple chain\n");
   freeGraph(g1);
 
   Graph *g2 = createGraph(3);
   addDirectedEdge(g2, 0, 1, 1);
   addDirectedEdge(g2, 2, 1, 1);
-  assert(isWeaklyConnectedDirected(g2) == true);
+  assert(isWeaklyConnected(g2) == true);
   printf("Weakly Test 2 passed: Source/Sink structure\n");
   freeGraph(g2);
 
   Graph *g3 = createGraph(4);
   addDirectedEdge(g3, 0, 1, 1);
   addDirectedEdge(g3, 2, 3, 1);
-  assert(isWeaklyConnectedDirected(g3) == false);
+  assert(isWeaklyConnected(g3) == false);
   printf("Weakly Test 3 passed: Truly disconnected components\n");
   freeGraph(g3);
 
@@ -2741,13 +2779,13 @@ void testIsWeaklyConnectedDirected() {
   addDirectedEdge(g4, 0, 1, 1);
   addDirectedEdge(g4, 0, 2, 1);
   addDirectedEdge(g4, 0, 3, 1);
-  assert(isWeaklyConnectedDirected(g4) == true);
+  assert(isWeaklyConnected(g4) == true);
   printf("Weakly Test 4 passed: Star pattern\n");
   freeGraph(g4);
 
   Graph *g5 = createGraph(2);
   addDirectedEdge(g5, 0, 0, 1);
-  assert(isWeaklyConnectedDirected(g5) == false);
+  assert(isWeaklyConnected(g5) == false);
   printf("Weakly Test 5 passed: Isolated vertex with self-loop\n");
   freeGraph(g5);
 }
@@ -3328,7 +3366,7 @@ int main() {
   testIsDirectedCyclicGraph();
   testIsUndirectedCyclicGraph();
   testIsConnectedUndirected();
-  testIsWeaklyConnectedDirected();
+  testIsWeaklyConnected();
   testIsStronglyConnectedDirected();
   testDepthFirstSortOfGraph();
   testBreadthFirstSortOfGraph();
