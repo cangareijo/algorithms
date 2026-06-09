@@ -71,6 +71,7 @@ bool isEulerianUndirected(const Graph *g);
 bool isEulerianDirected(const Graph *graph);
 bool isConnectedUndirected(const Graph *graph);
 bool isWeaklyConnected(const Graph *g);
+bool isWeaklyConnectedAlternative(const Graph *g);
 bool isStronglyConnectedDirected(const Graph *graph);
 bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
@@ -85,6 +86,7 @@ bool hasIsolatedVertices(const Graph *graph);
 bool isTournament(const Graph *graph);
 bool hasNegativeWeights(const Graph *graph);
 bool isCubic(const Graph *g);
+bool hasNegativeCycle(const Graph *g);
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
@@ -590,6 +592,13 @@ bool isWeaklyConnected(const Graph *g) {
   return connected;
 }
 
+bool isWeaklyConnectedAlternative(const Graph *g) {
+  Graph *undirected = copyUndirected(g);
+  bool connected = isConnectedUndirected(undirected);
+  freeGraph(undirected);
+  return connected;
+}
+
 bool isStronglyConnectedDirected(const Graph *graph) {
   if (graph->size < 2) return true;
   Graph *g = copyTranspose(graph);
@@ -763,6 +772,30 @@ bool hasNegativeWeights(const Graph *graph) {
 
 bool isCubic(const Graph *g) {
   return isKRegular(g, 3);
+}
+
+bool hasNegativeCycle(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return false;
+  double *distances = malloc(g->size * sizeof(double));
+  if (!distances) return false;
+  for (unsigned v = 0; v < g->size; v++) distances[v] = 0;
+  for (unsigned i = 1; i < g->size; i++)
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (distances[v] + e->weight < distances[e->destination])
+          distances[e->destination] = distances[v] + e->weight;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (distances[v] + e->weight < distances[e->destination]) {
+        free(distances);
+        return true;
+      }
+  free(distances);
+  return false;
 }
 
 bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
