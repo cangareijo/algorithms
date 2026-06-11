@@ -10,23 +10,6 @@ unsigned maximumUnsigned(unsigned a, unsigned b);
 
 void freeMatrix(double **matrix, unsigned n);
 
-typedef struct {
-  unsigned *parent;
-  unsigned *rank;
-} Dsu;
-
-Dsu *createDsu(unsigned n);
-void freeDsu(Dsu *dsu);
-unsigned findDsu(Dsu *dsu, unsigned i);
-void unionDsu(Dsu *dsu, unsigned i, unsigned j);
-
-typedef struct {
-  unsigned u, v;
-  double weight;
-} FlatEdge;
-
-int compareEdges(const void *a, const void *b);
-
 typedef struct Edge {
   unsigned destination;
   double weight;
@@ -86,7 +69,7 @@ bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
 bool isArticulationVertex(const Graph *graph, unsigned vertex);
 bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
-bool isReachable(const Graph *graph, unsigned start, unsigned target);
+bool hasPath(const Graph *g, unsigned u, unsigned v);
 bool shareNeighbor(const Graph *graph, unsigned u, unsigned v);
 bool isDirectedBridge(const Graph *graph, unsigned u, unsigned v);
 bool isUndirectedBridge(const Graph *graph, unsigned u, unsigned v);
@@ -123,7 +106,7 @@ void recursivelyFindArticulationPoints(
   unsigned *timer);
 bool *findArticulationPoints(const Graph *graph);
 
-Graph *createGraph(unsigned size);
+Graph *createGraph(unsigned n);
 Graph *createPathGraph(unsigned size);
 Graph *createCycleGraph(unsigned size);
 Graph *createCompleteGraph(unsigned size);
@@ -136,7 +119,7 @@ Graph *copyUndirected(const Graph *graph);
 Graph *copyComplement(const Graph *graph);
 Graph *lineGraph(const Graph *graph);
 Graph *underlyingGraph(const Graph *graph);
-Graph *kruskal(const Graph *graph);
+Graph *kruskal(const Graph *g);
 Graph *directedSubdivisionGraph(const Graph *g);
 Graph *undirectedSubdivisionGraph(const Graph *g);
 Graph *graphPower(const Graph *g, unsigned k);
@@ -147,10 +130,8 @@ Graph *copySubgraph(const Graph *graph, const bool *subset);
 Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 Graph *cartesianProduct(const Graph *g1, const Graph *g2);
-Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
-Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count);
 
-void destroyGraph(Graph *graph);
+void destroyGraph(Graph *g);
 void addVertex(Graph *graph);
 void printGraph(const Graph *graph);
 void removeDirectedEdgeByIndex(Graph *g, unsigned i);
@@ -162,7 +143,7 @@ void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double x);
 void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 
-unsigned countEdges(const Graph *graph);
+unsigned countEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *graph);
 unsigned countTriangles(const Graph *graph);
 unsigned minimumInDegree(const Graph *g);
@@ -240,9 +221,6 @@ double *weightedDijkstra(const Graph *g, unsigned v);
 double **toMatrix(const Graph *graph);
 double **floydWarshall(const Graph *graph);
 
-FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph);
-FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph);
-
 Edge **inNeighbors(const Graph *graph);
 Edge **outNeighbors(const Graph *graph);
 
@@ -278,53 +256,10 @@ unsigned maximumUnsigned(unsigned a, unsigned b) { return a >= b ? a : b; }
 
 
 void freeMatrix(double **matrix, unsigned n) {
+  if (!matrix) return;
   for (unsigned i = 0; i < n; i++)
     free(matrix[i]);
   free(matrix);
-}
-
-
-
-Dsu *createDsu(unsigned n) {
-  Dsu *dsu = malloc(sizeof(Dsu));
-  dsu->parent = malloc(n * sizeof(unsigned));
-  dsu->rank = calloc(n, sizeof(unsigned));
-  for (unsigned i = 0; i < n; i++) dsu->parent[i] = i;
-  return dsu;
-}
-
-void freeDsu(Dsu *dsu) {
-  free(dsu->parent);
-  free(dsu->rank);
-  free(dsu);
-}
-
-unsigned findDsu(Dsu *dsu, unsigned i) {
-  if (dsu->parent[i] == i) return i;
-  return dsu->parent[i] = findDsu(dsu, dsu->parent[i]);
-}
-
-void unionDsu(Dsu *dsu, unsigned i, unsigned j) {
-  unsigned root_i = findDsu(dsu, i);
-  unsigned root_j = findDsu(dsu, j);
-  if (root_i != root_j) {
-    if (dsu->rank[root_i] < dsu->rank[root_j]) dsu->parent[root_i] = root_j;
-    else if (dsu->rank[root_i] > dsu->rank[root_j]) dsu->parent[root_j] = root_i;
-    else {
-      dsu->parent[root_i] = root_j;
-      dsu->rank[root_j]++;
-    }
-  }
-}
-
-
-
-int compareEdges(const void *a, const void *b) {
-  if (((const FlatEdge *)a)->weight < ((const FlatEdge *)b)->weight)
-    return -1;
-  if (((const FlatEdge *)a)->weight > ((const FlatEdge *)b)->weight)
-    return 1;
-  return 0;
 }
 
 
@@ -854,32 +789,34 @@ bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v) {
   return hasDirectedEdge(graph, u, v) && hasDirectedEdge(graph, v, u);
 }
 
-bool isReachable(const Graph *graph, unsigned start, unsigned target) {
-  if (start >= graph->size) return false;
-  if (target >= graph->size) return false;
-  if (start == target) return true;
-  bool *visited = calloc(graph->size, sizeof(bool));
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
-  unsigned head = 0, tail = 0;
-  visited[start] = true;
-  queue[tail++] = start;
-  bool b = false;
-  while (head < tail && !b) {
-    unsigned u = queue[head++];
-    for (Edge *e = graph->edges[u]; e != nullptr; e = e->next) {
-      if (e->destination == target) {
-        b = true;
-        break;
-      }
-      if (!visited[e->destination]) {
-        visited[e->destination] = true;
-        queue[tail++] = e->destination;
-      }
-    }
+bool hasPath(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return false;
+  bool *visited = calloc(g->size, sizeof(bool));
+  unsigned *stack = malloc(g->size * sizeof(unsigned));
+  if (!visited || !stack) {
+    free(visited);
+    free(stack);
+    return false;
   }
+  int top = 0;
+  visited[u] = true;
+  stack[top++] = u;
+  bool found = false;
+  while (top > 0) {
+    u = stack[--top];
+    if (u == v) {
+      found = true;
+      break;
+    }
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && !visited[e->destination]) {
+        visited[e->destination] = true;
+        stack[top++] = e->destination;
+      }
+  }
+  free(stack);
   free(visited);
-  free(queue);
-  return b;
+  return found;
 }
 
 bool shareNeighbor(const Graph *graph, unsigned u, unsigned v) {
@@ -1284,19 +1221,52 @@ Graph *underlyingGraph(const Graph *graph) {
   return g;
 }
 
-Graph *kruskal(const Graph *graph) {
-  unsigned count = countEdges(graph) / 2;
-  FlatEdge *edges = getEdgeArrayFromUndirectedGraph(graph);
-  qsort(edges, count, sizeof(FlatEdge), compareEdges);
-  Dsu *dsu = createDsu(graph->size);
-  Graph *mst = createGraph(graph->size);
-  for (unsigned i = 0; i < count; i++)
-    if (findDsu(dsu, edges[i].u) != findDsu(dsu, edges[i].v)) {
-      unionDsu(dsu, edges[i].u, edges[i].v);
-      addUndirectedEdge(mst, edges[i].u, edges[i].v, edges[i].weight);
+Graph *kruskal(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  Graph *mst = createGraph(g->size);
+  unsigned total = countEdges(g);
+  bool *used = calloc(total, sizeof(bool));
+  if (!mst || (total > 0 && !used)) {
+    destroyGraph(mst);
+    free(used);
+    return nullptr;
+  }
+  unsigned added = 0;
+  unsigned target = g->size - 1;
+  while (added < target) {
+    double minimumWeight = DBL_MAX;
+    unsigned minimumU = 0;
+    unsigned minimumV = 0;
+    unsigned minimumIndex = UINT_MAX;
+    unsigned i = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next) {
+        if (!used[i] && e->weight < minimumWeight) {
+          minimumWeight = e->weight;
+          minimumU = v;
+          minimumV = e->destination;
+          minimumIndex = i;
+        }
+        i++;
+      }
+    if (minimumIndex == UINT_MAX) break;
+    used[minimumIndex] = true;
+    i = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next) {
+        if (!used[i] && v == minimumV && e->destination == minimumU && e->weight == minimumWeight) {
+          used[i] = true;
+          v = g->size - 1;
+          break;
+        }
+        i++;
+      }
+    if (!hasPath(mst, minimumU, minimumV)) {
+      addUndirectedEdge(mst, minimumU, minimumV, minimumWeight);
+      added++;
     }
-  free(edges);
-  freeDsu(dsu);
+  }
+  free(used);
   return mst;
 }
 
@@ -1478,20 +1448,6 @@ Graph *cartesianProduct(const Graph *g1, const Graph *g2) {
   return g3;
 }
 
-Graph *createDirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
-  Graph *g = createGraph(size);
-  for (unsigned i = 0; i < count; i++)
-    addDirectedEdge(g, edges[i].u, edges[i].v, edges[i].weight);
-  return g;
-}
-
-Graph *createUndirectedGraphFromEdgeArray(unsigned size, const FlatEdge *edges, unsigned count) {
-  Graph *g = createGraph(size);
-  for (unsigned i = 0; i < count; i++)
-    addUndirectedEdge(g, edges[i].u, edges[i].v, edges[i].weight);
-  return g;
-}
-
 
 
 void destroyGraph(Graph *g) {
@@ -1612,12 +1568,13 @@ void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, dou
 
 
 
-unsigned countEdges(const Graph *graph) {
-  unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      count++;
-  return count;
+unsigned countEdges(const Graph *g) {
+  if (!g || !g->edges) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      n++;
+  return n;
 }
 
 unsigned countSelfLoops(const Graph *graph) {
@@ -2543,35 +2500,6 @@ double **floydWarshall(const Graph *graph) {
         if (distance[i][k] < INFINITY && distance[k][j] < INFINITY && distance[i][k] + distance[k][j] < distance[i][j])
           distance[i][j] = distance[i][k] + distance[k][j];
   return distance;
-}
-
-
-
-FlatEdge *getEdgeArrayFromDirectedGraph(const Graph *graph) {
-  FlatEdge *edges = malloc(countEdges(graph) * sizeof(FlatEdge));
-  unsigned i = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      edges[i].u = v;
-      edges[i].v = e->destination;
-      edges[i].weight = e->weight;
-      i++;
-    }
-  return edges;
-}
-
-FlatEdge *getEdgeArrayFromUndirectedGraph(const Graph *graph) {
-  FlatEdge *edges = malloc(countEdges(graph) / 2 * sizeof(FlatEdge));
-  unsigned i = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      if (v < e->destination) {
-        edges[i].u = v;
-        edges[i].v = e->destination;
-        edges[i].weight = e->weight;
-        i++;
-      }
-  return edges;
 }
 
 
