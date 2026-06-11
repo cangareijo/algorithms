@@ -11,25 +11,6 @@ unsigned maximumUnsigned(unsigned a, unsigned b);
 void freeMatrix(double **matrix, unsigned n);
 
 typedef struct {
-  unsigned vertex;
-  double priority;
-} HeapNode;
-
-void swapHeapNodes(HeapNode *a, HeapNode *b);
-
-typedef struct {
-  unsigned size;
-  unsigned capacity;
-  HeapNode *nodes;
-} Heap;
-
-Heap *createHeap();
-void freeHeap(Heap *heap);
-void insertInHeap(Heap *heap, unsigned vertex, double priority);
-unsigned getMinimumFromHeap(const Heap *heap);
-void removeMinimumFromHeap(Heap *heap);
-
-typedef struct {
   unsigned *parent;
   unsigned *rank;
 } Dsu;
@@ -160,7 +141,7 @@ Graph *directedSubdivisionGraph(const Graph *g);
 Graph *undirectedSubdivisionGraph(const Graph *g);
 Graph *graphPower(const Graph *g, unsigned k);
 Graph *removeVertex(const Graph *graph, unsigned vertex);
-Graph *prim(const Graph *graph, unsigned source);
+Graph *prim(const Graph *g, unsigned v);
 Graph *contractVertices(const Graph *graph, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *graph, const bool *subset);
 Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset);
@@ -254,7 +235,7 @@ double pathWeight(const Graph *graph, const unsigned *path, unsigned length);
 
 double *closenessCentrality(const Graph *graph);
 double *bellmanFord(const Graph *graph, unsigned source);
-double *weightedDijkstra(const Graph *graph, unsigned source);
+double *weightedDijkstra(const Graph *g, unsigned v);
 
 double **toMatrix(const Graph *graph);
 double **floydWarshall(const Graph *graph);
@@ -300,59 +281,6 @@ void freeMatrix(double **matrix, unsigned n) {
   for (unsigned i = 0; i < n; i++)
     free(matrix[i]);
   free(matrix);
-}
-
-
-
-void swapHeapNodes(HeapNode *a, HeapNode *b) {
-  HeapNode c = *a;
-  HeapNode d = *b;
-  *a = d;
-  *b = c;
-}
-
-Heap *createHeap() {
-  Heap *heap = malloc(sizeof(Heap));
-  heap->size = 0;
-  heap->capacity = 1;
-  heap->nodes = malloc(heap->capacity * sizeof(HeapNode));
-  return heap;
-}
-
-void freeHeap(Heap *heap) {
-  free(heap->nodes);
-  free(heap);
-}
-
-void insertInHeap(Heap *heap, unsigned vertex, double priority) {
-  if (heap->size >= heap->capacity) {
-    heap->capacity *= 2;
-    heap->nodes = realloc(heap->nodes, heap->capacity * sizeof(HeapNode));
-  }
-  unsigned i = heap->size++;
-  heap->nodes[i].vertex = vertex;
-  heap->nodes[i].priority = priority;
-  while (i > 0 && heap->nodes[(i - 1) / 2].priority > heap->nodes[i].priority) {
-    swapHeapNodes(&heap->nodes[i], &heap->nodes[(i - 1) / 2]);
-    i = (i - 1) / 2;
-  }
-}
-
-unsigned getMinimumFromHeap(const Heap *heap) {
-  return heap->nodes[0].vertex;
-}
-
-void removeMinimumFromHeap(Heap *heap) {
-  heap->nodes[0] = heap->nodes[--heap->size];
-  unsigned i = 0;
-  while (true) {
-    unsigned left = 2 * i + 1, right = 2 * i + 2, smallest = i;
-    if (left < heap->size && heap->nodes[left].priority < heap->nodes[smallest].priority) smallest = left;
-    if (right < heap->size && heap->nodes[right].priority < heap->nodes[smallest].priority) smallest = right;
-    if (smallest == i) break;
-    swapHeapNodes(&heap->nodes[i], &heap->nodes[smallest]);
-    i = smallest;
-  }
 }
 
 
@@ -2552,24 +2480,35 @@ double *bellmanFord(const Graph *graph, unsigned source) {
   return distance;
 }
 
-double *weightedDijkstra(const Graph *graph, unsigned source) {
-  double *weights = malloc(graph->size * sizeof(double));
-  for (unsigned v = 0; v < graph->size; v++)
-    weights[v] = INFINITY;
-  weights[source] = 0;
-  Heap *heap = createHeap();
-  insertInHeap(heap, source, 0);
-  while (heap->size > 0) {
-    unsigned v = getMinimumFromHeap(heap);
-    removeMinimumFromHeap(heap);
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (weights[v] + e->weight < weights[e->destination]) {
-        weights[e->destination] = weights[v] + e->weight;
-        insertInHeap(heap, e->destination, weights[e->destination]);
-      }
+double *weightedDijkstra(const Graph *g, unsigned v) {
+  if (!isValid(g) || v >= g->size) return nullptr;
+  double *distances = malloc(g->size * sizeof(double));
+  bool *visited = malloc(g->size * sizeof(bool));
+  if (!distances || !visited) {
+    free(distances);
+    free(visited);
+    return nullptr;
   }
-  freeHeap(heap);
-  return weights;
+  for (unsigned u = 0; u < g->size; u++) {
+    distances[u] = INFINITY;
+    visited[u] = false;
+  }
+  distances[v] = 0;
+  for (;;) {
+    visited[v] = true;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (!visited[e->destination] && distances[v] + e->weight < distances[e->destination])
+        distances[e->destination] = distances[v] + e->weight;
+    double minimum = INFINITY;
+    for (unsigned u = 0; u < g->size; u++)
+      if (!visited[u] && distances[u] < minimum) {
+        minimum = distances[u];
+        v = u;
+      }
+    if (minimum == INFINITY) break;
+  }
+  free(visited);
+  return distances;
 }
 
 
