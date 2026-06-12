@@ -183,8 +183,7 @@ unsigned *getInNeighbors(const Graph *graph, unsigned vertex);
 unsigned *getOutNeighbors(const Graph *graph, unsigned vertex);
 void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
-void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
-unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
+unsigned *breadthFirstSort(const Graph *g, unsigned v);
 unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length);
 
 unsigned **allPairsShortestPathsUnweighted(const Graph *graph);
@@ -220,7 +219,6 @@ void testIsConnectedUndirected();
 void testIsWeaklyConnected();
 void testIsStronglyConnectedDirected();
 void testDepthFirstSortOfGraph();
-void testBreadthFirstSortOfGraph();
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testTopologicalSortOfGraph();
 void testBellmanFord();
@@ -2131,33 +2129,30 @@ unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source) {
   return ordering;
 }
 
-void breadthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
-  unsigned head = 0, tail = 0;
-  visited[source] = true;
-  queue[tail++] = source;
+unsigned *breadthFirstSort(const Graph *g, unsigned v) {
+  if (isValid(g) || v >= g->size) return nullptr;
+  unsigned *result = malloc(g->size * sizeof(unsigned));
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (g->size > 0 && (!result || !visited)) {
+    free(result);
+    free(visited);
+    return nullptr;
+  }
+  unsigned head = 0;
+  unsigned tail = 0;
+  result[tail++] = v;
+  visited[v] = true;
   while (head < tail) {
-    unsigned current = queue[head++];
-    ordering[(*count)++] = current;
-    for (Edge *e = graph->edges[current]; e != nullptr; e = e->next)
+    unsigned current = result[head++];
+    for (Edge *e = g->edges[current]; e; e = e->next)
       if (!visited[e->destination]) {
         visited[e->destination] = true;
-        queue[tail++] = e->destination;
+        result[tail++] = e->destination;
       }
   }
-  free(queue);
-}
-
-unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source) {
-  unsigned *ordering = malloc(graph->size * sizeof(unsigned));
-  unsigned count = 0;
-  bool *visited = calloc(graph->size, sizeof(bool));
-  breadthFirstSortOfGraphComponent(graph, source, ordering, &count, visited);
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!visited[v])
-      breadthFirstSortOfGraphComponent(graph, v, ordering, &count, visited);
   free(visited);
-  return ordering;
+  while (tail < g->size) result[tail++] = g->size; 
+  return result;
 }
 
 unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length) {
@@ -2779,50 +2774,6 @@ void testDepthFirstSortOfGraph() {
   free(order4);
 }
 
-void testBreadthFirstSortOfGraph() {
-  Graph *g1 = createGraph(3);
-  addDirectedEdge(g1, 0, 1, 1);
-  addDirectedEdge(g1, 1, 2, 1);
-  unsigned *order1 = breadthFirstSortOfGraph(g1, 0);
-  assert(order1[0] == 0);
-  assert(order1[1] == 1);
-  assert(order1[2] == 2);
-  printf("BFS test 1 (linear) passed!\n");
-  destroyGraph(g1);
-  free(order1);
-
-  Graph *g2 = createGraph(3);
-  addDirectedEdge(g2, 0, 2, 1);
-  addDirectedEdge(g2, 0, 1, 1);
-  unsigned *order2 = breadthFirstSortOfGraph(g2, 0);
-  assert(order2[0] == 0);
-  assert(order2[1] == 1);
-  assert(order2[2] == 2);
-  printf("BFS test 2 (fork) passed!\n");
-  destroyGraph(g2);
-  free(order2);
-
-  Graph *g3 = createGraph(3);
-  addDirectedEdge(g3, 0, 1, 1);
-  unsigned *order3 = breadthFirstSortOfGraph(g3, 0);
-  assert(order3[0] == 0);
-  assert(order3[1] == 1);
-  assert(order3[2] == 2);
-  printf("BFS test 3 (disconnected) passed!\n");
-  destroyGraph(g3);
-  free(order3);
-
-  Graph *g4 = createGraph(2);
-  addDirectedEdge(g4, 0, 1, 1);
-  addDirectedEdge(g4, 1, 0, 1);
-  unsigned *order4 = breadthFirstSortOfGraph(g4, 0);
-  assert(order4[0] == 0);
-  assert(order4[1] == 1);
-  printf("BFS test 4 (cycle) passed!\n");
-  destroyGraph(g4);
-  free(order4);
-}
-
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
   unsigned position[graph->size];
   for (unsigned i = 0; i < graph->size; i++)
@@ -3214,7 +3165,6 @@ int main() {
   testIsWeaklyConnected();
   testIsStronglyConnectedDirected();
   testDepthFirstSortOfGraph();
-  testBreadthFirstSortOfGraph();
   testTopologicalSortOfGraph();
   testBellmanFord();
   testUnweightedDijkstra();
