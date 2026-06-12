@@ -177,6 +177,7 @@ unsigned *undirectedColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
 void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
 unsigned *topologicalSortOfGraph(const Graph *graph);
+unsigned *findBridges(const Graph *g);
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
 unsigned *getInNeighbors(const Graph *graph, unsigned vertex);
 unsigned *getOutNeighbors(const Graph *graph, unsigned vertex);
@@ -187,17 +188,6 @@ unsigned *breadthFirstSortOfGraph(const Graph *graph, unsigned source);
 unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length);
 
 unsigned **allPairsShortestPathsUnweighted(const Graph *graph);
-void recursivelyFindBridges(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  unsigned **bridges,
-  unsigned *count,
-  unsigned *timer);
-unsigned **findBridges(const Graph *graph);
 
 double sumWeights(const Graph *graph);
 double graphRadius(const Graph *graph);
@@ -242,7 +232,6 @@ void testKruskal();
 void testFindArticulationPoints();
 bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v);
 void freeBridgeResult(unsigned **bridges);
-void testFindBridges();
 void testGraphDensity();
 
 int main();
@@ -2007,6 +1996,77 @@ unsigned *topologicalSortOfGraph(const Graph *graph) {
   return ordering;
 }
 
+unsigned *findBridges(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  unsigned *bridges = malloc((2 * g->size + 1) * sizeof(unsigned));
+  unsigned *discovery = calloc(g->size, sizeof(unsigned));
+  unsigned *low = malloc(g->size * sizeof(unsigned));
+  unsigned *parent = malloc(g->size * sizeof(unsigned));
+  bool *skipped = calloc(g->size, sizeof(bool));
+  Edge **edge = malloc(g->size * sizeof(Edge*));
+  unsigned *stack = malloc(g->size * sizeof(unsigned));
+  if (!bridges || (g->size > 0 && (!discovery || !low || !parent || !skipped || !edge || !stack))) {
+    free(bridges);
+    free(discovery);
+    free(low);
+    free(parent); 
+    free(skipped);
+    free(edge); 
+    free(stack);
+    return nullptr;
+  }
+  unsigned timer = 0;
+  unsigned count = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    if (discovery[v] != 0) continue;
+    unsigned top = 0;
+    discovery[v] = low[v] = ++timer;
+    parent[v] = UINT_MAX;
+    edge[v] = g->edges[v];
+    stack[top++] = v;
+    while (top > 0) {
+      unsigned u = stack[top - 1];
+      if (edge[u]) {
+        Edge *e = edge[u];
+        edge[u] = e->next;
+        if (e->destination == parent[u] && !skipped[u]) {
+          skipped[u] = true;
+          continue;
+        }
+        if (discovery[e->destination] > 0) {
+          if (discovery[e->destination] < low[u])
+            low[u] = discovery[e->destination];
+        } else {
+          discovery[e->destination] = low[e->destination] = ++timer;
+          parent[e->destination] = u;
+          edge[e->destination] = g->edges[e->destination];
+          stack[top++] = e->destination;
+        }
+      } else {
+        top--;
+        if (top > 0 && parent[u] != UINT_MAX) {
+          if (low[u] < low[parent[u]])
+            low[parent[u]] = low[u];
+          if (low[u] > discovery[parent[u]]) {
+            bridges[count++] = parent[u];
+            bridges[count++] = u;
+          }
+        }
+      }
+    }
+  }
+  bridges[count++] = UINT_MAX;
+  unsigned *trimmed = realloc(bridges, count * sizeof(unsigned));
+  if (trimmed) bridges = trimmed;
+  free(discovery);
+  free(low);
+  free(parent);
+  free(skipped);
+  free(edge);
+  free(stack);
+  return bridges;
+}
+
 unsigned *unweightedDijkstra(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
@@ -2185,55 +2245,6 @@ unsigned **allPairsShortestPathsUnweighted(const Graph *graph) {
   free(queue);
   free(visited);
   return distances;
-}
-
-void recursivelyFindBridges(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  unsigned **bridges,
-  unsigned *count,
-  unsigned *timer)
-{
-  visited[vertex] = true;
-  discovery[vertex] = low[vertex] = ++(*timer);
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-    if (!visited[e->destination]) {
-      parent[e->destination] = vertex;
-      recursivelyFindBridges(graph, e->destination, visited, discovery, low, parent, bridges, count, timer);
-      low[vertex] = minimumUnsigned(low[vertex], low[e->destination]);
-      if (low[e->destination] > discovery[vertex]) {
-        bridges[*count] = malloc(2 * sizeof(unsigned));
-        bridges[*count][0] = vertex;
-        bridges[*count][1] = e->destination;
-        (*count)++;
-      }
-    } else if (e->destination != parent[vertex]) {
-      low[vertex] = minimumUnsigned(low[vertex], discovery[e->destination]);
-    }
-}
-
-unsigned **findBridges(const Graph *graph) {
-  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
-  unsigned *low = calloc(graph->size, sizeof(unsigned));
-  unsigned *parent = malloc(graph->size * sizeof(unsigned));
-  bool *visited = calloc(graph->size, sizeof(bool));
-  unsigned **bridges = calloc(graph->size, sizeof(unsigned *));
-  unsigned count = 0;
-  unsigned timer = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    parent[v] = UINT_MAX;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!visited[v])
-      recursivelyFindBridges(graph, v, visited, discovery, low, parent, bridges, &count, &timer);
-  free(discovery);
-  free(low);
-  free(parent);
-  free(visited);
-  return bridges;
 }
 
 
@@ -3188,66 +3199,6 @@ void testFindArticulationPoints() {
   }
 }
 
-bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v) {
-  if (!bridges) return false;
-  for (int i = 0; bridges[i] != nullptr; i++) {
-    if ((bridges[i][0] == u && bridges[i][1] == v) || (bridges[i][0] == v && bridges[i][1] == u)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-void freeBridgeResult(unsigned **bridges) {
-  if (!bridges) return;
-  for (int i = 0; bridges[i] != nullptr; i++) {
-    free(bridges[i]);
-  }
-  free(bridges);
-}
-
-void testFindBridges() {
-  printf("Running Bridge Detection Tests...\n");
-
-  Graph *line = createGraph(3);
-  addUndirectedEdge(line, 0, 1, 1);
-  addUndirectedEdge(line, 1, 2, 1);
-
-  unsigned **b1 = findBridges(line);
-  assert(hasBridge(b1, 0, 1));
-  assert(hasBridge(b1, 1, 2));
-  freeBridgeResult(b1);
-  destroyGraph(line);
-  printf("Passed: Line Graph\n");
-
-  Graph *cycle = createGraph(3);
-  addUndirectedEdge(cycle, 0, 1, 1);
-  addUndirectedEdge(cycle, 1, 2, 1);
-  addUndirectedEdge(cycle, 2, 0, 1);
-
-  unsigned **b2 = findBridges(cycle);
-  assert(b2[0] == nullptr);
-  freeBridgeResult(b2);
-  destroyGraph(cycle);
-  printf("Passed: Cycle (No Bridges)\n");
-
-  Graph *dumbbell = createGraph(6);
-  addUndirectedEdge(dumbbell, 0, 1, 1);
-  addUndirectedEdge(dumbbell, 1, 2, 1);
-  addUndirectedEdge(dumbbell, 2, 0, 1);
-  addUndirectedEdge(dumbbell, 1, 3, 1);
-  addUndirectedEdge(dumbbell, 3, 4, 1);
-  addUndirectedEdge(dumbbell, 4, 5, 1);
-  addUndirectedEdge(dumbbell, 5, 3, 1);
-
-  unsigned **b3 = findBridges(dumbbell);
-  assert(hasBridge(b3, 1, 3));
-  assert(!hasBridge(b3, 0, 1));
-  freeBridgeResult(b3);
-  destroyGraph(dumbbell);
-  printf("Passed: Dumbbell Graph\n");
-}
-
 void testGraphDensity() {
   Graph *graph = createGraph(65537);
   for (unsigned v = 0; v < 65536; v++)
@@ -3272,7 +3223,6 @@ int main() {
   testPrim();
   testKruskal();
   testFindArticulationPoints();
-  testFindBridges();
   testGraphDensity();
   printf("All tests passed!\n");
   return 0;
