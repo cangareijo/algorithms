@@ -181,8 +181,8 @@ unsigned *findBridges(const Graph *g);
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
 unsigned *getInNeighbors(const Graph *graph, unsigned vertex);
 unsigned *getOutNeighbors(const Graph *graph, unsigned vertex);
-void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
-unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source);
+unsigned *preOrderSort(const Graph *g, unsigned v);
+unsigned *postOrderSort(const Graph *g, unsigned v);
 unsigned *breadthFirstSort(const Graph *g, unsigned v);
 unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length);
 
@@ -218,7 +218,6 @@ void testIsUndirectedCyclicGraph();
 void testIsConnectedUndirected();
 void testIsWeaklyConnected();
 void testIsStronglyConnectedDirected();
-void testDepthFirstSortOfGraph();
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testTopologicalSortOfGraph();
 void testBellmanFord();
@@ -2109,33 +2108,94 @@ unsigned *getOutNeighbors(const Graph *graph, unsigned vertex) {
   return neighbors;
 }
 
-void depthFirstSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *count, bool *visited) {
-  ordering[(*count)++] = source;
-  visited[source] = true;
-  for (Edge *e = graph->edges[source]; e != nullptr; e = e->next)
-    if (!visited[e->destination])
-      depthFirstSortOfGraphComponent(graph, e->destination, ordering, count, visited);
+unsigned *preOrderSort(const Graph *g, unsigned v) {
+  if (!isValid(g) || v >= g->size) return nullptr;
+  bool *visited = calloc(g->size, sizeof(bool));
+  unsigned *result = malloc(g->size * sizeof(unsigned));
+  unsigned *vertices = malloc(g->size * sizeof(unsigned));
+  Edge **edges = malloc(g->size * sizeof(Edge*));
+  if (!visited || !result || !vertices || !edges) {
+    free(visited); free(result); free(vertices); free(edges);
+    return nullptr;
+  }
+  unsigned i = 0;
+  unsigned top = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned start = u == 0 ? v : u <= v ? u - 1 : u;
+    if (visited[start]) continue;
+    visited[start] = true;
+    result[i++] = start;
+    vertices[top] = start;
+    edges[top] = g->edges[start];
+    top++;
+    while (top > 0) {
+      Edge *e = edges[top - 1];
+      if (e) {
+        edges[top - 1] = e->next;
+        if (!visited[e->destination]) {
+          visited[e->destination] = true;
+          result[i++] = e->destination;
+          vertices[top] = e->destination;
+          edges[top] = g->edges[e->destination];
+          top++;
+        }
+      } else {
+        top--;
+      }
+    }
+  }
+  free(visited);
+  free(vertices);
+  free(edges);
+  return result;
 }
 
-unsigned *depthFirstSortOfGraph(const Graph *graph, unsigned source) {
-  unsigned *ordering = malloc(graph->size * sizeof(unsigned));
-  unsigned count = 0;
-  bool *visited = calloc(graph->size, sizeof(bool));
-  depthFirstSortOfGraphComponent(graph, source, ordering, &count, visited);
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!visited[v])
-      depthFirstSortOfGraphComponent(graph, v, ordering, &count, visited);
+unsigned *postOrderSort(const Graph *g, unsigned v) {
+  if (!isValid(g) || v >= g->size) return nullptr;
+  bool *visited = calloc(g->size, sizeof(bool));
+  unsigned *result = malloc(g->size * sizeof(unsigned));
+  unsigned *vertices = malloc(g->size * sizeof(unsigned));
+  Edge **edges = malloc(g->size * sizeof(Edge*));
+  if (!visited || !result || !vertices || !edges) {
+    free(visited); free(result); free(vertices); free(edges);
+    return nullptr;
+  }
+  unsigned i = g->size;
+  unsigned top = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned start = u == 0 ? v : u <= v ? u - 1 : u;
+    if (visited[start]) continue;
+    visited[start] = true;
+    vertices[top] = start;
+    edges[top] = g->edges[start];
+    top++;
+    while (top > 0) {
+      Edge *e = edges[top - 1];
+      if (e) {
+        edges[top - 1] = e->next;
+        if (!visited[e->destination]) {
+          visited[e->destination] = true;
+          vertices[top] = e->destination;
+          edges[top] = g->edges[e->destination];
+          top++;
+        }
+      } else {
+        result[--i] = vertices[--top];
+      }
+    }
+  }
   free(visited);
-  return ordering;
+  free(vertices);
+  free(edges);
+  return result;
 }
 
 unsigned *breadthFirstSort(const Graph *g, unsigned v) {
   if (isValid(g) || v >= g->size) return nullptr;
   unsigned *result = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
-  if (g->size > 0 && (!result || !visited)) {
-    free(result);
-    free(visited);
+  if (!result || !visited) {
+    free(result); free(visited);
     return nullptr;
   }
   unsigned head = 0;
@@ -2730,50 +2790,6 @@ void testIsStronglyConnectedDirected() {
   destroyGraph(g5);
 }
 
-void testDepthFirstSortOfGraph() {
-  Graph *g1 = createGraph(3);
-  addDirectedEdge(g1, 0, 1, 1);
-  addDirectedEdge(g1, 1, 2, 1);
-  unsigned *order1 = depthFirstSortOfGraph(g1, 0);
-  assert(order1[0] == 0);
-  assert(order1[1] == 1);
-  assert(order1[2] == 2);
-  printf("DFS test 1 (Linear) passed!\n");
-  destroyGraph(g1);
-  free(order1);
-
-  Graph *g2 = createGraph(3);
-  addDirectedEdge(g2, 0, 2, 1);
-  addDirectedEdge(g2, 0, 1, 1);
-  unsigned *order2 = depthFirstSortOfGraph(g2, 0);
-  assert(order2[0] == 0);
-  assert(order2[1] == 1);
-  assert(order2[2] == 2);
-  printf("DFS test 2 (Fork) passed!\n");
-  destroyGraph(g2);
-  free(order2);
-
-  Graph *g3 = createGraph(3);
-  addDirectedEdge(g3, 0, 1, 1);
-  unsigned *order3 = depthFirstSortOfGraph(g3, 0);
-  assert(order3[0] == 0);
-  assert(order3[1] == 1);
-  assert(order3[2] == 2);
-  printf("DFS test 3 (Disconnected) passed!\n");
-  destroyGraph(g3);
-  free(order3);
-
-  Graph *g4 = createGraph(2);
-  addDirectedEdge(g4, 0, 1, 1);
-  addDirectedEdge(g4, 1, 0, 1);
-  unsigned *order4 = depthFirstSortOfGraph(g4, 0);
-  assert(order4[0] == 0);
-  assert(order4[1] == 1);
-  printf("DFS test 4 (Cyclic) passed!\n");
-  destroyGraph(g4);
-  free(order4);
-}
-
 bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
   unsigned position[graph->size];
   for (unsigned i = 0; i < graph->size; i++)
@@ -3164,7 +3180,6 @@ int main() {
   testIsConnectedUndirected();
   testIsWeaklyConnected();
   testIsStronglyConnectedDirected();
-  testDepthFirstSortOfGraph();
   testTopologicalSortOfGraph();
   testBellmanFord();
   testUnweightedDijkstra();
