@@ -2191,27 +2191,31 @@ unsigned *postOrderSort(const Graph *g, unsigned v) {
 }
 
 unsigned *breadthFirstSort(const Graph *g, unsigned v) {
-  if (isValid(g) || v >= g->size) return nullptr;
-  unsigned *result = malloc(g->size * sizeof(unsigned));
+  if (!isValid(g) || v >= g->size) return nullptr;
   bool *visited = calloc(g->size, sizeof(bool));
-  if (!result || !visited) {
-    free(result); free(visited);
+  unsigned *result = malloc(g->size * sizeof(unsigned));
+  if (!visited || !result) {
+    free(visited); free(result);
     return nullptr;
   }
+  unsigned i = 0;
   unsigned head = 0;
   unsigned tail = 0;
-  result[tail++] = v;
-  visited[v] = true;
-  while (head < tail) {
-    unsigned current = result[head++];
-    for (Edge *e = g->edges[current]; e; e = e->next)
-      if (!visited[e->destination]) {
-        visited[e->destination] = true;
-        result[tail++] = e->destination;
-      }
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned start = u == 0 ? v : u <= v ? u - 1 : u;
+    if (visited[start]) continue;
+    visited[start] = true;
+    result[i++] = start;
+    while (head < tail) {
+      unsigned current = result[head++];
+      for (Edge *e = g->edges[current]; e; e = e->next)
+        if (!visited[e->destination]) {
+          visited[e->destination] = true;
+          result[i++] = e->destination;
+        }
+    }
   }
   free(visited);
-  while (tail < g->size) result[tail++] = g->size; 
   return result;
 }
 
