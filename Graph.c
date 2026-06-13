@@ -79,6 +79,7 @@ bool isTriangle(const Graph *graph, unsigned u, unsigned v, unsigned w);
 bool isClique(const Graph *graph, const bool *subset);
 bool isIndependentSet(const Graph *graph, const bool *subset);
 bool isVertexCover(const Graph *graph, const bool *subset);
+bool isTopologicalSort(const Graph *graph, const unsigned *ordering);
 bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned length);
@@ -95,15 +96,6 @@ bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
-void recursivelyFindArticulationPoints(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  bool *articulations,
-  unsigned *timer);
 bool *findArticulationPoints(const Graph *graph);
 
 Graph *createGraph(unsigned n);
@@ -175,8 +167,7 @@ unsigned *outDegreeDistribution(const Graph *graph);
 unsigned *inDegreeDistribution(const Graph *graph);
 unsigned *undirectedColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
-void topologicalSortOfGraphComponent(const Graph *graph, unsigned source, unsigned *ordering, unsigned *index, bool *visited);
-unsigned *topologicalSortOfGraph(const Graph *graph);
+unsigned *topologicalSortOfGraph(const Graph *g);
 unsigned *findBridges(const Graph *g);
 unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
 unsigned *getInNeighbors(const Graph *graph, unsigned vertex);
@@ -218,7 +209,6 @@ void testIsUndirectedCyclicGraph();
 void testIsConnectedUndirected();
 void testIsWeaklyConnected();
 void testIsStronglyConnectedDirected();
-bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering);
 void testTopologicalSortOfGraph();
 void testBellmanFord();
 void testUnweightedDijkstra();
@@ -227,8 +217,6 @@ void testFloydWarshall();
 void testPrim();
 void testKruskal();
 void testFindArticulationPoints();
-bool hasBridge(unsigned *const *const bridges, unsigned u, unsigned v);
-void freeBridgeResult(unsigned **bridges);
 void testGraphDensity();
 
 int main();
@@ -873,6 +861,18 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
       for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
         if (!subset[e->destination])
           return false;
+  return true;
+}
+
+bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
+  if (!isValid(g) || (g->size > 0 && !sequence)) return false;
+  unsigned position[g->size];
+  for (unsigned i = 0; i < g->size; i++)
+    position[sequence[i]] = i;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (position[v] >= position[e->destination])
+        return false;
   return true;
 }
 
@@ -1974,21 +1974,23 @@ unsigned *stronglyConnectedComponents(const Graph *g) {
   return components;
 }
 
-void topologicalSortOfGraphComponent(const Graph *graph, unsigned vertex, unsigned *ordering, unsigned *index, bool *visited) {
-  visited[vertex] = true;
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
+void topologicalSortOfGraphComponent(const Graph *g, unsigned v, unsigned *ordering, unsigned *i, bool *visited) {
+  visited[v] = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
     if (!visited[e->destination])
-      topologicalSortOfGraphComponent(graph, e->destination, ordering, index, visited);
-  ordering[--(*index)] = vertex;
+      topologicalSortOfGraphComponent(g, e->destination, ordering, i, visited);
+  ordering[--(*i)] = v;
 }
 
-unsigned *topologicalSortOfGraph(const Graph *graph) {
-  unsigned *ordering = malloc(graph->size * sizeof(unsigned));
-  unsigned index = graph->size;
-  bool *visited = calloc(graph->size, sizeof(bool));
-  for (unsigned v = 0; v < graph->size; v++)
+unsigned *topologicalSortOfGraph(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  unsigned *ordering = malloc(g->size * sizeof(unsigned));
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (g->size > 0 && (!ordering || !visited)) return nullptr;
+  unsigned i = g->size;
+  for (unsigned v = 0; v < g->size; v++)
     if (!visited[v])
-      topologicalSortOfGraphComponent(graph, v, ordering, &index, visited);
+      topologicalSortOfGraphComponent(g, v, ordering, &i, visited);
   free(visited);
   return ordering;
 }
@@ -2794,23 +2796,12 @@ void testIsStronglyConnectedDirected() {
   destroyGraph(g5);
 }
 
-bool isValidTopologicalSort(const Graph *graph, const unsigned *ordering) {
-  unsigned position[graph->size];
-  for (unsigned i = 0; i < graph->size; i++)
-    position[ordering[i]] = i;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
-      if (position[v] >= position[edge->destination])
-        return false;
-  return true;
-}
-
 void testTopologicalSortOfGraph() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 1);
   addDirectedEdge(g1, 1, 2, 1);
   unsigned *order1 = topologicalSortOfGraph(g1);
-  assert(isValidTopologicalSort(g1, order1));
+  assert(isTopologicalSort(g1, order1));
   printf("Topo test 1 (linear) passed!\n");
   destroyGraph(g1);
   free(order1);
@@ -2821,7 +2812,7 @@ void testTopologicalSortOfGraph() {
   addDirectedEdge(g2, 1, 3, 1);
   addDirectedEdge(g2, 2, 3, 1);
   unsigned *order2 = topologicalSortOfGraph(g2);
-  assert(isValidTopologicalSort(g2, order2));
+  assert(isTopologicalSort(g2, order2));
   printf("Topo test 2 (diamond) passed!\n");
   destroyGraph(g2);
   free(order2);
@@ -2830,7 +2821,7 @@ void testTopologicalSortOfGraph() {
   addDirectedEdge(g3, 0, 1, 1);
   addDirectedEdge(g3, 2, 3, 1);
   unsigned *order3 = topologicalSortOfGraph(g3);
-  assert(isValidTopologicalSort(g3, order3));
+  assert(isTopologicalSort(g3, order3));
   printf("Topo test 3 (disconnected) passed!\n");
   destroyGraph(g3);
   free(order3);
