@@ -50,10 +50,9 @@ bool isTournament(const Graph *graph);
 bool hasNegativeWeights(const Graph *graph);
 bool isCubic(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
-bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited);
 bool isCyclicDirected(const Graph *graph);
-bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited);
 bool isCyclicUndirected(const Graph *graph);
+bool isOutTree(const Graph *g);
 bool isKRegular(const Graph *graph, unsigned k);
 bool isProperColoring(const Graph *graph, const unsigned *coloring);
 bool hasConstantWeights(const Graph *graph, double weight);
@@ -676,6 +675,22 @@ bool isCyclicUndirected(const Graph *graph) {
   return cyclic;
 }
 
+bool isOutTree(const Graph *g) {
+  if (!g || g->size == 0 || isCyclicDirected(g)) return false;
+  unsigned *degree = inDegrees(g);
+  if (!degree) return false;
+  unsigned roots = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degree[v] == 0) {
+      roots++;
+    } else if (degree[v] != 1) {
+      free(degree);
+      return false;
+    }
+  free(degree);
+  return roots == 1;
+}
+
 bool isKRegular(const Graph *graph, unsigned k) {
   for (unsigned v = 0; v < graph->size; v++)
     if (inDegree(graph, v) != k || outDegree(graph, v) != k)
@@ -754,8 +769,9 @@ bool isArticulationVertex(const Graph *graph, unsigned vertex) {
   return n > countComponents(graph);
 }
 
-bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v) {
-  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
+bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size) return false;
+  for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v)
       return true;
   return false;
@@ -2476,7 +2492,7 @@ double maxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
   }
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      residual[v][e->destination] += e->weight; 
+      residual[v][e->destination] += e->weight;
   double max = 0;
   while (true) {
     for (unsigned v = 0; v < g->size; v++) visited[v] = false;
