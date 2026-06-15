@@ -104,6 +104,7 @@ Graph *createCycleGraph(unsigned size);
 Graph *createCompleteGraph(unsigned size);
 Graph *createStarGraph(unsigned size);
 Graph *createWheelGraph(unsigned size);
+Graph *generateRandomGraph(unsigned n, double p, bool directed, bool weighted);
 Graph *copyGraph(const Graph *graph);
 Graph *copyTranspose(const Graph *graph);
 Graph *copyUnweighted(const Graph *graph);
@@ -1131,6 +1132,21 @@ Graph *createWheelGraph(unsigned size) {
   for (unsigned v = 1; v < size; v++) addUndirectedEdge(g, 0, v, 1);
   for (unsigned v = 2; v < size; v++) addUndirectedEdge(g, v - 1, v, 1);
   addUndirectedEdge(g, size - 1, 1, 1);
+  return g;
+}
+
+Graph *generateRandomGraph(unsigned n, double p, bool directed, bool weighted) {
+  if (p < 0 || p > 1) return nullptr;
+  Graph *g = createGraph(n);
+  if (!g) return nullptr;
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = directed ? 0 : u + 1; v < n; v++) {
+      if (u == v) continue;
+      if ((double)rand() / RAND_MAX < p) {
+        double weight = weighted ? 1 + ((double)rand() / RAND_MAX) * 9 : 1;
+        if (directed) addDirectedEdge(g, u, v, weight); else addUndirectedEdge(g, u, v, weight);
+      }
+    }
   return g;
 }
 
