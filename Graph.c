@@ -39,9 +39,10 @@ bool isStronglyConnectedDirected(const Graph *graph);
 bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
-bool isForest(const Graph *graph);
+bool isDirectedForest(const Graph *g);
+bool isUndirectedForest(const Graph *g);
 bool isDirectedTree(const Graph *g);
-bool isUndirectedTree(const Graph *graph);
+bool isUndirectedTree(const Graph *g);
 bool isPathGraph(const Graph *g);
 bool isCycleGraph(const Graph *g);
 bool isStar(const Graph *graph);
@@ -489,8 +490,21 @@ bool isMultiGraph(const Graph *graph) {
   return b;
 }
 
-bool isForest(const Graph *graph) {
-  return isUndirected(graph) && !isCyclicUndirected(graph);
+bool isDirectedForest(const Graph *g) {
+  if (!g || isCyclicDirected(g)) return false;
+  unsigned *degree = inDegrees(g);
+  if (g->size > 0 && !degree) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degree[v] >= 2) {
+      free(degree);
+      return false;
+    }
+  free(degree);
+  return true;
+}
+
+bool isUndirectedForest(const Graph *g) {
+  return isUndirected(g) && !isCyclicUndirected(g);
 }
 
 bool isDirectedTree(const Graph *g) {
@@ -509,8 +523,8 @@ bool isDirectedTree(const Graph *g) {
   return roots == 1;
 }
 
-bool isUndirectedTree(const Graph *graph) {
-  return isUndirected(graph) && !isCyclicUndirected(graph) && isConnectedUndirected(graph);
+bool isUndirectedTree(const Graph *g) {
+  return isUndirected(g) && !isCyclicUndirected(g) && isConnectedUndirected(g);
 }
 
 bool isPathGraph(const Graph *g) {
