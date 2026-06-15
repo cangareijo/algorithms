@@ -40,7 +40,8 @@ bool isBipartite(const Graph *graph);
 bool isUndirected(const Graph *graph);
 bool isMultiGraph(const Graph *graph);
 bool isForest(const Graph *graph);
-bool isTree(const Graph *graph);
+bool isDirectedTree(const Graph *g);
+bool isUndirectedTree(const Graph *graph);
 bool isPathGraph(const Graph *g);
 bool isCycleGraph(const Graph *g);
 bool isStar(const Graph *graph);
@@ -52,7 +53,6 @@ bool isCubic(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
 bool isCyclicDirected(const Graph *graph);
 bool isCyclicUndirected(const Graph *graph);
-bool isOutTree(const Graph *g);
 bool isKRegular(const Graph *graph, unsigned k);
 bool isProperColoring(const Graph *graph, const unsigned *coloring);
 bool hasConstantWeights(const Graph *graph, double weight);
@@ -493,7 +493,23 @@ bool isForest(const Graph *graph) {
   return isUndirected(graph) && !isCyclicUndirected(graph);
 }
 
-bool isTree(const Graph *graph) {
+bool isDirectedTree(const Graph *g) {
+  if (!g || g->size == 0 || isCyclicDirected(g)) return false;
+  unsigned *degree = inDegrees(g);
+  if (!degree) return false;
+  unsigned roots = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degree[v] == 0) {
+      roots++;
+    } else if (degree[v] >= 2) {
+      free(degree);
+      return false;
+    }
+  free(degree);
+  return roots == 1;
+}
+
+bool isUndirectedTree(const Graph *graph) {
   return isUndirected(graph) && !isCyclicUndirected(graph) && isConnectedUndirected(graph);
 }
 
@@ -673,22 +689,6 @@ bool isCyclicUndirected(const Graph *graph) {
       }
   free(visited);
   return cyclic;
-}
-
-bool isOutTree(const Graph *g) {
-  if (!g || g->size == 0 || isCyclicDirected(g)) return false;
-  unsigned *degree = inDegrees(g);
-  if (!degree) return false;
-  unsigned roots = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degree[v] == 0) {
-      roots++;
-    } else if (degree[v] != 1) {
-      free(degree);
-      return false;
-    }
-  free(degree);
-  return roots == 1;
 }
 
 bool isKRegular(const Graph *graph, unsigned k) {
