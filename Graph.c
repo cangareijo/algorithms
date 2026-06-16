@@ -22,78 +22,78 @@ typedef struct {
 } Graph;
 
 bool isValid(const Graph *g);
-bool isNull(const Graph *graph);
+bool isNull(const Graph *g);
 bool isTrivial(const Graph *g);
 bool isEmpty(const Graph *g);
-bool isRegular(const Graph *graph);
-bool isComplete(const Graph *graph);
-bool hasSelfLoops(const Graph *graph);
-bool isBalanced(const Graph *graph);
+bool isRegular(const Graph *g);
+bool isComplete(const Graph *g);
+bool hasSelfLoops(const Graph *g);
+bool isBalanced(const Graph *g);
 bool allOutDegreesAreEven(const Graph *g);
 bool isEulerianUndirected(const Graph *g);
-bool isEulerianDirected(const Graph *graph);
-bool isConnectedUndirected(const Graph *graph);
+bool isEulerianDirected(const Graph *g);
+bool isConnectedUndirected(const Graph *g);
 bool isWeaklyConnected(const Graph *g);
 bool isWeaklyConnectedAlternative(const Graph *g);
-bool isStronglyConnectedDirected(const Graph *graph);
-bool isBipartite(const Graph *graph);
-bool isUndirected(const Graph *graph);
-bool isMultiGraph(const Graph *graph);
+bool isStronglyConnectedDirected(const Graph *g);
+bool isBipartite(const Graph *g);
+bool isUndirected(const Graph *g);
+bool isMultiGraph(const Graph *g);
 bool isDirectedForest(const Graph *g);
 bool isUndirectedForest(const Graph *g);
 bool isDirectedTree(const Graph *g);
 bool isUndirectedTree(const Graph *g);
 bool isPathGraph(const Graph *g);
 bool isCycleGraph(const Graph *g);
-bool isStarGraph(const Graph *graph);
-bool isWheelGraph(const Graph *graph);
-bool hasIsolatedVertices(const Graph *graph);
-bool isTournament(const Graph *graph);
-bool hasNegativeWeights(const Graph *graph);
+bool isStarGraph(const Graph *g);
+bool isWheelGraph(const Graph *g);
+bool hasIsolatedVertices(const Graph *g);
+bool isTournament(const Graph *g);
+bool hasNegativeWeights(const Graph *g);
 bool isCubic(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
-bool isCyclicDirected(const Graph *graph);
-bool isCyclicUndirected(const Graph *graph);
-bool isKRegular(const Graph *graph, unsigned k);
-bool isProperColoring(const Graph *graph, const unsigned *coloring);
-bool hasConstantWeights(const Graph *graph, double weight);
-bool isDense(const Graph *graph, double threshold);
-bool isIsolated(const Graph *graph, unsigned vertex);
-bool isSource(const Graph *graph, unsigned vertex);
-bool isSink(const Graph *graph, unsigned vertex);
-bool isUniversalSink(const Graph *graph, unsigned vertex);
-bool isDirectedLeaf(const Graph *graph, unsigned vertex);
-bool isUndirectedLeaf(const Graph *graph, unsigned vertex);
-bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex);
-bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex);
-bool isArticulationVertex(const Graph *graph, unsigned vertex);
-bool hasDirectedEdge(const Graph *graph, unsigned u, unsigned v);
-bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v);
+bool isCyclicDirected(const Graph *g);
+bool isCyclicUndirected(const Graph *g);
+bool isKRegular(const Graph *g, unsigned k);
+bool isProperColoring(const Graph *g, const unsigned *coloring);
+bool hasConstantWeights(const Graph *g, double x);
+bool isDense(const Graph *g, double threshold);
+bool isIsolated(const Graph *g, unsigned v);
+bool isSource(const Graph *g, unsigned v);
+bool isSink(const Graph *g, unsigned v);
+bool isUniversalSink(const Graph *g, unsigned v);
+bool isDirectedLeaf(const Graph *g, unsigned v);
+bool isUndirectedLeaf(const Graph *g, unsigned v);
+bool hasSelfLoopsAtVertex(const Graph *g, unsigned v);
+bool allAreReachableFromVertexInGraph(const Graph *g, unsigned v);
+bool isArticulationVertex(const Graph *g, unsigned v);
+bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v);
+bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
-bool shareNeighbor(const Graph *graph, unsigned u, unsigned v);
-bool isDirectedBridge(const Graph *graph, unsigned u, unsigned v);
-bool isUndirectedBridge(const Graph *graph, unsigned u, unsigned v);
-bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight);
-bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight);
-bool isTriangle(const Graph *graph, unsigned u, unsigned v, unsigned w);
-bool isClique(const Graph *graph, const bool *subset);
-bool isIndependentSet(const Graph *graph, const bool *subset);
-bool isVertexCover(const Graph *graph, const bool *subset);
-bool isTopologicalSort(const Graph *graph, const unsigned *ordering);
-bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isPath(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
-bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
+bool shareNeighbor(const Graph *g, unsigned u, unsigned v);
+bool isDirectedBridge(const Graph *g, unsigned u, unsigned v);
+bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
+bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double x);
+bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double x);
+bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
+bool isClique(const Graph *g, const bool *subset);
+bool isIndependentSet(const Graph *g, const bool *subset);
+bool isVertexCover(const Graph *g, const bool *subset);
+bool isTopologicalSort(const Graph *g, const unsigned *ordering);
+bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
+bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
+bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length);
+bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length);
+bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length);
+bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length);
+bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length);
+bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned length);
+bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
+bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n);
-bool isSubGraph(const Graph *subgraph, const Graph *graph);
-bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *graph);
-bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
+bool isSubGraph(const Graph *subgraph, const Graph *g);
+bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *g);
+bool isSpanningDirectedTree(const Graph *subgraph, const Graph *g);
 
 bool *graphCenter(const Graph *graph);
 bool *graphPeriphery(const Graph *graph);
@@ -141,19 +141,19 @@ void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, dou
 
 unsigned countEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
-unsigned countTriangles(const Graph *graph);
+unsigned countTriangles(const Graph *g);
 unsigned minimumInDegree(const Graph *g);
 unsigned maximumInDegree(const Graph *g);
 unsigned minimumOutDegree(const Graph *g);
 unsigned maximumOutDegree(const Graph *g);
 unsigned minimumDegree(const Graph *g);
 unsigned maximumDegree(const Graph *g);
-unsigned countDirectedLeaves(const Graph *graph);
-unsigned countUndirectedLeaves(const Graph *graph);
-unsigned countSources(const Graph *graph);
-unsigned countSinks(const Graph *graph);
-unsigned countParallelEdges(const Graph *graph);
-unsigned countIsolatedVertices(const Graph *graph);
+unsigned countDirectedLeaves(const Graph *g);
+unsigned countUndirectedLeaves(const Graph *g);
+unsigned countSources(const Graph *g);
+unsigned countSinks(const Graph *g);
+unsigned countParallelEdges(const Graph *g);
+unsigned countIsolatedVertices(const Graph *g);
 unsigned getSize(const Graph *g);
 unsigned countComponents(const Graph *g);
 unsigned firstActiveVertex(const Graph *g);
@@ -162,9 +162,11 @@ unsigned inDegree(const Graph *g, unsigned v);
 unsigned outDegree(const Graph *g, unsigned v);
 unsigned degree(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
-unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v);
-unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target);
+unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
+unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned distance(const Graph *g, unsigned u, unsigned v);
+unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
+unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x);
 
 unsigned *inDegrees(const Graph *g);
 unsigned *outDegrees(const Graph *g);
@@ -470,10 +472,11 @@ bool isBipartite(const Graph *graph) {
   return bipartite;
 }
 
-bool isUndirected(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (!hasWeightedDirectedEdge(graph, e->destination, v, e->weight))
+bool isUndirected(const Graph *g) {
+  if (!g || !g->edges) return true;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (countMatchingWeightedEdges(g, u, e->destination, e->weight) != countMatchingWeightedEdges(g, e->destination, u, e->weight))
         return false;
   return true;
 }
@@ -1959,6 +1962,24 @@ unsigned distance(const Graph *g, unsigned u, unsigned v) {
   return distance;
 }
 
+unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size) return 0;
+  unsigned n = 0;
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination == v)
+      n++;
+  return n;
+}
+
+unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x) {
+  if (!g || !g->edges || u >= g->size) return 0;
+  unsigned n = 0;
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination == v && e->weight == x)
+      n++;
+  return n;
+}
+
 
 
 unsigned *inDegrees(const Graph *g) {
@@ -2005,11 +2026,7 @@ unsigned *outDegreeDistribution(const Graph *g) {
 }
 
 unsigned *undirectedColoring(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size)
-        return nullptr;
+  if (!isValid(g)) return nullptr;
   unsigned *colors = malloc(g->size  *sizeof(unsigned));
   bool *taken = calloc(g->size, sizeof(bool));
   if (!colors || !taken) {
