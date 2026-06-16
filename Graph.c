@@ -124,6 +124,8 @@ Graph *copySubgraph(const Graph *graph, const bool *subset);
 Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 Graph *cartesianProduct(const Graph *g1, const Graph *g2);
+Graph *disjointUnion(const Graph *g1, const Graph *g2);
+Graph *tensorProduct(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *g);
 void addVertex(Graph *graph);
@@ -1490,6 +1492,7 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
 }
 
 Graph *cartesianProduct(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
   Graph *g3 = createGraph(g1->size * g2->size);
   for (unsigned u = 0; u < g1->size; u++)
     for (unsigned v = 0; v < g2->size; v++) {
@@ -1498,6 +1501,29 @@ Graph *cartesianProduct(const Graph *g1, const Graph *g2) {
       for (Edge *e = g1->edges[u]; e; e = e->next)
         addDirectedEdge(g3, u * g2->size + v, e->destination * g2->size + v, e->weight);
     }
+  return g3;
+}
+
+Graph *disjointUnion(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
+  Graph *g3 = createGraph(g1->size + g2->size);
+  for (unsigned v = 0; v < g1->size; v++)
+    for (Edge *e = g1->edges[v]; e; e = e->next)
+      addDirectedEdge(g3, v, e->destination, e->weight);
+  for (unsigned v = 0; v < g2->size; v++)
+    for (Edge *e = g2->edges[v]; e; e = e->next)
+      addDirectedEdge(g3, g1->size + v, g1->size + e->destination, e->weight);
+  return g3;
+}
+
+Graph *tensorProduct(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
+  Graph *g3 = createGraph(g1->size * g2->size);
+  for (unsigned u1 = 0; u1 < g1->size; u1++)
+    for (Edge *e1 = g1->edges[u1]; e1; e1 = e1->next)
+      for (unsigned u2 = 0; u2 < g2->size; u2++)
+        for (Edge *e2 = g2->edges[u2]; e2; e2 = e2->next)
+          addDirectedEdge(g3, u1 * g2->size + u2, e1->destination * g2->size + e2->destination, e1->weight + e2->weight);
   return g3;
 }
 
@@ -1583,7 +1609,7 @@ void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
 }
 
 void addDirectedEdge(Graph *g, unsigned u, unsigned v, double x) {
-  if (!g || !g->edges || u >= g->size || v >= g->size) return;
+  if (!g || !g->edges || u >= g->size) return;
   Edge *e = malloc(sizeof(Edge));
   if (!e) return;
   e->destination = v;
@@ -1955,17 +1981,26 @@ unsigned *outDegrees(const Graph *g) {
   return degrees;
 }
 
-unsigned *inDegreeDistribution(const Graph *graph) {
-  unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    distribution[inDegree(graph, v)]++;
+unsigned *inDegreeDistribution(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned *degree = inDegrees(g);
+  unsigned *distribution = calloc(g->size, sizeof(unsigned));
+  if (!degree || !distribution) {
+    free(degree); free(distribution);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++)
+    distribution[degree[v] < g->size ? degree[v] : g->size - 1]++;
+  free(degree);
   return distribution;
 }
 
-unsigned *outDegreeDistribution(const Graph *graph) {
-  unsigned *distribution = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    distribution[outDegree(graph, v)]++;
+unsigned *outDegreeDistribution(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned *distribution = calloc(g->size, sizeof(unsigned));
+  if (!distribution) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    distribution[outDegree(g, v) < g->size ? outDegree(g, v) : g->size - 1]++;
   return distribution;
 }
 
