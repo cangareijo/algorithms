@@ -45,8 +45,8 @@ bool isDirectedTree(const Graph *g);
 bool isUndirectedTree(const Graph *g);
 bool isPathGraph(const Graph *g);
 bool isCycleGraph(const Graph *g);
-bool isStar(const Graph *graph);
-bool isWheel(const Graph *graph);
+bool isStarGraph(const Graph *graph);
+bool isWheelGraph(const Graph *graph);
 bool hasIsolatedVertices(const Graph *graph);
 bool isTournament(const Graph *graph);
 bool hasNegativeWeights(const Graph *graph);
@@ -90,6 +90,7 @@ bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length
 bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length);
+bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n);
 bool isSubGraph(const Graph *subgraph, const Graph *graph);
 bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *graph);
 bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph);
@@ -137,7 +138,7 @@ void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, doubl
 void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
 
 unsigned countEdges(const Graph *g);
-unsigned countSelfLoops(const Graph *graph);
+unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *graph);
 unsigned minimumInDegree(const Graph *g);
 unsigned maximumInDegree(const Graph *g);
@@ -154,6 +155,7 @@ unsigned countIsolatedVertices(const Graph *graph);
 unsigned getSize(const Graph *g);
 unsigned countComponents(const Graph *g);
 unsigned firstActiveVertex(const Graph *g);
+unsigned wienerIndex(const Graph *g);
 unsigned inDegree(const Graph *g, unsigned v);
 unsigned outDegree(const Graph *g, unsigned v);
 unsigned degree(const Graph *g, unsigned v);
@@ -556,7 +558,7 @@ bool isCycleGraph(const Graph *g) {
   return true;
 }
 
-bool isStar(const Graph *graph) {
+bool isStarGraph(const Graph *graph) {
   if (graph->size < 2) return false;
   if (!isUndirected(graph)) return false;
   unsigned count = 0;
@@ -570,7 +572,7 @@ bool isStar(const Graph *graph) {
   return count == 1;
 }
 
-bool isWheel(const Graph *graph) {
+bool isWheelGraph(const Graph *graph) {
   if (graph->size < 4) return false;
   if (!isUndirected(graph)) return false;
   unsigned hub;
@@ -998,6 +1000,24 @@ bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned 
       valid = false;
   destroyGraph(copy);
   return valid;
+}
+
+bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n) {
+  if (!g || 2 * n != g->size) return false;
+  bool *matched = calloc(g->size, sizeof(bool));
+  if (!matched) return false;
+  for (unsigned i = 0; i < n; i++) {
+    unsigned u = pairs[i][0];
+    unsigned v = pairs[i][1];
+    if (u >= g->size || v >= g->size || u == v || matched[u] || matched[v] || (!hasDirectedEdge(g, u, v) && !hasDirectedEdge(g, v, u))) {
+      free(matched);
+      return false;
+    }
+    matched[u] = true;
+    matched[v] = true;
+  }
+  free(matched);
+  return true;
 }
 
 bool isSubGraph(const Graph *subgraph, const Graph *graph) {
@@ -1610,13 +1630,14 @@ unsigned countEdges(const Graph *g) {
   return n;
 }
 
-unsigned countSelfLoops(const Graph *graph) {
-  unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+unsigned countSelfLoops(const Graph *g) {
+  if (!g || !g->edges) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination == v)
-        count++;
-  return count;
+        n++;
+  return n;
 }
 
 unsigned countTriangles(const Graph *graph) {
@@ -1774,6 +1795,20 @@ unsigned firstActiveVertex(const Graph *g) {
     if (g->edges[v])
       return v;
   return UINT_MAX;
+}
+
+unsigned wienerIndex(const Graph *g) {
+  if (!g) return 0;
+  unsigned sum = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned *distances = unweightedDijkstra(g, u);
+    if (!distances) continue;
+    for (unsigned v = u + 1; v < g->size; v++)
+      if (distances[v] != UINT_MAX)
+        sum += distances[v];
+    free(distances);
+  }
+  return sum;
 }
 
 unsigned outDegree(const Graph *g, unsigned v) {
