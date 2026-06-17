@@ -888,13 +888,13 @@ bool isClique(const Graph *graph, const bool *subset) {
   return true;
 }
 
-bool isIndependentSet(const Graph *graph, const bool *subset) {
-  for (unsigned u = 0; u < graph->size; u++)
+bool isIndependentSet(const Graph *g, const bool *subset) {
+  if (!g || !g->edges || !subset) return true;
+  for (unsigned u = 0; u < g->size; u++)
     if (subset[u])
-      for (unsigned v = u + 1; v < graph->size; v++)
-        if (subset[v])
-          if (hasDirectedEdge(graph, u, v))
-            return false;
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination < g->size && subset[e->destination])
+          return false;
   return true;
 }
 
@@ -1185,7 +1185,7 @@ static void maximumCliqueHelper(const Graph *g, bool *current, unsigned currentS
     for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
   }
   for (unsigned v = start; v < g->size; v++) {
-    if (currentSize + (g->size - v) <= *bestSize) return; 
+    if (currentSize + (g->size - v) <= *bestSize) return;
     if (hasUndirectedEdges(g, v, current)) {
       current[v] = true;
       maximumCliqueHelper(g, current, currentSize + 1, best, bestSize, v + 1);
