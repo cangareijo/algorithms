@@ -79,6 +79,8 @@ bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
 bool isClique(const Graph *g, const bool *subset);
 bool isIndependentSet(const Graph *g, const bool *subset);
 bool isVertexCover(const Graph *g, const bool *subset);
+bool hasDirectedEdges(const Graph *g, unsigned v, const bool *subset);
+bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *subset);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
@@ -95,9 +97,11 @@ bool isSubGraph(const Graph *subgraph, const Graph *g);
 bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *g);
 bool isSpanningDirectedTree(const Graph *subgraph, const Graph *g);
 
-bool *graphCenter(const Graph *graph);
-bool *graphPeriphery(const Graph *graph);
-bool *findArticulationPoints(const Graph *graph);
+bool *graphCenter(const Graph *g);
+bool *graphPeriphery(const Graph *g);
+bool *findArticulationPoints(const Graph *g);
+bool *findMaximalClique(const Graph *g);
+bool *findMaximumClique(const Graph *g);
 
 Graph *createGraph(unsigned n);
 Graph *createPathGraph(unsigned size);
@@ -903,6 +907,32 @@ bool isVertexCover(const Graph *graph, const bool *subset) {
   return true;
 }
 
+bool hasDirectedEdges(const Graph *g, unsigned v, const bool *subset) {
+  if (!g || !g->edges || v >= g->size || !subset) return false;
+  unsigned total = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    if (subset[u])
+      total++;
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (!visited) return false;
+  unsigned found = 0;
+  for (Edge *e = g->edges[v]; e && found < total; e = e->next)
+    if (e->destination < g->size && subset[e->destination] && !visited[e->destination]) {
+      visited[e->destination] = true;
+      found++;
+    }
+  free(visited);
+  return found == total;
+}
+
+bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *subset) {
+  if (!g || !hasDirectedEdges(g, v, subset)) return false;
+  for (unsigned u = 0; u < g->size; u++)
+    if (subset[u] && !hasDirectedEdge(g, u, v))
+      return false;
+  return true;
+}
+
 bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
   if (!isValid(g) || (g->size > 0 && !sequence)) return false;
   unsigned position[g->size];
@@ -1137,6 +1167,45 @@ bool *findArticulationPoints(const Graph *graph) {
   free(low);
   free(parent);
   return articulations;
+}
+
+bool *findMaximalClique(const Graph *g) {
+  if (!g) return nullptr;
+  bool *clique = calloc(g->size, sizeof(bool));
+  if (!clique) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    if (hasUndirectedEdges(g, v, clique))
+      clique[v] = true;
+  return clique;
+}
+
+static void maximumCliqueHelper(const Graph *g, bool *current, unsigned currentSize, bool *best, unsigned *bestSize, unsigned start) {
+  if (currentSize > *bestSize) {
+    *bestSize = currentSize;
+    for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+  }
+  for (unsigned v = start; v < g->size; v++) {
+    if (currentSize + (g->size - v) <= *bestSize) return; 
+    if (hasUndirectedEdges(g, v, current)) {
+      current[v] = true;
+      maximumCliqueHelper(g, current, currentSize + 1, best, bestSize, v + 1);
+      current[v] = false;
+    }
+  }
+}
+
+bool *findMaximumClique(const Graph *g) {
+  if (!g) return nullptr;
+  bool *current = calloc(g->size, sizeof(bool));
+  bool *best = calloc(g->size, sizeof(bool));
+  if (!current || !best) {
+    free(current); free(best);
+    return nullptr;
+  }
+  unsigned size = 0;
+  maximumCliqueHelper(g, current, 0, best, &size, 0);
+  free(current);
+  return best;
 }
 
 
