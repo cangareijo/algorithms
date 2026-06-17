@@ -70,7 +70,7 @@ bool isArticulationVertex(const Graph *g, unsigned v);
 bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
-bool shareNeighbor(const Graph *g, unsigned u, unsigned v);
+bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double x);
@@ -102,30 +102,32 @@ bool *graphPeriphery(const Graph *g);
 bool *findArticulationPoints(const Graph *g);
 bool *findMaximalClique(const Graph *g);
 bool *findMaximumClique(const Graph *g);
+bool *getNeighborsSet(const Graph *g, unsigned v);
+bool *getCommonNeighborsSet(const Graph *g, unsigned u, unsigned v);
 
 Graph *createGraph(unsigned n);
-Graph *createPathGraph(unsigned size);
-Graph *createCycleGraph(unsigned size);
-Graph *createCompleteGraph(unsigned size);
-Graph *createStarGraph(unsigned size);
-Graph *createWheelGraph(unsigned size);
+Graph *createPathGraph(unsigned n);
+Graph *createCycleGraph(unsigned n);
+Graph *createCompleteGraph(unsigned n);
+Graph *createStarGraph(unsigned n);
+Graph *createWheelGraph(unsigned n);
 Graph *generateRandomGraph(unsigned n, double p, bool directed, bool weighted);
-Graph *copyGraph(const Graph *graph);
-Graph *copyTranspose(const Graph *graph);
-Graph *copyUnweighted(const Graph *graph);
-Graph *copyUndirected(const Graph *graph);
-Graph *copyComplement(const Graph *graph);
-Graph *lineGraph(const Graph *graph);
-Graph *underlyingGraph(const Graph *graph);
+Graph *copyGraph(const Graph *g);
+Graph *copyTranspose(const Graph *g);
+Graph *copyUnweighted(const Graph *g);
+Graph *copyUndirected(const Graph *g);
+Graph *copyComplement(const Graph *g);
+Graph *lineGraph(const Graph *g);
+Graph *underlyingGraph(const Graph *g);
 Graph *kruskal(const Graph *g);
 Graph *directedSubdivisionGraph(const Graph *g);
 Graph *undirectedSubdivisionGraph(const Graph *g);
 Graph *graphPower(const Graph *g, unsigned k);
-Graph *removeVertex(const Graph *graph, unsigned vertex);
+Graph *removeVertex(const Graph *g, unsigned v);
 Graph *prim(const Graph *g, unsigned v);
-Graph *contractVertices(const Graph *graph, unsigned u, unsigned v);
-Graph *copySubgraph(const Graph *graph, const bool *subset);
-Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset);
+Graph *contractVertices(const Graph *g, unsigned u, unsigned v);
+Graph *copySubgraph(const Graph *g, const bool *set);
+Graph *subgraphInducedByEdges(const Graph *g, const bool *set);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
 Graph *cartesianProduct(const Graph *g1, const Graph *g2);
 Graph *disjointUnion(const Graph *g1, const Graph *g2);
@@ -836,7 +838,7 @@ bool hasPath(const Graph *g, unsigned u, unsigned v) {
   return found;
 }
 
-bool shareNeighbor(const Graph *graph, unsigned u, unsigned v) {
+bool haveCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
   bool *neighbors = calloc(graph->size, sizeof(bool));
   for (Edge *e = graph->edges[u]; e; e = e->next)
     neighbors[e->destination] = true;
@@ -1206,6 +1208,30 @@ bool *findMaximumClique(const Graph *g) {
   maximumCliqueHelper(g, current, 0, best, &size, 0);
   free(current);
   return best;
+}
+
+bool *getNeighborsSet(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return nullptr;
+  bool *neighbors = calloc(g->size, sizeof(bool));
+  if (!neighbors) return nullptr;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size)
+      neighbors[e->destination] = true;
+  return neighbors;
+}
+
+bool *getCommonNeighborsSet(const Graph *g, unsigned u, unsigned v) {
+  if (!g) return nullptr;
+  bool *s1 = getNeighborsSet(g, u);
+  bool *s2 = getNeighborsSet(g, v);
+  if (!s1 || !s2) {
+    free(s1); free(s2);
+    return nullptr;
+  }
+  for (unsigned w = 0; w < g->size; w++)
+    s1[w] = s1[w] && s2[w];
+  free(s2);
+  return s1;
 }
 
 
@@ -1932,7 +1958,7 @@ unsigned degree(const Graph *g, unsigned v) {
 }
 
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
-  if (!g || v >= g->size) return UINT_MAX;
+  if (!g || !g->edges || v >= g->size) return UINT_MAX;
   unsigned j = 0;
   for (Edge *e = g->edges[v]; e; e = e->next) {
     if (j == i) return e->destination;
