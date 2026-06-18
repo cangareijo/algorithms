@@ -120,8 +120,9 @@ Graph *copyComplement(const Graph *g);
 Graph *lineGraph(const Graph *g);
 Graph *underlyingGraph(const Graph *g);
 Graph *kruskal(const Graph *g);
-Graph *directedSubdivisionGraph(const Graph *g);
-Graph *undirectedSubdivisionGraph(const Graph *g);
+Graph *createDirectedSubdivision(const Graph *g);
+Graph *createUndirectedSubdivision(const Graph *g);
+Graph *createTransitiveClosure(const Graph *g);
 Graph *graphPower(const Graph *g, unsigned k);
 Graph *removeVertex(const Graph *g, unsigned v);
 Graph *prim(const Graph *g, unsigned v);
@@ -134,16 +135,16 @@ Graph *disjointUnion(const Graph *g1, const Graph *g2);
 Graph *tensorProduct(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *g);
-void addVertex(Graph *graph);
-void printGraph(const Graph *graph);
+void addVertex(Graph *g);
+void printGraph(const Graph *g);
 void removeDirectedEdgeByIndex(Graph *g, unsigned i);
-void removeFirstDirectedEdge(Graph *graph, unsigned source, unsigned destination);
-void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v);
-void subdivideEdge(Graph *graph, unsigned u, unsigned v);
+void removeFirstDirectedEdge(Graph *g, unsigned u, unsigned v);
+void removeFirstUndirectedEdge(Graph *g, unsigned u, unsigned v);
+void subdivideEdge(Graph *g, unsigned u, unsigned v);
 void addDirectedEdge(Graph *g, unsigned u, unsigned v, double x);
 void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double x);
-void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
-void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight);
+void removeFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void removeFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 
 unsigned countEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
@@ -176,21 +177,21 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
 
 unsigned *inDegrees(const Graph *g);
 unsigned *outDegrees(const Graph *g);
-unsigned *outDegreeDistribution(const Graph *graph);
-unsigned *inDegreeDistribution(const Graph *graph);
+unsigned *outDegreeDistribution(const Graph *g);
+unsigned *inDegreeDistribution(const Graph *g);
 unsigned *undirectedColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
 unsigned *topologicalSortOfGraph(const Graph *g);
 unsigned *findBridges(const Graph *g);
-unsigned *unweightedDijkstra(const Graph *graph, unsigned source);
-unsigned *getInNeighbors(const Graph *graph, unsigned vertex);
-unsigned *getOutNeighbors(const Graph *graph, unsigned vertex);
+unsigned *unweightedDijkstra(const Graph *g, unsigned v);
+unsigned *getInNeighbors(const Graph *g, unsigned v);
+unsigned *getOutNeighbors(const Graph *g, unsigned v);
 unsigned *preOrderSort(const Graph *g, unsigned v);
 unsigned *postOrderSort(const Graph *g, unsigned v);
 unsigned *breadthFirstSort(const Graph *g, unsigned v);
-unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length);
+unsigned *shortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
-unsigned **allPairsShortestPathsUnweighted(const Graph *graph);
+unsigned **allPairsShortestPathsUnweighted(const Graph *g);
 
 double sumWeights(const Graph *graph);
 double graphRadius(const Graph *graph);
@@ -1423,10 +1424,9 @@ Graph *kruskal(const Graph *g) {
   return mst;
 }
 
-Graph *directedSubdivisionGraph(const Graph *g) {
+Graph *createDirectedSubdivision(const Graph *g) {
   if (!g) return nullptr;
   Graph *g2 = createGraph(g->size + countEdges(g));
-  if (!g2) return nullptr;
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
@@ -1437,10 +1437,9 @@ Graph *directedSubdivisionGraph(const Graph *g) {
   return g2;
 }
 
-Graph *undirectedSubdivisionGraph(const Graph *g) {
+Graph *createUndirectedSubdivision(const Graph *g) {
   if (!g) return nullptr;
   Graph *g2 = createGraph(g->size + countEdges(g) / 2);
-  if (!g2) return nullptr;
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
@@ -1450,6 +1449,36 @@ Graph *undirectedSubdivisionGraph(const Graph *g) {
         u++;
       }
   return g2;
+}
+
+Graph *createTransitiveClosure(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Edge **stack = malloc(g->size * sizeof(Edge *));
+  bool *visited = malloc(g->size * sizeof(bool));
+  if (!stack || !visited) {
+    free(visited); free(stack);
+    return nullptr;
+  }
+  Graph *closure = createGraph(g->size);
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++) visited[v] = false;
+    visited[u] = true;
+    unsigned top = 0;
+    if (g->edges[u]) stack[top++] = g->edges[u];
+    while (top > 0) {
+      Edge *e = stack[top - 1];
+      stack[top - 1] = e->next;
+      if (!stack[top - 1]) top--;
+      if (e->destination < g->size && !visited[e->destination]) {
+        visited[e->destination] = true;
+        addDirectedEdge(closure, u, e->destination, 1);
+        if (g->edges[e->destination]) stack[top++] = g->edges[e->destination];
+      }
+    }
+  }
+  free(stack);
+  free(visited);
+  return closure;
 }
 
 Graph *graphPower(const Graph *g, unsigned k) {
