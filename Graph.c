@@ -34,8 +34,7 @@ bool isEulerianUndirected(const Graph *g);
 bool isEulerianDirected(const Graph *g);
 bool isConnectedUndirected(const Graph *g);
 bool isWeaklyConnected(const Graph *g);
-bool isWeaklyConnectedAlternative(const Graph *g);
-bool isStronglyConnectedDirected(const Graph *g);
+bool isStronglyConnected(const Graph *g);
 bool isBipartite(const Graph *g);
 bool isUndirected(const Graph *g);
 bool isMultiGraph(const Graph *g);
@@ -215,6 +214,7 @@ double *weightedDijkstra(const Graph *g, unsigned v);
 
 double **toMatrix(const Graph *graph);
 double **floydWarshall(const Graph *graph);
+double **forceDirectedLayout(const Graph *g, unsigned iterations);
 
 Edge **inNeighbors(const Graph *graph);
 Edge **outNeighbors(const Graph *graph);
@@ -223,7 +223,7 @@ void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
 void testIsConnectedUndirected();
 void testIsWeaklyConnected();
-void testIsStronglyConnectedDirected();
+void testIsStronglyConnected();
 void testTopologicalSortOfGraph();
 void testBellmanFord();
 void testUnweightedDijkstra();
@@ -439,14 +439,7 @@ bool isWeaklyConnected(const Graph *g) {
   return connected;
 }
 
-bool isWeaklyConnectedAlternative(const Graph *g) {
-  Graph *undirected = copyUndirected(g);
-  bool connected = isConnectedUndirected(undirected);
-  destroyGraph(undirected);
-  return connected;
-}
-
-bool isStronglyConnectedDirected(const Graph *graph) {
+bool isStronglyConnected(const Graph *graph) {
   if (graph->size < 2) return true;
   Graph *g = copyTranspose(graph);
   bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(g, 0);
@@ -1465,18 +1458,15 @@ Graph *createTransitiveClosure(const Graph *g) {
     visited[u] = true;
     unsigned head = 0, tail = 0;
     queue[tail++] = u;
-    while (head < tail) {
-      unsigned v = queue[head++];
-      for (Edge *e = g->edges[v]; e; e = e->next)
+    while (head < tail)
+      for (Edge *e = g->edges[queue[head++]]; e; e = e->next)
         if (e->destination < g->size && !visited[e->destination]) {
           visited[e->destination] = true;
           addDirectedEdge(closure, u, e->destination, 1);
-          queue[tail++] = e->destination; 
+          queue[tail++] = e->destination;
         }
-    }
   }
-  free(visited);
-  free(queue);
+  free(visited); free(queue);
   return closure;
 }
 
@@ -2890,6 +2880,83 @@ double **floydWarshall(const Graph *graph) {
   return distance;
 }
 
+double **forceDirectedLayout(const Graph *g, unsigned iterations) {
+  if (!isValid(g)) return nullptr;
+  double **position = malloc(g->size * sizeof(double *));
+  if (position) for (unsigned v = 0; v < g->size; v++) position[v] = malloc(2 * sizeof(double));
+  double **displacement = calloc(g->size, sizeof(double *));
+  if (displacement) for (unsigned v = 0; v < g->size; v++) displacement[v] = malloc(2 * sizeof(double));
+  bool allocated = position && displacement;
+  for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && position[v];
+  for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && displacement[v];
+  if (!allocated) {
+    if (position) for (unsigned v = 0; v < g->size; v++) free(position[v]);
+    free(position);
+    if (displacement) for (unsigned v = 0; v < g->size; v++) free(displacement[v]);
+    free(displacement);
+  }
+  const double width = 1000;
+  const double height = 1000;
+  const double area = width * height;
+  const double k = 0.75 * sqrt(area / g->size);
+  for (unsigned v = 0; v < g->size; v++) {
+    position[v][0] = width / 4 + ((double)rand() / RAND_MAX) * (width / 2);
+    position[v][1] = height / 4 + ((double)rand() / RAND_MAX) * (height / 2);
+  }
+  double temperature = width / 10;
+  const double cooling = temperature / iterations;
+  for (unsigned i = 0; i < iterations; i++) {
+    for (unsigned v = 0; v < g->size; v++) {
+      displacement[v][0] = 0;
+      displacement[v][1] = 0;
+    }
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++) {
+        if (u == v) continue;
+        double dx = position[u][0] - position[v][0];
+        double dy = position[u][1] - position[v][1];
+        if (dx == 0 && dy == 0) {
+          dx = 0.01;
+          dy = 0.01;
+        }
+        double distance = sqrt(dx * dx + dy * dy);
+        double force = k * k / distance;
+        displacement[u][0] += dx / distance * force;
+        displacement[u][1] += dy / distance * force;
+      }
+    for (unsigned u = 0; u < g->size; u++)
+      for (Edge *e = g->edges[u]; e; e = e->next) {
+        unsigned v = e->destination;
+        double dx = position[u][0] - position[v][0];
+        double dy = position[u][1] - position[v][1];
+        double distance = sqrt(dx * dx + dy * dy);
+        if (distance == 0) continue;
+        double force = distance * distance / k;
+        displacement[u][0] -= dx / distance * force;
+        displacement[u][1] -= dy / distance * force;
+        displacement[v][0] += dx / distance * force;
+        displacement[v][1] += dy / distance * force;
+      }
+    for (unsigned v = 0; v < g->size; v++) {
+      double dx = displacement[v][0];
+      double dy = displacement[v][1];
+      double distance = sqrt(dx * dx + dy * dy);
+      if (distance == 0) continue;
+      double capped = distance < temperature ? distance : temperature;
+      position[v][0] += dx / distance * capped;
+      position[v][1] += dy / distance * capped;
+      if (position[v][0] < 0) position[v][0] = 0;
+      if (position[v][0] > width) position[v][0] = width;
+      if (position[v][1] < 0) position[v][1] = 0;
+      if (position[v][1] > height) position[v][1] = height;
+    }
+    temperature -= cooling;
+    if (temperature < 0) temperature = 0;
+  }
+  free(displacement);
+  return position;
+}
+
 
 
 Edge **inNeighbors(const Graph *graph) {
@@ -3072,19 +3139,19 @@ void testIsWeaklyConnected() {
   destroyGraph(g5);
 }
 
-void testIsStronglyConnectedDirected() {
+void testIsStronglyConnected() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 1);
   addDirectedEdge(g1, 1, 2, 1);
   addDirectedEdge(g1, 2, 0, 1);
-  assert(isStronglyConnectedDirected(g1) == true);
+  assert(isStronglyConnected(g1) == true);
   printf("Strongly Test 1 passed: Simple cycle\n");
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
   addDirectedEdge(g2, 0, 1, 1);
   addDirectedEdge(g2, 1, 2, 1);
-  assert(isStronglyConnectedDirected(g2) == false);
+  assert(isStronglyConnected(g2) == false);
   printf("Strongly Test 2 passed: Linear chain (not strong)\n");
   destroyGraph(g2);
 
@@ -3093,7 +3160,7 @@ void testIsStronglyConnectedDirected() {
   addDirectedEdge(g3, 1, 0, 1);
   addDirectedEdge(g3, 2, 3, 1);
   addDirectedEdge(g3, 3, 2, 1);
-  assert(isStronglyConnectedDirected(g3) == false);
+  assert(isStronglyConnected(g3) == false);
   printf("Strongly Test 3 passed: Disconnected cycles\n");
   destroyGraph(g3);
 
@@ -3102,12 +3169,12 @@ void testIsStronglyConnectedDirected() {
   addDirectedEdge(g4, 1, 0, 1);
   addDirectedEdge(g4, 1, 2, 1);
   addDirectedEdge(g4, 2, 1, 1);
-  assert(isStronglyConnectedDirected(g4) == true);
+  assert(isStronglyConnected(g4) == true);
   printf("Strongly Test 4 passed: Bidirectional chain\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(1);
-  assert(isStronglyConnectedDirected(g5) == true);
+  assert(isStronglyConnected(g5) == true);
   printf("Strongly Test 5 passed: Single vertex\n");
   destroyGraph(g5);
 }
@@ -3490,7 +3557,7 @@ int main() {
   testIsUndirectedCyclicGraph();
   testIsConnectedUndirected();
   testIsWeaklyConnected();
-  testIsStronglyConnectedDirected();
+  testIsStronglyConnected();
   testTopologicalSortOfGraph();
   testBellmanFord();
   testUnweightedDijkstra();
