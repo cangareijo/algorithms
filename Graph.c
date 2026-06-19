@@ -1453,31 +1453,30 @@ Graph *createUndirectedSubdivision(const Graph *g) {
 
 Graph *createTransitiveClosure(const Graph *g) {
   if (!g || !g->edges) return nullptr;
-  Edge **stack = malloc(g->size * sizeof(Edge *));
   bool *visited = malloc(g->size * sizeof(bool));
-  if (!stack || !visited) {
-    free(visited); free(stack);
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  if (!visited || !queue) {
+    free(visited); free(queue);
     return nullptr;
   }
   Graph *closure = createGraph(g->size);
   for (unsigned u = 0; u < g->size; u++) {
     for (unsigned v = 0; v < g->size; v++) visited[v] = false;
     visited[u] = true;
-    unsigned top = 0;
-    if (g->edges[u]) stack[top++] = g->edges[u];
-    while (top > 0) {
-      Edge *e = stack[top - 1];
-      stack[top - 1] = e->next;
-      if (!stack[top - 1]) top--;
-      if (e->destination < g->size && !visited[e->destination]) {
-        visited[e->destination] = true;
-        addDirectedEdge(closure, u, e->destination, 1);
-        if (g->edges[e->destination]) stack[top++] = g->edges[e->destination];
-      }
+    unsigned head = 0, tail = 0;
+    queue[tail++] = u;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && !visited[e->destination]) {
+          visited[e->destination] = true;
+          addDirectedEdge(closure, u, e->destination, 1);
+          queue[tail++] = e->destination; 
+        }
     }
   }
-  free(stack);
   free(visited);
+  free(queue);
   return closure;
 }
 
