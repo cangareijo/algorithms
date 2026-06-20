@@ -129,9 +129,10 @@ Graph *contractVertices(const Graph *g, unsigned u, unsigned v);
 Graph *copySubgraph(const Graph *g, const bool *set);
 Graph *subgraphInducedByEdges(const Graph *g, const bool *set);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
-Graph *cartesianProduct(const Graph *g1, const Graph *g2);
 Graph *disjointUnion(const Graph *g1, const Graph *g2);
+Graph *cartesianProduct(const Graph *g1, const Graph *g2);
 Graph *tensorProduct(const Graph *g1, const Graph *g2);
+Graph *lexicographicalProduct(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *g);
 void addVertex(Graph *g);
@@ -1597,6 +1598,7 @@ Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset) {
 }
 
 Graph *graphUnion(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
   Graph *g3 = createGraph(maximumUnsigned(g1->size, g2->size));
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
@@ -1605,6 +1607,18 @@ Graph *graphUnion(const Graph *g1, const Graph *g2) {
     for (Edge *e = g2->edges[v]; e; e = e->next)
       if (!hasDirectedEdge(g3, v, e->destination))
         addDirectedEdge(g3, v, e->destination, e->weight);
+  return g3;
+}
+
+Graph *disjointUnion(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
+  Graph *g3 = createGraph(g1->size + g2->size);
+  for (unsigned v = 0; v < g1->size; v++)
+    for (Edge *e = g1->edges[v]; e; e = e->next)
+      addDirectedEdge(g3, v, e->destination, e->weight);
+  for (unsigned v = 0; v < g2->size; v++)
+    for (Edge *e = g2->edges[v]; e; e = e->next)
+      addDirectedEdge(g3, g1->size + v, g1->size + e->destination, e->weight);
   return g3;
 }
 
@@ -1621,18 +1635,6 @@ Graph *cartesianProduct(const Graph *g1, const Graph *g2) {
   return g3;
 }
 
-Graph *disjointUnion(const Graph *g1, const Graph *g2) {
-  if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
-  Graph *g3 = createGraph(g1->size + g2->size);
-  for (unsigned v = 0; v < g1->size; v++)
-    for (Edge *e = g1->edges[v]; e; e = e->next)
-      addDirectedEdge(g3, v, e->destination, e->weight);
-  for (unsigned v = 0; v < g2->size; v++)
-    for (Edge *e = g2->edges[v]; e; e = e->next)
-      addDirectedEdge(g3, g1->size + v, g1->size + e->destination, e->weight);
-  return g3;
-}
-
 Graph *tensorProduct(const Graph *g1, const Graph *g2) {
   if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
   Graph *g3 = createGraph(g1->size * g2->size);
@@ -1641,6 +1643,21 @@ Graph *tensorProduct(const Graph *g1, const Graph *g2) {
       for (unsigned u2 = 0; u2 < g2->size; u2++)
         for (Edge *e2 = g2->edges[u2]; e2; e2 = e2->next)
           addDirectedEdge(g3, u1 * g2->size + u2, e1->destination * g2->size + e2->destination, e1->weight + e2->weight);
+  return g3;
+}
+
+Graph *lexicographicalProduct(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
+  Graph *g3 = createGraph(g1->size * g2->size);
+  for (unsigned u = 0; u < g1->size; u++)
+    for (unsigned v = 0; v < g2->size; v++)
+      for (Edge *e = g2->edges[v]; e; e = e->next)
+        addDirectedEdge(g3, u * g2->size + v, u * g2->size + e->destination, 1);
+  for (unsigned u = 0; u < g1->size; u++)
+    for (Edge *e = g1->edges[u]; e; e = e->next)
+      for (unsigned v1 = 0; v1 < g2->size; v1++)
+        for (unsigned v2 = 0; v2 < g2->size; v2++)
+          addDirectedEdge(g3, u * g2->size + v1, e->destination * g2->size + v2, 1);
   return g3;
 }
 
@@ -1711,7 +1728,6 @@ void removeFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
 }
 
 void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
-  assert(isUndirected(graph));
   double weight = edgeWeight(graph, u, v);
   removeFirstWeightedDirectedEdge(graph, u, v, weight);
   removeFirstWeightedDirectedEdge(graph, v, u, weight);
