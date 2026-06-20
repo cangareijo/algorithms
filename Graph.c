@@ -280,27 +280,30 @@ bool isEmpty(const Graph *g) {
   return true;
 }
 
-bool isRegular(const Graph *graph) {
-  for (unsigned v = 1; v < graph->size; v++)
-    if (inDegree(graph, v - 1) != inDegree(graph, v) || outDegree(graph, v - 1) != outDegree(graph, v))
+bool isRegular(const Graph *g) {
+  if (!g) return true;
+  for (unsigned v = 1; v < g->size; v++)
+    if (inDegree(g, v - 1) != inDegree(g, v) || outDegree(g, v - 1) != outDegree(g, v))
       return false;
   return true;
 }
 
-bool isComplete(const Graph *graph) {
-  return !hasSelfLoops(graph) && !isMultiGraph(graph) && countEdges(graph) == graph->size * (graph->size - 1);
+bool isComplete(const Graph *g) {
+  return !g || (!hasSelfLoops(g) && !isMultiGraph(g) && countEdges(g) == g->size * (g->size - 1));
 }
 
-bool hasSelfLoops(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    if (hasSelfLoopsAtVertex(graph, v))
+bool hasSelfLoops(const Graph *g) {
+  if (!g) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (hasSelfLoopsAtVertex(g, v))
       return true;
   return false;
 }
 
-bool isBalanced(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    if (inDegree(graph, v) != outDegree(graph, v))
+bool isBalanced(const Graph *g) {
+  if (!g) return true;
+  for (unsigned v = 0; v < g->size; v++)
+    if (inDegree(g, v) != outDegree(g, v))
       return false;
   return true;
 }
