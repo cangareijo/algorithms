@@ -281,11 +281,14 @@ bool isEmpty(const Graph *g) {
 }
 
 bool isRegular(const Graph *g) {
-  if (!g) return true;
-  for (unsigned v = 1; v < g->size; v++)
-    if (inDegree(g, v - 1) != inDegree(g, v) || outDegree(g, v - 1) != outDegree(g, v))
-      return false;
-  return true;
+  unsigned *in = inDegrees(g);
+  unsigned *out = outDegrees(g);
+  bool b = g && (g->size == 0 || (in && out && in[0] == out[0]));
+  for (unsigned v = 1; b && v < g->size; v++)
+    b = b && in[v - 1] == in[v] && out[v - 1] == out[v];
+  free(in);
+  free(out);
+  return b;
 }
 
 bool isComplete(const Graph *g) {
