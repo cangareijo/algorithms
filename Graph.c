@@ -168,6 +168,7 @@ unsigned inDegree(const Graph *g, unsigned v);
 unsigned outDegree(const Graph *g, unsigned v);
 unsigned degree(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
+unsigned neighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned distance(const Graph *g, unsigned u, unsigned v);
@@ -1983,6 +1984,33 @@ unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
     j++;
   }
   return UINT_MAX;
+}
+
+unsigned neighborhoodSize(const Graph *g, unsigned v, unsigned k) {
+  if (!g || !g->edges || v >= g->size) return 0;
+  unsigned *distance = malloc(g->size * sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  if (!distance || !queue) {
+    free(distance); free(queue);
+    return 0;
+  }
+  for (unsigned i = 0; i < g->size; i++) distance[i] = UINT_MAX; 
+  distance[v] = 0;
+  unsigned front = 0, rear = 0;
+  queue[rear++] = v;
+  unsigned n = 1; 
+  while (front < rear) {
+    v = queue[front++];
+    if (distance[v] >= k) break;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && distance[e->destination] == UINT_MAX) {
+        distance[e->destination] = distance[v] + 1;
+        queue[rear++] = e->destination;
+        n++;
+      }
+  }
+  free(distance); free(queue);
+  return n;
 }
 
 unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
