@@ -29,7 +29,6 @@ bool isRegular(const Graph *g);
 bool isComplete(const Graph *g);
 bool hasSelfLoops(const Graph *g);
 bool isBalanced(const Graph *g);
-bool allOutDegreesAreEven(const Graph *g);
 bool isEulerianUndirected(const Graph *g);
 bool isEulerianDirected(const Graph *g);
 bool isConnectedUndirected(const Graph *g);
@@ -220,9 +219,6 @@ double **toMatrix(const Graph *graph);
 double **floydWarshall(const Graph *graph);
 double **forceDirectedLayout(const Graph *g, unsigned iterations);
 
-Edge **inNeighbors(const Graph *graph);
-Edge **outNeighbors(const Graph *graph);
-
 void testIsDirectedCyclicGraph();
 void testIsUndirectedCyclicGraph();
 void testIsConnectedUndirected();
@@ -307,24 +303,14 @@ bool hasSelfLoops(const Graph *g) {
 
 bool isBalanced(const Graph *g) {
   unsigned *in = inDegrees(g);
-  unsigned *out = outDegrees(g);
-  bool b = g && (g->size == 0 || (in && out));
-  for (unsigned v = 0; b && v < g->size; v++) b = b && in[v] == out[v];
+  bool b = g && (g->size == 0 || in);
+  for (unsigned v = 0; b && v < g->size; v++) b = b && in[v] == outDegree(g, v);
   free(in);
-  free(out);
   return b;
 }
 
-bool allOutDegreesAreEven(const Graph *g) {
-  if (!g) return true;
-  for (unsigned v = 0; v < g->size; v++)
-    if (outDegree(g, v) % 2 != 0)
-      return false;
-  return true;
-}
-
 bool isEulerianUndirected(const Graph *g) {
-  if (isEmpty(g)) return true;
+  if (!g || isEmpty(g)) return true;
   bool *reachable = findReachableVertices(g, firstActiveVertex(g));
   bool b = reachable;
   for (unsigned v = 0; v < g->size && b; v++) b = b && outDegree(g, v) % 2 == 0 && (reachable[v] || !g->edges[v]);
@@ -333,7 +319,7 @@ bool isEulerianUndirected(const Graph *g) {
 }
 
 bool isEulerianDirected(const Graph *g) {
-  if (isEmpty(g)) return true;
+  if (!g || isEmpty(g)) return true;
   if (!isBalanced(g)) return false;
   bool *reachable = findReachableVertices(g, firstActiveVertex(g));
   bool *isolated = findIsolated(g);
@@ -344,60 +330,23 @@ bool isEulerianDirected(const Graph *g) {
   return b;
 }
 
-bool isConnectedUndirected(const Graph *graph) {
-  return graph->size < 2 || allAreReachableFromVertexInGraph(graph, 0);
+bool isConnectedUndirected(const Graph *g) {
+  return g->size < 2 || allAreReachableFromVertexInGraph(g, 0);
 }
 
 bool isWeaklyConnected(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return false;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size)
-        return false;
   if (g->size < 2) return true;
-  bool *visited = calloc(g->size, sizeof(bool));
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  if (!visited || !queue) {
-    free(visited);
-    free(queue);
-    return false;
-  }
-  unsigned head = 0;
-  unsigned tail = 0;
-  visited[0] = true;
-  queue[tail++] = 0;
-  while (head < tail) {
-    unsigned u = queue[head++];
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (!visited[e->destination]) {
-        visited[e->destination] = true;
-        queue[tail++] = e->destination;
-      }
-    for (unsigned v = 0; v < g->size; v++)
-      if (!visited[v])
-        for (Edge *e = g->edges[v]; e; e = e->next)
-          if (e->destination == u) {
-            visited[v] = true;
-            queue[tail++] = v;
-            break;
-          }
-  }
-  bool connected = true;
-  for (unsigned v = 0; v < g->size; v++)
-    if (!visited[v]) {
-      connected = false;
-      break;
-    }
-  free(visited);
-  free(queue);
-  return connected;
+  Graph *g2 = copyUndirected(g);
+  bool reachable = allAreReachableFromVertexInGraph(g2, 0);
+  destroyGraph(g2);
+  return reachable;
 }
 
-bool isStronglyConnected(const Graph *graph) {
-  if (graph->size < 2) return true;
-  Graph *g = copyTranspose(graph);
-  bool reachable = allAreReachableFromVertexInGraph(graph, 0) && allAreReachableFromVertexInGraph(g, 0);
-  destroyGraph(g);
+bool isStronglyConnected(const Graph *g) {
+  if (g->size < 2) return true;
+  Graph *g2 = copyTranspose(g);
+  bool reachable = allAreReachableFromVertexInGraph(g, 0) && allAreReachableFromVertexInGraph(g2, 0);
+  destroyGraph(g2);
   return reachable;
 }
 
@@ -2987,34 +2936,6 @@ double **forceDirectedLayout(const Graph *g, unsigned iterations) {
   }
   free(displacement);
   return position;
-}
-
-
-
-Edge **inNeighbors(const Graph *graph) {
-  Edge **neighbors = calloc(graph->size, sizeof(Edge *));
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      Edge *neighbor = malloc(sizeof(Edge));
-      neighbor->destination = v;
-      neighbor->weight = e->weight;
-      neighbor->next = neighbors[e->destination];
-      neighbors[e->destination] = neighbor;
-    }
-  return neighbors;
-}
-
-Edge **outNeighbors(const Graph *graph) {
-  Edge **neighbors = calloc(graph->size, sizeof(Edge *));
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      Edge *neighbor = malloc(sizeof(Edge));
-      neighbor->destination = e->destination;
-      neighbor->weight = e->weight;
-      neighbor->next = neighbors[v];
-      neighbors[v] = neighbor;
-    }
-  return neighbors;
 }
 
 
