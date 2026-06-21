@@ -420,19 +420,17 @@ bool isUndirectedForest(const Graph *g) {
 }
 
 bool isDirectedTree(const Graph *g) {
-  if (!g || g->size == 0 || isCyclicDirected(g)) return false;
+  if (!g) return false;
   unsigned *degree = inDegrees(g);
   if (!degree) return false;
   unsigned roots = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degree[v] == 0) {
-      roots++;
-    } else if (degree[v] >= 2) {
-      free(degree);
-      return false;
-    }
+  bool b = !isCyclicDirected(g);
+  for (unsigned v = 0; v < g->size && b; v++) {
+    if (degree[v] == 0) roots++;
+    b = b && roots < 2 && degree[v] < 2;
+  }
   free(degree);
-  return roots == 1;
+  return b && roots == 1;
 }
 
 bool isUndirectedTree(const Graph *g) {
