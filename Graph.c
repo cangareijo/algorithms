@@ -101,7 +101,9 @@ bool *graphPeriphery(const Graph *g);
 bool *findArticulationPoints(const Graph *g);
 bool *findMaximalClique(const Graph *g);
 bool *findMaximumClique(const Graph *g);
+bool *findIsolated(const Graph *g);
 bool *getNeighborsSet(const Graph *g, unsigned v);
+bool *findReachableVertices(const Graph *g, unsigned v);
 bool *getCommonNeighborsSet(const Graph *g, unsigned u, unsigned v);
 
 Graph *createGraph(unsigned n);
@@ -304,11 +306,13 @@ bool hasSelfLoops(const Graph *g) {
 }
 
 bool isBalanced(const Graph *g) {
-  if (!g) return true;
-  for (unsigned v = 0; v < g->size; v++)
-    if (inDegree(g, v) != outDegree(g, v))
-      return false;
-  return true;
+  unsigned *in = inDegrees(g);
+  unsigned *out = outDegrees(g);
+  bool b = g && (g->size == 0 || (in && out));
+  for (unsigned v = 0; b && v < g->size; v++) b = b && in[v] == out[v];
+  free(in);
+  free(out);
+  return b;
 }
 
 bool allOutDegreesAreEven(const Graph *g) {
@@ -332,70 +336,16 @@ bool isEulerianUndirected(const Graph *g) {
   return true;
 }
 
-bool isEulerianDirected(const Graph *graph) {
-  if (!graph || (graph->size < 2 && !graph->edges)) return true;
-  if (graph->size >= 2 && !graph->edges) return false;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (e->destination >= graph->size)
-        return false;
-  unsigned *inDegree = calloc(graph->size, sizeof(unsigned));
-  unsigned *outDegree = calloc(graph->size, sizeof(unsigned));
-  bool *visited = calloc(graph->size, sizeof(bool));
-  unsigned *stack = malloc(graph->size * sizeof(unsigned));
-  if (!inDegree || !outDegree || !visited || !stack) {
-    free(inDegree);
-    free(outDegree);
-    free(visited);
-    free(stack);
-    return false;
-  }
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      inDegree[e->destination]++;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      outDegree[v]++;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (inDegree[v] != outDegree[v]) {
-      free(inDegree);
-      free(outDegree);
-      free(stack);
-      free(visited);
-      return false;
-    }
-  unsigned start = UINT_MAX;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (outDegree[v] > 0) {
-      start = v;
-      break;
-    }
-  if (start == UINT_MAX)
-    return graph->size <= 1;
-  unsigned size = 0;
-  stack[size++] = start;
-  visited[start] = true;
-  while (size > 0) {
-    unsigned v = stack[--size];
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (!visited[e->destination]) {
-        stack[size++] = e->destination;
-        visited[e->destination] = true;
-      }
-  }
-  for (unsigned v = 0; v < graph->size; v++)
-    if ((inDegree[v] > 0 || outDegree[v] > 0) && !visited[v]) {
-      free(inDegree);
-      free(outDegree);
-      free(stack);
-      free(visited);
-      return false;
-    }
-  free(inDegree);
-  free(outDegree);
-  free(stack);
-  free(visited);
-  return true;
+bool isEulerianDirected(const Graph *g) {
+  if (!g || isEmpty(g)) return true;
+  if (!isBalanced(g)) return false;
+  bool *reachable = findReachableVertices(g, firstActiveVertex(g));
+  bool *isolated = findIsolated(g);
+  bool b = reachable && isolated;
+  for (unsigned v = 0; v < g->size && b; v++) b = b && (reachable[v] || isolated[v]);
+  free(isolated);
+  free(reachable);
+  return b;
 }
 
 bool isConnectedUndirected(const Graph *graph) {
@@ -1212,6 +1162,18 @@ bool *findMaximumClique(const Graph *g) {
   return best;
 }
 
+bool *findIsolated(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  bool *isolated = malloc(g->size * sizeof(bool));
+  if (!isolated) return nullptr; 
+  for (unsigned v = 0; v < g->size; v++) isolated[v] = !g->edges[v];
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge* e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        isolated[e->destination] = false;
+  return isolated;
+}
+
 bool *getNeighborsSet(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   bool *neighbors = calloc(g->size, sizeof(bool));
@@ -1220,6 +1182,30 @@ bool *getNeighborsSet(const Graph *g, unsigned v) {
     if (e->destination < g->size)
       neighbors[e->destination] = true;
   return neighbors;
+}
+
+bool *findReachableVertices(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return nullptr;
+  unsigned *stack = malloc(g->size * sizeof(unsigned));
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (!stack || !visited) {
+    free(stack);
+    free(visited);
+    return nullptr;
+  }
+  unsigned top = 0;
+  stack[top++] = v;
+  visited[v] = true;
+  while (top > 0) {
+    v = stack[--top];
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && !visited[e->destination]) {
+        visited[e->destination] = true;
+        stack[top++] = e->destination;
+      }
+  }
+  free(stack);
+  return visited;
 }
 
 bool *getCommonNeighborsSet(const Graph *g, unsigned u, unsigned v) {
