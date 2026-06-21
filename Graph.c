@@ -325,19 +325,15 @@ bool allOutDegreesAreEven(const Graph *g) {
 
 bool isEulerianUndirected(const Graph *g) {
   if (isEmpty(g)) return true;
-  if (!allOutDegreesAreEven(g)) return false;
-  unsigned v = firstActiveVertex(g);
-  unsigned *distances = unweightedDijkstra(g, v);
-  if (!distances) return false;
-  for (unsigned v = 0; v < g->size; v++)
-    if (distances[v] == UINT_MAX && g->edges[v])
-      return false;
-  free(distances);
-  return true;
+  bool *reachable = findReachableVertices(g, firstActiveVertex(g));
+  bool b = reachable;
+  for (unsigned v = 0; v < g->size && b; v++) b = b && outDegree(g, v) % 2 == 0 && (reachable[v] || !g->edges[v]);
+  free(reachable);
+  return b;
 }
 
 bool isEulerianDirected(const Graph *g) {
-  if (!g || isEmpty(g)) return true;
+  if (isEmpty(g)) return true;
   if (!isBalanced(g)) return false;
   bool *reachable = findReachableVertices(g, firstActiveVertex(g));
   bool *isolated = findIsolated(g);
