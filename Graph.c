@@ -331,11 +331,11 @@ bool isEulerianDirected(const Graph *g) {
 }
 
 bool isConnectedUndirected(const Graph *g) {
-  return g->size < 2 || allAreReachableFromVertexInGraph(g, 0);
+  return getSize(g) < 2 || allAreReachableFromVertexInGraph(g, 0);
 }
 
 bool isWeaklyConnected(const Graph *g) {
-  if (g->size < 2) return true;
+  if (getSize(g) < 2) return true;
   Graph *g2 = copyUndirected(g);
   bool reachable = allAreReachableFromVertexInGraph(g2, 0);
   destroyGraph(g2);
@@ -343,33 +343,37 @@ bool isWeaklyConnected(const Graph *g) {
 }
 
 bool isStronglyConnected(const Graph *g) {
-  if (g->size < 2) return true;
+  if (getSize(g) < 2) return true;
   Graph *g2 = copyTranspose(g);
   bool reachable = allAreReachableFromVertexInGraph(g, 0) && allAreReachableFromVertexInGraph(g2, 0);
   destroyGraph(g2);
   return reachable;
 }
 
-bool isBipartite(const Graph *graph) {
-  unsigned *colors = calloc(graph->size, sizeof(unsigned));
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
+bool isBipartite(const Graph *g) {
+  if (!g || !g->edges) return false;
+  unsigned *colors = calloc(g->size, sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
   bool bipartite = true;
-  for (unsigned u = 0; u < graph->size && bipartite; u++)
-    if (colors[u] == 0) {
-      colors[u] = 1;
-      unsigned head = 0, tail = 0;
-      queue[tail++] = u;
-      while (head < tail && bipartite) {
-        unsigned v = queue[head++];
-        for (Edge *e = graph->edges[v]; e && bipartite; e = e->next)
-          if (colors[e->destination] == 0) {
-            colors[e->destination] = (colors[v] == 1) ? 2 : 1;
-            queue[tail++] = e->destination;
-          } else if (colors[e->destination] == colors[v]) {
-            bipartite = false;
-          }
+  if (colors && queue)
+    for (unsigned u = 0; u < g->size && bipartite; u++)
+      if (colors[u] == 0) {
+        colors[u] = 1;
+        unsigned head = 0, tail = 0;
+        queue[tail++] = u;
+        while (head < tail && bipartite) {
+          unsigned v = queue[head++];
+          for (Edge *e = g->edges[v]; e && bipartite; e = e->next)
+            if (e->destination < g->size) {
+              if (colors[e->destination] == 0) {
+                colors[e->destination] = (colors[v] == 1) ? 2 : 1;
+                queue[tail++] = e->destination;
+              } else if (colors[e->destination] == colors[v]) {
+                bipartite = false;
+              }
+            }
+        }
       }
-    }
   free(colors);
   free(queue);
   return bipartite;
@@ -379,38 +383,36 @@ bool isUndirected(const Graph *g) {
   if (!g || !g->edges) return true;
   for (unsigned u = 0; u < g->size; u++)
     for (Edge *e = g->edges[u]; e; e = e->next)
-      if (countMatchingWeightedEdges(g, u, e->destination, e->weight) != countMatchingWeightedEdges(g, e->destination, u, e->weight))
-        return false;
+      if (e->destination < g->size)
+        if (countMatchingWeightedEdges(g, u, e->destination, e->weight) != countMatchingWeightedEdges(g, e->destination, u, e->weight))
+          return false;
   return true;
 }
 
-bool isMultiGraph(const Graph *graph) {
+bool isMultiGraph(const Graph *g) {
+  if (!g || !g->edges) return false;
+  bool *seen = malloc(g->size * sizeof(bool));
   bool b = false;
-  bool *seen = malloc(graph->size * sizeof(bool));
-  for (unsigned v = 0; v < graph->size && !b; v++) {
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      seen[e->destination] = false;
-    for (Edge *e = graph->edges[v]; e != nullptr && !b; e = e->next)
-      if (seen[e->destination])
-        b = true;
-      else
-        seen[e->destination] = true;
-  }
+  if (seen)
+    for (unsigned v = 0; v < g->size && !b; v++) {
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size)
+          seen[e->destination] = false;
+      for (Edge *e = g->edges[v]; e && !b; e = e->next)
+        if (e->destination < g->size) {
+          if (seen[e->destination]) b = true; else seen[e->destination] = true;
+        }
+    }
   free(seen);
   return b;
 }
 
 bool isDirectedForest(const Graph *g) {
-  if (!g || isCyclicDirected(g)) return false;
   unsigned *degree = inDegrees(g);
-  if (g->size > 0 && !degree) return false;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degree[v] >= 2) {
-      free(degree);
-      return false;
-    }
+  bool b = g && !isCyclicDirected(g) && (g->size == 0 || degree);
+  for (unsigned v = 0; b && v < g->size; v++) b = b && degree[v] < 2;
   free(degree);
-  return true;
+  return b;
 }
 
 bool isUndirectedForest(const Graph *g) {
