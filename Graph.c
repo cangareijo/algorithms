@@ -452,61 +452,49 @@ bool isPathGraph(const Graph *g) {
       internal++;
     else
       return false;
-  if (endpoints != 2) return false;
-  if (internal != getSize(g) - 2) return false;
-  return true;
+  return endpoints == 2 && internal == getSize(g) - 2;
 }
 
 bool isCycleGraph(const Graph *g) {
-  if (getSize(g) < 3) return false;
-  if (hasSelfLoops(g)) return false;
-  if (isMultiGraph(g)) return false;
-  if (!isConnectedUndirected(g)) return false;
-  if (!isKRegular(g, 2)) return false;
-  return true;
+  return getSize(g) >= 3 && !hasSelfLoops(g) && !isMultiGraph(g) && isUndirected(g) && isConnectedUndirected(g) && isKRegular(g, 2);
 }
 
-bool isStarGraph(const Graph *graph) {
-  if (graph->size < 2) return false;
-  if (!isUndirected(graph)) return false;
+bool isStarGraph(const Graph *g) {
+  if (!g || g->size < 2 || !isUndirected(g)) return false;
   unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (outDegree(graph, v) == graph->size - 1)
+  for (unsigned v = 0; v < g->size; v++)
+    if (outDegree(g, v) == g->size - 1)
       count++;
-    else if (outDegree(graph, v) != 1)
+    else if (outDegree(g, v) != 1)
       return false;
-  if (graph->size == 2)
-    return count == 2;
-  return count == 1;
+  return (g->size == 2 && count == 2) || (g->size > 2 && count == 1);
 }
 
-bool isWheelGraph(const Graph *graph) {
-  if (graph->size < 4) return false;
-  if (!isUndirected(graph)) return false;
+bool isWheelGraph(const Graph *g) {
+  if (!isValid(g) || g->size < 4 || !isUndirected(g)) return false;
   unsigned hub;
   unsigned hubCount = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (outDegree(graph, v) == graph->size - 1) {
+  for (unsigned v = 0; v < g->size; v++)
+    if (outDegree(g, v) == g->size - 1) {
       hub = v;
       hubCount++;
-    } else if (outDegree(graph, v) != 3) {
+    } else if (outDegree(g, v) != 3) {
       return false;
     }
-  if (graph->size == 4 && hubCount != 4) return false;
-  if (graph->size > 4 && hubCount != 1) return false;
+  if ((g->size == 4 && hubCount != 4) || (g->size > 4 && hubCount != 1)) return false;
   unsigned visitedCount = 0;
   unsigned previous = hub;
   unsigned current = hub;
   do {
     visitedCount++;
     unsigned next = UINT_MAX;
-    for (Edge *e = graph->edges[current]; e != nullptr && next == UINT_MAX; e = e->next)
+    for (Edge *e = g->edges[current]; e && next == UINT_MAX; e = e->next)
       if (e->destination != hub && e->destination != previous)
         next = e->destination;
     previous = current;
     current = next;
   } while (current != UINT_MAX);
-  return visitedCount == graph->size;
+  return visitedCount == g->size;
 }
 
 bool hasIsolatedVertices(const Graph *graph) {
