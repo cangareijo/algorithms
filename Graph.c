@@ -497,11 +497,13 @@ bool isWheelGraph(const Graph *g) {
   return visitedCount == g->size;
 }
 
-bool hasIsolatedVertices(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    if (isIsolated(graph, v))
-      return true;
-  return false;
+bool hasIsolatedVertices(const Graph *g) {
+  bool *isolated = findIsolated(g);
+  if (!g || !isolated) return false;
+  bool = false;
+  for (unsigned v = 0; v < g->size && !b; v++) b = b || isolated[v];
+  free(isolated);
+  return b;
 }
 
 bool isTournament(const Graph *graph) {
