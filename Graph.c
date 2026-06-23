@@ -50,8 +50,8 @@ bool isTournament(const Graph *g);
 bool hasNegativeWeights(const Graph *g);
 bool isCubic(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
-bool isCyclicDirected(const Graph *g);
-bool isCyclicUndirected(const Graph *g);
+bool hasDirectedCycle(const Graph *g);
+bool hasUndirectedCycle(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
@@ -219,8 +219,8 @@ double **toMatrix(const Graph *graph);
 double **floydWarshall(const Graph *graph);
 double **forceDirectedLayout(const Graph *g, unsigned iterations);
 
-void testIsDirectedCyclicGraph();
-void testIsUndirectedCyclicGraph();
+void testHasDirectedCycle();
+void testHasUndirectedCycle();
 void testIsConnectedUndirected();
 void testIsWeaklyConnected();
 void testIsStronglyConnected();
@@ -246,8 +246,7 @@ unsigned maximumUnsigned(unsigned a, unsigned b) { return a >= b ? a : b; }
 
 void freeMatrix(double **matrix, unsigned n) {
   if (!matrix) return;
-  for (unsigned i = 0; i < n; i++)
-    free(matrix[i]);
+  for (unsigned i = 0; i < n; i++) free(matrix[i]);
   free(matrix);
 }
 
@@ -409,14 +408,14 @@ bool isMultiGraph(const Graph *g) {
 
 bool isDirectedForest(const Graph *g) {
   unsigned *degree = inDegrees(g);
-  bool b = g && !isCyclicDirected(g) && (g->size == 0 || degree);
+  bool b = g && !hasDirectedCycle(g) && (g->size == 0 || degree);
   for (unsigned v = 0; b && v < g->size; v++) b = b && degree[v] < 2;
   free(degree);
   return b;
 }
 
 bool isUndirectedForest(const Graph *g) {
-  return isUndirected(g) && !isCyclicUndirected(g);
+  return isUndirected(g) && !hasUndirectedCycle(g);
 }
 
 bool isDirectedTree(const Graph *g) {
@@ -424,7 +423,7 @@ bool isDirectedTree(const Graph *g) {
   unsigned *degree = inDegrees(g);
   if (!degree) return false;
   unsigned roots = 0;
-  bool b = !isCyclicDirected(g);
+  bool b = !hasDirectedCycle(g);
   for (unsigned v = 0; v < g->size && b; v++) {
     if (degree[v] == 0) roots++;
     b = b && roots < 2 && degree[v] < 2;
@@ -434,7 +433,7 @@ bool isDirectedTree(const Graph *g) {
 }
 
 bool isUndirectedTree(const Graph *g) {
-  return isUndirected(g) && !isCyclicUndirected(g) && isConnectedUndirected(g);
+  return isUndirected(g) && !hasUndirectedCycle(g) && isConnectedUndirected(g);
 }
 
 bool isPathGraph(const Graph *g) {
@@ -500,34 +499,33 @@ bool isWheelGraph(const Graph *g) {
 bool hasIsolatedVertices(const Graph *g) {
   bool *isolated = findIsolated(g);
   if (!g || !isolated) return false;
-  bool = false;
+  bool b = false;
   for (unsigned v = 0; v < g->size && !b; v++) b = b || isolated[v];
   free(isolated);
   return b;
 }
 
-bool isTournament(const Graph *graph) {
-  unsigned **m = malloc(graph->size * sizeof(unsigned *));
-  for (unsigned v = 0; v < graph->size; v++)
-    m[v] = calloc(graph->size, sizeof(unsigned));
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      m[v][e->destination] += 1;
+bool isTournament(const Graph *g) {
+  if (!isValid(g)) return false;
+  unsigned *m = malloc(g->size * g->size * sizeof(unsigned *));
+  if (!m) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      m[v * g->size + e->destination] += 1;
   bool b = true;
-  for (unsigned v = 0; v < graph->size && b; v++)
-    b = b && m[v][v] == 0;
-  for (unsigned u = 0; u < graph->size && b; u++)
-    for (unsigned v = u + 1; v < graph->size && b; v++)
-      b = b && m[u][v] + m[v][u] == 1;
-  for (unsigned v = 0; v < graph->size; v++)
-    free(m[v]);
+  for (unsigned v = 0; v < g->size && b; v++)
+    b = b && m[v * g->size + v] == 0;
+  for (unsigned u = 0; u < g->size && b; u++)
+    for (unsigned v = u + 1; v < g->size && b; v++)
+      b = b && m[u * g->size + v] + m[v * g->size + u] == 1;
   free(m);
   return b;
 }
 
-bool hasNegativeWeights(const Graph *graph) {
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
+bool hasNegativeWeights(const Graph *g) {
+  if (!g || !g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->weight < 0)
         return true;
   return false;
@@ -538,11 +536,7 @@ bool isCubic(const Graph *g) {
 }
 
 bool hasNegativeCycle(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return false;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size)
-        return false;
+  if (!isValid(g)) return false;
   double *distances = malloc(g->size * sizeof(double));
   if (!distances) return false;
   for (unsigned v = 0; v < g->size; v++) distances[v] = 0;
@@ -551,58 +545,51 @@ bool hasNegativeCycle(const Graph *g) {
       for (Edge *e = g->edges[v]; e; e = e->next)
         if (distances[v] + e->weight < distances[e->destination])
           distances[e->destination] = distances[v] + e->weight;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (distances[v] + e->weight < distances[e->destination]) {
-        free(distances);
-        return true;
-      }
-  free(distances);
-  return false;
-}
-
-bool isCyclicDirectedComponent(const Graph *graph, unsigned vertex, char *visited) {
-  visited[vertex] = 1;
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-    if (visited[e->destination] == 1 || (visited[e->destination] == 0 && isCyclicDirectedComponent(graph, e->destination, visited)))
-      return true;
-  visited[vertex] = 2;
-  return false;
-}
-
-bool isCyclicDirected(const Graph *graph) {
-  char *visited = calloc(graph->size, sizeof(char));
   bool b = false;
-  for (unsigned v = 0; v < graph->size && !b; v++)
-    b = b || (visited[v] == 0 && isCyclicDirectedComponent(graph, v, visited));
-  free(visited);
+  for (unsigned v = 0; v < g->size && !b; v++)
+    for (Edge *e = g->edges[v]; e && !b; e = e->next)
+      b = b || distances[v] + e->weight < distances[e->destination];
+  free(distances);
   return b;
 }
 
-bool isCyclicUndirectedComponent(const Graph *graph, unsigned vertex, unsigned parent, bool *visited) {
-  visited[vertex] = true;
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
+static bool hasDirectedCycleDfs(const Graph *g, unsigned v, char visited[g->size]) {
+  visited[v] = 1;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if ((visited[e->destination] == 1) || (visited[e->destination] == 0 && hasDirectedCycleDfs(g, e->destination, visited)))
+      return true;
+  visited[v] = 2;
+  return false;
+}
+
+bool hasDirectedCycle(const Graph *g) {
+  if (!isValid(g)) return false;
+  char visited[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    if (visited[v] == 0 && hasDirectedCycleDfs(g, v, visited))
+      return true;
+  return false;
+}
+
+static bool hasUndirectedCycleDfs(const Graph *g, unsigned v, unsigned parent, bool visited[g->size]) {
+  visited[v] = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
     if (visited[e->destination]) {
       if (e->destination != parent)
         return true;
-    } else {
-      if (isCyclicUndirectedComponent(graph, e->destination, vertex, visited))
-        return true;
+    } else if (hasUndirectedCycleDfs(g, e->destination, v, visited)) {
+      return true;
     }
   return false;
 }
 
-bool isCyclicUndirected(const Graph *graph) {
-  bool *visited = calloc(graph->size, sizeof(bool));
-  bool cyclic = false;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!visited[v])
-      if (isCyclicUndirectedComponent(graph, v, graph->size, visited)) {
-        cyclic = true;
-        break;
-      }
-  free(visited);
-  return cyclic;
+bool hasUndirectedCycle(const Graph *g) {
+  if (!isValid(g)) return false;
+  bool visited[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    if (!visited[v] && hasUndirectedCycleDfs(g, v, UINT_MAX, visited))
+      return true;
+  return false;
 }
 
 bool isKRegular(const Graph *graph, unsigned k) {
@@ -2930,12 +2917,12 @@ double **forceDirectedLayout(const Graph *g, unsigned iterations) {
 
 
 
-void testIsDirectedCyclicGraph() {
+void testHasDirectedCycle() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 1);
   addDirectedEdge(g1, 1, 2, 1);
   addDirectedEdge(g1, 2, 0, 1);
-  assert(isCyclicDirected(g1) == true);
+  assert(hasDirectedCycle(g1) == true);
   printf("Directed cyclic test 1 passed: Simple cycle found.\n");
   destroyGraph(g1);
 
@@ -2943,13 +2930,13 @@ void testIsDirectedCyclicGraph() {
   addDirectedEdge(g2, 0, 1, 1);
   addDirectedEdge(g2, 1, 2, 1);
   addDirectedEdge(g2, 0, 2, 1);
-  assert(isCyclicDirected(g2) == false);
+  assert(hasDirectedCycle(g2) == false);
   printf("Directed cyclic test 2 passed: DAG correctly identified as acyclic.\n");
   destroyGraph(g2);
 
   Graph *g3 = createGraph(1);
   addDirectedEdge(g3, 0, 0, 1);
-  assert(isCyclicDirected(g3) == true);
+  assert(hasDirectedCycle(g3) == true);
   printf("Directed cyclic test 3 passed: Self-loop detected.\n");
   destroyGraph(g3);
 
@@ -2957,21 +2944,21 @@ void testIsDirectedCyclicGraph() {
   addDirectedEdge(g4, 0, 1, 1);
   addDirectedEdge(g4, 2, 3, 1);
   addDirectedEdge(g4, 3, 2, 1);
-  assert(isCyclicDirected(g4) == true);
+  assert(hasDirectedCycle(g4) == true);
   printf("Directed cyclic test 4 passed: Cycle in disconnected component found.\n");
   destroyGraph(g4);
 
   Graph *g5 = createGraph(0);
-  assert(isCyclicDirected(g5) == false);
+  assert(hasDirectedCycle(g5) == false);
   printf("Directed cyclic test 5 passed: Empty graph is acyclic.\n");
   destroyGraph(g5);
 }
 
-void testIsUndirectedCyclicGraph() {
+void testHasUndirectedCycle() {
   Graph *g1 = createGraph(3);
   addUndirectedEdge(g1, 0, 1, 1);
   addUndirectedEdge(g1, 1, 2, 1);
-  if (!isCyclicUndirected(g1))
+  if (!hasUndirectedCycle(g1))
     printf("Undirected Test 1 passed: Tree is acyclic.\n");
   else
     printf("Undirected Test 1 failed: False positive in tree.\n");
@@ -2981,7 +2968,7 @@ void testIsUndirectedCyclicGraph() {
   addUndirectedEdge(g2, 0, 1, 1);
   addUndirectedEdge(g2, 1, 2, 1);
   addUndirectedEdge(g2, 2, 0, 1);
-  if (isCyclicUndirected(g2))
+  if (hasUndirectedCycle(g2))
     printf("Undirected Test 2 passed: Triangle cycle detected.\n");
   else
     printf("Undirected Test 2 failed: Triangle cycle missed.\n");
@@ -2992,7 +2979,7 @@ void testIsUndirectedCyclicGraph() {
   addUndirectedEdge(g3, 2, 3, 1);
   addUndirectedEdge(g3, 3, 4, 1);
   addUndirectedEdge(g3, 4, 2, 1);
-  if (isCyclicUndirected(g3))
+  if (hasUndirectedCycle(g3))
     printf("Undirected Test 3 passed: Cycle in disconnected component detected.\n");
   else
     printf("Undirected Test 3 failed: Missed cycle in disconnected component.\n");
@@ -3000,7 +2987,7 @@ void testIsUndirectedCyclicGraph() {
 
   Graph *g4 = createGraph(2);
   addUndirectedEdge(g4, 0, 1, 1);
-  if (!isCyclicUndirected(g4))
+  if (!hasUndirectedCycle(g4))
     printf("Undirected Test 4 passed: Simple edge is acyclic.\n");
   else
     printf("Undirected Test 4 failed: Parent incorrectly triggered cycle.\n");
@@ -3496,8 +3483,8 @@ void testGraphDensity() {
 }
 
 int main() {
-  testIsDirectedCyclicGraph();
-  testIsUndirectedCyclicGraph();
+  testHasDirectedCycle();
+  testHasUndirectedCycle();
   testIsConnectedUndirected();
   testIsWeaklyConnected();
   testIsStronglyConnected();
