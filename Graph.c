@@ -49,9 +49,9 @@ bool hasIsolatedVertices(const Graph *g);
 bool isTournament(const Graph *g);
 bool hasNegativeWeights(const Graph *g);
 bool isCubic(const Graph *g);
-bool hasNegativeCycle(const Graph *g);
 bool hasDirectedCycle(const Graph *g);
 bool hasUndirectedCycle(const Graph *g);
+bool hasNegativeCycle(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
@@ -535,28 +535,10 @@ bool isCubic(const Graph *g) {
   return isKRegular(g, 3);
 }
 
-bool hasNegativeCycle(const Graph *g) {
-  if (!isValid(g)) return false;
-  double *distances = malloc(g->size * sizeof(double));
-  if (!distances) return false;
-  for (unsigned v = 0; v < g->size; v++) distances[v] = 0;
-  for (unsigned i = 1; i < g->size; i++)
-    for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next)
-        if (distances[v] + e->weight < distances[e->destination])
-          distances[e->destination] = distances[v] + e->weight;
-  bool b = false;
-  for (unsigned v = 0; v < g->size && !b; v++)
-    for (Edge *e = g->edges[v]; e && !b; e = e->next)
-      b = b || distances[v] + e->weight < distances[e->destination];
-  free(distances);
-  return b;
-}
-
 static bool hasDirectedCycleDfs(const Graph *g, unsigned v, char visited[g->size]) {
   visited[v] = 1;
   for (Edge *e = g->edges[v]; e; e = e->next)
-    if ((visited[e->destination] == 1) || (visited[e->destination] == 0 && hasDirectedCycleDfs(g, e->destination, visited)))
+    if (visited[e->destination] == 1 || (visited[e->destination] == 0 && hasDirectedCycleDfs(g, e->destination, visited)))
       return true;
   visited[v] = 2;
   return false;
@@ -589,6 +571,21 @@ bool hasUndirectedCycle(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++)
     if (!visited[v] && hasUndirectedCycleDfs(g, v, UINT_MAX, visited))
       return true;
+  return false;
+}
+
+bool hasNegativeCycle(const Graph *g) {
+  if (!isValid(g)) return false;
+  double distances[g->size] = {};
+  for (unsigned i = 1; i < g->size; i++)
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (distances[v] + e->weight < distances[e->destination])
+          distances[e->destination] = distances[v] + e->weight;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (distances[v] + e->weight < distances[e->destination])
+        return true;
   return false;
 }
 
