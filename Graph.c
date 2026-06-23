@@ -63,7 +63,7 @@ bool isUniversalSink(const Graph *g, unsigned v);
 bool isDirectedLeaf(const Graph *g, unsigned v);
 bool isUndirectedLeaf(const Graph *g, unsigned v);
 bool hasSelfLoopsAtVertex(const Graph *g, unsigned v);
-bool allAreReachableFromVertexInGraph(const Graph *g, unsigned v);
+bool canReachAll(const Graph *g, unsigned v);
 bool isArticulationVertex(const Graph *g, unsigned v);
 bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
@@ -102,7 +102,7 @@ bool *findMaximalClique(const Graph *g);
 bool *findMaximumClique(const Graph *g);
 bool *findIsolated(const Graph *g);
 bool *getNeighborsSet(const Graph *g, unsigned v);
-bool *findReachableVertices(const Graph *g, unsigned v);
+bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighborsSet(const Graph *g, unsigned u, unsigned v);
 
 Graph *createGraph(unsigned n);
@@ -310,7 +310,7 @@ bool isBalanced(const Graph *g) {
 
 bool isEulerianUndirected(const Graph *g) {
   if (!g || isEmpty(g)) return true;
-  bool *reachable = findReachableVertices(g, firstActiveVertex(g));
+  bool *reachable = getReachable(g, firstActiveVertex(g));
   bool b = reachable;
   for (unsigned v = 0; v < g->size && b; v++) b = b && outDegree(g, v) % 2 == 0 && (reachable[v] || !g->edges[v]);
   free(reachable);
@@ -320,7 +320,7 @@ bool isEulerianUndirected(const Graph *g) {
 bool isEulerianDirected(const Graph *g) {
   if (!g || isEmpty(g)) return true;
   if (!isBalanced(g)) return false;
-  bool *reachable = findReachableVertices(g, firstActiveVertex(g));
+  bool *reachable = getReachable(g, firstActiveVertex(g));
   bool *isolated = findIsolated(g);
   bool b = reachable && isolated;
   for (unsigned v = 0; v < g->size && b; v++) b = b && (reachable[v] || isolated[v]);
@@ -330,13 +330,13 @@ bool isEulerianDirected(const Graph *g) {
 }
 
 bool isConnectedUndirected(const Graph *g) {
-  return getSize(g) < 2 || allAreReachableFromVertexInGraph(g, 0);
+  return getSize(g) < 2 || canReachAll(g, 0);
 }
 
 bool isWeaklyConnected(const Graph *g) {
   if (getSize(g) < 2) return true;
   Graph *g2 = copyUndirected(g);
-  bool reachable = allAreReachableFromVertexInGraph(g2, 0);
+  bool reachable = canReachAll(g2, 0);
   destroyGraph(g2);
   return reachable;
 }
@@ -344,7 +344,7 @@ bool isWeaklyConnected(const Graph *g) {
 bool isStronglyConnected(const Graph *g) {
   if (getSize(g) < 2) return true;
   Graph *g2 = copyTranspose(g);
-  bool reachable = allAreReachableFromVertexInGraph(g, 0) && allAreReachableFromVertexInGraph(g2, 0);
+  bool reachable = canReachAll(g, 0) && canReachAll(g2, 0);
   destroyGraph(g2);
   return reachable;
 }
@@ -589,74 +589,78 @@ bool hasNegativeCycle(const Graph *g) {
   return false;
 }
 
-bool isKRegular(const Graph *graph, unsigned k) {
-  for (unsigned v = 0; v < graph->size; v++)
-    if (inDegree(graph, v) != k || outDegree(graph, v) != k)
+bool isKRegular(const Graph *g, unsigned k) {
+  if (!g) return true;
+  for (unsigned v = 0; v < g->size; v++)
+    if (inDegree(g, v) != k || outDegree(g, v) != k)
       return false;
   return true;
 }
 
-bool isProperColoring(const Graph *graph, const unsigned *coloring) {
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      if (coloring[v] == coloring[e->destination])
+bool isProperColoring(const Graph *g, const unsigned *coloring) {
+  if (!g || !g->edges) return true;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && coloring[v] == coloring[e->destination])
         return false;
   return true;
 }
 
-bool hasConstantWeights(const Graph *graph, double weight) {
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+bool hasConstantWeights(const Graph *g, double weight) {
+  if (!g || !g->edges) return true;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->weight != weight)
         return false;
   return true;
 }
 
-bool isDense(const Graph *graph, double threshold) {
-  return countEdges(graph) >= threshold * graph->size * (graph->size - 1);
+bool isDense(const Graph *g, double threshold) {
+  return !g || countEdges(g) >= threshold * g->size * (g->size - 1);
 }
 
-bool isIsolated(const Graph *graph, unsigned vertex) {
-  return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == 0;
+bool isIsolated(const Graph *g, unsigned v) {
+  return outDegree(g, v) == 0 && inDegree(g, v) == 0;
 }
 
-bool isSource(const Graph *graph, unsigned vertex) {
-  return inDegree(graph, vertex) == 0 && outDegree(graph, vertex) > 0;
+bool isSource(const Graph *g, unsigned v) {
+  return inDegree(g, v) == 0 && outDegree(g, v) > 0;
 }
 
-bool isSink(const Graph *graph, unsigned vertex) {
-  return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) > 0;
+bool isSink(const Graph *g, unsigned v) {
+  return outDegree(g, v) == 0 && inDegree(g, v) > 0;
 }
 
-bool isUniversalSource(const Graph *graph, unsigned vertex) {
-  return inDegree(graph, vertex) == 0 && outDegree(graph, vertex) == graph->size - 1;
+bool isUniversalSource(const Graph *g, unsigned v) {
+  return g && inDegree(g, v) == 0 && outDegree(g, v) == g->size - 1;
 }
 
-bool isUniversalSink(const Graph *graph, unsigned vertex) {
-  return outDegree(graph, vertex) == 0 && inDegree(graph, vertex) == graph->size - 1;
+bool isUniversalSink(const Graph *g, unsigned v) {
+  return g && outDegree(g, v) == 0 && inDegree(g, v) == g->size - 1;
 }
 
-bool isDirectedLeaf(const Graph *graph, unsigned vertex) {
-  return outDegree(graph, vertex) + inDegree(graph, vertex) == 1;
+bool isDirectedLeaf(const Graph *g, unsigned v) {
+  return outDegree(g, v) + inDegree(g, v) == 1;
 }
 
-bool isUndirectedLeaf(const Graph *graph, unsigned vertex) {
-  return outDegree(graph, vertex) == 1;
+bool isUndirectedLeaf(const Graph *g, unsigned v) {
+  return outDegree(g, v) == 1;
 }
 
-bool hasSelfLoopsAtVertex(const Graph *graph, unsigned vertex) {
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-    if (e->destination == vertex)
+bool hasSelfLoopsAtVertex(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return false;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination == v)
       return true;
   return false;
 }
 
-bool allAreReachableFromVertexInGraph(const Graph *graph, unsigned vertex) {
-  unsigned *distances = unweightedDijkstra(graph, vertex);
+bool canReachAll(const Graph *g, unsigned v) {
+  bool *reachable = getReachable(g, v);
+  if (!g || !reachable) return false;
   bool b = true;
-  for (unsigned v = 0; v < graph->size && b; v++)
-    b = b && distances[v] < UINT_MAX;
-  free(distances);
+  for (unsigned v = 0; v < g->size && b; v++) b = b && reachable[v];
+  free(reachable);
   return b;
 }
 
@@ -1103,7 +1107,7 @@ bool *getNeighborsSet(const Graph *g, unsigned v) {
   return neighbors;
 }
 
-bool *findReachableVertices(const Graph *g, unsigned v) {
+bool *getReachable(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   unsigned *stack = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
