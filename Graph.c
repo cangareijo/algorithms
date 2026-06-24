@@ -664,11 +664,11 @@ bool canReachAll(const Graph *g, unsigned v) {
   return b;
 }
 
-bool isArticulationVertex(const Graph *graph, unsigned vertex) {
-  Graph *g = removeVertex(graph, vertex);
-  unsigned n = countComponents(g);
-  destroyGraph(g);
-  return n > countComponents(graph);
+bool isArticulationVertex(const Graph *g, unsigned v) {
+  Graph *g2 = removeVertex(g, v);
+  unsigned n = countComponents(g2);
+  destroyGraph(g2);
+  return n > countComponents(g);
 }
 
 bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
@@ -679,12 +679,12 @@ bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
   return false;
 }
 
-bool hasUndirectedEdge(const Graph *graph, unsigned u, unsigned v) {
-  return hasDirectedEdge(graph, u, v) && hasDirectedEdge(graph, v, u);
+bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v) {
+  return hasWeightedDirectedEdge(g, u, v, edgeWeight(g, u, v)) && hasWeightedDirectedEdge(g, v, u, edgeWeight(g, u, v));
 }
 
 bool hasPath(const Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size) return false;
+  if (!g || !g->edges || u >= g->size) return false;
   bool *visited = calloc(g->size, sizeof(bool));
   unsigned *stack = malloc(g->size * sizeof(unsigned));
   if (!visited || !stack) {
@@ -713,46 +713,51 @@ bool hasPath(const Graph *g, unsigned u, unsigned v) {
   return found;
 }
 
-bool haveCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
-  bool *neighbors = calloc(graph->size, sizeof(bool));
-  for (Edge *e = graph->edges[u]; e; e = e->next)
-    neighbors[e->destination] = true;
+bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return false;
+  bool *neighbors = calloc(g->size, sizeof(bool));
+  if (!neighbors) return false;
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination < g->size)
+      neighbors[e->destination] = true;
   bool b = false;
-  for (Edge *e = graph->edges[v]; e && !b; e = e->next)
-    b = b || neighbors[e->destination];
+  for (Edge *e = g->edges[v]; e && !b; e = e->next)
+    if (e->destination < g->size)
+      b = b || neighbors[e->destination];
   free(neighbors);
   return b;
 }
 
-bool isDirectedBridge(const Graph *graph, unsigned u, unsigned v) {
-  Graph *g = copyGraph(graph);
-  removeFirstDirectedEdge(g, u, v);
-  unsigned n = countComponents(g);
-  destroyGraph(g);
-  return n > countComponents(graph);
+bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
+  Graph *g2 = copyGraph(g);
+  removeFirstDirectedEdge(g2, u, v);
+  unsigned n = countComponents(g2);
+  destroyGraph(g2);
+  return n > countComponents(g);
 }
 
-bool isUndirectedBridge(const Graph *graph, unsigned u, unsigned v) {
-  Graph *g = copyGraph(graph);
-  removeFirstUndirectedEdge(g, u, v);
-  unsigned n = countComponents(g);
-  destroyGraph(g);
-  return n > countComponents(graph);
+bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
+  Graph *g2 = copyGraph(g);
+  removeFirstUndirectedEdge(g2, u, v);
+  unsigned n = countComponents(g2);
+  destroyGraph(g2);
+  return n > countComponents(g);
 }
 
-bool hasWeightedDirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight) {
-  for (Edge *e = graph->edges[u]; e; e = e->next)
+bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double weight) {
+  if (!g || !g->edges || u >= g->size) return false;
+  for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v && e->weight == weight)
       return true;
   return false;
 }
 
-bool hasWeightedUndirectedEdge(const Graph *graph, unsigned u, unsigned v, double weight) {
-  return hasWeightedDirectedEdge(graph, u, v, weight) && hasWeightedDirectedEdge(graph, v, u, weight);
+bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double weight) {
+  return hasWeightedDirectedEdge(g, u, v, weight) && hasWeightedDirectedEdge(g, v, u, weight);
 }
 
-bool isTriangle(const Graph *graph, unsigned u, unsigned v, unsigned w) {
-  return u != v && v != w && w != u && hasDirectedEdge(graph, u, v) && hasDirectedEdge(graph, v, w) && hasDirectedEdge(graph, w, u);
+bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w) {
+  return u != v && v != w && w != u && hasDirectedEdge(g, u, v) && hasDirectedEdge(g, v, w) && hasDirectedEdge(g, w, u);
 }
 
 bool isClique(const Graph *graph, const bool *subset) {
