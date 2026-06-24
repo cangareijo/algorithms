@@ -829,16 +829,16 @@ bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
   return true;
 }
 
-bool isWalk(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool b = true;
+bool isWalk(const Graph *g, const unsigned *sequence, unsigned length) {
+  bool b = sequence || length < 2;
   for (unsigned i = 1; i < length && b; i++)
-    b = b && hasDirectedEdge(graph, sequence[i - 1], sequence[i]);
+    b = b && hasDirectedEdge(g, sequence[i - 1], sequence[i]);
   return b;
 }
 
-bool isPath(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool b = isWalk(graph, sequence, length);
-  bool *visited = calloc(graph->size, sizeof(bool));
+bool isPath(const Graph *g, const unsigned *sequence, unsigned length) {
+  bool b = (sequence || length == 0) && isWalk(g, sequence, length);
+  bool *visited = calloc(g->size, sizeof(bool));
   for (unsigned i = 0; i < length && b; i++) {
     b = b && !visited[sequence[i]];
     visited[sequence[i]] = true;
@@ -847,19 +847,19 @@ bool isPath(const Graph *graph, const unsigned *sequence, unsigned length) {
   return b;
 }
 
-bool isHamiltonianPath(const Graph *graph, const unsigned *sequence, unsigned length) {
-  return length == graph->size && isPath(graph, sequence, length);
+bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length) {
+  return g && length == g->size && isPath(g, sequence, length);
 }
 
-bool isDirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
-  Graph *copy = copyGraph(graph);
-  bool valid = true;
+bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) {
+  Graph *g2 = copyGraph(g);
+  bool valid = g2 && (sequence || length < 2);
   for (unsigned i = 1; i < length && valid; i++)
-    if (hasDirectedEdge(copy, sequence[i - 1], sequence[i]))
-      removeFirstDirectedEdge(copy, sequence[i - 1], sequence[i]);
+    if (hasDirectedEdge(g2, sequence[i - 1], sequence[i]))
+      removeFirstDirectedEdge(g2, sequence[i - 1], sequence[i]);
     else
       valid = false;
-  destroyGraph(copy);
+  destroyGraph(g2);
   return valid;
 }
 
@@ -1218,12 +1218,14 @@ Graph *generateRandomGraph(unsigned n, double p, bool directed, bool weighted) {
   return g;
 }
 
-Graph *copyGraph(const Graph *graph) {
-  Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      addDirectedEdge(g, v, e->destination, e->weight);
-  return g;
+Graph *copyGraph(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  if (!g2) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      addDirectedEdge(g2, v, e->destination, e->weight);
+  return g2;
 }
 
 Graph *copyTranspose(const Graph *graph) {
@@ -1635,14 +1637,14 @@ void removeDirectedEdgeByIndex(Graph *g, unsigned i) {
 }
 
 void removeFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size) return;
+  if (!g || !g->edges || u >= g->size) return;
   Edge **e = &g->edges[u];
   while (*e) {
     Edge *temporary = *e;
     if (temporary->destination == v) {
       *e = temporary->next;
       free(temporary);
-      break;
+      return;
     } else {
       e = &temporary->next;
     }
