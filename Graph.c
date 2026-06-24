@@ -760,46 +760,48 @@ bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w) {
   return u != v && v != w && w != u && hasDirectedEdge(g, u, v) && hasDirectedEdge(g, v, w) && hasDirectedEdge(g, w, u);
 }
 
-bool isClique(const Graph *graph, const bool *subset) {
-  for (unsigned u = 0; u < graph->size; u++)
-    if (subset[u])
-      for (unsigned v = u + 1; v < graph->size; v++)
-        if (subset[v])
-          if (!hasDirectedEdge(graph, u, v))
+bool isClique(const Graph *g, const bool *set) {
+  if (!g || !set) return true;
+  for (unsigned u = 0; u < g->size; u++)
+    if (set[u])
+      for (unsigned v = 0; v < g->size; v++)
+        if (set[v] && v != u)
+          if (!hasDirectedEdge(g, u, v))
             return false;
   return true;
 }
 
-bool isIndependentSet(const Graph *g, const bool *subset) {
-  if (!g || !g->edges || !subset) return true;
+bool isIndependentSet(const Graph *g, const bool *set) {
+  if (!g || !g->edges || !set) return true;
   for (unsigned u = 0; u < g->size; u++)
-    if (subset[u])
+    if (set[u])
       for (Edge *e = g->edges[u]; e; e = e->next)
-        if (e->destination < g->size && subset[e->destination])
+        if (e->destination < g->size && set[e->destination])
           return false;
   return true;
 }
 
-bool isVertexCover(const Graph *graph, const bool *subset) {
-  for (unsigned u = 0; u < graph->size; u++)
-    if (!subset[u])
-      for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
-        if (!subset[e->destination])
+bool isVertexCover(const Graph *g, const bool *set) {
+  if (!g || !g->edges || !set) return true;
+  for (unsigned u = 0; u < g->size; u++)
+    if (!set[u])
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination >= g->size || !set[e->destination])
           return false;
   return true;
 }
 
-bool hasDirectedEdges(const Graph *g, unsigned v, const bool *subset) {
-  if (!g || !g->edges || v >= g->size || !subset) return false;
+bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set) {
+  if (!g || !g->edges || v >= g->size || !set) return false;
   unsigned total = 0;
   for (unsigned u = 0; u < g->size; u++)
-    if (subset[u])
+    if (set[u])
       total++;
   bool *visited = calloc(g->size, sizeof(bool));
   if (!visited) return false;
   unsigned found = 0;
   for (Edge *e = g->edges[v]; e && found < total; e = e->next)
-    if (e->destination < g->size && subset[e->destination] && !visited[e->destination]) {
+    if (e->destination < g->size && set[e->destination] && !visited[e->destination]) {
       visited[e->destination] = true;
       found++;
     }
@@ -807,10 +809,10 @@ bool hasDirectedEdges(const Graph *g, unsigned v, const bool *subset) {
   return found == total;
 }
 
-bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *subset) {
-  if (!g || !hasDirectedEdges(g, v, subset)) return false;
+bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set) {
+  if (!g || !set || !hasDirectedEdges(g, v, set)) return false;
   for (unsigned u = 0; u < g->size; u++)
-    if (subset[u] && !hasDirectedEdge(g, u, v))
+    if (set[u] && !hasDirectedEdge(g, u, v))
       return false;
   return true;
 }
