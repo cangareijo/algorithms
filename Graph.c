@@ -901,9 +901,10 @@ bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned lengt
   return g && length == g->size && isSimpleCycle(g, sequence, length);
 }
 
-bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool valid = length >= 1;
-  Graph *copy = copyGraph(graph);
+bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!sequence || length == 0) return false;
+  bool valid = true;
+  Graph *copy = copyGraph(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (hasDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
       removeFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
@@ -913,9 +914,10 @@ bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned le
   return valid;
 }
 
-bool isUndirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool valid = length >= 1;
-  Graph *copy = copyGraph(graph);
+bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!sequence || length == 0) return false;
+  bool valid = true;
+  Graph *copy = copyGraph(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (hasUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
       removeFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
@@ -2820,13 +2822,21 @@ double *weightedDijkstra(const Graph *g, unsigned v) {
 
 
 
-double **toMatrix(const Graph *graph) {
-  double **matrix = malloc(graph->size * sizeof(double *));
-  for (unsigned v = 0; v < graph->size; v++)
-    matrix[v] = calloc(graph->size, sizeof(double));
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      matrix[v][e->destination] = e->weight;
+double **toMatrix(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  double **matrix = malloc(g->size * sizeof(double *));
+  if (!matrix) return nullptr;
+  for (unsigned v = 0; v < g->size; v++) matrix[v] = calloc(g->size, sizeof(double));
+  bool b = true;
+  for (unsigned v = 0; v < g->size && b; v++) b = b && matrix[v];
+  if (!b) {
+    for (unsigned v = 0; v < g->size; v++) free(matrix[v]);
+    free(matrix);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      matrix[v][e->destination] += e->weight;
   return matrix;
 }
 
@@ -2866,6 +2876,7 @@ double **forceDirectedLayout(const Graph *g, unsigned iterations) {
     free(position);
     if (displacement) for (unsigned v = 0; v < g->size; v++) free(displacement[v]);
     free(displacement);
+    return nullptr;
   }
   const double width = 1000;
   const double height = 1000;
