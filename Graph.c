@@ -884,7 +884,7 @@ bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) 
 }
 
 bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length) {
-  if (!g || g->size < 3) return false;
+  if (!g) return false;
   bool *visited = calloc(g->size, sizeof(bool));
   if (g->size > 0 && !visited) return false;
   bool valid = isDirectedCycle(g, sequence, length);
