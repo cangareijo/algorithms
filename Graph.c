@@ -853,7 +853,7 @@ bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length
 
 bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) {
   Graph *g2 = copyGraph(g);
-  bool valid = g2 && (sequence || length < 2);
+  bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (hasDirectedEdge(g2, sequence[i - 1], sequence[i]))
       removeFirstDirectedEdge(g2, sequence[i - 1], sequence[i]);
@@ -863,9 +863,9 @@ bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) 
   return valid;
 }
 
-bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned length) {
-  Graph *copy = copyGraph(graph);
-  bool valid = true;
+bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) {
+  Graph *copy = copyGraph(g);
+  bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (hasUndirectedEdge(copy, sequence[i - 1], sequence[i]))
       removeFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
@@ -875,16 +875,21 @@ bool isUndirectedTrail(const Graph *graph, const unsigned *sequence, unsigned le
   return valid;
 }
 
-bool isDirectedCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool valid = length >= 1;
+bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!sequence && length > 0) return false;
+  bool valid = true;
   for (unsigned i = 0; i < length && valid; i++)
-    valid = valid && hasDirectedEdge(graph, sequence[i], sequence[(i + 1) % length]);
+    valid = valid && hasDirectedEdge(g, sequence[i], sequence[(i + 1) % length]);
   return valid;
 }
 
-bool isSimpleCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
-  bool valid = isDirectedCycle(graph, sequence, length);
-  bool *visited = calloc(graph->size, sizeof(bool));
+bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!g) return false;
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (g->size > 0 && !visited) return false;
+  bool valid = isDirectedCycle(g, sequence, length);
+  for (unsigned i = 0; i < length && valid; i++)
+    valid = valid && sequence[i] < g->size;
   for (unsigned i = 0; i < length && valid; i++) {
     valid = valid && !visited[sequence[i]];
     visited[sequence[i]] = true;
