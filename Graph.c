@@ -876,7 +876,7 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
 }
 
 bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) {
-  if (!sequence && length > 0) return false;
+  if (!g || g->size == 0 || !sequence || length == 0) return false;
   bool valid = true;
   for (unsigned i = 0; i < length && valid; i++)
     valid = valid && hasDirectedEdge(g, sequence[i], sequence[(i + 1) % length]);
@@ -884,7 +884,7 @@ bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) 
 }
 
 bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length) {
-  if (!g) return false;
+  if (!g || g->size < 3) return false;
   bool *visited = calloc(g->size, sizeof(bool));
   if (g->size > 0 && !visited) return false;
   bool valid = isDirectedCycle(g, sequence, length);
@@ -898,8 +898,8 @@ bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length) {
   return valid;
 }
 
-bool isHamiltonianCycle(const Graph *graph, const unsigned *sequence, unsigned length) {
-  return length == graph->size && isSimpleCycle(graph, sequence, length);
+bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned length) {
+  return g && length == g->size && isSimpleCycle(g, sequence, length);
 }
 
 bool isDirectedCircuit(const Graph *graph, const unsigned *sequence, unsigned length) {
