@@ -875,6 +875,7 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
   return valid;
 }
 
+// If isDirectedCycle(g, s, n) == true, then sequence[i] < g->size, for all i < length
 bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) {
   if (!g || g->size == 0 || !sequence || length == 0) return false;
   bool valid = true;
@@ -884,12 +885,10 @@ bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) 
 }
 
 bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length) {
-  if (!g) return false;
+  if (!g || g->size == 0 || !sequence || length == 0 || !isDirectedCycle(g, sequence, length)) return false;
   bool *visited = calloc(g->size, sizeof(bool));
-  if (g->size > 0 && !visited) return false;
-  bool valid = isDirectedCycle(g, sequence, length);
-  for (unsigned i = 0; i < length && valid; i++)
-    valid = valid && sequence[i] < g->size;
+  if (!visited) return false;
+  bool valid = true;
   for (unsigned i = 0; i < length && valid; i++) {
     valid = valid && !visited[sequence[i]];
     visited[sequence[i]] = true;
