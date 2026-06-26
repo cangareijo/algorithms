@@ -91,9 +91,9 @@ bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned lengt
 bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n);
-bool isSubGraph(const Graph *subgraph, const Graph *g);
-bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *g);
-bool isSpanningDirectedTree(const Graph *subgraph, const Graph *g);
+bool isSubGraph(const Graph *g1, const Graph *g2);
+bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
+bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
 
 bool *graphCenter(const Graph *g);
 bool *graphPeriphery(const Graph *g);
@@ -195,21 +195,21 @@ unsigned *shortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length)
 
 unsigned **allPairsShortestPathsUnweighted(const Graph *g);
 
-double sumWeights(const Graph *graph);
-double graphRadius(const Graph *graph);
-double graphDiameter(const Graph *graph);
-double graphDensity(const Graph *graph);
-double averageClusteringCoefficient(const Graph *graph);
-double graphGirth(const Graph *graph);
-double minimumEdgeWeight(const Graph *graph);
-double maximumEdgeWeight(const Graph *graph);
-double graphEccentricity(const Graph *graph, unsigned vertex);
-double normalizedDegree(const Graph *graph, unsigned vertex);
-double localClusteringCoefficient(const Graph *graph, unsigned vertex);
-double edgeWeight(const Graph *graph, unsigned u, unsigned v);
+double sumWeights(const Graph *g);
+double graphRadius(const Graph *g);
+double graphDiameter(const Graph *g);
+double graphDensity(const Graph *g);
+double averageClusteringCoefficient(const Graph *g);
+double graphGirth(const Graph *g);
+double minimumEdgeWeight(const Graph *g);
+double maximumEdgeWeight(const Graph *g);
+double graphEccentricity(const Graph *g, unsigned v);
+double normalizedDegree(const Graph *g, unsigned v);
+double localClusteringCoefficient(const Graph *g, unsigned v);
+double edgeWeight(const Graph *g, unsigned u, unsigned v);
 double maxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
-double subgraphDensity(const Graph *graph, const bool *subset);
-double pathWeight(const Graph *graph, const unsigned *path, unsigned length);
+double subgraphDensity(const Graph *g, const bool *set);
+double pathWeight(const Graph *g, const unsigned *path, unsigned length);
 
 double *closenessCentrality(const Graph *graph);
 double *bellmanFord(const Graph *graph, unsigned source);
@@ -954,12 +954,9 @@ bool isSubGraph(const Graph *g1, const Graph *g2) {
   return true;
 }
 
-bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *graph) {
-  return subgraph->size == graph->size &&
-    subgraph->size > 0 &&
-    isSubGraph(subgraph, graph) &&
-    countEdges(subgraph) == 2 * (subgraph->size - 1) &&
-    isConnectedUndirected(subgraph);
+bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == 2 * (g1->size - 1) &&
+    !hasSelfLoops(g1) && !isMultiGraph(g1) && isConnectedUndirected(g1) && isSubGraph(g1, g2);
 }
 
 bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph) {
