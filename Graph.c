@@ -959,29 +959,27 @@ bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
     !hasSelfLoops(g1) && !isMultiGraph(g1) && isConnectedUndirected(g1) && isSubGraph(g1, g2);
 }
 
-bool isSpanningDirectedTree(const Graph *subgraph, const Graph *graph) {
-  return subgraph->size == graph->size &&
-    subgraph->size > 0 &&
-    isSubGraph(subgraph, graph) &&
-    countEdges(subgraph) == subgraph->size - 1 &&
-    isWeaklyConnected(subgraph);
+bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == g1->size - 1 &&
+    !hasSelfLoops(g1) && !isMultiGraph(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
 
 
-bool *graphCenter(const Graph *graph) {
-  double *eccentricity = malloc(graph->size * sizeof(double));
+[[nodiscard]] bool *graphCenter(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  double eccentricity[g->size];
   double radius = INFINITY;
-  for (unsigned v = 0; v < graph->size; v++) {
-    eccentricity[v] = graphEccentricity(graph, v);
-    if (eccentricity[v] < radius)
-      radius = eccentricity[v];
+  for (unsigned v = 0; v < g->size; v++) {
+    eccentricity[v] = graphEccentricity(g, v);
+    if (eccentricity[v] < radius) radius = eccentricity[v];
   }
-  bool *center = calloc(graph->size, sizeof(bool));
-  for (unsigned v = 0; v < graph->size; v++)
+  if (radius == INFINITY) return nullptr;
+  bool *center = calloc(g->size, sizeof(bool));
+  if (!center) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
     if (eccentricity[v] == radius)
       center[v] = true;
-  free(eccentricity);
   return center;
 }
 
@@ -1088,7 +1086,7 @@ bool *findMaximumClique(const Graph *g) {
 bool *findIsolated(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   bool *isolated = malloc(g->size * sizeof(bool));
-  if (!isolated) return nullptr; 
+  if (!isolated) return nullptr;
   for (unsigned v = 0; v < g->size; v++) isolated[v] = !g->edges[v];
   for (unsigned v = 0; v < g->size; v++)
     for (Edge* e = g->edges[v]; e; e = e->next)
@@ -1927,11 +1925,11 @@ unsigned neighborhoodSize(const Graph *g, unsigned v, unsigned k) {
     free(distance); free(queue);
     return 0;
   }
-  for (unsigned i = 0; i < g->size; i++) distance[i] = UINT_MAX; 
+  for (unsigned i = 0; i < g->size; i++) distance[i] = UINT_MAX;
   distance[v] = 0;
   unsigned front = 0, rear = 0;
   queue[rear++] = v;
-  unsigned n = 1; 
+  unsigned n = 1;
   while (front < rear) {
     v = queue[front++];
     if (distance[v] >= k) break;
