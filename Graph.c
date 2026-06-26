@@ -928,7 +928,7 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
 }
 
 bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n) {
-  if (!g || 2 * n != g->size) return false;
+  if (!g || (!pairs && n > 0) || 2 * n != g->size) return false;
   bool *matched = calloc(g->size, sizeof(bool));
   if (!matched) return false;
   for (unsigned i = 0; i < n; i++) {
@@ -945,23 +945,13 @@ bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n) {
   return true;
 }
 
-bool isSubGraph(const Graph *subgraph, const Graph *graph) {
-  bool b = subgraph->size <= graph->size;
-  bool *edges = calloc(graph->size, sizeof(bool));
-  double *weights = malloc(graph->size * sizeof(double));
-  for (unsigned v = 0; v < subgraph->size && b; v++) {
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      edges[e->destination] = true;
-      weights[e->destination] = e->weight;
-    }
-    for (Edge *e = subgraph->edges[v]; e != nullptr && b; e = e->next)
-      b = b && edges[e->destination] && e->weight == weights[e->destination];
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      edges[e->destination] = false;
-  }
-  free(weights);
-  free(edges);
-  return b;
+bool isSubGraph(const Graph *g1, const Graph *g2) {
+  if (!isValid(g1) || !isValid(g2) || g1->size > g2->size) return false;
+  for (unsigned v = 0; v < g1->size; v++)
+    for (Edge *e = g1->edges[v]; e; e = e->next)
+      if (countMatchingWeightedEdges(g1, v, e->destination, e->weight) > countMatchingWeightedEdges(g2, v, e->destination, e->weight))
+        return false;
+  return true;
 }
 
 bool isSpanningUndirectedTree(const Graph *subgraph, const Graph *graph) {
