@@ -1,3 +1,5 @@
+// This code is written in C23.
+
 #include <assert.h>
 #include <float.h>
 #include <limits.h>
@@ -92,8 +94,8 @@ bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length
 bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n);
 bool isSubGraph(const Graph *g1, const Graph *g2);
-bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
+bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
 
 bool *graphCenter(const Graph *g);
 bool *graphPeriphery(const Graph *g);
@@ -954,45 +956,66 @@ bool isSubGraph(const Graph *g1, const Graph *g2) {
   return true;
 }
 
+// If countEdges(g) == g->size - 1 && isWeaklyConnected(g), then !hasSelfLoops(g1) && !isMultiGraph(g1)
+bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == g1->size - 1 &&
+    isWeaklyConnected(g1) && isSubGraph(g1, g2);
+}
+
+// If countEdges(g) == 2 * (g1->size - 1) && isConnectedUndirected(g) && isUndirected(g), then !hasSelfLoops(g) && !isMultiGraph(g)
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
   return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == 2 * (g1->size - 1) &&
     !hasSelfLoops(g1) && !isMultiGraph(g1) && isConnectedUndirected(g1) && isSubGraph(g1, g2);
-}
-
-bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == g1->size - 1 &&
-    !hasSelfLoops(g1) && !isMultiGraph(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
 
 
 [[nodiscard]] bool *graphCenter(const Graph *g) {
   if (!g || g->size == 0) return nullptr;
-  double eccentricity[g->size];
+  double *eccentricity = malloc(g->size * sizeof(double));
+  bool *center = calloc(g->size, sizeof(bool));
+  if (!eccentricity || !center) {
+    free(eccentricity);
+    free(center);
+    return nullptr;
+  }
   double radius = INFINITY;
   for (unsigned v = 0; v < g->size; v++) {
     eccentricity[v] = graphEccentricity(g, v);
     if (eccentricity[v] < radius) radius = eccentricity[v];
   }
-  if (radius == INFINITY) return nullptr;
-  bool *center = calloc(g->size, sizeof(bool));
-  if (!center) return nullptr;
+  if (radius == INFINITY) {
+    free(eccentricity);
+    free(center);
+    return nullptr;
+  }
   for (unsigned v = 0; v < g->size; v++)
     if (eccentricity[v] == radius)
       center[v] = true;
+  free(eccentricity);
   return center;
 }
 
-bool *graphPeriphery(const Graph *graph) {
-  double *eccentricity = malloc(graph->size * sizeof(double));
-  double diameter = -INFINITY;
-  for (unsigned v = 0; v < graph->size; v++) {
-    eccentricity[v] = graphEccentricity(graph, v);
-    if (eccentricity[v] > diameter)
-      diameter = eccentricity[v];
+[[nodiscard]] bool *graphPeriphery(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  double *eccentricity = malloc(g->size * sizeof(double));
+  bool *periphery = calloc(g->size, sizeof(bool));
+  if (!eccentricity || !periphery) {
+    free(eccentricity);
+    free(periphery);
+    return nullptr;
   }
-  bool *periphery = calloc(graph->size, sizeof(bool));
-  for (unsigned v = 0; v < graph->size; v++)
+  double diameter = -INFINITY;
+  for (unsigned v = 0; v < g->size; v++) {
+    eccentricity[v] = graphEccentricity(g, v);
+    if (eccentricity[v] != INFINITY && eccentricity[v] > diameter) diameter = eccentricity[v];
+  }
+  if (diameter == -INFINITY) {
+    free(eccentricity);
+    free(periphery);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++)
     if (eccentricity[v] == diameter)
       periphery[v] = true;
   free(eccentricity);
@@ -2613,12 +2636,14 @@ double maximumEdgeWeight(const Graph *graph) {
   return maximum;
 }
 
-double graphEccentricity(const Graph *graph, unsigned vertex) {
-  double *distance = weightedDijkstra(graph, vertex);
-  double eccentricity = -INFINITY;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (distance[v] > eccentricity)
-      eccentricity = distance[v];
+double graphEccentricity(const Graph *g, unsigned v) {
+  if (!g || v >= g->size) return INFINITY;
+  double *distance = weightedDijkstra(g, v);
+  if (!distance) return INFINITY;
+  double eccentricity = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    if (distance[u] > eccentricity)
+      eccentricity = distance[u];
   free(distance);
   return eccentricity;
 }
@@ -2774,19 +2799,16 @@ double *bellmanFord(const Graph *graph, unsigned source) {
   return distance;
 }
 
-double *weightedDijkstra(const Graph *g, unsigned v) {
-  if (!isValid(g) || v >= g->size) return nullptr;
+[[nodiscard]] double *weightedDijkstra(const Graph *g, unsigned v) {
+  if (!isValid(g) || hasNegativeWeights(g) || v >= g->size) return nullptr;
   double *distances = malloc(g->size * sizeof(double));
-  bool *visited = malloc(g->size * sizeof(bool));
+  bool *visited = calloc(g->size, sizeof(bool));
   if (!distances || !visited) {
     free(distances);
     free(visited);
     return nullptr;
   }
-  for (unsigned u = 0; u < g->size; u++) {
-    distances[u] = INFINITY;
-    visited[u] = false;
-  }
+  for (unsigned u = 0; u < g->size; u++) distances[u] = INFINITY;
   distances[v] = 0;
   for (;;) {
     visited[v] = true;
