@@ -6,9 +6,10 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-unsigned minimumUnsigned(unsigned a, unsigned b);
-unsigned maximumUnsigned(unsigned a, unsigned b);
+static inline unsigned minimumUnsigned(unsigned a, unsigned b);
+static inline unsigned maximumUnsigned(unsigned a, unsigned b);
 
 void freeMatrix(double **matrix, unsigned n);
 
@@ -257,7 +258,7 @@ void freeMatrix(double **matrix, unsigned n) {
 bool isValid(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return false;
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination >= g->size)
         return false;
   return true;
@@ -1022,48 +1023,37 @@ bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
   return periphery;
 }
 
-void recursivelyFindArticulationPoints(
-  const Graph *graph,
-  unsigned vertex,
-  bool *visited,
-  unsigned *discovery,
-  unsigned *low,
-  unsigned *parent,
-  bool *articulations,
-  unsigned *timer)
+static void findArticulationPointsDfs(
+  const Graph *g, unsigned u, unsigned parent, unsigned *timer, unsigned *discovery, unsigned *low, bool *articulations)
 {
+  discovery[u] = low[u] = ++(*timer);
   unsigned children = 0;
-  visited[vertex] = true;
-  discovery[vertex] = low[vertex] = ++(*timer);
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-    if (!visited[e->destination]) {
+  for (const Edge *e = g->edges[u]; e; e = e->next) {
+    if (e->destination == parent) continue;
+    if (discovery[e->destination] > 0) {
+      low[u] = minimumUnsigned(low[u], discovery[e->destination]);
+    } else {
       children++;
-      parent[e->destination] = vertex;
-      recursivelyFindArticulationPoints(graph, e->destination, visited, discovery, low, parent, articulations, timer);
-      low[vertex] = minimumUnsigned(low[vertex], low[e->destination]);
-      if ((parent[vertex] == UINT_MAX && children >= 2) || (parent[vertex] != UINT_MAX && low[e->destination] >= discovery[vertex]))
-        articulations[vertex] = true;
-    } else if (e->destination != parent[vertex]) {
-      low[vertex] = minimumUnsigned(low[vertex], discovery[e->destination]);
+      findArticulationPointsDfs(g, e->destination, u, timer, discovery, low, articulations);
+      low[u] = minimumUnsigned(low[u], low[e->destination]);
+      if (parent != u && low[e->destination] >= discovery[u]) articulations[u] = true;
     }
+  }
+  if (parent == u && children > 1) articulations[u] = true;
 }
 
-bool *findArticulationPoints(const Graph *graph) {
-  bool *visited = calloc(graph->size, sizeof(bool));
-  unsigned *discovery = calloc(graph->size, sizeof(unsigned));
-  unsigned *low = calloc(graph->size, sizeof(unsigned));
-  unsigned *parent = malloc(graph->size * sizeof(unsigned));
-  bool *articulations = calloc(graph->size, sizeof(bool));
+bool *findArticulationPoints(const Graph *g) {
+  if (!isValid(g) || g->size == 0) return nullptr;
+  bool *articulations = calloc(g->size, sizeof(bool));
+  if (!articulations) return nullptr;
+  unsigned discovery[g->size];
+  unsigned low[g->size];
+  memset(discovery, 0, sizeof(discovery));
+  memset(low, 0, sizeof(low));
   unsigned timer = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    parent[v] = UINT_MAX;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (!visited[v])
-      recursivelyFindArticulationPoints(graph, v, visited, discovery, low, parent, articulations, &timer);
-  free(visited);
-  free(discovery);
-  free(low);
-  free(parent);
+  for (unsigned v = 0; v < g->size; v++)
+    if (discovery[v] == 0)
+      findArticulationPointsDfs(g, v, v, &timer, discovery, low, articulations);
   return articulations;
 }
 
