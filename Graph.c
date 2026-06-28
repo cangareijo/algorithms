@@ -109,12 +109,12 @@ bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 
 Graph *createGraph(unsigned n);
-Graph *createPathGraph(unsigned n);
-Graph *createCycleGraph(unsigned n);
-Graph *createCompleteGraph(unsigned n);
-Graph *createStarGraph(unsigned n);
-Graph *createWheelGraph(unsigned n);
-Graph *generateRandomGraph(unsigned n, double p, bool directed, bool weighted);
+Graph *createPath(unsigned n);
+Graph *createCycle(unsigned n);
+Graph *createStar(unsigned n);
+Graph *createWheel(unsigned n);
+Graph *createComplete(unsigned n);
+Graph *createRandom(unsigned n, double p, bool directed, bool weighted);
 Graph *copyGraph(const Graph *g);
 Graph *copyTranspose(const Graph *g);
 Graph *copyUnweighted(const Graph *g);
@@ -1146,7 +1146,7 @@ bool *findMaximumClique(const Graph *g) {
   if (!g) return nullptr;
   bool *s1 = getNeighbors(g, u);
   bool *s2 = getNeighbors(g, v);
-  if (!s1 || !s2) {
+  if (g->size > 0 && (!s1 || !s2)) {
     free(s1); free(s2);
     return nullptr;
   }
@@ -1158,67 +1158,64 @@ bool *findMaximumClique(const Graph *g) {
 
 
 
-Graph *createGraph(unsigned n) {
+[[nodiscard]] Graph *createGraph(unsigned n) {
   Graph *g = malloc(sizeof(Graph));
-  if (!g) return nullptr;
-  g->size = n;
-  g->edges = calloc(n, sizeof(Edge *));
-  if (!g->edges) {
+  Edge **edges = calloc(n, sizeof(Edge *));
+  if (!g || (n > 0 && !edges)) {
     free(g);
+    free(edges);
     return nullptr;
   }
+  g->size = n;
+  g->edges = edges;
   return g;
 }
 
-Graph *createPathGraph(unsigned size) {
-  Graph *g = createGraph(size);
-  for (unsigned v = 1; v < size; v++)
-    addUndirectedEdge(g, v - 1, v, 1);
+[[nodiscard]] Graph *createPath(unsigned n) {
+  Graph *g = createGraph(n);
+  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, v - 1, v, 1);
   return g;
 }
 
-Graph *createCycleGraph(unsigned size) {
-  Graph *g = createGraph(size);
-  for (unsigned v = 0; v < size; v++)
-    addUndirectedEdge(g, v, (v + 1) % size, 1);
+[[nodiscard]] Graph *createCycle(unsigned n) {
+  Graph *g = createGraph(n);
+  for (unsigned v = 0; v < n; v++) addUndirectedEdge(g, v, (v + 1) % n, 1);
   return g;
 }
 
-Graph *createCompleteGraph(unsigned size) {
-  Graph *g = createGraph(size);
-  for (unsigned u = 0; u < size; u++)
-    for (unsigned v = 0; v < size; v++)
+[[nodiscard]] Graph *createStar(unsigned n) {
+  Graph *g = createGraph(n);
+  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v, 1);
+  return g;
+}
+
+[[nodiscard]] Graph *createWheel(unsigned n) {
+  Graph *g = createGraph(n);
+  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v, 1);
+  for (unsigned v = 2; v < n; v++) addUndirectedEdge(g, v - 1, v, 1);
+  addUndirectedEdge(g, n - 1, 1, 1);
+  return g;
+}
+
+[[nodiscard]] Graph *createComplete(unsigned n) {
+  Graph *g = createGraph(n);
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = 0; v < n; v++)
       if (u != v)
         addDirectedEdge(g, u, v, 1);
   return g;
 }
 
-Graph *createStarGraph(unsigned size) {
-  Graph *g = createGraph(size);
-  for (unsigned v = 1; v < size; v++) addUndirectedEdge(g, 0, v, 1);
-  return g;
-}
-
-Graph *createWheelGraph(unsigned size) {
-  Graph *g = createGraph(size);
-  for (unsigned v = 1; v < size; v++) addUndirectedEdge(g, 0, v, 1);
-  for (unsigned v = 2; v < size; v++) addUndirectedEdge(g, v - 1, v, 1);
-  addUndirectedEdge(g, size - 1, 1, 1);
-  return g;
-}
-
-Graph *generateRandomGraph(unsigned n, double p, bool directed, bool weighted) {
+[[nodiscard]] Graph *createRandom(unsigned n, double p, bool directed, bool weighted) {
   if (p < 0 || p > 1) return nullptr;
   Graph *g = createGraph(n);
-  if (!g) return nullptr;
   for (unsigned u = 0; u < n; u++)
-    for (unsigned v = directed ? 0 : u + 1; v < n; v++) {
-      if (u == v) continue;
-      if ((double)rand() / RAND_MAX < p) {
-        double weight = weighted ? 1 + ((double)rand() / RAND_MAX) * 9 : 1;
-        if (directed) addDirectedEdge(g, u, v, weight); else addUndirectedEdge(g, u, v, weight);
-      }
-    }
+    for (unsigned v = directed ? 0 : u + 1; v < n; v++)
+      if (u != v)
+        if ((double)rand() / RAND_MAX < p) {
+          double weight = weighted ? 1 + ((double)rand() / RAND_MAX) * 9 : 1;
+          if (directed) addDirectedEdge(g, u, v, weight); else addUndirectedEdge(g, u, v, weight);
+        }
   return g;
 }
 
