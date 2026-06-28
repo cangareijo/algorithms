@@ -1212,8 +1212,8 @@ bool *findMaximumClique(const Graph *g) {
   for (unsigned u = 0; u < n; u++)
     for (unsigned v = directed ? 0 : u + 1; v < n; v++)
       if (u != v)
-        if ((double)rand() / RAND_MAX < p) {
-          double weight = weighted ? 1 + ((double)rand() / RAND_MAX) * 9 : 1;
+        if (rand() / ((double)RAND_MAX + 1) < p) {
+          double weight = weighted ? 1 + (rand() / ((double)RAND_MAX + 1)) * 9 : 1;
           if (directed) addDirectedEdge(g, u, v, weight); else addUndirectedEdge(g, u, v, weight);
         }
   return g;
