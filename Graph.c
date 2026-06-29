@@ -115,11 +115,11 @@ Graph *createStar(unsigned n);
 Graph *createWheel(unsigned n);
 Graph *createComplete(unsigned n);
 Graph *createRandom(unsigned n, double p, bool directed, bool weighted);
-Graph *copyGraph(const Graph *g);
-Graph *copyTranspose(const Graph *g);
-Graph *copyUnweighted(const Graph *g);
-Graph *copyUndirected(const Graph *g);
-Graph *copyComplement(const Graph *g);
+Graph *createCopy(const Graph *g);
+Graph *createTranspose(const Graph *g);
+Graph *createUnweighted(const Graph *g);
+Graph *createUndirected(const Graph *g);
+Graph *createComplement(const Graph *g);
 Graph *lineGraph(const Graph *g);
 Graph *underlyingGraph(const Graph *g);
 Graph *kruskal(const Graph *g);
@@ -338,7 +338,7 @@ bool isConnectedUndirected(const Graph *g) {
 
 bool isWeaklyConnected(const Graph *g) {
   if (getSize(g) < 2) return true;
-  Graph *g2 = copyUndirected(g);
+  Graph *g2 = createUndirected(g);
   bool reachable = canReachAll(g2, 0);
   destroyGraph(g2);
   return reachable;
@@ -346,7 +346,7 @@ bool isWeaklyConnected(const Graph *g) {
 
 bool isStronglyConnected(const Graph *g) {
   if (getSize(g) < 2) return true;
-  Graph *g2 = copyTranspose(g);
+  Graph *g2 = createTranspose(g);
   bool reachable = canReachAll(g, 0) && canReachAll(g2, 0);
   destroyGraph(g2);
   return reachable;
@@ -732,7 +732,7 @@ bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
 }
 
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
-  Graph *g2 = copyGraph(g);
+  Graph *g2 = createCopy(g);
   removeFirstDirectedEdge(g2, u, v);
   unsigned n = countComponents(g2);
   destroyGraph(g2);
@@ -740,7 +740,7 @@ bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
 }
 
 bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
-  Graph *g2 = copyGraph(g);
+  Graph *g2 = createCopy(g);
   removeFirstUndirectedEdge(g2, u, v);
   unsigned n = countComponents(g2);
   destroyGraph(g2);
@@ -855,7 +855,7 @@ bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length
 }
 
 bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) {
-  Graph *g2 = copyGraph(g);
+  Graph *g2 = createCopy(g);
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (hasDirectedEdge(g2, sequence[i - 1], sequence[i]))
@@ -867,7 +867,7 @@ bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) 
 }
 
 bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) {
-  Graph *copy = copyGraph(g);
+  Graph *copy = createCopy(g);
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (hasUndirectedEdge(copy, sequence[i - 1], sequence[i]))
@@ -907,7 +907,7 @@ bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned lengt
 bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length) {
   if (!sequence || length == 0) return false;
   bool valid = true;
-  Graph *copy = copyGraph(g);
+  Graph *copy = createCopy(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (hasDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
       removeFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
@@ -920,7 +920,7 @@ bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length
 bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length) {
   if (!sequence || length == 0) return false;
   bool valid = true;
-  Graph *copy = copyGraph(g);
+  Graph *copy = createCopy(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (hasUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
       removeFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
@@ -1219,71 +1219,75 @@ bool *findMaximumClique(const Graph *g) {
   return g;
 }
 
-Graph *copyGraph(const Graph *g) {
+[[nodiscard]] Graph *createCopy(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   Graph *g2 = createGraph(g->size);
-  if (!g2) return nullptr;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       addDirectedEdge(g2, v, e->destination, e->weight);
   return g2;
 }
 
-Graph *copyTranspose(const Graph *graph) {
-  Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      addDirectedEdge(g, e->destination, v, e->weight);
-  return g;
+[[nodiscard]] Graph *createTranspose(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      addDirectedEdge(g2, e->destination, v, e->weight);
+  return g2;
 }
 
-Graph *copyUnweighted(const Graph *graph) {
-  Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      addDirectedEdge(g, v, e->destination, 1);
-  return g;
+[[nodiscard]] Graph *createUnweighted(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      addDirectedEdge(g2, v, e->destination, 1);
+  return g2;
 }
 
-Graph *copyUndirected(const Graph *graph) {
-  Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      addUndirectedEdge(g, v, e->destination, e->weight);
-  return g;
+[[nodiscard]] Graph *createUndirected(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      addUndirectedEdge(g2, v, e->destination, e->weight);
+  return g2;
 }
 
-Graph *copyComplement(const Graph *graph) {
-  Graph *g = createGraph(graph->size);
-  for (unsigned u = 0; u < graph->size; u++)
-    for (unsigned v = 0; v < graph->size; v++)
-      if (u != v && !hasDirectedEdge(graph, u, v))
-        addDirectedEdge(g, u, v, 1);
-  return g;
+[[nodiscard]] Graph *createComplement(const Graph *g) {
+  if (!g) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && !hasDirectedEdge(g, u, v))
+        addDirectedEdge(g2, u, v, 1);
+  return g2;
 }
 
-Graph *lineGraph(const Graph *graph) {
+[[nodiscard]] Graph *lineGraph(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (v <= e->destination)
         n++;
-  Graph *g = createGraph(n);
+  Graph *g2 = createGraph(n);
   unsigned i = 0;
-  for (unsigned u = 0; u < graph->size; u++)
-    for (Edge *d = graph->edges[u]; d != nullptr; d = d->next)
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *d = g->edges[u]; d; d = d->next)
       if (u <= d->destination) {
         unsigned j = 0;
-        for (unsigned v = 0; v < graph->size; v++)
-          for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+        for (unsigned v = 0; v < g->size; v++)
+          for (Edge *e = g->edges[v]; e; e = e->next)
             if (v <= e->destination) {
               if (i < j && (u == v || u == e->destination || d->destination == v || d->destination == e->destination))
-                addUndirectedEdge(g, i, j, 1);
+                addUndirectedEdge(g2, i, j, 1);
               j++;
             }
         i++;
       }
-  return g;
+  return g2;
 }
 
 Graph *underlyingGraph(const Graph *graph) {
