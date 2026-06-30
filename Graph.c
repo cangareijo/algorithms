@@ -120,7 +120,8 @@ Graph *createTranspose(const Graph *g);
 Graph *createUnweighted(const Graph *g);
 Graph *createUndirected(const Graph *g);
 Graph *createComplement(const Graph *g);
-Graph *lineGraph(const Graph *g);
+Graph *createDirectedLine(const Graph *g);
+Graph *createUndirectedLine(const Graph *g);
 Graph *underlyingGraph(const Graph *g);
 Graph *kruskal(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
@@ -1265,28 +1266,49 @@ bool *findMaximumClique(const Graph *g) {
   return g2;
 }
 
-[[nodiscard]] Graph *lineGraph(const Graph *g) {
+[[nodiscard]] Graph *createDirectedLine(const Graph *g) {
   if (!g || !g->edges) return nullptr;
-  unsigned n = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (v <= e->destination)
-        n++;
-  Graph *g2 = createGraph(n);
+  Graph *g2 = createGraph(countEdges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++)
-    for (Edge *d = g->edges[u]; d; d = d->next)
-      if (u <= d->destination) {
+    for (Edge *d = g->edges[u]; d; d = d->next) {
+      unsigned j = 0;
+      for (unsigned v = 0; v < g->size; v++)
+        for (Edge *e = g->edges[v]; e; e = e->next) {
+          if (d->destination == v)
+            addDirectedEdge(g2, i, j, 1);
+          j++;
+        }
+      i++;
+    }
+  return g2;
+}
+
+[[nodiscard]] Graph *createUndirectedLine(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createGraph(countEdges(g) / 2);
+  unsigned i = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned uSelf = 0; 
+    for (Edge *d = g->edges[u]; d; d = d->next) {
+      if (u < d->destination || (u == d->destination && uSelf % 2 == 0)) {
         unsigned j = 0;
-        for (unsigned v = 0; v < g->size; v++)
-          for (Edge *e = g->edges[v]; e; e = e->next)
-            if (v <= e->destination) {
+        for (unsigned v = 0; v < g->size; v++) {
+          unsigned vSelf = 0;
+          for (Edge *e = g->edges[v]; e; e = e->next) {
+            if (v < e->destination || (v == e->destination && vSelf % 2 == 0)) {
               if (i < j && (u == v || u == e->destination || d->destination == v || d->destination == e->destination))
                 addUndirectedEdge(g2, i, j, 1);
               j++;
             }
+            if (v == e->destination) vSelf++;
+          }
+        }
         i++;
       }
+      if (u == d->destination) uSelf++;
+    }
+  }
   return g2;
 }
 
