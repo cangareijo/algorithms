@@ -123,7 +123,7 @@ Graph *createComplement(const Graph *g);
 Graph *createDirectedLine(const Graph *g);
 Graph *createUndirectedLine(const Graph *g);
 Graph *underlyingGraph(const Graph *g);
-Graph *kruskal(const Graph *g);
+Graph *createKruskal(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
@@ -215,12 +215,12 @@ double maxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
 double subgraphDensity(const Graph *g, const bool *set);
 double pathWeight(const Graph *g, const unsigned *path, unsigned length);
 
-double *closenessCentrality(const Graph *graph);
-double *bellmanFord(const Graph *graph, unsigned source);
+double *closenessCentrality(const Graph *g);
+double *bellmanFord(const Graph *g, unsigned v);
 double *weightedDijkstra(const Graph *g, unsigned v);
 
-double **toMatrix(const Graph *graph);
-double **floydWarshall(const Graph *graph);
+double **toMatrix(const Graph *g);
+double **floydWarshall(const Graph *g);
 double **forceDirectedLayout(const Graph *g, unsigned iterations);
 
 void testHasDirectedCycle();
@@ -1299,6 +1299,8 @@ bool *findMaximumClique(const Graph *g) {
             if (v < e->destination || (v == e->destination && vSelf % 2 == 0)) {
               if (i < j && (u == v || u == e->destination || d->destination == v || d->destination == e->destination))
                 addUndirectedEdge(g2, i, j, 1);
+              if (i == j && (u == e->destination || d->destination == v))
+                addUndirectedEdge(g2, i, j, 1);
               j++;
             }
             if (v == e->destination) vSelf++;
@@ -1312,21 +1314,22 @@ bool *findMaximumClique(const Graph *g) {
   return g2;
 }
 
-Graph *underlyingGraph(const Graph *graph) {
-  Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      if (v != e->destination && !hasUndirectedEdge(g, v, e->destination))
-        addUndirectedEdge(g, v, e->destination, 1);
-  return g;
+[[nodiscard]] Graph *underlyingGraph(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (v != e->destination && !hasUndirectedEdge(g2, v, e->destination))
+        addUndirectedEdge(g2, v, e->destination, 1);
+  return g2;
 }
 
-Graph *kruskal(const Graph *g) {
+[[nodiscard]] Graph *createKruskal(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  unsigned n = countEdges(g);
   Graph *mst = createGraph(g->size);
-  unsigned total = countEdges(g);
-  bool *used = calloc(total, sizeof(bool));
-  if (!mst || (total > 0 && !used)) {
+  bool *used = calloc(n, sizeof(bool));
+  if (!mst || (n > 0 && !used)) {
     destroyGraph(mst);
     free(used);
     return nullptr;
@@ -1351,16 +1354,6 @@ Graph *kruskal(const Graph *g) {
       }
     if (minimumIndex == UINT_MAX) break;
     used[minimumIndex] = true;
-    i = 0;
-    for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next) {
-        if (!used[i] && v == minimumV && e->destination == minimumU && e->weight == minimumWeight) {
-          used[i] = true;
-          v = g->size - 1;
-          break;
-        }
-        i++;
-      }
     if (!hasPath(mst, minimumU, minimumV)) {
       addUndirectedEdge(mst, minimumU, minimumV, minimumWeight);
       added++;
@@ -3443,7 +3436,7 @@ void testKruskal() {
   addUndirectedEdge(g, 3, 2, 4);
   addUndirectedEdge(g, 2, 0, 6);
   addUndirectedEdge(g, 0, 3, 5);
-  Graph *mst = kruskal(g);
+  Graph *mst = createKruskal(g);
   double weight = sumWeights(mst) / 2;
   assert(countEdges(mst) == 6);
   assert(weight == 19);
