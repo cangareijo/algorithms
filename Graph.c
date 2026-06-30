@@ -1267,7 +1267,7 @@ bool *findMaximumClique(const Graph *g) {
 }
 
 [[nodiscard]] Graph *createDirectedLine(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(countEdges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++)
@@ -1285,7 +1285,7 @@ bool *findMaximumClique(const Graph *g) {
 }
 
 [[nodiscard]] Graph *createUndirectedLine(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(countEdges(g) / 2);
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++) {
@@ -1315,7 +1315,7 @@ bool *findMaximumClique(const Graph *g) {
 }
 
 [[nodiscard]] Graph *underlyingGraph(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
@@ -1326,45 +1326,25 @@ bool *findMaximumClique(const Graph *g) {
 
 [[nodiscard]] Graph *createKruskal(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  unsigned n = countEdges(g);
   Graph *mst = createGraph(g->size);
-  bool *used = calloc(n, sizeof(bool));
-  if (!mst || (n > 0 && !used)) {
-    destroyGraph(mst);
-    free(used);
-    return nullptr;
-  }
-  unsigned added = 0;
-  unsigned target = g->size - 1;
-  while (added < target) {
+  while (true) {
+    unsigned minimumU, minimumV;
     double minimumWeight = DBL_MAX;
-    unsigned minimumU = 0;
-    unsigned minimumV = 0;
-    unsigned minimumIndex = UINT_MAX;
-    unsigned i = 0;
     for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next) {
-        if (!used[i] && e->weight < minimumWeight) {
-          minimumWeight = e->weight;
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->weight < minimumWeight && !hasPath(mst, v, e->destination)) {
           minimumU = v;
           minimumV = e->destination;
-          minimumIndex = i;
+          minimumWeight = e->weight;
         }
-        i++;
-      }
-    if (minimumIndex == UINT_MAX) break;
-    used[minimumIndex] = true;
-    if (!hasPath(mst, minimumU, minimumV)) {
-      addUndirectedEdge(mst, minimumU, minimumV, minimumWeight);
-      added++;
-    }
+    if (minimumWeight == DBL_MAX) break;
+    addUndirectedEdge(mst, minimumU, minimumV, minimumWeight);
   }
-  free(used);
   return mst;
 }
 
-Graph *createDirectedSubdivision(const Graph *g) {
-  if (!g) return nullptr;
+[[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(g->size + countEdges(g));
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
@@ -1376,8 +1356,8 @@ Graph *createDirectedSubdivision(const Graph *g) {
   return g2;
 }
 
-Graph *createUndirectedSubdivision(const Graph *g) {
-  if (!g) return nullptr;
+[[nodiscard]] Graph *createUndirectedSubdivision(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(g->size + countEdges(g) / 2);
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
