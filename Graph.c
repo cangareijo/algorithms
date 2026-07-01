@@ -1360,39 +1360,31 @@ bool *findMaximumClique(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(g->size + countEdges(g) / 2);
   unsigned u = g->size;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (v < e->destination) {
+  for (unsigned v = 0; v < g->size; v++) {
+    unsigned self = 0;
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      if (v < e->destination || (v == e->destination && self % 2 == 0)) {
         addUndirectedEdge(g2, v, u, e->weight);
         addUndirectedEdge(g2, u, e->destination, e->weight);
         u++;
       }
+      if (v == e->destination) self++;
+    }
+  }
   return g2;
 }
 
-Graph *createTransitiveClosure(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
-  bool *visited = malloc(g->size * sizeof(bool));
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  if (!visited || !queue) {
-    free(visited); free(queue);
-    return nullptr;
-  }
+[[nodiscard]] Graph *createTransitiveClosure(const Graph *g) {
+  if (!g) return nullptr;
   Graph *closure = createGraph(g->size);
   for (unsigned u = 0; u < g->size; u++) {
-    for (unsigned v = 0; v < g->size; v++) visited[v] = false;
-    visited[u] = true;
-    unsigned head = 0, tail = 0;
-    queue[tail++] = u;
-    while (head < tail)
-      for (Edge *e = g->edges[queue[head++]]; e; e = e->next)
-        if (e->destination < g->size && !visited[e->destination]) {
-          visited[e->destination] = true;
-          addDirectedEdge(closure, u, e->destination, 1);
-          queue[tail++] = e->destination;
-        }
+    bool *reachable = getReachable(g, u);
+    if (!reachable) {destroyGraph(closure); return nullptr;}
+    for (unsigned v = 0; v < g->size; v++)
+      if (v != u && reachable[v])
+        addDirectedEdge(closure, u, v, 1);
+    free(reachable);
   }
-  free(visited); free(queue);
   return closure;
 }
 
