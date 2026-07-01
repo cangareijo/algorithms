@@ -175,7 +175,7 @@ unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned neighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
-unsigned distance(const Graph *g, unsigned u, unsigned v);
+unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x);
 
@@ -187,7 +187,7 @@ unsigned *undirectedColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
 unsigned *topologicalSortOfGraph(const Graph *g);
 unsigned *findBridges(const Graph *g);
-unsigned *unweightedDijkstra(const Graph *g, unsigned v);
+unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getInNeighbors(const Graph *g, unsigned v);
 unsigned *getOutNeighbors(const Graph *g, unsigned v);
 unsigned *preOrderSort(const Graph *g, unsigned v);
@@ -209,13 +209,14 @@ double graphEccentricity(const Graph *g, unsigned v);
 double normalizedDegree(const Graph *g, unsigned v);
 double localClusteringCoefficient(const Graph *g, unsigned v);
 double edgeWeight(const Graph *g, unsigned u, unsigned v);
+double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
 double maxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
 double subgraphDensity(const Graph *g, const bool *set);
 double pathWeight(const Graph *g, const unsigned *path, unsigned length);
 
 double *closenessCentrality(const Graph *g);
 double *bellmanFord(const Graph *g, unsigned v);
-double *weightedDijkstra(const Graph *g, unsigned v);
+double *calculateWeightedDistances(const Graph *g, unsigned v);
 
 double **toMatrix(const Graph *g);
 double **floydWarshall(const Graph *g);
@@ -1387,7 +1388,7 @@ bool *findMaximumClique(const Graph *g) {
   Graph *power = createGraph(g->size);
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
-      if (u != v && distance(g, u, v) <= k)
+      if (u != v && calculateUnweightedDistance(g, u, v) <= k)
         addDirectedEdge(power, u, v, 1);
   return power;
 }
@@ -1844,7 +1845,7 @@ unsigned wienerIndex(const Graph *g) {
   if (!g) return 0;
   unsigned sum = 0;
   for (unsigned u = 0; u < g->size; u++) {
-    unsigned *distances = unweightedDijkstra(g, u);
+    unsigned *distances = calculateUnweightedDistances(g, u);
     if (!distances) continue;
     for (unsigned v = u + 1; v < g->size; v++)
       if (distances[v] != UINT_MAX)
@@ -1969,37 +1970,12 @@ unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target
   return n;
 }
 
-unsigned distance(const Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size) return UINT_MAX;
-  bool *visited = calloc(g->size, sizeof(bool));
-  unsigned *distances = malloc(g->size * sizeof(unsigned));
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  if (!visited || !distances || !queue) {
-    free(visited);
-    free(distances);
-    free(queue);
-    return UINT_MAX;
-  }
-  visited[u] = true;
-  for (unsigned v = 0; v < g->size; v++) distances[v] = UINT_MAX;
-  distances[u] = 0;
-  unsigned head = 0;
-  unsigned tail = 0;
-  queue[tail++] = u;
-  while (head < tail) {
-    unsigned current = queue[head++];
-    if (current == v) break;
-    for (Edge *e = g->edges[current]; e; e = e->next)
-      if (e->destination < g->size && !visited[e->destination]) {
-        visited[e->destination] = true;
-        distances[e->destination] = distances[current] + 1;
-        queue[tail++] = e->destination;
-      }
-  }
+unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v) {
+  if (!g || u >= g->size || v >= g->size) return UINT_MAX;
+  unsigned *distances = calculateUnweightedDistances(g, u);
+  if (!distances) return UINT_MAX;
   unsigned distance = distances[v];
-  free(visited);
   free(distances);
-  free(queue);
   return distance;
 }
 
@@ -2241,7 +2217,7 @@ unsigned *findBridges(const Graph *g) {
   return bridges;
 }
 
-unsigned *unweightedDijkstra(const Graph *g, unsigned v) {
+unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
@@ -2584,7 +2560,7 @@ double maximumEdgeWeight(const Graph *graph) {
 
 double graphEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return INFINITY;
-  double *distance = weightedDijkstra(g, v);
+  double *distance = calculateWeightedDistances(g, v);
   if (!distance) return INFINITY;
   double eccentricity = 0;
   for (unsigned u = 0; u < g->size; u++)
@@ -2618,6 +2594,15 @@ double edgeWeight(const Graph *graph, unsigned u, unsigned v) {
     if (e->destination == v)
       return e->weight;
   return 0;
+}
+
+double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
+  if (!g || u >= g->size || v >= g->size) return INFINITY;
+  double *distances = calculateWeightedDistances(g, u);
+  if (!distances) return INFINITY;
+  double distance = distances[v];
+  free(distances);
+  return distance;
 }
 
 double maxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
@@ -2745,7 +2730,7 @@ double *bellmanFord(const Graph *graph, unsigned source) {
   return distance;
 }
 
-[[nodiscard]] double *weightedDijkstra(const Graph *g, unsigned v) {
+[[nodiscard]] double *calculateWeightedDistances(const Graph *g, unsigned v) {
   if (!isValid(g) || hasNegativeWeights(g) || v >= g->size) return nullptr;
   double *distances = malloc(g->size * sizeof(double));
   bool *visited = calloc(g->size, sizeof(bool));
@@ -3145,14 +3130,14 @@ void testBellmanFord() {
 }
 
 void testUnweightedDijkstra() {
-  printf("Running unweightedDijkstra tests...\n");
+  printf("Running calculateUnweightedDistances tests...\n");
 
   {
     Graph *g = createGraph(3);
     addDirectedEdge(g, 0, 1, 10);
     addDirectedEdge(g, 1, 2, 20);
 
-    unsigned *distances = unweightedDijkstra(g, 0);
+    unsigned *distances = calculateUnweightedDistances(g, 0);
     assert(distances[0] == 0);
     assert(distances[1] == 1);
     assert(distances[2] == 2);
@@ -3168,7 +3153,7 @@ void testUnweightedDijkstra() {
     addDirectedEdge(g, 0, 1, 1);
     addDirectedEdge(g, 1, 2, 1);
 
-    unsigned *distances = unweightedDijkstra(g, 0);
+    unsigned *distances = calculateUnweightedDistances(g, 0);
     assert(distances[2] == 1);
 
     printf("Passed: Shortest hops selection\n");
@@ -3180,7 +3165,7 @@ void testUnweightedDijkstra() {
     Graph *g = createGraph(3);
     addDirectedEdge(g, 0, 1, 1);
 
-    unsigned *distances = unweightedDijkstra(g, 0);
+    unsigned *distances = calculateUnweightedDistances(g, 0);
     assert(distances[0] == 0);
     assert(distances[1] == 1);
     assert(distances[2] == UINT_MAX);
@@ -3196,7 +3181,7 @@ void testUnweightedDijkstra() {
     addDirectedEdge(g, 1, 2, 1);
     addDirectedEdge(g, 2, 0, 1);
 
-    unsigned *distances = unweightedDijkstra(g, 0);
+    unsigned *distances = calculateUnweightedDistances(g, 0);
     assert(distances[0] == 0);
     assert(distances[1] == 1);
     assert(distances[2] == 2);
@@ -3211,7 +3196,7 @@ void testWeightedDijkstra() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 5);
   addDirectedEdge(g1, 1, 2, 10);
-  double *dist1 = weightedDijkstra(g1, 0);
+  double *dist1 = calculateWeightedDistances(g1, 0);
   assert(dist1[0] == 0);
   assert(dist1[1] == 5);
   assert(dist1[2] == 15);
@@ -3223,14 +3208,14 @@ void testWeightedDijkstra() {
   addDirectedEdge(g2, 0, 2, 10);
   addDirectedEdge(g2, 0, 1, 2);
   addDirectedEdge(g2, 1, 2, 3);
-  double *dist2 = weightedDijkstra(g2, 0);
+  double *dist2 = calculateWeightedDistances(g2, 0);
   assert(dist2[2] == 5);
   printf("Dijkstra test 2 passed: Shortest path selection\n");
   destroyGraph(g2);
   free(dist2);
 
   Graph *g3 = createGraph(2);
-  double *dist3 = weightedDijkstra(g3, 0);
+  double *dist3 = calculateWeightedDistances(g3, 0);
   assert(dist3[0] == 0);
   assert(dist3[1] == INFINITY);
   printf("Dijkstra test 3 passed: Unreachable vertex (INFINITY)\n");
@@ -3241,7 +3226,7 @@ void testWeightedDijkstra() {
   addDirectedEdge(g4, 0, 1, 1);
   addDirectedEdge(g4, 1, 2, 1);
   addDirectedEdge(g4, 2, 0, 1);
-  double *dist4 = weightedDijkstra(g4, 0);
+  double *dist4 = calculateWeightedDistances(g4, 0);
   assert(dist4[0] == 0);
   assert(dist4[1] == 1);
   assert(dist4[2] == 2);
