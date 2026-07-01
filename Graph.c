@@ -1,5 +1,3 @@
-// This code is written in C23.
-
 #include <assert.h>
 #include <float.h>
 #include <limits.h>
@@ -122,12 +120,12 @@ Graph *createUndirected(const Graph *g);
 Graph *createComplement(const Graph *g);
 Graph *createDirectedLine(const Graph *g);
 Graph *createUndirectedLine(const Graph *g);
-Graph *underlyingGraph(const Graph *g);
+Graph *createUnderlying(const Graph *g);
 Graph *createKruskal(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
-Graph *graphPower(const Graph *g, unsigned k);
+Graph *createPower(const Graph *g, unsigned k);
 Graph *removeVertex(const Graph *g, unsigned v);
 Graph *prim(const Graph *g, unsigned v);
 Graph *contractVertices(const Graph *g, unsigned u, unsigned v);
@@ -1314,7 +1312,7 @@ bool *findMaximumClique(const Graph *g) {
   return g2;
 }
 
-[[nodiscard]] Graph *underlyingGraph(const Graph *g) {
+[[nodiscard]] Graph *createUnderlying(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(g->size);
   for (unsigned v = 0; v < g->size; v++)
@@ -1377,66 +1375,36 @@ bool *findMaximumClique(const Graph *g) {
 [[nodiscard]] Graph *createTransitiveClosure(const Graph *g) {
   if (!g) return nullptr;
   Graph *closure = createGraph(g->size);
-  for (unsigned u = 0; u < g->size; u++) {
-    bool *reachable = getReachable(g, u);
-    if (!reachable) {destroyGraph(closure); return nullptr;}
+  for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
-      if (v != u && reachable[v])
+      if (u != v && hasPath(g, u, v))
         addDirectedEdge(closure, u, v, 1);
-    free(reachable);
-  }
   return closure;
 }
 
-Graph *graphPower(const Graph *g, unsigned k) {
-  if (g == nullptr) return nullptr;
-  Graph *result = createGraph(g->size);
-  if (result == nullptr) return nullptr;
-  if (k == 0) return result;
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  unsigned *distance = malloc(g->size * sizeof(unsigned));
-  if (queue == nullptr || distance == nullptr) {
-    free(queue);
-    free(distance);
-    destroyGraph(result);
-    return nullptr;
-  }
-  for (unsigned source = 0; source < g->size; source++) {
-    for (unsigned v = 0; v < g->size; v++) distance[v] = UINT_MAX;
-    unsigned head = 0;
-    unsigned tail = 0;
-    distance[source] = 0;
-    queue[tail++] = source;
-    while (head < tail) {
-      unsigned u = queue[head++];
-      if (distance[u] >= k) break;
-      for (Edge *e = g->edges[u]; e != nullptr; e = e->next)
-        if (distance[e->destination] == UINT_MAX) {
-          distance[e->destination] = distance[u] + 1;
-          queue[tail++] = e->destination;
-        }
-    }
-    for (unsigned target = 0; target < g->size; target++)
-      if (target != source && distance[target] <= k)
-        addDirectedEdge(result, source, target, 1);
-  }
-  free(queue);
-  free(distance);
-  return result;
+[[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
+  if (!g) return nullptr;
+  Graph *power = createGraph(g->size);
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && distance(g, u, v) <= k)
+        addDirectedEdge(power, u, v, 1);
+  return power;
 }
 
-Graph *removeVertex(const Graph *graph, unsigned vertex) {
-  Graph *g = createGraph(graph->size - 1);
-  for (unsigned u = 0; u < graph->size; u++)
-    if (u != vertex) {
-      unsigned v = (u > vertex) ? u - 1 : u;
-      for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
-        if (e->destination != vertex) {
-          unsigned w = (e->destination > vertex) ? e->destination - 1 : e->destination;
-          addDirectedEdge(g, v, w, e->weight);
+[[nodiscard]] Graph *removeVertex(const Graph *g, unsigned v) {
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createGraph(g->size - 1);
+  for (unsigned v2 = 0; v2 < g->size; v2++)
+    if (v2 != v) {
+      unsigned v3 = v2 > v ? v2 - 1 : v2;
+      for (Edge *e = g->edges[v2]; e; e = e->next)
+        if (e->destination != v) {
+          unsigned v4 = e->destination > v ? e->destination - 1 : e->destination;
+          addDirectedEdge(g2, v3, v4, e->weight);
         }
     }
-  return g;
+  return g2;
 }
 
 Graph *prim(const Graph *g, unsigned v) {
