@@ -122,13 +122,12 @@ Graph *createDirectedLine(const Graph *g);
 Graph *createUndirectedLine(const Graph *g);
 Graph *createUnderlying(const Graph *g);
 Graph *createKruskal(const Graph *g);
+Graph *createPrim(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
-Graph *removeVertex(const Graph *g, unsigned v);
-Graph *prim(const Graph *g, unsigned v);
-Graph *contractVertices(const Graph *g, unsigned u, unsigned v);
+Graph *deleteVertex(const Graph *g, unsigned v);
 Graph *copySubgraph(const Graph *g, const bool *set);
 Graph *subgraphInducedByEdges(const Graph *g, const bool *set);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
@@ -140,14 +139,18 @@ Graph *lexicographicalProduct(const Graph *g1, const Graph *g2);
 void destroyGraph(Graph *g);
 void addVertex(Graph *g);
 void printGraph(const Graph *g);
-void removeDirectedEdgeByIndex(Graph *g, unsigned i);
-void removeFirstDirectedEdge(Graph *g, unsigned u, unsigned v);
-void removeFirstUndirectedEdge(Graph *g, unsigned u, unsigned v);
+void deleteDirectedEdgeByIndex(Graph *g, unsigned i);
+void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v);
+void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v);
+void deleteMatchingEdges(Graph *g, unsigned u, unsigned v);
+void transferOutgoingEdges(Graph *g, unsigned u, unsigned v);
+void transferIncomingEdges(Graph *g, unsigned u, unsigned v);
+void contractVertices(Graph *g, unsigned u, unsigned v);
 void subdivideEdge(Graph *g, unsigned u, unsigned v);
 void addDirectedEdge(Graph *g, unsigned u, unsigned v, double x);
 void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double x);
-void removeFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
-void removeFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 
 unsigned countEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
@@ -668,7 +671,7 @@ bool canReachAll(const Graph *g, unsigned v) {
 }
 
 bool isArticulationVertex(const Graph *g, unsigned v) {
-  Graph *g2 = removeVertex(g, v);
+  Graph *g2 = deleteVertex(g, v);
   unsigned n = countComponents(g2);
   destroyGraph(g2);
   return n > countComponents(g);
@@ -733,7 +736,7 @@ bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
 
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
   Graph *g2 = createCopy(g);
-  removeFirstDirectedEdge(g2, u, v);
+  deleteFirstDirectedEdge(g2, u, v);
   unsigned n = countComponents(g2);
   destroyGraph(g2);
   return n > countComponents(g);
@@ -741,7 +744,7 @@ bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
 
 bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
   Graph *g2 = createCopy(g);
-  removeFirstUndirectedEdge(g2, u, v);
+  deleteFirstUndirectedEdge(g2, u, v);
   unsigned n = countComponents(g2);
   destroyGraph(g2);
   return n > countComponents(g);
@@ -859,7 +862,7 @@ bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) 
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (hasDirectedEdge(g2, sequence[i - 1], sequence[i]))
-      removeFirstDirectedEdge(g2, sequence[i - 1], sequence[i]);
+      deleteFirstDirectedEdge(g2, sequence[i - 1], sequence[i]);
     else
       valid = false;
   destroyGraph(g2);
@@ -871,7 +874,7 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (hasUndirectedEdge(copy, sequence[i - 1], sequence[i]))
-      removeFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
+      deleteFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
   destroyGraph(copy);
@@ -910,7 +913,7 @@ bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length
   Graph *copy = createCopy(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (hasDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
-      removeFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
+      deleteFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
   destroyGraph(copy);
@@ -923,7 +926,7 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
   Graph *copy = createCopy(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (hasUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
-      removeFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
+      deleteFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
   destroyGraph(copy);
@@ -1342,6 +1345,50 @@ bool *findMaximumClique(const Graph *g) {
   return mst;
 }
 
+[[nodiscard]] Graph *createPrim(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Graph *mst = createGraph(g->size);
+  if (!mst || g->size < 2) return mst;
+  bool *added = calloc(g->size, sizeof(bool));
+  double *weights = malloc(g->size * sizeof(double));
+  unsigned *parents = malloc(g->size * sizeof(unsigned));
+  if (!added || !weights || !parents) {
+    free(added);
+    free(weights);
+    free(parents);
+    destroyGraph(mst);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++) {
+    weights[v] = INFINITY;
+    parents[v] = UINT_MAX;
+  }
+  unsigned u = 0;
+  weights[0] = 0;
+  do {
+    added[u] = true;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && !added[e->destination] && e->weight < weights[e->destination]) {
+        weights[e->destination] = e->weight;
+        parents[e->destination] = u;
+      }
+    double weight = INFINITY;
+    u = UINT_MAX;
+    for (unsigned v = 0; v < g->size; v++)
+      if (!added[v] && weights[v] < weight) {
+        weight = weights[v];
+        u = v;
+      }
+  } while (u != UINT_MAX);
+  for (unsigned v = 1; v < g->size; ++v)
+    if (parents[v] != UINT_MAX)
+      addUndirectedEdge(mst, parents[v], v, weights[v]);
+  free(added);
+  free(weights);
+  free(parents);
+  return mst;
+}
+
 [[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = createGraph(g->size + countEdges(g));
@@ -1393,7 +1440,7 @@ bool *findMaximumClique(const Graph *g) {
   return power;
 }
 
-[[nodiscard]] Graph *removeVertex(const Graph *g, unsigned v) {
+[[nodiscard]] Graph *deleteVertex(const Graph *g, unsigned v) {
   if (!g || !g->edges) return nullptr;
   Graph *g2 = createGraph(g->size - 1);
   for (unsigned v2 = 0; v2 < g->size; v2++)
@@ -1406,58 +1453,6 @@ bool *findMaximumClique(const Graph *g) {
         }
     }
   return g2;
-}
-
-Graph *prim(const Graph *g, unsigned v) {
-  if (!isValid(g) || g->size == 0 || v >= g->size) return nullptr;
-  bool *processed = calloc(g->size, sizeof(bool));
-  double *weights = malloc(g->size * sizeof(double));
-  unsigned *parents = malloc(g->size * sizeof(unsigned));
-  Graph *mst = createGraph(g->size);
-  if (!processed || !weights || !parents || !mst) {
-    free(processed);
-    free(weights);
-    free(parents);
-    destroyGraph(mst);
-    return nullptr;
-  }
-  for (unsigned u = 0; u < g->size; u++) {
-    weights[u] = INFINITY;
-    parents[u] = u;
-  }
-  weights[v] = 0;
-  for (;;) {
-    processed[v] = true;
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (!processed[e->destination] && e->weight < weights[e->destination]) {
-        weights[e->destination] = e->weight;
-        parents[e->destination] = v;
-      }
-    double minimum = INFINITY;
-    for (unsigned u = 0; u < g->size; u++)
-      if (!processed[u] && weights[u] < minimum) {
-        minimum = weights[u];
-        v = u;
-      }
-    if (minimum == INFINITY) break;
-    addUndirectedEdge(mst, parents[v], v, minimum);
-  }
-  free(processed);
-  free(weights);
-  free(parents);
-  return mst;
-}
-
-Graph *contractVertices(const Graph *graph, unsigned u, unsigned v) {
-  Graph *g = createGraph(graph->size - 1);
-  for (unsigned x = 0; x < graph->size; x++) {
-    unsigned y = x > v ? x - 1 : x == v ? u : x;
-    for (Edge *e = graph->edges[x]; e != nullptr; e = e->next) {
-      unsigned z = e->destination > v ? e->destination - 1 : e->destination == v ? u : e->destination;
-      addDirectedEdge(g, y, z, e->weight);
-    }
-  }
-  return g;
 }
 
 Graph *copySubgraph(const Graph *graph, const bool *subset) {
@@ -1582,7 +1577,7 @@ void printGraph(const Graph *graph) {
   printf("}\n");
 }
 
-void removeDirectedEdgeByIndex(Graph *g, unsigned i) {
+void deleteDirectedEdgeByIndex(Graph *g, unsigned i) {
   if (!g || !g->edges) return;
   unsigned j = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -1597,7 +1592,7 @@ void removeDirectedEdgeByIndex(Graph *g, unsigned i) {
     }
 }
 
-void removeFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
+void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size) return;
   Edge **e = &g->edges[u];
   while (*e) {
@@ -1612,15 +1607,62 @@ void removeFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
   }
 }
 
-void removeFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
+void deleteFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
   double weight = edgeWeight(graph, u, v);
-  removeFirstWeightedDirectedEdge(graph, u, v, weight);
-  removeFirstWeightedDirectedEdge(graph, v, u, weight);
+  deleteFirstWeightedDirectedEdge(graph, u, v, weight);
+  deleteFirstWeightedDirectedEdge(graph, v, u, weight);
+}
+
+void deleteMatchingEdges(Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return;
+  Edge **e = &g->edges[u];
+  while (*e) {
+    Edge *temporary = *e;
+    if (temporary->destination == v) {
+      *e = temporary->next;
+      free(temporary);
+    } else {
+      e = &temporary->next;
+    }
+  }
+}
+
+void transferOutgoingEdges(Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return;
+  while (g->edges[u]) {
+    Edge *e = g->edges[u];
+    g->edges[u] = e->next;
+    e->next = g->edges[v];
+    g->edges[v] = e;
+  }
+}
+
+void transferIncomingEdges(Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return;
+  for (unsigned w = 0; w < g->size; w++)
+    for (Edge *e = g->edges[w]; e; e = e->next)
+      if (e->destination == u)
+        e->destination = v;
+}
+
+void contractVertices(Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return;
+  deleteMatchingEdges(g, u, v);
+  deleteMatchingEdges(g, v, u);
+  transferOutgoingEdges(g, u, v);
+  transferIncomingEdges(g, u, v);
+  for (unsigned w = 0; w < g->size; w++)
+    for (Edge *e = g->edges[w]; e; e = e->next)
+      if (e->destination > u)
+        e->destination--;
+  for (unsigned w = u + 1; w < g->size; w++)
+    g->edges[w - 1] = g->edges[w];
+  g->size--;
 }
 
 void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
   double weight = edgeWeight(graph, u, v);
-  removeFirstWeightedDirectedEdge(graph, u, v, weight);
+  deleteFirstWeightedDirectedEdge(graph, u, v, weight);
   addVertex(graph);
   addDirectedEdge(graph, u, graph->size - 1, weight / 2);
   addDirectedEdge(graph, graph->size - 1, v, weight / 2);
@@ -1641,7 +1683,7 @@ void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double x) {
   addDirectedEdge(g, v, u, x);
 }
 
-void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
+void deleteFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
   assert(u < graph->size);
   assert(v < graph->size);
   assert(hasWeightedDirectedEdge(graph, u, v, weight));
@@ -1657,10 +1699,10 @@ void removeFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, doubl
     }
 }
 
-void removeFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
+void deleteFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
   assert(isUndirected(graph));
-  removeFirstWeightedDirectedEdge(graph, u, v, weight);
-  removeFirstWeightedDirectedEdge(graph, v, u, weight);
+  deleteFirstWeightedDirectedEdge(graph, u, v, weight);
+  deleteFirstWeightedDirectedEdge(graph, v, u, weight);
 }
 
 
@@ -3317,7 +3359,7 @@ void testPrim() {
     addUndirectedEdge(g, 0, 1, 1);
     addUndirectedEdge(g, 1, 2, 3);
     addUndirectedEdge(g, 0, 2, 4);
-    Graph *mst = prim(g, 0);
+    Graph *mst = createPrim(g);
     double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 4);
     assert(w == 4);
@@ -3334,7 +3376,7 @@ void testPrim() {
     addUndirectedEdge(g, 1, 4, 5);
     addUndirectedEdge(g, 2, 4, 7);
     addUndirectedEdge(g, 3, 4, 9);
-    Graph *mst = prim(g, 0);
+    Graph *mst = createPrim(g);
     double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 8);
     assert(w == 16);
@@ -3344,7 +3386,7 @@ void testPrim() {
   }
   {
     Graph *g = createGraph(1);
-    Graph *mst = prim(g, 0);
+    Graph *mst = createPrim(g);
     double w = sumWeights(mst);
     assert(countEdges(mst) == 0);
     assert(w == 0);
