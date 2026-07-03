@@ -127,7 +127,6 @@ Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
-Graph *deleteVertex(const Graph *g, unsigned v);
 Graph *copySubgraph(const Graph *g, const bool *set);
 Graph *subgraphInducedByEdges(const Graph *g, const bool *set);
 Graph *graphUnion(const Graph *g1, const Graph *g2);
@@ -140,6 +139,9 @@ void destroyGraph(Graph *g);
 void addVertex(Graph *g);
 void printGraph(const Graph *g);
 void deleteDirectedEdgeByIndex(Graph *g, unsigned i);
+void deleteOutgoingEdges(Graph *g, unsigned v);
+void deleteIncomingEdges(Graph *g, unsigned v);
+void deleteVertex(Graph *g, unsigned v);
 void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v);
 void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v);
 void deleteMatchingEdges(Graph *g, unsigned u, unsigned v);
@@ -671,7 +673,8 @@ bool canReachAll(const Graph *g, unsigned v) {
 }
 
 bool isArticulationVertex(const Graph *g, unsigned v) {
-  Graph *g2 = deleteVertex(g, v);
+  Graph *g2 = createCopy(g);
+  deleteVertex(g2, v);
   unsigned n = countComponents(g2);
   destroyGraph(g2);
   return n > countComponents(g);
@@ -1440,21 +1443,6 @@ bool *findMaximumClique(const Graph *g) {
   return power;
 }
 
-[[nodiscard]] Graph *deleteVertex(const Graph *g, unsigned v) {
-  if (!g || !g->edges) return nullptr;
-  Graph *g2 = createGraph(g->size - 1);
-  for (unsigned v2 = 0; v2 < g->size; v2++)
-    if (v2 != v) {
-      unsigned v3 = v2 > v ? v2 - 1 : v2;
-      for (Edge *e = g->edges[v2]; e; e = e->next)
-        if (e->destination != v) {
-          unsigned v4 = e->destination > v ? e->destination - 1 : e->destination;
-          addDirectedEdge(g2, v3, v4, e->weight);
-        }
-    }
-  return g2;
-}
-
 Graph *copySubgraph(const Graph *graph, const bool *subset) {
   Graph *g = createGraph(graph->size);
   for (unsigned v = 0; v < graph->size; v++)
@@ -1590,6 +1578,35 @@ void deleteDirectedEdgeByIndex(Graph *g, unsigned i) {
       }
       j++;
     }
+}
+
+void deleteOutgoingEdges(Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return;
+  Edge *e = g->edges[v];
+  while (e) {
+    Edge *next = e->next;
+    free(e);
+    e = next;
+  }
+  g->edges[v] = nullptr;
+}
+
+void deleteIncomingEdges(Graph *g, unsigned v) {
+  if (!g) return;
+  for (unsigned u = 0; u < g->size; u++)
+    deleteMatchingEdges(g, u, v);
+}
+
+void deleteVertex(Graph *g, unsigned v) {
+  deleteIncomingEdges(g, v);
+  deleteOutgoingEdges(g, v);
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination > v)
+        e->destination--;
+  for (unsigned u = v + 1; u < g->size; u++)
+    g->edges[u - 1] = g->edges[u];
+  g->size--;
 }
 
 void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
