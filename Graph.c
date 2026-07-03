@@ -127,9 +127,9 @@ Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
-Graph *copySubgraph(const Graph *g, const bool *set);
-Graph *subgraphInducedByEdges(const Graph *g, const bool *set);
-Graph *graphUnion(const Graph *g1, const Graph *g2);
+Graph *createVertexSubgraph(const Graph *g, const bool *set);
+Graph *createEdgeSubgraph(const Graph *g, const bool *set);
+Graph *createGraphUnion(const Graph *g1, const Graph *g2);
 Graph *disjointUnion(const Graph *g1, const Graph *g2);
 Graph *cartesianProduct(const Graph *g1, const Graph *g2);
 Graph *tensorProduct(const Graph *g1, const Graph *g2);
@@ -1443,34 +1443,37 @@ bool *findMaximumClique(const Graph *g) {
   return power;
 }
 
-Graph *copySubgraph(const Graph *graph, const bool *subset) {
-  Graph *g = createGraph(graph->size);
-  for (unsigned v = 0; v < graph->size; v++)
-    if (subset[v])
-      for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-        if (subset[e->destination])
-          addDirectedEdge(g, v, e->destination, e->weight);
-  return g;
+[[nodiscard]] Graph *createVertexSubgraph(const Graph *g, const bool *set) {
+  if (!isValid(g) || !set) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  for (unsigned v = 0; v < g->size; v++)
+    if (set[v])
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (set[e->destination])
+          addDirectedEdge(g2, v, e->destination, e->weight);
+  return g2;
 }
 
-Graph *subgraphInducedByEdges(const Graph *graph, const bool *subset) {
-  Graph *g = createGraph(graph->size);
-  unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      if (subset[n])
-        addDirectedEdge(g, v, e->destination, e->weight);
-      n++;
+[[nodiscard]] Graph *createEdgeSubgraph(const Graph *g, const bool *set) {
+  if (!g || !g->edges || !set) return nullptr;
+  Graph *g2 = createGraph(g->size);
+  unsigned i = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      if (set[i])
+        addDirectedEdge(g2, v, e->destination, e->weight);
+      i++;
     }
-  return g;
+  return g2;
 }
 
-Graph *graphUnion(const Graph *g1, const Graph *g2) {
+[[nodiscard]] Graph *createGraphUnion(const Graph *g1, const Graph *g2) {
   if (!g1 || !g1->edges || !g2 || !g2->edges) return nullptr;
   Graph *g3 = createGraph(maximumUnsigned(g1->size, g2->size));
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
-      addDirectedEdge(g3, v, e->destination, e->weight);
+      if (!hasDirectedEdge(g3, v, e->destination))
+        addDirectedEdge(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
       if (!hasDirectedEdge(g3, v, e->destination))
