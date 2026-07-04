@@ -1603,6 +1603,7 @@ void deleteIncomingEdges(Graph *g, unsigned v) {
 }
 
 void deleteVertex(Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return;
   deleteIncomingEdges(g, v);
   deleteOutgoingEdges(g, v);
   for (unsigned u = 0; u < g->size; u++)
@@ -1629,10 +1630,10 @@ void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
   }
 }
 
-void deleteFirstUndirectedEdge(Graph *graph, unsigned u, unsigned v) {
-  double weight = edgeWeight(graph, u, v);
-  deleteFirstWeightedDirectedEdge(graph, u, v, weight);
-  deleteFirstWeightedDirectedEdge(graph, v, u, weight);
+void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v) {
+  double weight = edgeWeight(g, u, v);
+  deleteFirstWeightedDirectedEdge(g, u, v, weight);
+  deleteFirstWeightedDirectedEdge(g, v, u, weight);
 }
 
 void deleteMatchingEdges(Graph *g, unsigned u, unsigned v) {
