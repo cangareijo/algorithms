@@ -158,12 +158,12 @@ void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double 
 unsigned countEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *g);
-unsigned minimumInDegree(const Graph *g);
-unsigned maximumInDegree(const Graph *g);
-unsigned minimumOutDegree(const Graph *g);
-unsigned maximumOutDegree(const Graph *g);
-unsigned minimumDegree(const Graph *g);
-unsigned maximumDegree(const Graph *g);
+unsigned getMinimumInDegree(const Graph *g);
+unsigned getMaximumInDegree(const Graph *g);
+unsigned getMinimumOutDegree(const Graph *g);
+unsigned getMaximumOutDegree(const Graph *g);
+unsigned getMinimumDegree(const Graph *g);
+unsigned getMaximumDegree(const Graph *g);
 unsigned countDirectedLeaves(const Graph *g);
 unsigned countUndirectedLeaves(const Graph *g);
 unsigned countSources(const Graph *g);
@@ -1754,44 +1754,45 @@ unsigned countSelfLoops(const Graph *g) {
   return n;
 }
 
-unsigned countTriangles(const Graph *graph) {
-  unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *d = graph->edges[v]; d != nullptr; d = d->next)
+unsigned countTriangles(const Graph *g) {
+  if (!isValid(g)) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *d = g->edges[v]; d; d = d->next)
       if (d->destination != v)
-        for (Edge *e = graph->edges[d->destination]; e != nullptr; e = e->next)
+        for (Edge *e = g->edges[d->destination]; e; e = e->next)
           if (e->destination != v && e->destination != d->destination)
-            for (Edge *f = graph->edges[e->destination]; f != nullptr; f = f->next)
+            for (Edge *f = g->edges[e->destination]; f; f = f->next)
               if (f->destination == v)
-                count++;
-  return count;
+                n++;
+  return n;
 }
 
-unsigned minimumInDegree(const Graph *g) {
+unsigned getMinimumInDegree(const Graph *g) {
   if (!g) return UINT_MAX;
-  unsigned *inDegree = inDegrees(g);
-  if (!inDegree) return UINT_MAX;
+  unsigned *degree = inDegrees(g);
+  if (!degree) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   for (unsigned v = 0; v < g->size; v++)
-    if (inDegree[v] < minimum)
-      minimum = inDegree[v];
-  free(inDegree);
+    if (degree[v] < minimum)
+      minimum = degree[v];
+  free(degree);
   return minimum;
 }
 
-unsigned maximumInDegree(const Graph *g) {
+unsigned getMaximumInDegree(const Graph *g) {
   if (!g) return 0;
-  unsigned *inDegree = inDegrees(g);
-  if (!inDegree) return 0;
+  unsigned *degree = inDegrees(g);
+  if (!degree) return 0;
   unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (inDegree[v] > maximum)
-      maximum = inDegree[v];
-  free(inDegree);
+    if (degree[v] > maximum)
+      maximum = degree[v];
+  free(degree);
   return maximum;
 }
 
-unsigned minimumOutDegree(const Graph *g) {
+unsigned getMinimumOutDegree(const Graph *g) {
   if (!g) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   for (unsigned v = 0; v < g->size; v++)
@@ -1800,7 +1801,7 @@ unsigned minimumOutDegree(const Graph *g) {
   return minimum;
 }
 
-unsigned maximumOutDegree(const Graph *g) {
+unsigned getMaximumOutDegree(const Graph *g) {
   if (!g) return 0;
   unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -1809,12 +1810,12 @@ unsigned maximumOutDegree(const Graph *g) {
   return maximum;
 }
 
-unsigned minimumDegree(const Graph *g) {
-  return minimumInDegree(g) + minimumOutDegree(g);
+unsigned getMinimumDegree(const Graph *g) {
+  return getMinimumInDegree(g) + getMinimumOutDegree(g);
 }
 
-unsigned maximumDegree(const Graph *g) {
-  return maximumInDegree(g) + maximumOutDegree(g);
+unsigned getMaximumDegree(const Graph *g) {
+  return getMaximumInDegree(g) + getMaximumOutDegree(g);
 }
 
 unsigned countDirectedLeaves(const Graph *graph) {
