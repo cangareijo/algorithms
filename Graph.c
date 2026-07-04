@@ -137,6 +137,7 @@ Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *g);
 void addVertex(Graph *g);
+void deleteSelfLoops(Graph *g);
 void printGraph(const Graph *g);
 void deleteDirectedEdgeByIndex(Graph *g, unsigned i);
 void deleteOutgoingEdges(Graph *g, unsigned v);
@@ -1558,6 +1559,12 @@ void addVertex(Graph *g) {
   g->size = g->size + 1;
 }
 
+void deleteSelfLoops(Graph *g) {
+  if (!g) return;
+  for (unsigned v = 0; v < g->size; v++)
+    deleteMatchingEdges(g, v, v);
+}
+
 void printGraph(const Graph *g) {
   printf("{");
   unsigned i = 0;
@@ -1683,12 +1690,13 @@ void contractVertices(Graph *g, unsigned u, unsigned v) {
   g->size--;
 }
 
-void subdivideEdge(Graph *graph, unsigned u, unsigned v) {
-  double weight = edgeWeight(graph, u, v);
-  deleteFirstWeightedDirectedEdge(graph, u, v, weight);
-  addVertex(graph);
-  addDirectedEdge(graph, u, graph->size - 1, weight / 2);
-  addDirectedEdge(graph, graph->size - 1, v, weight / 2);
+void subdivideEdge(Graph *g, unsigned u, unsigned v) {
+  if (!g) return;
+  double weight = edgeWeight(g, u, v);
+  deleteFirstWeightedDirectedEdge(g, u, v, weight);
+  addVertex(g);
+  addDirectedEdge(g, u, g->size - 1, weight / 2);
+  addDirectedEdge(g, g->size - 1, v, weight / 2);
 }
 
 void addDirectedEdge(Graph *g, unsigned u, unsigned v, double x) {
@@ -1706,12 +1714,10 @@ void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double x) {
   addDirectedEdge(g, v, u, x);
 }
 
-void deleteFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
-  assert(u < graph->size);
-  assert(v < graph->size);
-  assert(hasWeightedDirectedEdge(graph, u, v, weight));
-  Edge **e = &graph->edges[u];
-  while (*e != nullptr)
+void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
+  if (!g || !g->edges || u >= g->size) return;
+  Edge **e = &g->edges[u];
+  while (*e)
     if ((*e)->destination == v && (*e)->weight == weight) {
       Edge *temporary = *e;
       *e = (*e)->next;
@@ -1722,10 +1728,9 @@ void deleteFirstWeightedDirectedEdge(Graph *graph, unsigned u, unsigned v, doubl
     }
 }
 
-void deleteFirstWeightedUndirectedEdge(Graph *graph, unsigned u, unsigned v, double weight) {
-  assert(isUndirected(graph));
-  deleteFirstWeightedDirectedEdge(graph, u, v, weight);
-  deleteFirstWeightedDirectedEdge(graph, v, u, weight);
+void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
+  deleteFirstWeightedDirectedEdge(g, u, v, weight);
+  deleteFirstWeightedDirectedEdge(g, v, u, weight);
 }
 
 
