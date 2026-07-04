@@ -1551,20 +1551,22 @@ void destroyGraph(Graph *g) {
 
 void addVertex(Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return;
-  g->edges = realloc(g->edges, (g->size + 1) * sizeof(Edge *));
+  Edge **edges = realloc(g->edges, (g->size + 1) * sizeof(Edge *));
+  if (!edges) return;
+  g->edges = edges;
   g->edges[g->size] = nullptr;
   g->size = g->size + 1;
 }
 
-void printGraph(const Graph *graph) {
+void printGraph(const Graph *g) {
   printf("{");
   unsigned i = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next) {
-      if (i++ > 0)
-        printf(", ");
-      printf("(%u, %u, %lf)", v, e->destination, e->weight);
-    }
+  if (g && g->edges)
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next) {
+        if (i++ > 0) printf(", ");
+        printf("(%u, %u, %g)", v, e->destination, e->weight);
+      }
   printf("}\n");
 }
 
