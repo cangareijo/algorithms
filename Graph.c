@@ -101,7 +101,9 @@ bool *graphPeriphery(const Graph *g);
 bool *findArticulationPoints(const Graph *g);
 bool *findMaximalClique(const Graph *g);
 bool *findMaximumClique(const Graph *g);
-bool *getIsolated(const Graph *g);
+bool *getIsolatedVertices(const Graph *g);
+bool *getSources(const Graph *g);
+bool *getSinks(const Graph *g);
 bool *getNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
@@ -155,6 +157,7 @@ void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double x);
 void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 
+unsigned getSize(const Graph *g);
 unsigned countEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *g);
@@ -171,10 +174,9 @@ unsigned countSources(const Graph *g);
 unsigned countSinks(const Graph *g);
 unsigned countParallelEdges(const Graph *g);
 unsigned countIsolatedVertices(const Graph *g);
-unsigned getSize(const Graph *g);
 unsigned countComponents(const Graph *g);
-unsigned firstActiveVertex(const Graph *g);
-unsigned wienerIndex(const Graph *g);
+unsigned getFirstActiveVertex(const Graph *g);
+unsigned calculateWienerIndex(const Graph *g);
 unsigned inDegree(const Graph *g, unsigned v);
 unsigned outDegree(const Graph *g, unsigned v);
 unsigned degree(const Graph *g, unsigned v);
@@ -320,7 +322,7 @@ bool isBalanced(const Graph *g) {
 
 bool isEulerianUndirected(const Graph *g) {
   if (!g || isEmpty(g)) return true;
-  bool *reachable = getReachable(g, firstActiveVertex(g));
+  bool *reachable = getReachable(g, getFirstActiveVertex(g));
   bool b = reachable;
   for (unsigned v = 0; v < g->size && b; v++) b = b && outDegree(g, v) % 2 == 0 && (reachable[v] || !g->edges[v]);
   free(reachable);
@@ -330,8 +332,8 @@ bool isEulerianUndirected(const Graph *g) {
 bool isEulerianDirected(const Graph *g) {
   if (!g || isEmpty(g)) return true;
   if (!isBalanced(g)) return false;
-  bool *reachable = getReachable(g, firstActiveVertex(g));
-  bool *isolated = getIsolated(g);
+  bool *reachable = getReachable(g, getFirstActiveVertex(g));
+  bool *isolated = getIsolatedVertices(g);
   bool b = reachable && isolated;
   for (unsigned v = 0; v < g->size && b; v++) b = b && (reachable[v] || isolated[v]);
   free(isolated);
@@ -507,7 +509,7 @@ bool isWheelGraph(const Graph *g) {
 }
 
 bool hasIsolatedVertices(const Graph *g) {
-  bool *isolated = getIsolated(g);
+  bool *isolated = getIsolatedVertices(g);
   if (!g || !isolated) return false;
   bool b = false;
   for (unsigned v = 0; v < g->size && !b; v++) b = b || isolated[v];
@@ -1104,16 +1106,49 @@ bool *findMaximumClique(const Graph *g) {
   return best;
 }
 
-[[nodiscard]] bool *getIsolated(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
-  bool *isolated = malloc(g->size * sizeof(bool));
-  if (!isolated) return nullptr;
-  for (unsigned v = 0; v < g->size; v++) isolated[v] = !g->edges[v];
+[[nodiscard]] bool *getIsolatedVertices(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned *in = inDegrees(g);
+  bool *isolated = calloc(g->size, sizeof(bool));
+  if (g->size > 0 && (!in || !isolated)) {
+    free(in);
+    free(isolated);
+    return nullptr;
+  }
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge* e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size)
-        isolated[e->destination] = false;
+    isolated[v] = in[v] == 0 && outDegree(g, v) == 0;
+  free(in);
   return isolated;
+}
+
+[[nodiscard]] bool *getSources(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned *in = inDegrees(g);
+  bool *sources = calloc(g->size, sizeof(bool));
+  if (g->size > 0 && (!in || !sources)) {
+    free(in);
+    free(sources);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++)
+    sources[v] = in[v] == 0 && outDegree(g, v) > 0;
+  free(in);
+  return sources;
+}
+
+[[nodiscard]] bool *getSinks(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned *in = inDegrees(g);
+  bool *sinks = calloc(g->size, sizeof(bool));
+  if (g->size > 0 && (!in || !sinks)) {
+    free(in);
+    free(sinks);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++)
+    sinks[v] = in[v] > 0 && outDegree(g, v) == 0;
+  free(in);
+  return sinks;
 }
 
 [[nodiscard]] bool *getNeighbors(const Graph *g, unsigned v) {
@@ -1736,6 +1771,11 @@ void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double 
 
 
 
+unsigned getSize(const Graph *g) {
+  if (!g) return 0;
+  return g->size;
+}
+
 unsigned countEdges(const Graph *g) {
   if (!g || !g->edges) return 0;
   unsigned n = 0;
@@ -1868,49 +1908,58 @@ unsigned countUndirectedLeaves(const Graph *g) {
   return n;
 }
 
-unsigned countSources(const Graph *graph) {
+unsigned countIsolatedVertices(const Graph *g) {
+  if (!g) return 0;
+  bool *isolated = getIsolatedVertices(g);
+  if (!isolated) return 0;
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (isSource(graph, v))
+  for (unsigned v = 0; v < g->size; v++)
+    if (isolated[v])
       n++;
+  free(isolated);
   return n;
 }
 
-unsigned countSinks(const Graph *graph) {
+unsigned countSources(const Graph *g) {
+  if (!g) return 0;
+  bool *sources = getSources(g);
+  if (!sources) return 0;
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (isSink(graph, v))
+  for (unsigned v = 0; v < g->size; v++)
+    if (sources[v])
       n++;
+  free(sources);
   return n;
 }
 
-unsigned countParallelEdges(const Graph *graph) {
-  bool *seen = calloc(graph->size, sizeof(bool));
+unsigned countSinks(const Graph *g) {
+  if (!g) return 0;
+  bool *sinks = getSinks(g);
+  if (!sinks) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (sinks[v])
+      n++;
+  free(sinks);
+  return n;
+}
+
+unsigned countParallelEdges(const Graph *g) {
+  if (!isValid(g)) return 0;
+  bool *seen = calloc(g->size, sizeof(bool));
+  if (!seen) return 0;
   unsigned count = 0;
-  for (unsigned v = 0; v < graph->size; v++) {
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+  for (unsigned v = 0; v < g->size; v++) {
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (seen[e->destination])
         count++;
       else
         seen[e->destination] = true;
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       seen[e->destination] = false;
   }
   free(seen);
   return count;
-}
-
-unsigned countIsolatedVertices(const Graph *graph) {
-  unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (isIsolated(graph, v))
-      n++;
-  return n;
-}
-
-unsigned getSize(const Graph *g) {
-  if (!g) return 0;
-  return g->size;
 }
 
 unsigned countComponents(const Graph *g) {
@@ -1938,22 +1987,22 @@ unsigned countComponents(const Graph *g) {
   return n;
 }
 
-unsigned firstActiveVertex(const Graph *g) {
-  if (!g || !g->edges) return UINT_MAX;
-  for (unsigned v = 0; v < g->size; v++)
-    if (g->edges[v])
-      return v;
+unsigned getFirstActiveVertex(const Graph *g) {
+  if (g && g->edges)
+    for (unsigned v = 0; v < g->size; v++)
+      if (g->edges[v])
+        return v;
   return UINT_MAX;
 }
 
-unsigned wienerIndex(const Graph *g) {
+unsigned calculateWienerIndex(const Graph *g) {
   if (!g) return 0;
   unsigned sum = 0;
   for (unsigned u = 0; u < g->size; u++) {
     unsigned *distances = calculateUnweightedDistances(g, u);
-    if (!distances) continue;
-    for (unsigned v = u + 1; v < g->size; v++)
-      if (distances[v] != UINT_MAX)
+    if (!distances) return 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (distances[v] < UINT_MAX)
         sum += distances[v];
     free(distances);
   }
