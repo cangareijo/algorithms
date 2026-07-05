@@ -164,7 +164,8 @@ unsigned getMinimumOutDegree(const Graph *g);
 unsigned getMaximumOutDegree(const Graph *g);
 unsigned getMinimumDegree(const Graph *g);
 unsigned getMaximumDegree(const Graph *g);
-unsigned countDirectedLeaves(const Graph *g);
+unsigned countSourceLeaves(const Graph *g);
+unsigned countSinkLeaves(const Graph *g);
 unsigned countUndirectedLeaves(const Graph *g);
 unsigned countSources(const Graph *g);
 unsigned countSinks(const Graph *g);
@@ -1811,25 +1812,58 @@ unsigned getMaximumOutDegree(const Graph *g) {
 }
 
 unsigned getMinimumDegree(const Graph *g) {
-  return getMinimumInDegree(g) + getMinimumOutDegree(g);
+  if (!g) return UINT_MAX;
+  unsigned *in = inDegrees(g);
+  if (!in) return UINT_MAX;
+  unsigned minimum = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (in[v] + outDegree(g, v) < minimum)
+      minimum = in[v] + outDegree(g, v);
+  free(in);
+  return minimum;
 }
 
 unsigned getMaximumDegree(const Graph *g) {
-  return getMaximumInDegree(g) + getMaximumOutDegree(g);
+  if (!g) return 0;
+  unsigned *in = inDegrees(g);
+  if (!in) return 0;
+  unsigned maximum = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (in[v] + outDegree(g, v) > maximum)
+      maximum = in[v] + outDegree(g, v);
+  free(in);
+  return maximum;
 }
 
-unsigned countDirectedLeaves(const Graph *graph) {
+unsigned countSourceLeaves(const Graph *g) {
+  if (!g) return 0;
+  unsigned *in = inDegrees(g);
+  if (!in) return 0;
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (inDegree(graph, v) + outDegree(graph, v) == 1)
+  for (unsigned v = 0; v < g->size; v++)
+    if (in[v] == 0 && outDegree(g, v) == 1)
       n++;
+  free(in);
   return n;
 }
 
-unsigned countUndirectedLeaves(const Graph *graph) {
+unsigned countSinkLeaves(const Graph *g) {
+  if (!g) return 0;
+  unsigned *in = inDegrees(g);
+  if (!in) return 0;
   unsigned n = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (outDegree(graph, v) == 1)
+  for (unsigned v = 0; v < g->size; v++)
+    if (in[v] == 1 && outDegree(g, v) == 0)
+      n++;
+  free(in);
+  return n;
+}
+
+unsigned countUndirectedLeaves(const Graph *g) {
+  if (!g) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (outDegree(g, v) == 1)
       n++;
   return n;
 }
