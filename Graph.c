@@ -32,7 +32,6 @@ bool hasSelfLoops(const Graph *g);
 bool isBalanced(const Graph *g);
 bool isEulerianUndirected(const Graph *g);
 bool isEulerianDirected(const Graph *g);
-bool isConnectedUndirected(const Graph *g);
 bool isWeaklyConnected(const Graph *g);
 bool isStronglyConnected(const Graph *g);
 bool isBipartite(const Graph *g);
@@ -53,6 +52,7 @@ bool isCubic(const Graph *g);
 bool hasDirectedCycle(const Graph *g);
 bool hasUndirectedCycle(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
+bool hasInvalidEdges(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
@@ -140,6 +140,7 @@ Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2);
 void destroyGraph(Graph *g);
 void addVertex(Graph *g);
 void deleteSelfLoops(Graph *g);
+void deleteInvalidEdges(Graph *g);
 void printGraph(const Graph *g);
 void deleteDirectedEdgeByIndex(Graph *g, unsigned i);
 void deleteOutgoingEdges(Graph *g, unsigned v);
@@ -177,6 +178,7 @@ unsigned countIsolatedVertices(const Graph *g);
 unsigned countComponents(const Graph *g);
 unsigned getFirstActiveVertex(const Graph *g);
 unsigned calculateWienerIndex(const Graph *g);
+unsigned countInvalidEdges(const Graph *g);
 unsigned inDegree(const Graph *g, unsigned v);
 unsigned outDegree(const Graph *g, unsigned v);
 unsigned degree(const Graph *g, unsigned v);
@@ -233,7 +235,6 @@ double **forceDirectedLayout(const Graph *g, unsigned iterations);
 
 void testHasDirectedCycle();
 void testHasUndirectedCycle();
-void testIsConnectedUndirected();
 void testIsWeaklyConnected();
 void testIsStronglyConnected();
 void testTopologicalSortOfGraph();
@@ -341,10 +342,6 @@ bool isEulerianDirected(const Graph *g) {
   return b;
 }
 
-bool isConnectedUndirected(const Graph *g) {
-  return getSize(g) < 2 || canReachAll(g, 0);
-}
-
 bool isWeaklyConnected(const Graph *g) {
   if (getSize(g) < 2) return true;
   Graph *g2 = createUndirected(g);
@@ -445,7 +442,7 @@ bool isDirectedTree(const Graph *g) {
 }
 
 bool isUndirectedTree(const Graph *g) {
-  return isUndirected(g) && !hasUndirectedCycle(g) && isConnectedUndirected(g);
+  return isUndirected(g) && !hasUndirectedCycle(g) && isWeaklyConnected(g);
 }
 
 bool isPathGraph(const Graph *g) {
@@ -453,7 +450,7 @@ bool isPathGraph(const Graph *g) {
   if (getSize(g) == 1) return isEmpty(g);
   if (hasSelfLoops(g)) return false;
   if (isMultiGraph(g)) return false;
-  if (!isConnectedUndirected(g)) return false;
+  if (!isWeaklyConnected(g)) return false;
   unsigned endpoints = 0;
   unsigned internal = 0;
   for (unsigned v = 0; v < getSize(g); v++)
@@ -467,7 +464,7 @@ bool isPathGraph(const Graph *g) {
 }
 
 bool isCycleGraph(const Graph *g) {
-  return getSize(g) >= 3 && !hasSelfLoops(g) && !isMultiGraph(g) && isUndirected(g) && isConnectedUndirected(g) && isKRegular(g, 2);
+  return getSize(g) >= 3 && !hasSelfLoops(g) && !isMultiGraph(g) && isUndirected(g) && isWeaklyConnected(g) && isKRegular(g, 2);
 }
 
 bool isStarGraph(const Graph *g) {
@@ -597,6 +594,15 @@ bool hasNegativeCycle(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (distances[v] + e->weight < distances[e->destination])
+        return true;
+  return false;
+}
+
+bool hasInvalidEdges(const Graph *g) {
+  if (!g || !g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
         return true;
   return false;
 }
@@ -973,10 +979,10 @@ bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
     isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
-// If countEdges(g) == 2 * (g1->size - 1) && isConnectedUndirected(g) && isUndirected(g), then !hasSelfLoops(g) && !isMultiGraph(g)
+// If countEdges(g) == 2 * (g1->size - 1) && isWeaklyConnected(g) && isUndirected(g), then !hasSelfLoops(g) && !isMultiGraph(g)
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
   return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == 2 * (g1->size - 1) &&
-    !hasSelfLoops(g1) && !isMultiGraph(g1) && isConnectedUndirected(g1) && isSubGraph(g1, g2);
+    !hasSelfLoops(g1) && !isMultiGraph(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
 
@@ -1294,8 +1300,7 @@ bool *findMaximumClique(const Graph *g) {
   Graph *g2 = createGraph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size)
-        addUndirectedEdge(g2, v, e->destination, e->weight);
+      addUndirectedEdge(g2, v, e->destination, e->weight);
   return g2;
 }
 
@@ -1600,6 +1605,21 @@ void deleteSelfLoops(Graph *g) {
   if (!g) return;
   for (unsigned v = 0; v < g->size; v++)
     deleteMatchingEdges(g, v, v);
+}
+
+void deleteInvalidEdges(Graph *g) {
+  if (!g || !g->edges) return;
+  for (unsigned v = 0; v < g->size; v++) {
+    Edge **e = &g->edges[v];
+    while (*e)
+      if ((*e)->destination >= g->size) {
+        Edge *next = (*e)->next;
+        free(*e);
+        *e = next;
+      } else {
+        e = &(*e)->next;
+      }
+  }
 }
 
 void printGraph(const Graph *g) {
@@ -1964,8 +1984,10 @@ unsigned countParallelEdges(const Graph *g) {
 }
 
 unsigned countComponents(const Graph *g) {
+  if (!isValid(g)) return 0;
   Graph *g2 = createUndirected(g);
   if (!g2) return 0;
+  deleteInvalidEdges(g2);
   bool *visited = calloc(g2->size, sizeof(bool));
   unsigned *stack = malloc(g2->size * sizeof(unsigned));
   unsigned n = 0;
@@ -2009,6 +2031,16 @@ unsigned calculateWienerIndex(const Graph *g) {
     free(distances);
   }
   return sum;
+}
+
+unsigned countInvalidEdges(const Graph *g) {
+  if (!g || !g->edges) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        n++;
+  return n;
 }
 
 unsigned outDegree(const Graph *g, unsigned v) {
@@ -3113,44 +3145,6 @@ void testHasUndirectedCycle() {
   destroyGraph(g4);
 }
 
-void testIsConnectedUndirected() {
-  Graph *g1 = createGraph(1);
-  assert(isConnectedUndirected(g1) == true);
-  printf("Undirected connected test 1 passed: Single vertex\n");
-  destroyGraph(g1);
-
-  Graph *g2 = createGraph(3);
-  addUndirectedEdge(g2, 0, 1, 1);
-  addUndirectedEdge(g2, 1, 2, 1);
-  assert(isConnectedUndirected(g2) == true);
-  printf("Undirected connected test 2 passed: Simple line graph\n");
-  destroyGraph(g2);
-
-  Graph *g3 = createGraph(4);
-  addUndirectedEdge(g3, 0, 1, 1);
-  addUndirectedEdge(g3, 2, 3, 1);
-  assert(isConnectedUndirected(g3) == false);
-  printf("Undirected connected test 3 passed: Disconnected components\n");
-  destroyGraph(g3);
-
-  Graph *g4 = createGraph(3);
-  addUndirectedEdge(g4, 0, 1, 1);
-  assert(isConnectedUndirected(g4) == false);
-  printf("Undirected connected test 4 passed: Isolated vertex\n");
-  destroyGraph(g4);
-
-  Graph *g5 = createGraph(4);
-  addUndirectedEdge(g5, 0, 1, 1);
-  addUndirectedEdge(g5, 0, 2, 1);
-  addUndirectedEdge(g5, 0, 3, 1);
-  addUndirectedEdge(g5, 1, 2, 1);
-  addUndirectedEdge(g5, 1, 3, 1);
-  addUndirectedEdge(g5, 2, 3, 1);
-  assert(isConnectedUndirected(g5) == true);
-  printf("Undirected connected test 5 passed: Complete graph\n");
-  destroyGraph(g5);
-}
-
 void testIsWeaklyConnected() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 1);
@@ -3604,7 +3598,6 @@ void testGraphDensity() {
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
-  testIsConnectedUndirected();
   testIsWeaklyConnected();
   testIsStronglyConnected();
   testTopologicalSortOfGraph();
