@@ -1294,7 +1294,8 @@ bool *findMaximumClique(const Graph *g) {
   Graph *g2 = createGraph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      addUndirectedEdge(g2, v, e->destination, e->weight);
+      if (e->destination < g->size)
+        addUndirectedEdge(g2, v, e->destination, e->weight);
   return g2;
 }
 
@@ -1963,27 +1964,28 @@ unsigned countParallelEdges(const Graph *g) {
 }
 
 unsigned countComponents(const Graph *g) {
+  Graph *g2 = createUndirected(g);
+  if (!g2) return 0;
+  bool *visited = calloc(g2->size, sizeof(bool));
+  unsigned *stack = malloc(g2->size * sizeof(unsigned));
   unsigned n = 0;
-  if (g && g->edges) {
-    bool *visited = calloc(g->size, sizeof(bool));
-    unsigned *stack = malloc(g->size * sizeof(unsigned));
-    if (visited && stack)
-      for (unsigned u = 0; u < g->size; u++)
-        if (!visited[u]) {
-          n++;
-          unsigned size = 0;
-          stack[size++] = u;
-          visited[u] = true;
-          while (size > 0)
-            for (Edge *e = g->edges[stack[--size]]; e; e = e->next)
-              if (e->destination < g->size && !visited[e->destination]) {
-                visited[e->destination] = true;
-                stack[size++] = e->destination;
-              }
-        }
-    free(stack);
-    free(visited);
-  }
+  if (visited && stack)
+    for (unsigned u = 0; u < g2->size; u++)
+      if (!visited[u]) {
+        n++;
+        unsigned size = 0;
+        stack[size++] = u;
+        visited[u] = true;
+        while (size > 0)
+          for (Edge *e = g2->edges[stack[--size]]; e; e = e->next)
+            if (!visited[e->destination]) {
+              visited[e->destination] = true;
+              stack[size++] = e->destination;
+            }
+      }
+  destroyGraph(g2);
+  free(visited);
+  free(stack);
   return n;
 }
 
