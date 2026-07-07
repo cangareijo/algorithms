@@ -190,10 +190,10 @@ unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x);
 
-unsigned *inDegrees(const Graph *g);
-unsigned *outDegrees(const Graph *g);
-unsigned *outDegreeDistribution(const Graph *g);
-unsigned *inDegreeDistribution(const Graph *g);
+unsigned *getInDegrees(const Graph *g);
+unsigned *getOutDegrees(const Graph *g);
+unsigned *getInDegreeDistribution(const Graph *g);
+unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *undirectedColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
 unsigned *topologicalSortOfGraph(const Graph *g);
@@ -286,8 +286,8 @@ bool isEmpty(const Graph *g) {
 }
 
 bool isRegular(const Graph *g) {
-  unsigned *in = inDegrees(g);
-  unsigned *out = outDegrees(g);
+  unsigned *in = getInDegrees(g);
+  unsigned *out = getOutDegrees(g);
   bool b = g && (g->size == 0 || (in && out && in[0] == out[0]));
   for (unsigned v = 1; b && v < g->size; v++)
     b = b && in[v - 1] == in[v] && out[v - 1] == out[v];
@@ -309,7 +309,7 @@ bool hasSelfLoops(const Graph *g) {
 }
 
 bool isBalanced(const Graph *g) {
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   bool b = g && (g->size == 0 || in);
   for (unsigned v = 0; b && v < g->size; v++) b = b && in[v] == getOutDegree(g, v);
   free(in);
@@ -411,7 +411,7 @@ bool isMultiGraph(const Graph *g) {
 }
 
 bool isDirectedForest(const Graph *g) {
-  unsigned *degree = inDegrees(g);
+  unsigned *degree = getInDegrees(g);
   bool b = g && !hasDirectedCycle(g) && (g->size == 0 || degree);
   for (unsigned v = 0; b && v < g->size; v++) b = b && degree[v] < 2;
   free(degree);
@@ -424,7 +424,7 @@ bool isUndirectedForest(const Graph *g) {
 
 bool isDirectedTree(const Graph *g) {
   if (!g) return false;
-  unsigned *degree = inDegrees(g);
+  unsigned *degree = getInDegrees(g);
   if (!degree) return false;
   unsigned roots = 0;
   bool b = !hasDirectedCycle(g);
@@ -1109,7 +1109,7 @@ bool *findMaximumClique(const Graph *g) {
 
 [[nodiscard]] bool *getIsolatedVertices(const Graph *g) {
   if (!g) return nullptr;
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   bool *isolated = calloc(g->size, sizeof(bool));
   if (g->size > 0 && (!in || !isolated)) {
     free(in);
@@ -1124,7 +1124,7 @@ bool *findMaximumClique(const Graph *g) {
 
 [[nodiscard]] bool *getSources(const Graph *g) {
   if (!g) return nullptr;
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   bool *sources = calloc(g->size, sizeof(bool));
   if (g->size > 0 && (!in || !sources)) {
     free(in);
@@ -1139,7 +1139,7 @@ bool *findMaximumClique(const Graph *g) {
 
 [[nodiscard]] bool *getSinks(const Graph *g) {
   if (!g) return nullptr;
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   bool *sinks = calloc(g->size, sizeof(bool));
   if (g->size > 0 && (!in || !sinks)) {
     free(in);
@@ -1827,7 +1827,7 @@ unsigned countTriangles(const Graph *g) {
 
 unsigned getMinimumInDegree(const Graph *g) {
   if (!g) return UINT_MAX;
-  unsigned *degree = inDegrees(g);
+  unsigned *degree = getInDegrees(g);
   if (!degree) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   for (unsigned v = 0; v < g->size; v++)
@@ -1839,7 +1839,7 @@ unsigned getMinimumInDegree(const Graph *g) {
 
 unsigned getMaximumInDegree(const Graph *g) {
   if (!g) return 0;
-  unsigned *degree = inDegrees(g);
+  unsigned *degree = getInDegrees(g);
   if (!degree) return 0;
   unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -1869,7 +1869,7 @@ unsigned getMaximumOutDegree(const Graph *g) {
 
 unsigned getMinimumDegree(const Graph *g) {
   if (!g) return UINT_MAX;
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   if (!in) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   for (unsigned v = 0; v < g->size; v++)
@@ -1881,7 +1881,7 @@ unsigned getMinimumDegree(const Graph *g) {
 
 unsigned getMaximumDegree(const Graph *g) {
   if (!g) return 0;
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   if (!in) return 0;
   unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -1893,7 +1893,7 @@ unsigned getMaximumDegree(const Graph *g) {
 
 unsigned countSourceLeaves(const Graph *g) {
   if (!g) return 0;
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   if (!in) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -1905,7 +1905,7 @@ unsigned countSourceLeaves(const Graph *g) {
 
 unsigned countSinkLeaves(const Graph *g) {
   if (!g) return 0;
-  unsigned *in = inDegrees(g);
+  unsigned *in = getInDegrees(g);
   if (!in) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -2143,12 +2143,15 @@ unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v) {
     if (x == UINT_MAX || x == v) break;
     visited[x] = true;
     for (const Edge *e = g->edges[x]; e; e = e->next)
-      if (!visited[e->destination]) {
+      if (e->destination < g->size && !visited[e->destination]) {
         if (distance[x] + e->weight < distance[e->destination]) {
           distance[e->destination] = distance[x] + e->weight;
           paths[e->destination] = paths[x];
         } else if (distance[x] + e->weight == distance[e->destination]) {
-          paths[e->destination] += paths[x];
+          if (paths[e->destination] > UINT_MAX - paths[x])
+            paths[e->destination] = UINT_MAX;
+          else
+            paths[e->destination] += paths[x];
         }
       }
   }
@@ -2188,8 +2191,8 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
 
 
 
-unsigned *inDegrees(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+[[nodiscard]] unsigned *getInDegrees(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
   unsigned *degrees = calloc(g->size, sizeof(unsigned));
   if (!degrees) return nullptr;
   for (unsigned v = 0; v < g->size; v++)
@@ -2199,35 +2202,37 @@ unsigned *inDegrees(const Graph *g) {
   return degrees;
 }
 
-unsigned *outDegrees(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+[[nodiscard]] unsigned *getOutDegrees(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
   unsigned *degrees = calloc(g->size, sizeof(unsigned));
   if (!degrees) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    degrees[v] = getOutDegree(g, v);
+  for (unsigned v = 0; v < g->size; v++) degrees[v] = getOutDegree(g, v);
   return degrees;
 }
 
-unsigned *inDegreeDistribution(const Graph *g) {
+[[nodiscard]] unsigned *getInDegreeDistribution(const Graph *g) {
   if (!g) return nullptr;
-  unsigned *degree = inDegrees(g);
+  unsigned *degree = getInDegrees(g);
   unsigned *distribution = calloc(g->size, sizeof(unsigned));
   if (!degree || !distribution) {
-    free(degree); free(distribution);
+    free(degree);
+    free(distribution);
     return nullptr;
   }
   for (unsigned v = 0; v < g->size; v++)
-    distribution[degree[v] < g->size ? degree[v] : g->size - 1]++;
+    if (degree[v] < g->size)
+      distribution[degree[v]]++;
   free(degree);
   return distribution;
 }
 
-unsigned *outDegreeDistribution(const Graph *g) {
+[[nodiscard]] unsigned *getOutDegreeDistribution(const Graph *g) {
   if (!g) return nullptr;
   unsigned *distribution = calloc(g->size, sizeof(unsigned));
   if (!distribution) return nullptr;
   for (unsigned v = 0; v < g->size; v++)
-    distribution[getOutDegree(g, v) < g->size ? getOutDegree(g, v) : g->size - 1]++;
+    if (getOutDegree(g, v) < g->size)
+      distribution[getOutDegree(g, v)]++;
   return distribution;
 }
 
