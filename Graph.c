@@ -2118,41 +2118,41 @@ unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
   return n;
 }
 
-unsigned countShortestPaths(const Graph *g, unsigned source, unsigned target) {
-  if (!g || !g->edges || source >= g->size || target >= g->size) return 0;
+unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return 0;
   double *distance = malloc(g->size * sizeof(*distance));
-  unsigned *paths = malloc(g->size * sizeof(*paths));
-  bool *visited = malloc(g->size * sizeof(*visited));
-  for (unsigned v = 0; v < g->size; v++) {
-    distance[v] = INFINITY;
-    paths[v] = 0;
-    visited[v] = false;
+  unsigned *paths = calloc(g->size, sizeof(*paths));
+  bool *visited = calloc(g->size, sizeof(*visited));
+  if (!distance || !paths || !visited) {
+    free(distance);
+    free(paths);
+    free(visited);
+    return 0;
   }
-  distance[source] = 0;
-  paths[source] = 1;
-  for (unsigned count = 0; count < g->size; count++) {
-    unsigned u = g->size;
+  for (unsigned x = 0; x < g->size; x++) distance[x] = INFINITY;
+  distance[u] = 0;
+  paths[u] = 1;
+  while (true) {
+    unsigned x = UINT_MAX;
     double minimum = INFINITY;
-    for (unsigned v = 0; v < g->size; v++) {
-      if (!visited[v] && distance[v] < minimum) {
-        minimum = distance[v];
-        u = v;
+    for (unsigned y = 0; y < g->size; y++)
+      if (!visited[y] && distance[y] < minimum) {
+        minimum = distance[y];
+        x = y;
       }
-    }
-    if (u == g->size || u == target)
-      break;
-    visited[u] = true;
-    for (const Edge *e = g->edges[u]; e; e = e->next)
+    if (x == UINT_MAX || x == v) break;
+    visited[x] = true;
+    for (const Edge *e = g->edges[x]; e; e = e->next)
       if (!visited[e->destination]) {
-        if (distance[u] + e->weight < distance[e->destination]) {
-          distance[e->destination] = distance[u] + e->weight;
-          paths[e->destination] = paths[u];
-        } else if (distance[u] + e->weight == distance[e->destination]) {
-          paths[e->destination] += paths[u];
+        if (distance[x] + e->weight < distance[e->destination]) {
+          distance[e->destination] = distance[x] + e->weight;
+          paths[e->destination] = paths[x];
+        } else if (distance[x] + e->weight == distance[e->destination]) {
+          paths[e->destination] += paths[x];
         }
       }
   }
-  unsigned n = paths[target];
+  unsigned n = paths[v];
   free(distance);
   free(paths);
   free(visited);
