@@ -183,7 +183,7 @@ unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
-unsigned neighborhoodSize(const Graph *g, unsigned v, unsigned k);
+unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
@@ -2074,7 +2074,7 @@ unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
   return UINT_MAX;
 }
 
-unsigned neighborhoodSize(const Graph *g, unsigned v, unsigned k) {
+unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned *distance = malloc(g->size * sizeof(unsigned));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
@@ -2101,13 +2101,16 @@ unsigned neighborhoodSize(const Graph *g, unsigned v, unsigned k) {
   return n;
 }
 
-unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
-  bool *neighbors = calloc(graph->size, sizeof(bool));
-  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
-    neighbors[e->destination] = true;
+unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return 0;
+  bool *neighbors = calloc(g->size, sizeof(bool));
+  if (!neighbors) return 0;
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination < g->size)
+      neighbors[e->destination] = true;
   unsigned n = 0;
-  for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-    if (neighbors[e->destination]) {
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && neighbors[e->destination]) {
       n++;
       neighbors[e->destination] = false;
     }
@@ -2115,32 +2118,31 @@ unsigned countCommonNeighbors(const Graph *graph, unsigned u, unsigned v) {
   return n;
 }
 
-unsigned countShortestPaths(const Graph *graph, unsigned source, unsigned target) {
-  if (graph == nullptr || source >= graph->size || target >= graph->size)
-    return 0;
-  double *distance = malloc(graph->size * sizeof(*distance));
-  unsigned *paths = malloc(graph->size * sizeof(*paths));
-  bool *visited = malloc(graph->size * sizeof(*visited));
-  for (unsigned v = 0; v < graph->size; v++) {
+unsigned countShortestPaths(const Graph *g, unsigned source, unsigned target) {
+  if (!g || !g->edges || source >= g->size || target >= g->size) return 0;
+  double *distance = malloc(g->size * sizeof(*distance));
+  unsigned *paths = malloc(g->size * sizeof(*paths));
+  bool *visited = malloc(g->size * sizeof(*visited));
+  for (unsigned v = 0; v < g->size; v++) {
     distance[v] = INFINITY;
     paths[v] = 0;
     visited[v] = false;
   }
   distance[source] = 0;
   paths[source] = 1;
-  for (unsigned count = 0; count < graph->size; count++) {
-    unsigned u = graph->size;
+  for (unsigned count = 0; count < g->size; count++) {
+    unsigned u = g->size;
     double minimum = INFINITY;
-    for (unsigned v = 0; v < graph->size; v++) {
+    for (unsigned v = 0; v < g->size; v++) {
       if (!visited[v] && distance[v] < minimum) {
         minimum = distance[v];
         u = v;
       }
     }
-    if (u == graph->size || u == target)
+    if (u == g->size || u == target)
       break;
     visited[u] = true;
-    for (const Edge *e = graph->edges[u]; e != nullptr; e = e->next)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
       if (!visited[e->destination]) {
         if (distance[u] + e->weight < distance[e->destination]) {
           distance[e->destination] = distance[u] + e->weight;
