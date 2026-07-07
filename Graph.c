@@ -194,7 +194,7 @@ unsigned *getInDegrees(const Graph *g);
 unsigned *getOutDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
-unsigned *undirectedColoring(const Graph *g);
+unsigned *assignColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
 unsigned *topologicalSortOfGraph(const Graph *g);
 unsigned *findBridges(const Graph *g);
@@ -2236,30 +2236,31 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
   return distribution;
 }
 
-unsigned *undirectedColoring(const Graph *g) {
-  if (!isValid(g)) return nullptr;
-  unsigned *colors = malloc(g->size  *sizeof(unsigned));
+unsigned *assignColoring(const Graph *g) {
+  if (!g) return nullptr;
+  Graph *g2 = createUndirected(g);
   bool *taken = calloc(g->size, sizeof(bool));
-  if (!colors || !taken) {
-    free(colors);
+  unsigned *colors = malloc(g->size * sizeof(unsigned));
+  if (!g2 || !taken || !colors) {
+    destroyGraph(g2);
     free(taken);
+    free(colors);
     return nullptr;
   }
-  colors[0] = 0;
-  for (unsigned v = 1; v < g->size; v++)
-    colors[v] = UINT_MAX;
-  for (unsigned v = 1; v < g->size; v++) {
-    for (Edge *e = g->edges[v]; e; e = e->next)
+  deleteInvalidEdges(g2);
+  for (unsigned v = 0; v < g2->size; v++) colors[v] = UINT_MAX;
+  for (unsigned v = 0; v < g2->size; v++) {
+    for (Edge *e = g2->edges[v]; e; e = e->next)
       if (colors[e->destination] < UINT_MAX)
         taken[colors[e->destination]] = true;
     unsigned color = 0;
-    while (taken[color])
-      color++;
+    while (taken[color]) color++;
     colors[v] = color;
-    for (Edge *e = g->edges[v]; e; e = e->next)
+    for (Edge *e = g2->edges[v]; e; e = e->next)
       if (colors[e->destination] < UINT_MAX)
         taken[colors[e->destination]] = false;
   }
+  destroyGraph(g2);
   free(taken);
   return colors;
 }
