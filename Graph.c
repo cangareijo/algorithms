@@ -196,7 +196,7 @@ unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *assignColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
-unsigned *topologicalSortOfGraph(const Graph *g);
+unsigned *getTopologicalSort(const Graph *g);
 unsigned *findBridges(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getInNeighbors(const Graph *g, unsigned v);
@@ -2316,23 +2316,27 @@ unsigned *stronglyConnectedComponents(const Graph *g) {
   return components;
 }
 
-void topologicalSortOfGraphComponent(const Graph *g, unsigned v, unsigned *ordering, unsigned *i, bool *visited) {
+static void getTopologicalSortDfs(const Graph *g, unsigned v, unsigned *ordering, unsigned *i, bool *visited) {
   visited[v] = true;
   for (Edge *e = g->edges[v]; e; e = e->next)
     if (!visited[e->destination])
-      topologicalSortOfGraphComponent(g, e->destination, ordering, i, visited);
+      getTopologicalSortDfs(g, e->destination, ordering, i, visited);
   ordering[--(*i)] = v;
 }
 
-unsigned *topologicalSortOfGraph(const Graph *g) {
-  if (!isValid(g)) return nullptr;
+unsigned *getTopologicalSort(const Graph *g) {
+  if (!isValid(g) || hasDirectedCycle(g)) return nullptr;
   unsigned *ordering = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
-  if (g->size > 0 && (!ordering || !visited)) return nullptr;
+  if (!ordering || !visited) {
+    free(ordering);
+    free(visited);
+    return nullptr;
+  }
   unsigned i = g->size;
   for (unsigned v = 0; v < g->size; v++)
     if (!visited[v])
-      topologicalSortOfGraphComponent(g, v, ordering, &i, visited);
+      getTopologicalSortDfs(g, v, ordering, &i, visited);
   free(visited);
   return ordering;
 }
@@ -3229,7 +3233,7 @@ void testTopologicalSortOfGraph() {
   Graph *g1 = createGraph(3);
   addDirectedEdge(g1, 0, 1, 1);
   addDirectedEdge(g1, 1, 2, 1);
-  unsigned *order1 = topologicalSortOfGraph(g1);
+  unsigned *order1 = getTopologicalSort(g1);
   assert(isTopologicalSort(g1, order1));
   printf("Topo test 1 (linear) passed!\n");
   destroyGraph(g1);
@@ -3240,7 +3244,7 @@ void testTopologicalSortOfGraph() {
   addDirectedEdge(g2, 0, 2, 1);
   addDirectedEdge(g2, 1, 3, 1);
   addDirectedEdge(g2, 2, 3, 1);
-  unsigned *order2 = topologicalSortOfGraph(g2);
+  unsigned *order2 = getTopologicalSort(g2);
   assert(isTopologicalSort(g2, order2));
   printf("Topo test 2 (diamond) passed!\n");
   destroyGraph(g2);
@@ -3249,14 +3253,14 @@ void testTopologicalSortOfGraph() {
   Graph *g3 = createGraph(4);
   addDirectedEdge(g3, 0, 1, 1);
   addDirectedEdge(g3, 2, 3, 1);
-  unsigned *order3 = topologicalSortOfGraph(g3);
+  unsigned *order3 = getTopologicalSort(g3);
   assert(isTopologicalSort(g3, order3));
   printf("Topo test 3 (disconnected) passed!\n");
   destroyGraph(g3);
   free(order3);
 
   Graph *g4 = createGraph(1);
-  unsigned *order4 = topologicalSortOfGraph(g4);
+  unsigned *order4 = getTopologicalSort(g4);
   assert(order4[0] == 0);
   printf("Topo test 4 (single vertex) passed!\n");
   destroyGraph(g4);
