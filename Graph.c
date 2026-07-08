@@ -2266,16 +2266,14 @@ unsigned *assignColoring(const Graph *g) {
 }
 
 unsigned *stronglyConnectedComponents(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size)
-        return nullptr;
+  if (!g || !g->edges) return nullptr;
+  Graph *g2 = createTranspose(g);
   unsigned *components = malloc(g->size * sizeof(unsigned));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
   bool *canReach = malloc(g->size * sizeof(bool));
   bool *canBeReachedBy = malloc(g->size * sizeof(bool));
-  if (!components || !queue || !canReach || !canBeReachedBy) {
+  if (!g2 || !components || !queue || !canReach || !canBeReachedBy) {
+    destroyGraph(g2);
     free(components);
     free(queue);
     free(canReach);
@@ -2285,14 +2283,14 @@ unsigned *stronglyConnectedComponents(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++) components[v] = UINT_MAX;
   unsigned component = 0;
   for (unsigned u = 0; u < g->size; u++) {
-    if (components[u] != UINT_MAX) continue;
+    if (components[u] < UINT_MAX) continue;
     for (unsigned v = 0; v < g->size; v++) canReach[v] = false;
     unsigned head = 0, tail = 0;
     canReach[u] = true;
     queue[tail++] = u;
     while (head < tail)
       for (Edge *e = g->edges[queue[head++]]; e; e = e->next)
-        if (!canReach[e->destination]) {
+        if (e->destination < g->size && !canReach[e->destination]) {
           canReach[e->destination] = true;
           queue[tail++] = e->destination;
         }
@@ -2300,20 +2298,18 @@ unsigned *stronglyConnectedComponents(const Graph *g) {
     head = 0; tail = 0;
     canBeReachedBy[u] = true;
     queue[tail++] = u;
-    while (head < tail) {
-      unsigned target = queue[head++];
-      for (unsigned v = 0; v < g->size; v++)
-        for (Edge *e = g->edges[v]; e; e = e->next)
-          if (e->destination == target && !canBeReachedBy[v]) {
-            canBeReachedBy[v] = true;
-            queue[tail++] = v;
-          }
-    }
+    while (head < tail)
+      for (Edge *e = g2->edges[queue[head++]]; e; e = e->next)
+        if (e->destination < g2->size && !canBeReachedBy[e->destination]) {
+          canBeReachedBy[e->destination] = true;
+          queue[tail++] = e->destination;
+        }
     for (unsigned v = 0; v < g->size; v++)
       if (canReach[v] && canBeReachedBy[v])
         components[v] = component;
     component++;
   }
+  destroyGraph(g2);
   free(queue);
   free(canReach);
   free(canBeReachedBy);
