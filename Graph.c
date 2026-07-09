@@ -1,3 +1,5 @@
+// This code is written in C23.
+
 #include <assert.h>
 #include <float.h>
 #include <limits.h>
@@ -104,7 +106,8 @@ bool *findMaximumClique(const Graph *g);
 bool *getIsolatedVertices(const Graph *g);
 bool *getSources(const Graph *g);
 bool *getSinks(const Graph *g);
-bool *getNeighbors(const Graph *g, unsigned v);
+bool *getInNeighbors(const Graph *g, unsigned v);
+bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 
@@ -195,11 +198,9 @@ unsigned *getOutDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *assignColoring(const Graph *g);
-unsigned *stronglyConnectedComponents(const Graph *g);
+unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
-unsigned *getInNeighbors(const Graph *g, unsigned v);
-unsigned *getOutNeighbors(const Graph *g, unsigned v);
 unsigned *preOrderSort(const Graph *g, unsigned v);
 unsigned *postOrderSort(const Graph *g, unsigned v);
 unsigned *breadthFirstSort(const Graph *g, unsigned v);
@@ -596,7 +597,7 @@ bool hasNegativeCycle(const Graph *g) {
 bool hasInvalidEdges(const Graph *g) {
   if (!g || !g->edges) return false;
   for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination >= g->size)
         return true;
   return false;
@@ -1039,7 +1040,7 @@ static void findArticulationPointsDfs(
 {
   discovery[u] = low[u] = ++(*timer);
   unsigned children = 0;
-  for (const Edge *e = g->edges[u]; e; e = e->next) {
+  for (Edge *e = g->edges[u]; e; e = e->next) {
     if (e->destination == parent) continue;
     if (discovery[e->destination] > 0) {
       low[u] = minimumUnsigned(low[u], discovery[e->destination]);
@@ -1111,13 +1112,12 @@ bool *findMaximumClique(const Graph *g) {
   if (!g) return nullptr;
   unsigned *in = getInDegrees(g);
   bool *isolated = calloc(g->size, sizeof(bool));
-  if (g->size > 0 && (!in || !isolated)) {
+  if (!in || !isolated) {
     free(in);
     free(isolated);
     return nullptr;
   }
-  for (unsigned v = 0; v < g->size; v++)
-    isolated[v] = in[v] == 0 && getOutDegree(g, v) == 0;
+  for (unsigned v = 0; v < g->size; v++) isolated[v] = in[v] == 0 && getOutDegree(g, v) == 0;
   free(in);
   return isolated;
 }
@@ -1126,13 +1126,12 @@ bool *findMaximumClique(const Graph *g) {
   if (!g) return nullptr;
   unsigned *in = getInDegrees(g);
   bool *sources = calloc(g->size, sizeof(bool));
-  if (g->size > 0 && (!in || !sources)) {
+  if (!in || !sources) {
     free(in);
     free(sources);
     return nullptr;
   }
-  for (unsigned v = 0; v < g->size; v++)
-    sources[v] = in[v] == 0 && getOutDegree(g, v) > 0;
+  for (unsigned v = 0; v < g->size; v++) sources[v] = in[v] == 0 && getOutDegree(g, v) > 0;
   free(in);
   return sources;
 }
@@ -1141,18 +1140,28 @@ bool *findMaximumClique(const Graph *g) {
   if (!g) return nullptr;
   unsigned *in = getInDegrees(g);
   bool *sinks = calloc(g->size, sizeof(bool));
-  if (g->size > 0 && (!in || !sinks)) {
+  if (!in || !sinks) {
     free(in);
     free(sinks);
     return nullptr;
   }
-  for (unsigned v = 0; v < g->size; v++)
-    sinks[v] = in[v] > 0 && getOutDegree(g, v) == 0;
+  for (unsigned v = 0; v < g->size; v++) sinks[v] = in[v] > 0 && getOutDegree(g, v) == 0;
   free(in);
   return sinks;
 }
 
-[[nodiscard]] bool *getNeighbors(const Graph *g, unsigned v) {
+[[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
+  if (!g || !g->edges) return nullptr;
+  bool *neighbors = calloc(g->size, sizeof(bool));
+  if (!neighbors) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination == v)
+        neighbors[u] = true;
+  return neighbors;
+}
+
+[[nodiscard]] bool *getOutNeighbors(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   bool *neighbors = calloc(g->size, sizeof(bool));
   if (!neighbors) return nullptr;
@@ -1187,15 +1196,14 @@ bool *findMaximumClique(const Graph *g) {
 }
 
 [[nodiscard]] bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
-  if (!g) return nullptr;
-  bool *s1 = getNeighbors(g, u);
-  bool *s2 = getNeighbors(g, v);
-  if (g->size > 0 && (!s1 || !s2)) {
-    free(s1); free(s2);
+  bool *s1 = getOutNeighbors(g, u);
+  bool *s2 = getOutNeighbors(g, v);
+  if (!g || !s1 || !s2) {
+    free(s1);
+    free(s2);
     return nullptr;
   }
-  for (unsigned w = 0; w < g->size; w++)
-    s1[w] = s1[w] && s2[w];
+  for (unsigned w = 0; w < g->size; w++) s1[w] = s1[w] && s2[w];
   free(s2);
   return s1;
 }
@@ -2036,7 +2044,7 @@ unsigned countInvalidEdges(const Graph *g) {
   if (!g || !g->edges) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination >= g->size)
         n++;
   return n;
@@ -2142,7 +2150,7 @@ unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v) {
       }
     if (x == UINT_MAX || x == v) break;
     visited[x] = true;
-    for (const Edge *e = g->edges[x]; e; e = e->next)
+    for (Edge *e = g->edges[x]; e; e = e->next)
       if (e->destination < g->size && !visited[e->destination]) {
         if (distance[x] + e->weight < distance[e->destination]) {
           distance[e->destination] = distance[x] + e->weight;
@@ -2236,7 +2244,7 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
   return distribution;
 }
 
-unsigned *assignColoring(const Graph *g) {
+[[nodiscard]] unsigned *assignColoring(const Graph *g) {
   if (!g) return nullptr;
   Graph *g2 = createUndirected(g);
   bool *taken = calloc(g->size, sizeof(bool));
@@ -2265,7 +2273,7 @@ unsigned *assignColoring(const Graph *g) {
   return colors;
 }
 
-unsigned *stronglyConnectedComponents(const Graph *g) {
+[[nodiscard]] unsigned *getStronglyConnectedComponents(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   Graph *g2 = createTranspose(g);
   unsigned *components = malloc(g->size * sizeof(unsigned));
@@ -2324,7 +2332,7 @@ static void getTopologicalSortDfs(const Graph *g, unsigned v, unsigned *ordering
   ordering[--(*i)] = v;
 }
 
-unsigned *getTopologicalSort(const Graph *g) {
+[[nodiscard]] unsigned *getTopologicalSort(const Graph *g) {
   if (!isValid(g) || hasDirectedCycle(g)) return nullptr;
   unsigned *ordering = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
@@ -2341,7 +2349,7 @@ unsigned *getTopologicalSort(const Graph *g) {
   return ordering;
 }
 
-unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
+[[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
@@ -2350,8 +2358,7 @@ unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
     free(queue);
     return nullptr;
   }
-  for (unsigned u = 0; u < g->size; u++)
-    distances[u] = UINT_MAX;
+  for (unsigned u = 0; u < g->size; u++) distances[u] = UINT_MAX;
   distances[v] = 0;
   unsigned head = 0, tail = 0;
   queue[tail++] = v;
@@ -2365,24 +2372,6 @@ unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
   }
   free(queue);
   return distances;
-}
-
-unsigned *getInNeighbors(const Graph *graph, unsigned vertex) {
-  unsigned *neighbors = malloc(getInDegree(graph, vertex) * sizeof(unsigned));
-  unsigned i = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-      if (e->destination == vertex)
-        neighbors[i++] = v;
-  return neighbors;
-}
-
-unsigned *getOutNeighbors(const Graph *graph, unsigned vertex) {
-  unsigned *neighbors = malloc(getOutDegree(graph, vertex) * sizeof(unsigned));
-  unsigned i = 0;
-  for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-    neighbors[i++] = e->destination;
-  return neighbors;
 }
 
 unsigned *preOrderSort(const Graph *g, unsigned v) {
@@ -2588,7 +2577,7 @@ static void getBridgesDfs(
 {
   discovery[v] = low[v] = ++(*timer);
   bool skipped = false;
-  for (const Edge *e = g->edges[v]; e; e = e->next) {
+  for (Edge *e = g->edges[v]; e; e = e->next) {
     if (e->destination == parent && !skipped) {
       skipped = true;
       continue;
@@ -2611,6 +2600,7 @@ static void getBridgesDfs(
   }
 }
 
+// A graph has at most V - 1 bridges, except if V = 0.
 [[nodiscard]] unsigned **getBridges(const Graph *g) {
   if (!isValid(g)) return nullptr;
   unsigned *discovery = calloc(g->size, sizeof(unsigned));
@@ -2695,7 +2685,7 @@ double graphGirth(const Graph *graph) {
     queue[tail++] = start;
     while (head < tail) {
       unsigned v = queue[head++];
-      for (const Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+      for (Edge *e = graph->edges[v]; e; e = e->next)
         if (distance[e->destination] == INFINITY) {
           distance[e->destination] = distance[v] + e->weight;
           parent[e->destination] = v;
