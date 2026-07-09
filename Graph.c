@@ -197,7 +197,6 @@ unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *assignColoring(const Graph *g);
 unsigned *stronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
-unsigned *findBridges(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getInNeighbors(const Graph *g, unsigned v);
 unsigned *getOutNeighbors(const Graph *g, unsigned v);
@@ -207,6 +206,7 @@ unsigned *breadthFirstSort(const Graph *g, unsigned v);
 unsigned *shortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
 unsigned **allPairsShortestPathsUnweighted(const Graph *g);
+unsigned **getBridges(const Graph *g);
 
 double sumWeights(const Graph *g);
 double graphRadius(const Graph *g);
@@ -1332,7 +1332,7 @@ bool *findMaximumClique(const Graph *g) {
   Graph *g2 = createGraph(countEdges(g) / 2);
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++) {
-    unsigned uSelf = 0; 
+    unsigned uSelf = 0;
     for (Edge *d = g->edges[u]; d; d = d->next) {
       if (u < d->destination || (u == d->destination && uSelf % 2 == 0)) {
         unsigned j = 0;
@@ -2341,77 +2341,6 @@ unsigned *getTopologicalSort(const Graph *g) {
   return ordering;
 }
 
-unsigned *findBridges(const Graph *g) {
-  if (!isValid(g)) return nullptr;
-  unsigned *bridges = malloc((2 * g->size + 1) * sizeof(unsigned));
-  unsigned *discovery = calloc(g->size, sizeof(unsigned));
-  unsigned *low = malloc(g->size * sizeof(unsigned));
-  unsigned *parent = malloc(g->size * sizeof(unsigned));
-  bool *skipped = calloc(g->size, sizeof(bool));
-  Edge **edge = malloc(g->size * sizeof(Edge*));
-  unsigned *stack = malloc(g->size * sizeof(unsigned));
-  if (!bridges || (g->size > 0 && (!discovery || !low || !parent || !skipped || !edge || !stack))) {
-    free(bridges);
-    free(discovery);
-    free(low);
-    free(parent);
-    free(skipped);
-    free(edge);
-    free(stack);
-    return nullptr;
-  }
-  unsigned timer = 0;
-  unsigned count = 0;
-  for (unsigned v = 0; v < g->size; v++) {
-    if (discovery[v] != 0) continue;
-    unsigned top = 0;
-    discovery[v] = low[v] = ++timer;
-    parent[v] = UINT_MAX;
-    edge[v] = g->edges[v];
-    stack[top++] = v;
-    while (top > 0) {
-      unsigned u = stack[top - 1];
-      if (edge[u]) {
-        Edge *e = edge[u];
-        edge[u] = e->next;
-        if (e->destination == parent[u] && !skipped[u]) {
-          skipped[u] = true;
-          continue;
-        }
-        if (discovery[e->destination] > 0) {
-          if (discovery[e->destination] < low[u])
-            low[u] = discovery[e->destination];
-        } else {
-          discovery[e->destination] = low[e->destination] = ++timer;
-          parent[e->destination] = u;
-          edge[e->destination] = g->edges[e->destination];
-          stack[top++] = e->destination;
-        }
-      } else {
-        top--;
-        if (top > 0 && parent[u] != UINT_MAX) {
-          if (low[u] < low[parent[u]])
-            low[parent[u]] = low[u];
-          if (low[u] > discovery[parent[u]]) {
-            bridges[count++] = parent[u];
-            bridges[count++] = u;
-          }
-        }
-      }
-    }
-  }
-  bridges[count++] = UINT_MAX;
-  unsigned *trimmed = realloc(bridges, count * sizeof(unsigned));
-  if (trimmed) bridges = trimmed;
-  free(discovery);
-  free(low);
-  free(parent);
-  free(skipped);
-  free(edge);
-  free(stack);
-  return bridges;
-}
-
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
@@ -2652,6 +2581,55 @@ unsigned **allPairsShortestPathsUnweighted(const Graph *graph) {
   free(queue);
   free(visited);
   return distances;
+}
+
+static void getBridgesDfs(
+  const Graph *g, unsigned v, unsigned parent, unsigned *timer, unsigned *discovery, unsigned *low, unsigned **bridges, unsigned *count)
+{
+  discovery[v] = low[v] = ++(*timer);
+  bool skipped = false;
+  for (const Edge *e = g->edges[v]; e; e = e->next) {
+    if (e->destination == parent && !skipped) {
+      skipped = true;
+      continue;
+    }
+    if (discovery[e->destination] > 0) {
+      if (discovery[e->destination] < low[v]) low[v] = discovery[e->destination];
+    } else {
+      getBridgesDfs(g, e->destination, v, timer, discovery, low, bridges, count);
+      if (low[e->destination] < low[v]) low[v] = low[e->destination];
+      if (low[e->destination] > discovery[v]) {
+        unsigned *bridge = malloc(2 * sizeof(unsigned));
+        if (bridge) {
+          bridge[0] = v;
+          bridge[1] = e->destination;
+          bridges[*count] = bridge;
+          (*count)++;
+        }
+      }
+    }
+  }
+}
+
+[[nodiscard]] unsigned **getBridges(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  unsigned *discovery = calloc(g->size, sizeof(unsigned));
+  unsigned *low = calloc(g->size, sizeof(unsigned));
+  unsigned **bridges = calloc(g->size + 1, sizeof(unsigned *));
+  if (!discovery || !low || !bridges) {
+    free(discovery);
+    free(low);
+    free(bridges);
+    return nullptr;
+  }
+  unsigned timer = 0;
+  unsigned count = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (discovery[v] == 0)
+      getBridgesDfs(g, v, UINT_MAX, &timer, discovery, low, bridges, &count);
+  free(discovery);
+  free(low);
+  return bridges;
 }
 
 
