@@ -201,9 +201,9 @@ unsigned *assignColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
-unsigned *preOrderSort(const Graph *g, unsigned v);
-unsigned *postOrderSort(const Graph *g, unsigned v);
-unsigned *breadthFirstSort(const Graph *g, unsigned v);
+unsigned *getPreOrderSort(const Graph *g, unsigned v);
+unsigned *getPostOrderSort(const Graph *g, unsigned v);
+unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
 unsigned *shortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
 unsigned **allPairsShortestPathsUnweighted(const Graph *g);
@@ -2374,112 +2374,80 @@ static void getTopologicalSortDfs(const Graph *g, unsigned v, unsigned *ordering
   return distances;
 }
 
-unsigned *preOrderSort(const Graph *g, unsigned v) {
-  if (!isValid(g) || v >= g->size) return nullptr;
-  bool *visited = calloc(g->size, sizeof(bool));
-  unsigned *result = malloc(g->size * sizeof(unsigned));
-  unsigned *vertices = malloc(g->size * sizeof(unsigned));
-  Edge **edges = malloc(g->size * sizeof(Edge*));
-  if (!visited || !result || !vertices || !edges) {
-    free(visited); free(result); free(vertices); free(edges);
-    return nullptr;
-  }
-  unsigned i = 0;
-  unsigned top = 0;
-  for (unsigned u = 0; u < g->size; u++) {
-    unsigned start = u == 0 ? v : u <= v ? u - 1 : u;
-    if (visited[start]) continue;
-    visited[start] = true;
-    result[i++] = start;
-    vertices[top] = start;
-    edges[top] = g->edges[start];
-    top++;
-    while (top > 0) {
-      Edge *e = edges[top - 1];
-      if (e) {
-        edges[top - 1] = e->next;
-        if (!visited[e->destination]) {
-          visited[e->destination] = true;
-          result[i++] = e->destination;
-          vertices[top] = e->destination;
-          edges[top] = g->edges[e->destination];
-          top++;
-        }
-      } else {
-        top--;
-      }
-    }
-  }
-  free(visited);
-  free(vertices);
-  free(edges);
-  return result;
+static void getPreOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsigned *order, unsigned *index) {
+  visited[u] = true;
+  order[(*index)++] = u;
+  for (const Edge *e = g->edges[u]; e; e = e->next)
+    if (!visited[e->destination])
+      getPreOrderSortDfs(g, e->destination, visited, order, index);
 }
 
-unsigned *postOrderSort(const Graph *g, unsigned v) {
+[[nodiscard]] unsigned *getPreOrderSort(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
+  unsigned *order = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
-  unsigned *result = malloc(g->size * sizeof(unsigned));
-  unsigned *vertices = malloc(g->size * sizeof(unsigned));
-  Edge **edges = malloc(g->size * sizeof(Edge*));
-  if (!visited || !result || !vertices || !edges) {
-    free(visited); free(result); free(vertices); free(edges);
+  if (!order || !visited) {
+    free(order);
+    free(visited);
     return nullptr;
   }
-  unsigned i = g->size;
-  unsigned top = 0;
-  for (unsigned u = 0; u < g->size; u++) {
-    unsigned start = u == 0 ? v : u <= v ? u - 1 : u;
-    if (visited[start]) continue;
-    visited[start] = true;
-    vertices[top] = start;
-    edges[top] = g->edges[start];
-    top++;
-    while (top > 0) {
-      Edge *e = edges[top - 1];
-      if (e) {
-        edges[top - 1] = e->next;
-        if (!visited[e->destination]) {
-          visited[e->destination] = true;
-          vertices[top] = e->destination;
-          edges[top] = g->edges[e->destination];
-          top++;
-        }
-      } else {
-        result[--i] = vertices[--top];
-      }
-    }
-  }
+  unsigned index = 0;
+  getPreOrderSortDfs(g, v, visited, order, &index);
+  for (unsigned u = 0; u < g->size; u++)
+    if (!visited[u])
+      getPreOrderSortDfs(g, u, visited, order, &index);
   free(visited);
-  free(vertices);
-  free(edges);
-  return result;
+  return order;
 }
 
-unsigned *breadthFirstSort(const Graph *g, unsigned v) {
+static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsigned *order, unsigned *index) {
+  visited[u] = true;
+  for (const Edge *e = g->edges[u]; e; e = e->next)
+    if (!visited[e->destination])
+      getPostOrderSortDfs(g, e->destination, visited, order, index);
+  order[(*index)++] = u;
+}
+
+[[nodiscard]] unsigned *getPostOrderSort(const Graph *g, unsigned v) {
+  if (!isValid(g) || v >= g->size) return nullptr;
+  unsigned *order = malloc(g->size * sizeof(unsigned));
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (!order || !visited) {
+    free(order);
+    free(visited);
+    return nullptr;
+  }
+  unsigned index = 0;
+  getPostOrderSortDfs(g, v, visited, order, &index);
+  for (unsigned u = 0; u < g->size; u++)
+    if (!visited[u])
+      getPostOrderSortDfs(g, u, visited, order, &index);
+  free(visited);
+  return order;
+}
+
+unsigned *getBreadthFirstSort(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
   bool *visited = calloc(g->size, sizeof(bool));
   unsigned *result = malloc(g->size * sizeof(unsigned));
   if (!visited || !result) {
-    free(visited); free(result);
+    free(visited);
+    free(result);
     return nullptr;
   }
-  unsigned i = 0;
   unsigned head = 0;
   unsigned tail = 0;
   for (unsigned u = 0; u < g->size; u++) {
-    unsigned start = u == 0 ? v : u <= v ? u - 1 : u;
+    const unsigned start = u == 0 ? v : u <= v ? u - 1 : u;
     if (visited[start]) continue;
     visited[start] = true;
-    result[i++] = start;
-    while (head < tail) {
-      unsigned current = result[head++];
-      for (Edge *e = g->edges[current]; e; e = e->next)
+    result[tail++] = start;
+    while (head < tail)
+      for (const Edge *e = g->edges[result[head++]]; e; e = e->next)
         if (!visited[e->destination]) {
           visited[e->destination] = true;
-          result[i++] = e->destination;
+          result[tail++] = e->destination;
         }
-    }
   }
   free(visited);
   return result;
