@@ -2511,49 +2511,18 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 }
 
 
-// The code only checks if every row was allocated after trying to allocate all rows.
-// Parallel edges and self-loops are never added to the queue.
+
 [[nodiscard]] unsigned **getAllPairsUnweightedDistances(const Graph *g) {
-  if (!isValid(g)) return nullptr;
+  if (!g) return nullptr;
   unsigned **distances = malloc(g->size * sizeof(unsigned *));
-  if (distances)
-    for (unsigned v = 0; v < g->size; v++)
-      distances[v] = malloc(g->size * sizeof(unsigned));
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  bool *visited = malloc(g->size * sizeof(bool));
-  bool allocated = distances && queue && visited;
-  if (distances) for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && distances[v];
-  if (!allocated) {
-    if (distances)
-      for (unsigned v = 0; v < g->size; v++)
-        free(distances[v]);
-    free(distances);
-    free(queue);
-    free(visited);
-    return nullptr;
-  }
+  if (!distances) return nullptr;
+  for (unsigned v = 0; v < g->size; v++) distances[v] = calculateUnweightedDistances(g, v);
   for (unsigned u = 0; u < g->size; u++)
-    for (unsigned v = 0; v < g->size; v++)
-      distances[u][v] = UINT_MAX;
-  for (unsigned u = 0; u < g->size; u++) {
-    for (unsigned v = 0; v < g->size; v++) visited[v] = false;
-    unsigned head = 0;
-    unsigned tail = 0;
-    distances[u][u] = 0;
-    visited[u] = true;
-    queue[tail++] = u;
-    while (head < tail) {
-      unsigned v = queue[head++];
-      for (const Edge *e = g->edges[v]; e; e = e->next)
-        if (!visited[e->destination]) {
-          visited[e->destination] = true;
-          distances[u][e->destination] = distances[u][v] + 1;
-          queue[tail++] = e->destination;
-        }
+    if (!distances[u]) {
+      for (unsigned v = 0; v < g->size; v++) free(distances[v]);
+      free(distances);
+      return nullptr;
     }
-  }
-  free(queue);
-  free(visited);
   return distances;
 }
 
@@ -2591,7 +2560,7 @@ static void getBridgesDfs(
   unsigned *discovery = calloc(g->size, sizeof(unsigned));
   unsigned *low = calloc(g->size, sizeof(unsigned));
   unsigned **bridges = calloc(g->size + 1, sizeof(unsigned *));
-  if (!discovery || !low || !bridges) {
+  if ((g->size > 0 && (!discovery || !low)) || !bridges) {
     free(discovery);
     free(low);
     free(bridges);
@@ -2609,10 +2578,11 @@ static void getBridgesDfs(
 
 
 
-double sumWeights(const Graph *graph) {
+double sumWeights(const Graph *g) {
+  if (!g || !g->edges) return 0;
   double sum = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
       sum += e->weight;
   return sum;
 }
