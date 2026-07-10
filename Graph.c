@@ -206,7 +206,7 @@ unsigned *getPostOrderSort(const Graph *g, unsigned v);
 unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
 unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
-unsigned **allPairsShortestPathsUnweighted(const Graph *g);
+unsigned **getAllPairsUnweightedDistances(const Graph *g);
 unsigned **getBridges(const Graph *g);
 
 double sumWeights(const Graph *g);
@@ -2454,8 +2454,8 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 }
 
 [[nodiscard]] unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length) {
-  if (!isValid(g) || u >= g->size || v >= g->size || !length) return nullptr;
-  *length = 0;
+  if (length) *length = 0; else return nullptr;
+  if (!isValid(g) || u >= g->size || v >= g->size) return nullptr;
   double *distances = malloc(g->size * sizeof(double));
   unsigned *parent = malloc(g->size * sizeof(unsigned));
   bool *visited = malloc(g->size * sizeof(bool));
@@ -2511,32 +2511,43 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 }
 
 
-
-unsigned **allPairsShortestPathsUnweighted(const Graph *graph) {
-  if (graph == nullptr || graph->size == 0)
+// The code only checks if every row was allocated after trying to allocate all rows.
+// Parallel edges and self-loops are never added to the queue.
+[[nodiscard]] unsigned **getAllPairsUnweightedDistances(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  unsigned **distances = malloc(g->size * sizeof(unsigned *));
+  if (distances)
+    for (unsigned v = 0; v < g->size; v++)
+      distances[v] = malloc(g->size * sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  bool *visited = malloc(g->size * sizeof(bool));
+  bool allocated = distances && queue && visited;
+  if (distances) for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && distances[v];
+  if (!allocated) {
+    if (distances)
+      for (unsigned v = 0; v < g->size; v++)
+        free(distances[v]);
+    free(distances);
+    free(queue);
+    free(visited);
     return nullptr;
-  unsigned **distances = malloc(graph->size * sizeof(unsigned *));
-  for (unsigned u = 0; u < graph->size; u++) {
-    distances[u] = malloc(graph->size * sizeof(unsigned));
-    for (unsigned v = 0; v < graph->size; v++)
-      distances[u][v] = UINT_MAX;
   }
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
-  bool *visited = malloc(graph->size * sizeof(bool));
-  for (unsigned start = 0; start < graph->size; start++) {
-    for (unsigned v = 0; v < graph->size; v++)
-      visited[v] = false;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      distances[u][v] = UINT_MAX;
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++) visited[v] = false;
     unsigned head = 0;
     unsigned tail = 0;
-    distances[start][start] = 0;
-    visited[start] = true;
-    queue[tail++] = start;
+    distances[u][u] = 0;
+    visited[u] = true;
+    queue[tail++] = u;
     while (head < tail) {
       unsigned v = queue[head++];
-      for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
+      for (const Edge *e = g->edges[v]; e; e = e->next)
         if (!visited[e->destination]) {
           visited[e->destination] = true;
-          distances[start][e->destination] = distances[start][v] + 1;
+          distances[u][e->destination] = distances[u][v] + 1;
           queue[tail++] = e->destination;
         }
     }
