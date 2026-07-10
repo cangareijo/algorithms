@@ -204,7 +204,7 @@ unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
 unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
-unsigned *shortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
+unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
 unsigned **allPairsShortestPathsUnweighted(const Graph *g);
 unsigned **getBridges(const Graph *g);
@@ -2426,7 +2426,7 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
   return order;
 }
 
-unsigned *getBreadthFirstSort(const Graph *g, unsigned v) {
+[[nodiscard]] unsigned *getBreadthFirstSort(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
   bool *visited = calloc(g->size, sizeof(bool));
   unsigned *result = malloc(g->size * sizeof(unsigned));
@@ -2453,52 +2453,58 @@ unsigned *getBreadthFirstSort(const Graph *g, unsigned v) {
   return result;
 }
 
-unsigned *shortestPath(const Graph *graph, unsigned source, unsigned target, unsigned *length) {
+[[nodiscard]] unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length) {
+  if (!isValid(g) || u >= g->size || v >= g->size || !length) return nullptr;
   *length = 0;
-  if (source >= graph->size || target >= graph->size)
+  double *distances = malloc(g->size * sizeof(double));
+  unsigned *parent = malloc(g->size * sizeof(unsigned));
+  bool *visited = malloc(g->size * sizeof(bool));
+  if (!distances || !parent || !visited) {
+    free(distances);
+    free(parent);
+    free(visited);
     return nullptr;
-  double *distance = malloc(graph->size * sizeof(double));
-  unsigned *parent = malloc(graph->size * sizeof(unsigned));
-  bool *visited = malloc(graph->size * sizeof(bool));
-  for (unsigned v = 0; v < graph->size; v++) {
-    distance[v] = INFINITY;
-    parent[v] = UINT_MAX;
-    visited[v] = false;
   }
-  distance[source] = 0;
-  for (unsigned count = 0; count < graph->size; count++) {
-    unsigned u = UINT_MAX;
-    double minimum = INFINITY;
-    for (unsigned v = 0; v < graph->size; v++)
-      if (!visited[v] && distance[v] < minimum) {
-        minimum = distance[v];
-        u = v;
+  for (unsigned x = 0; x < g->size; x++) {
+    distances[x] = INFINITY;
+    parent[x] = UINT_MAX;
+    visited[x] = false;
+  }
+  distances[u] = 0;
+  while (true) {
+    unsigned x = UINT_MAX;
+    double distance = INFINITY;
+    for (unsigned y = 0; y < g->size; y++)
+      if (!visited[y] && distances[y] < distance) {
+        distance = distances[y];
+        x = y;
       }
-    if (u == UINT_MAX || u == target)
-      break;
-    visited[u] = true;
-    for (Edge *e = graph->edges[u]; e; e = e->next)
-      if (!visited[e->destination] && distance[u] + e->weight < distance[e->destination]) {
-        distance[e->destination] = distance[u] + e->weight;
-        parent[e->destination] = u;
+    if (x == UINT_MAX || x == v) break;
+    visited[x] = true;
+    for (const Edge *e = g->edges[x]; e; e = e->next)
+      if (!visited[e->destination] && distances[x] + e->weight < distances[e->destination]) {
+        distances[e->destination] = distances[x] + e->weight;
+        parent[e->destination] = x;
       }
   }
   unsigned *path = nullptr;
-  if (distance[target] != INFINITY) {
-    unsigned v = target;
+  if (distances[v] < INFINITY) {
+    unsigned x = v;
     do {
       (*length)++;
-      v = parent[v];
-    } while (v != UINT_MAX);
+      x = parent[x];
+    } while (x < UINT_MAX);
     path = malloc((*length) * sizeof(unsigned));
-    v = target;
-    unsigned i = *length;
-    do {
-      path[--i] = v;
-      v = parent[v];
-    } while (v != UINT_MAX);
+    if (path) {
+      x = v;
+      unsigned i = *length;
+      do {
+        path[--i] = x;
+        x = parent[x];
+      } while (x < UINT_MAX);
+    }
   }
-  free(distance);
+  free(distances);
   free(parent);
   free(visited);
   return path;
