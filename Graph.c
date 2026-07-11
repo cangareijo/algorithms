@@ -213,8 +213,8 @@ double sumWeights(const Graph *g);
 double getRadius(const Graph *g);
 double getDiameter(const Graph *g);
 double getDensity(const Graph *g);
-double averageClusteringCoefficient(const Graph *g);
-double graphGirth(const Graph *g);
+double getAverageClusteringCoefficient(const Graph *g);
+double getGirth(const Graph *g);
 double minimumEdgeWeight(const Graph *g);
 double maximumEdgeWeight(const Graph *g);
 double graphEccentricity(const Graph *g, unsigned v);
@@ -2632,32 +2632,37 @@ double getAverageClusteringCoefficient(const Graph *g) {
   return sum / g->size;
 }
 
-double graphGirth(const Graph *g) {
+double getGirth(const Graph *g) {
   if (!isValid(g)) return INFINITY;
   double *distance = malloc(g->size * sizeof(double));
   unsigned *parent = malloc(g->size * sizeof(unsigned));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
+  if (!distance || !parent || !queue) {
+    free(distance);
+    free(parent);
+    free(queue);
+    return INFINITY;
+  }
   double girth = INFINITY;
-  for (unsigned start = 0; start < g->size; start++) {
+  for (unsigned u = 0; u < g->size; u++) {
     for (unsigned v = 0; v < g->size; v++) {
       distance[v] = INFINITY;
       parent[v] = UINT_MAX;
     }
     unsigned head = 0;
     unsigned tail = 0;
-    distance[start] = 0;
-    queue[tail++] = start;
+    distance[u] = 0;
+    queue[tail++] = u;
     while (head < tail) {
       unsigned v = queue[head++];
-      for (Edge *e = g->edges[v]; e; e = e->next)
+      for (const Edge *e = g->edges[v]; e; e = e->next)
         if (distance[e->destination] == INFINITY) {
           distance[e->destination] = distance[v] + e->weight;
           parent[e->destination] = v;
           queue[tail++] = e->destination;
         } else if (parent[v] != e->destination && parent[e->destination] != v) {
           double length = distance[v] + distance[e->destination] + e->weight;
-          if (length < girth)
-            girth = length;
+          if (length < girth) girth = length;
         }
     }
   }
