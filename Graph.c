@@ -2584,9 +2584,9 @@ double sumWeights(const Graph *g) {
   double low = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next) {
-      double term = e->weight - low;
+      double term = e->weight + low;
       double high = sum + term;
-      low = (high - sum) - term;
+      low = term - (high - sum);
       sum = high;
     }
   return sum;
@@ -2619,26 +2619,29 @@ double getDensity(const Graph *g) {
   return (double)countEdges(g) / g->size / (g->size - 1);
 }
 
-double averageClusteringCoefficient(const Graph *graph) {
-  if (graph->size == 0)
-    return 0;
-  double total = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    total += localClusteringCoefficient(graph, v);
-  return total / graph->size;
+double getAverageClusteringCoefficient(const Graph *g) {
+  if (!g || g->size == 0) return 0;
+  double sum = 0;
+  double low = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    double term = localClusteringCoefficient(g, v) + low;
+    double high = sum + term;
+    low = term - (high - sum);
+    sum = high;
+  }
+  return sum / g->size;
 }
 
-double graphGirth(const Graph *graph) {
+double graphGirth(const Graph *g) {
+  if (!isValid(g)) return INFINITY;
+  double *distance = malloc(g->size * sizeof(double));
+  unsigned *parent = malloc(g->size * sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
   double girth = INFINITY;
-  if (graph == nullptr || graph->size == 0)
-    return girth;
-  double *distance = malloc(graph->size * sizeof(double));
-  unsigned *parent = malloc(graph->size * sizeof(unsigned));
-  unsigned *queue = malloc(graph->size * sizeof(unsigned));
-  for (unsigned start = 0; start < graph->size; start++) {
-    for (unsigned v = 0; v < graph->size; v++) {
+  for (unsigned start = 0; start < g->size; start++) {
+    for (unsigned v = 0; v < g->size; v++) {
       distance[v] = INFINITY;
-      parent[v] = graph->size;
+      parent[v] = UINT_MAX;
     }
     unsigned head = 0;
     unsigned tail = 0;
@@ -2646,7 +2649,7 @@ double graphGirth(const Graph *graph) {
     queue[tail++] = start;
     while (head < tail) {
       unsigned v = queue[head++];
-      for (Edge *e = graph->edges[v]; e; e = e->next)
+      for (Edge *e = g->edges[v]; e; e = e->next)
         if (distance[e->destination] == INFINITY) {
           distance[e->destination] = distance[v] + e->weight;
           parent[e->destination] = v;
@@ -2701,8 +2704,7 @@ double normalizedDegree(const Graph *graph, unsigned vertex) {
 }
 
 double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
-  if (getOutDegree(graph, vertex) < 2)
-    return 0;
+  if (getOutDegree(graph, vertex) < 2) return 0;
   unsigned edgesBetweenNeighbours = 0;
   for (Edge *d = graph->edges[vertex]; d != nullptr; d = d->next)
     for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
