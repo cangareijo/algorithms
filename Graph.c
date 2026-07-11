@@ -210,9 +210,9 @@ unsigned **getAllPairsUnweightedDistances(const Graph *g);
 unsigned **getBridges(const Graph *g);
 
 double sumWeights(const Graph *g);
-double graphRadius(const Graph *g);
-double graphDiameter(const Graph *g);
-double graphDensity(const Graph *g);
+double getRadius(const Graph *g);
+double getDiameter(const Graph *g);
+double getDensity(const Graph *g);
 double averageClusteringCoefficient(const Graph *g);
 double graphGirth(const Graph *g);
 double minimumEdgeWeight(const Graph *g);
@@ -2581,36 +2581,42 @@ static void getBridgesDfs(
 double sumWeights(const Graph *g) {
   if (!g || !g->edges) return 0;
   double sum = 0;
+  double low = 0;
   for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      sum += e->weight;
+    for (const Edge *e = g->edges[v]; e; e = e->next) {
+      double term = e->weight - low;
+      double high = sum + term;
+      low = (high - sum) - term;
+      sum = high;
+    }
   return sum;
 }
 
-double graphRadius(const Graph *graph) {
+double getRadius(const Graph *g) {
+  if (!g) return INFINITY;
   double radius = INFINITY;
-  for (unsigned v = 0; v < graph->size; v++) {
-    double eccentricity = graphEccentricity(graph, v);
+  for (unsigned v = 0; v < g->size; v++) {
+    double eccentricity = graphEccentricity(g, v);
     if (eccentricity < radius)
       radius = eccentricity;
   }
   return radius;
 }
 
-double graphDiameter(const Graph *graph) {
+double getDiameter(const Graph *g) {
+  if (!g) return -INFINITY;
   double diameter = -INFINITY;
-  for (unsigned v = 0; v < graph->size; v++) {
-    double eccentricity = graphEccentricity(graph, v);
+  for (unsigned v = 0; v < g->size; v++) {
+    double eccentricity = graphEccentricity(g, v);
     if (eccentricity > diameter)
       diameter = eccentricity;
   }
   return diameter;
 }
 
-double graphDensity(const Graph *graph) {
-  if (graph->size < 2)
-    return 0;
-  return (double)countEdges(graph) / graph->size / (graph->size - 1);
+double getDensity(const Graph *g) {
+  if (!g || g->size < 2) return 0;
+  return (double)countEdges(g) / g->size / (g->size - 1);
 }
 
 double averageClusteringCoefficient(const Graph *graph) {
@@ -3521,7 +3527,7 @@ void testGraphDensity() {
   Graph *graph = createGraph(65537);
   for (unsigned v = 0; v < 65536; v++)
     addDirectedEdge(graph, v, v + 1, 1);
-  assert(graphDensity(graph) <= 0.99);
+  assert(getDensity(graph) <= 0.99);
   destroyGraph(graph);
 }
 
