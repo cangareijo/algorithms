@@ -1,5 +1,3 @@
-// This code is written in C23.
-
 #include <assert.h>
 #include <float.h>
 #include <limits.h>
@@ -184,9 +182,12 @@ unsigned calculateWienerIndex(const Graph *g);
 unsigned countInvalidEdges(const Graph *g);
 unsigned calculateDirectedUnweightedGirth(const Graph *g);
 unsigned calculateUndirectedUnweightedGirth(const Graph *g);
+unsigned calculateUnweightedDiameter(const Graph *g);
+unsigned calculateUnweightedRadius(const Graph *g);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
+unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
@@ -212,15 +213,15 @@ unsigned **getAllPairsUnweightedDistances(const Graph *g);
 unsigned **getBridges(const Graph *g);
 
 double sumWeights(const Graph *g);
-double getRadius(const Graph *g);
-double getDiameter(const Graph *g);
-double getDensity(const Graph *g);
+double calculateWeightedRadius(const Graph *g);
+double calculateWeightedDiameter(const Graph *g);
+double calculateDensity(const Graph *g);
 double getMinimumWeight(const Graph *g);
 double getMaximumWeight(const Graph *g);
 double calculateAverageClusteringCoefficient(const Graph *g);
 double calculateDirectedWeightedGirth(const Graph *g);
 double calculateUndirectedWeightedGirth(const Graph *g);
-double graphEccentricity(const Graph *g, unsigned v);
+double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double normalizedDegree(const Graph *g, unsigned v);
 double localClusteringCoefficient(const Graph *g, unsigned v);
 double edgeWeight(const Graph *g, unsigned u, unsigned v);
@@ -997,7 +998,7 @@ bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
   }
   double radius = INFINITY;
   for (unsigned v = 0; v < g->size; v++) {
-    eccentricity[v] = graphEccentricity(g, v);
+    eccentricity[v] = calculateWeightedEccentricity(g, v);
     if (eccentricity[v] < radius) radius = eccentricity[v];
   }
   if (radius == INFINITY) {
@@ -1023,7 +1024,7 @@ bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
   }
   double diameter = -INFINITY;
   for (unsigned v = 0; v < g->size; v++) {
-    eccentricity[v] = graphEccentricity(g, v);
+    eccentricity[v] = calculateWeightedEccentricity(g, v);
     if (eccentricity[v] != INFINITY && eccentricity[v] > diameter) diameter = eccentricity[v];
   }
   if (diameter == -INFINITY) {
@@ -2122,6 +2123,28 @@ unsigned calculateUndirectedUnweightedGirth(const Graph *g) {
   return minimum;
 }
 
+unsigned calculateUnweightedRadius(const Graph *g) {
+  if (!g) return UINT_MAX;
+  unsigned radius = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++) {
+    unsigned eccentricity = calculateUnweightedEccentricity(g, v);
+    if (eccentricity < radius)
+      radius = eccentricity;
+  }
+  return radius;
+}
+
+unsigned calculateUnweightedDiameter(const Graph *g) {
+  if (!g) return 0;
+  unsigned diameter = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    unsigned eccentricity = calculateUnweightedEccentricity(g, v);
+    if (eccentricity > diameter)
+      diameter = eccentricity;
+  }
+  return diameter;
+}
+
 unsigned getOutDegree(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned n = 0;
@@ -2142,6 +2165,18 @@ unsigned getInDegree(const Graph *g, unsigned v) {
 
 unsigned getDegree(const Graph *g, unsigned v) {
   return getInDegree(g, v) + getOutDegree(g, v);
+}
+
+unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v) {
+  if (!g || v >= g->size) return 0;
+  unsigned *distance = calculateUnweightedDistances(g, v);
+  if (!distance) return 0;
+  unsigned eccentricity = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    if (distance[u] > eccentricity)
+      eccentricity = distance[u];
+  free(distance);
+  return eccentricity;
 }
 
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
@@ -2664,29 +2699,29 @@ double sumWeights(const Graph *g) {
   return sum;
 }
 
-double getRadius(const Graph *g) {
+double calculateWeightedRadius(const Graph *g) {
   if (!g) return INFINITY;
   double radius = INFINITY;
   for (unsigned v = 0; v < g->size; v++) {
-    double eccentricity = graphEccentricity(g, v);
+    double eccentricity = calculateWeightedEccentricity(g, v);
     if (eccentricity < radius)
       radius = eccentricity;
   }
   return radius;
 }
 
-double getDiameter(const Graph *g) {
+double calculateWeightedDiameter(const Graph *g) {
   if (!g) return -INFINITY;
   double diameter = -INFINITY;
   for (unsigned v = 0; v < g->size; v++) {
-    double eccentricity = graphEccentricity(g, v);
+    double eccentricity = calculateWeightedEccentricity(g, v);
     if (eccentricity > diameter)
       diameter = eccentricity;
   }
   return diameter;
 }
 
-double getDensity(const Graph *g) {
+double calculateDensity(const Graph *g) {
   if (!g || g->size < 2) return 0;
   return (double)countEdges(g) / g->size / (g->size - 1);
 }
@@ -2806,11 +2841,11 @@ double calculateUndirectedWeightedGirth(const Graph *g) {
   return minimum;
 }
 
-double graphEccentricity(const Graph *g, unsigned v) {
-  if (!g || v >= g->size) return INFINITY;
+double calculateWeightedEccentricity(const Graph *g, unsigned v) {
+  if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
-  if (!distance) return INFINITY;
-  double eccentricity = 0;
+  if (!distance) return -INFINITY;
+  double eccentricity = -INFINITY;
   for (unsigned u = 0; u < g->size; u++)
     if (distance[u] > eccentricity)
       eccentricity = distance[u];
@@ -3650,7 +3685,7 @@ void testGraphDensity() {
   Graph *graph = createGraph(65537);
   for (unsigned v = 0; v < 65536; v++)
     addDirectedEdge(graph, v, v + 1, 1);
-  assert(getDensity(graph) <= 0.99);
+  assert(calculateDensity(graph) <= 0.99);
   destroyGraph(graph);
 }
 
