@@ -215,9 +215,9 @@ double sumWeights(const Graph *g);
 double getRadius(const Graph *g);
 double getDiameter(const Graph *g);
 double getDensity(const Graph *g);
-double getAverageClusteringCoefficient(const Graph *g);
-double minimumEdgeWeight(const Graph *g);
-double maximumEdgeWeight(const Graph *g);
+double getMinimumWeight(const Graph *g);
+double getMaximumWeight(const Graph *g);
+double calculateAverageClusteringCoefficient(const Graph *g);
 double calculateDirectedWeightedGirth(const Graph *g);
 double calculateUndirectedWeightedGirth(const Graph *g);
 double graphEccentricity(const Graph *g, unsigned v);
@@ -2691,7 +2691,27 @@ double getDensity(const Graph *g) {
   return (double)countEdges(g) / g->size / (g->size - 1);
 }
 
-double getAverageClusteringCoefficient(const Graph *g) {
+double getMinimumWeight(const Graph *g) {
+  if (!g || !g->edges) return INFINITY;
+  double minimum = INFINITY;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->weight < minimum)
+        minimum = e->weight;
+  return minimum;
+}
+
+double getMaximumWeight(const Graph *g) {
+  if (!g || !g->edges) return -INFINITY;
+  double maximum = -INFINITY;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->weight > maximum)
+        maximum = e->weight;
+  return maximum;
+}
+
+double calculateAverageClusteringCoefficient(const Graph *g) {
   if (!g || g->size == 0) return 0;
   double sum = 0;
   double low = 0;
@@ -2702,24 +2722,6 @@ double getAverageClusteringCoefficient(const Graph *g) {
     sum = high;
   }
   return sum / g->size;
-}
-
-double minimumEdgeWeight(const Graph *graph) {
-  double minimum = INFINITY;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (e->weight < minimum)
-        minimum = e->weight;
-  return minimum;
-}
-
-double maximumEdgeWeight(const Graph *graph) {
-  double maximum = -INFINITY;
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (e->weight > maximum)
-        maximum = e->weight;
-  return maximum;
 }
 
 double calculateDirectedWeightedGirth(const Graph *g) {
