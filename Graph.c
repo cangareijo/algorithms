@@ -38,7 +38,7 @@ bool isWeaklyConnected(const Graph *g);
 bool isStronglyConnected(const Graph *g);
 bool isBipartite(const Graph *g);
 bool isUndirected(const Graph *g);
-bool isMultiGraph(const Graph *g);
+bool hasParallelEdges(const Graph *g);
 bool isDirectedForest(const Graph *g);
 bool isUndirectedForest(const Graph *g);
 bool isDirectedTree(const Graph *g);
@@ -182,6 +182,8 @@ unsigned countComponents(const Graph *g);
 unsigned getFirstActiveVertex(const Graph *g);
 unsigned calculateWienerIndex(const Graph *g);
 unsigned countInvalidEdges(const Graph *g);
+unsigned calculateDirectedUnweightedGirth(const Graph *g);
+unsigned calculateUndirectedUnweightedGirth(const Graph *g);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
@@ -214,9 +216,10 @@ double getRadius(const Graph *g);
 double getDiameter(const Graph *g);
 double getDensity(const Graph *g);
 double getAverageClusteringCoefficient(const Graph *g);
-double getGirth(const Graph *g);
 double minimumEdgeWeight(const Graph *g);
 double maximumEdgeWeight(const Graph *g);
+double calculateDirectedWeightedGirth(const Graph *g);
+double calculateUndirectedWeightedGirth(const Graph *g);
 double graphEccentricity(const Graph *g, unsigned v);
 double normalizedDegree(const Graph *g, unsigned v);
 double localClusteringCoefficient(const Graph *g, unsigned v);
@@ -298,7 +301,7 @@ bool isRegular(const Graph *g) {
 }
 
 bool isComplete(const Graph *g) {
-  return !g || (!hasSelfLoops(g) && !isMultiGraph(g) && countEdges(g) == g->size * (g->size - 1));
+  return !g || (!hasSelfLoops(g) && !hasParallelEdges(g) && countEdges(g) == g->size * (g->size - 1));
 }
 
 bool hasSelfLoops(const Graph *g) {
@@ -393,7 +396,7 @@ bool isUndirected(const Graph *g) {
   return true;
 }
 
-bool isMultiGraph(const Graph *g) {
+bool hasParallelEdges(const Graph *g) {
   if (!g || !g->edges) return false;
   bool *seen = malloc(g->size * sizeof(bool));
   bool b = false;
@@ -445,7 +448,7 @@ bool isPathGraph(const Graph *g) {
   if (getSize(g) == 0) return false;
   if (getSize(g) == 1) return isEmpty(g);
   if (hasSelfLoops(g)) return false;
-  if (isMultiGraph(g)) return false;
+  if (hasParallelEdges(g)) return false;
   if (!isWeaklyConnected(g)) return false;
   unsigned endpoints = 0;
   unsigned internal = 0;
@@ -460,7 +463,7 @@ bool isPathGraph(const Graph *g) {
 }
 
 bool isCycleGraph(const Graph *g) {
-  return getSize(g) >= 3 && !hasSelfLoops(g) && !isMultiGraph(g) && isUndirected(g) && isWeaklyConnected(g) && isKRegular(g, 2);
+  return getSize(g) >= 3 && !hasSelfLoops(g) && !hasParallelEdges(g) && isUndirected(g) && isWeaklyConnected(g) && isKRegular(g, 2);
 }
 
 bool isStarGraph(const Graph *g) {
@@ -969,16 +972,16 @@ bool isSubGraph(const Graph *g1, const Graph *g2) {
   return true;
 }
 
-// If countEdges(g) == g->size - 1 && isWeaklyConnected(g), then !hasSelfLoops(g1) && !isMultiGraph(g1)
+// If countEdges(g) == g->size - 1 && isWeaklyConnected(g), then !hasSelfLoops(g1) && !hasParallelEdges(g1)
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
   return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == g1->size - 1 &&
     isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
-// If countEdges(g) == 2 * (g1->size - 1) && isWeaklyConnected(g) && isUndirected(g), then !hasSelfLoops(g) && !isMultiGraph(g)
+// If countEdges(g) == 2 * (g1->size - 1) && isWeaklyConnected(g) && isUndirected(g), then !hasSelfLoops(g) && !hasParallelEdges(g)
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
   return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == 2 * (g1->size - 1) &&
-    !hasSelfLoops(g1) && !isMultiGraph(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
+    !hasSelfLoops(g1) && !hasParallelEdges(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
 
@@ -1379,17 +1382,17 @@ bool *findMaximumClique(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *mst = createGraph(g->size);
   while (true) {
-    unsigned minimumU, minimumV;
-    double minimumWeight = DBL_MAX;
-    for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next)
-        if (e->weight < minimumWeight && !hasPath(mst, v, e->destination)) {
-          minimumU = v;
-          minimumV = e->destination;
-          minimumWeight = e->weight;
+    unsigned u, v;
+    double weight = INFINITY;
+    for (unsigned w = 0; w < g->size; w++)
+      for (Edge *e = g->edges[w]; e; e = e->next)
+        if (e->weight < weight && !hasPath(mst, w, e->destination)) {
+          u = w;
+          v = e->destination;
+          weight = e->weight;
         }
-    if (minimumWeight == DBL_MAX) break;
-    addUndirectedEdge(mst, minimumU, minimumV, minimumWeight);
+    if (weight == INFINITY) break;
+    addUndirectedEdge(mst, u, v, weight);
   }
   return mst;
 }
@@ -2050,6 +2053,75 @@ unsigned countInvalidEdges(const Graph *g) {
   return n;
 }
 
+unsigned calculateDirectedUnweightedGirth(const Graph *g) {
+  if (!g || !g->edges) return UINT_MAX;
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  unsigned *distances = malloc(g->size * sizeof(unsigned));
+  if (!queue || !distances) {
+    free(queue);
+    free(distances);
+    return UINT_MAX;
+  }
+  unsigned minimum = UINT_MAX;
+  for (unsigned start = 0; start < g->size; start++) {
+    for (unsigned v = 0; v < g->size; v++) distances[v] = UINT_MAX;
+    distances[start] = 0;
+    unsigned head = 0, tail = 0;
+    queue[tail++] = start;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (const Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination == start) {
+          if (distances[v] + 1 < minimum) minimum = distances[v] + 1;
+        } else if (e->destination < g->size && distances[e->destination] == UINT_MAX) {
+          distances[e->destination] = distances[v] + 1;
+          queue[tail++] = e->destination;
+        }
+    }
+  }
+  free(queue);
+  free(distances);
+  return minimum;
+}
+
+unsigned calculateUndirectedUnweightedGirth(const Graph *g) {
+  if (!g || !g->edges) return UINT_MAX;
+  unsigned *distances = malloc(g->size * sizeof(unsigned));
+  unsigned *parent = malloc(g->size * sizeof(unsigned));
+  unsigned *queue = malloc(g->size * sizeof(unsigned));
+  if (!distances || !parent || !queue) {
+    free(distances);
+    free(parent);
+    free(queue);
+    return UINT_MAX;
+  }
+  unsigned minimum = UINT_MAX;
+  for (unsigned start = 0; start < g->size; start++) {
+    for (unsigned v = 0; v < g->size; v++) distances[v] = parent[v] = UINT_MAX;
+    distances[start] = 0;
+    unsigned head = 0, tail = 0;
+    queue[tail++] = start;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (const Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size) {
+          if (distances[e->destination] == UINT_MAX) {
+            distances[e->destination] = distances[v] + 1;
+            parent[e->destination] = v;
+            queue[tail++] = e->destination;
+          } else if (e->destination != parent[v]) {
+            unsigned length = distances[v] + distances[e->destination] + 1;
+            if (length < minimum) minimum = length;
+          }
+        }
+    }
+  }
+  free(distances);
+  free(parent);
+  free(queue);
+  return minimum;
+}
+
 unsigned getOutDegree(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned n = 0;
@@ -2632,46 +2704,6 @@ double getAverageClusteringCoefficient(const Graph *g) {
   return sum / g->size;
 }
 
-double getGirth(const Graph *g) {
-  if (!isValid(g)) return INFINITY;
-  double *distance = malloc(g->size * sizeof(double));
-  unsigned *parent = malloc(g->size * sizeof(unsigned));
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  if (!distance || !parent || !queue) {
-    free(distance);
-    free(parent);
-    free(queue);
-    return INFINITY;
-  }
-  double girth = INFINITY;
-  for (unsigned u = 0; u < g->size; u++) {
-    for (unsigned v = 0; v < g->size; v++) {
-      distance[v] = INFINITY;
-      parent[v] = UINT_MAX;
-    }
-    unsigned head = 0;
-    unsigned tail = 0;
-    distance[u] = 0;
-    queue[tail++] = u;
-    while (head < tail) {
-      unsigned v = queue[head++];
-      for (const Edge *e = g->edges[v]; e; e = e->next)
-        if (distance[e->destination] == INFINITY) {
-          distance[e->destination] = distance[v] + e->weight;
-          parent[e->destination] = v;
-          queue[tail++] = e->destination;
-        } else if (parent[v] != e->destination && parent[e->destination] != v) {
-          double length = distance[v] + distance[e->destination] + e->weight;
-          if (length < girth) girth = length;
-        }
-    }
-  }
-  free(distance);
-  free(parent);
-  free(queue);
-  return girth;
-}
-
 double minimumEdgeWeight(const Graph *graph) {
   double minimum = INFINITY;
   for (unsigned v = 0; v < graph->size; v++)
@@ -2688,6 +2720,88 @@ double maximumEdgeWeight(const Graph *graph) {
       if (e->weight > maximum)
         maximum = e->weight;
   return maximum;
+}
+
+double calculateDirectedWeightedGirth(const Graph *g) {
+  if (!g || !g->edges) return INFINITY;
+  double minimum = INFINITY;
+  double *distances = malloc(g->size * sizeof(double));
+  bool *visited = malloc(g->size * sizeof(bool));
+  if (!distances || !visited) {
+    free(distances);
+    free(visited);
+    return INFINITY;
+  }
+  for (unsigned start = 0; start < g->size; start++) {
+    for (unsigned v = 0; v < g->size; v++) {
+      distances[v] = INFINITY;
+      visited[v] = false;
+    }
+    distances[start] = 0;
+    while (true) {
+      unsigned u = UINT_MAX;
+      double distance = INFINITY;
+      for (unsigned v = 0; v < g->size; v++)
+        if (!visited[v] && distances[v] < distance) {
+          distance = distances[v];
+          u = v;
+        }
+      if (u == UINT_MAX) break;
+      visited[u] = true;
+      for (const Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination == start) {
+          if (distances[u] + e->weight < minimum) minimum = distances[u] + e->weight;
+        } else if (e->destination < g->size && distances[u] + e->weight < distances[e->destination]) {
+          distances[e->destination] = distances[u] + e->weight;
+        }
+    }
+  }
+  free(distances);
+  free(visited);
+  return minimum;
+}
+
+double calculateUndirectedWeightedGirth(const Graph *g) {
+  if (!g || !g->edges) return INFINITY;
+  double *distances = malloc(g->size * sizeof(double));
+  unsigned *parent = malloc(g->size * sizeof(unsigned));
+  bool *visited = malloc(g->size * sizeof(bool));
+  if (!distances || !parent || !visited) {
+    free(distances); free(parent); free(visited);
+    return INFINITY;
+  }
+  double minimum = INFINITY;
+  for (unsigned start = 0; start < g->size; start++) {
+    for (unsigned v = 0; v < g->size; v++) {
+      distances[v] = INFINITY;
+      parent[v] = UINT_MAX;
+      visited[v] = false;
+    }
+    distances[start] = 0;
+    while (true) {
+      unsigned u = UINT_MAX;
+      double distance = INFINITY;
+      for (unsigned v = 0; v < g->size; v++)
+        if (!visited[v] && distances[v] < distance) {
+          distance = distances[v];
+          u = v;
+        }
+      if (u == UINT_MAX) break;
+      visited[u] = true;
+      for (const Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination < g->size && e->destination != parent[u]) {
+          if (visited[e->destination]) {
+            double cycle = distances[u] + distances[e->destination] + e->weight;
+            if (cycle < minimum) minimum = cycle;
+          } else if (distances[u] + e->weight < distances[e->destination]) {
+            distances[e->destination] = distances[u] + e->weight;
+            parent[e->destination] = u;
+          }
+        }
+    }
+  }
+  free(distances); free(parent); free(visited);
+  return minimum;
 }
 
 double graphEccentricity(const Graph *g, unsigned v) {
