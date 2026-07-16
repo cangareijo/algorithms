@@ -227,9 +227,9 @@ double getNormalizedOutDegree(const Graph *g, unsigned v);
 double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
 double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
 double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
-double maxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
-double subgraphDensity(const Graph *g, const bool *set);
-double pathWeight(const Graph *g, const unsigned *path, unsigned length);
+double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
+double calculateSubgraphDensity(const Graph *g, const bool *set);
+double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
 double *closenessCentrality(const Graph *g);
 double *bellmanFord(const Graph *g, unsigned v);
@@ -2891,36 +2891,39 @@ double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
   return distance;
 }
 
-double maxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
+double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
   if (!isValid(g) || source >= g->size || sink >= g->size) return 0;
   double **residual = malloc(g->size * sizeof(double *));
-  if (residual) for (unsigned v = 0; v < g->size; v++) residual[v] = calloc(g->size, sizeof(double));
+  if (residual)
+    for (unsigned v = 0; v < g->size; v++)
+      residual[v] = calloc(g->size, sizeof(double));
   unsigned *parent = malloc(g->size * sizeof(unsigned));
   bool *visited = malloc(g->size * sizeof(bool));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
   bool allocated = residual && parent && visited && queue;
   for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && residual[v];
   if (!allocated) {
-    if (residual) for (unsigned v = 0; v < g->size; v++) free(residual[v]);
+    if (residual)
+      for (unsigned v = 0; v < g->size; v++)
+        free(residual[v]);
     free(residual); free(parent); free(visited); free(queue);
     return 0;
   }
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
       residual[v][e->destination] += e->weight;
   double max = 0;
   while (true) {
     for (unsigned v = 0; v < g->size; v++) visited[v] = false;
-    unsigned head = 0;
-    unsigned tail = 0;
-    bool found = false;
-    queue[tail++] = source;
     visited[source] = true;
+    unsigned head = 0, tail = 0;
+    queue[tail++] = source;
+    bool found = false;
     parent[source] = source;
     while (head < tail && !found) {
       unsigned u = queue[head++];
       for (unsigned v = 0; v < g->size && !found; v++)
-        if (!visited[v] && residual[u][v] > 0) {
+        if (!visited[v] && residual[u][v] > 1e-9) {
           queue[tail++] = v;
           parent[v] = u;
           visited[v] = true;
@@ -2943,32 +2946,30 @@ double maxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
     max += flow;
   }
   for (unsigned v = 0; v < g->size; v++) free(residual[v]);
-  free(residual);
-  free(parent);
-  free(visited);
-  free(queue);
+  free(residual); free(parent); free(visited); free(queue);
   return max;
 }
 
-double subgraphDensity(const Graph *graph, const bool *subset) {
+double calculateSubgraphDensity(const Graph *g, const bool *set) {
+  if (!g || !g->edges || !set) return 0;
   unsigned vertices = 0;
   unsigned edges = 0;
-  for (unsigned v = 0; v < graph->size; v++)
-    if (subset[v]) {
+  for (unsigned v = 0; v < g->size; v++)
+    if (set[v]) {
       vertices++;
-      for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-        if (subset[e->destination])
+      for (const Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && set[e->destination])
           edges++;
     }
-  if (vertices < 2)
-    return 0;
+  if (vertices < 2) return 0;
   return (double)edges / vertices / (vertices - 1);
 }
 
-double pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
+double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length) {
+  if (!path) return 0;
   double weight = 0;
   for (unsigned i = 1; i < length; i++)
-    weight += getEdgeWeight(graph, path[i - 1], path[i]);
+    weight += getEdgeWeight(g, path[i - 1], path[i]);
   return weight;
 }
 
