@@ -222,9 +222,10 @@ double calculateAverageClusteringCoefficient(const Graph *g);
 double calculateDirectedWeightedGirth(const Graph *g);
 double calculateUndirectedWeightedGirth(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
-double normalizedDegree(const Graph *g, unsigned v);
-double localClusteringCoefficient(const Graph *g, unsigned v);
-double edgeWeight(const Graph *g, unsigned u, unsigned v);
+double getNormalizedInDegree(const Graph *g, unsigned v);
+double getNormalizedOutDegree(const Graph *g, unsigned v);
+double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
+double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
 double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
 double maxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
 double subgraphDensity(const Graph *g, const bool *set);
@@ -699,7 +700,7 @@ bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
 }
 
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v) {
-  return hasWeightedDirectedEdge(g, u, v, edgeWeight(g, u, v)) && hasWeightedDirectedEdge(g, v, u, edgeWeight(g, u, v));
+  return hasWeightedDirectedEdge(g, u, v, getEdgeWeight(g, u, v)) && hasWeightedDirectedEdge(g, v, u, getEdgeWeight(g, u, v));
 }
 
 bool hasPath(const Graph *g, unsigned u, unsigned v) {
@@ -1702,7 +1703,7 @@ void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
 }
 
 void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v) {
-  double weight = edgeWeight(g, u, v);
+  double weight = getEdgeWeight(g, u, v);
   deleteFirstWeightedDirectedEdge(g, u, v, weight);
   deleteFirstWeightedDirectedEdge(g, v, u, weight);
 }
@@ -1756,7 +1757,7 @@ void contractVertices(Graph *g, unsigned u, unsigned v) {
 
 void subdivideEdge(Graph *g, unsigned u, unsigned v) {
   if (!g) return;
-  double weight = edgeWeight(g, u, v);
+  double weight = getEdgeWeight(g, u, v);
   deleteFirstWeightedDirectedEdge(g, u, v, weight);
   addVertex(g);
   addDirectedEdge(g, u, g->size - 1, weight / 2);
@@ -2751,7 +2752,7 @@ double calculateAverageClusteringCoefficient(const Graph *g) {
   double sum = 0;
   double low = 0;
   for (unsigned v = 0; v < g->size; v++) {
-    double term = localClusteringCoefficient(g, v) + low;
+    double term = calculateLocalClusteringCoefficient(g, v) + low;
     double high = sum + term;
     low = term - (high - sum);
     sum = high;
@@ -2853,33 +2854,36 @@ double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   return eccentricity;
 }
 
-double normalizedDegree(const Graph *graph, unsigned vertex) {
-  if (graph->size < 2)
-    return 0;
-  return (double)getOutDegree(graph, vertex) / (graph->size - 1);
+double getNormalizedInDegree(const Graph *g, unsigned v) {
+  if (!g || g->size < 2) return 0;
+  return (double)getInDegree(g, v) / (g->size - 1);
 }
 
-double localClusteringCoefficient(const Graph *graph, unsigned vertex) {
-  if (getOutDegree(graph, vertex) < 2) return 0;
-  unsigned edgesBetweenNeighbours = 0;
-  for (Edge *d = graph->edges[vertex]; d != nullptr; d = d->next)
-    for (Edge *e = graph->edges[vertex]; e != nullptr; e = e->next)
-      if (hasDirectedEdge(graph, d->destination, e->destination))
-        edgesBetweenNeighbours++;
-  return (double)edgesBetweenNeighbours / getOutDegree(graph, vertex) / (getOutDegree(graph, vertex) - 1);
+double getNormalizedOutDegree(const Graph *g, unsigned v) {
+  if (!g || g->size < 2) return 0;
+  return (double)getOutDegree(g, v) / (g->size - 1);
 }
 
-double edgeWeight(const Graph *graph, unsigned u, unsigned v) {
-  if (u >= graph->size || v >= graph->size)
-    return 0;
-  for (Edge *e = graph->edges[u]; e != nullptr; e = e->next)
+double calculateLocalClusteringCoefficient(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size || getOutDegree(g, v) < 2) return 0;
+  unsigned edges = 0;
+  for (const Edge *e1 = g->edges[v]; e1; e1 = e1->next)
+    for (const Edge *e2 = g->edges[v]; e2; e2 = e2->next)
+      if (hasDirectedEdge(g, e1->destination, e2->destination))
+        edges++;
+  return (double)edges / getOutDegree(g, v) / (getOutDegree(g, v) - 1);
+}
+
+double getEdgeWeight(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size) return INFINITY;
+  for (const Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v)
       return e->weight;
-  return 0;
+  return INFINITY;
 }
 
 double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
-  if (!g || u >= g->size || v >= g->size) return INFINITY;
+  if (!g || v >= g->size) return INFINITY;
   double *distances = calculateWeightedDistances(g, u);
   if (!distances) return INFINITY;
   double distance = distances[v];
@@ -2964,7 +2968,7 @@ double subgraphDensity(const Graph *graph, const bool *subset) {
 double pathWeight(const Graph *graph, const unsigned *path, unsigned length) {
   double weight = 0;
   for (unsigned i = 1; i < length; i++)
-    weight += edgeWeight(graph, path[i - 1], path[i]);
+    weight += getEdgeWeight(graph, path[i - 1], path[i]);
   return weight;
 }
 
