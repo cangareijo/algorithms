@@ -10,6 +10,8 @@ static inline unsigned unsignedMinimum(unsigned a, unsigned b);
 static inline unsigned unsignedMaximum(unsigned a, unsigned b);
 
 void freeMatrix(double **matrix, unsigned n);
+void **allocateTable(size_t m, size_t n, size_t size);
+void freeTable(void **table, size_t m);
 
 typedef struct Edge {
   unsigned destination;
@@ -232,7 +234,7 @@ double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
 double *calculateClosenessCentrality(const Graph *g);
-double *bellmanFord(const Graph *g, unsigned v);
+double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
 double **toMatrix(const Graph *g);
@@ -267,6 +269,25 @@ void freeMatrix(double **matrix, unsigned n) {
   if (!matrix) return;
   for (unsigned i = 0; i < n; i++) free(matrix[i]);
   free(matrix);
+}
+
+void **allocateTable(size_t m, size_t n, size_t size) {
+  void **table = malloc(m * sizeof(void *));
+  if (!table) return nullptr;
+  for (size_t i = 0; i < m; i++)
+    table[i] = malloc(n * size);
+  for (size_t i = 0; i < m; i++)
+    if (!table[i]) {
+      freeTable(table, m);
+      return nullptr;
+    }
+  return table;
+}
+
+void freeTable(void **table, size_t m) {
+  if (!table) return;
+  for (size_t i = 0; i < m; i++) free(table[i]);
+  free(table);
 }
 
 
@@ -589,11 +610,11 @@ bool hasNegativeCycle(const Graph *g) {
   double distances[g->size] = {};
   for (unsigned i = 1; i < g->size; i++)
     for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next)
+      for (const Edge *e = g->edges[v]; e; e = e->next)
         if (distances[v] + e->weight < distances[e->destination])
           distances[e->destination] = distances[v] + e->weight;
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
       if (distances[v] + e->weight < distances[e->destination])
         return true;
   return false;
@@ -602,8 +623,8 @@ bool hasNegativeCycle(const Graph *g) {
 bool hasInvalidEdges(const Graph *g) {
   if (!g || !g->edges) return false;
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size || isnan(e->weight))
         return true;
   return false;
 }
@@ -2975,13 +2996,13 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 
-double *calculateClosenessCentrality(const Graph *g) {
+[[nodiscard]] double *calculateClosenessCentrality(const Graph *g) {
   if (!g) return nullptr;
   double *centrality = calloc(g->size, sizeof(double));
   double **distance = floydWarshall(g);
   if (!centrality || !distance) {
     free(centrality);
-    freeMatrix(distance, g->size);
+    freeTable((void **)distance, g->size);
     return nullptr;
   }
   for (unsigned u = 0; u < g->size; u++) {
@@ -2997,45 +3018,46 @@ double *calculateClosenessCentrality(const Graph *g) {
     else
       centrality[u] = 0;
   }
-  freeMatrix(distance, g->size);
+  freeTable((void **)distance, g->size);
   return centrality;
 }
 
-double *bellmanFord(const Graph *graph, unsigned source) {
-  double *distance = malloc(graph->size * sizeof(double));
-  for (unsigned v = 0; v < graph->size; v++)
-    distance[v] = INFINITY;
-  distance[source] = 0;
-  for (unsigned i = 1; i < graph->size; i++)
-    for (unsigned v = 0; v < graph->size; v++)
-      if (distance[v] < INFINITY)
-        for (Edge *e = graph->edges[v]; e != nullptr; e = e->next)
-          if (distance[v] + e->weight < distance[e->destination])
-            distance[e->destination] = distance[v] + e->weight;
-  for (unsigned v = 0; v < graph->size && distance != nullptr; v++)
-    if (distance[v] < INFINITY)
-      for (Edge *e = graph->edges[v]; e != nullptr && distance != nullptr; e = e->next)
-        if (distance[v] + e->weight < distance[e->destination]) {
+[[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return nullptr;
+  double *distance = malloc(g->size * sizeof(double));
+  if (!distance) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) distance[u] = INFINITY;
+  distance[v] = 0;
+  for (unsigned i = 1; i < g->size; i++)
+    for (unsigned u = 0; u < g->size; u++)
+      if (distance[u] < INFINITY)
+        for (const Edge *e = g->edges[u]; e; e = e->next)
+          if (e->destination < g->size && distance[u] + e->weight < distance[e->destination])
+            distance[e->destination] = distance[u] + e->weight;
+  for (unsigned u = 0; u < g->size; u++)
+    if (distance[u] < INFINITY)
+      for (const Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination < g->size && distance[u] + e->weight < distance[e->destination]) {
           free(distance);
-          distance = nullptr;
+          return nullptr;
         }
   return distance;
 }
 
 [[nodiscard]] double *calculateWeightedDistances(const Graph *g, unsigned v) {
   if (!isValid(g) || hasNegativeWeights(g) || v >= g->size) return nullptr;
-  double *distances = malloc(g->size * sizeof(double));
   bool *visited = calloc(g->size, sizeof(bool));
-  if (!distances || !visited) {
-    free(distances);
+  double *distances = malloc(g->size * sizeof(double));
+  if (!visited || !distances) {
     free(visited);
+    free(distances);
     return nullptr;
   }
   for (unsigned u = 0; u < g->size; u++) distances[u] = INFINITY;
   distances[v] = 0;
-  for (;;) {
+  while (true) {
     visited[v] = true;
-    for (Edge *e = g->edges[v]; e; e = e->next)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
       if (!visited[e->destination] && distances[v] + e->weight < distances[e->destination])
         distances[e->destination] = distances[v] + e->weight;
     double minimum = INFINITY;
@@ -3052,7 +3074,7 @@ double *bellmanFord(const Graph *graph, unsigned source) {
 
 
 
-double **toMatrix(const Graph *g) {
+[[nodiscard]] double **toMatrix(const Graph *g) {
   if (!isValid(g)) return nullptr;
   double **matrix = malloc(g->size * sizeof(double *));
   if (!matrix) return nullptr;
@@ -3070,7 +3092,7 @@ double **toMatrix(const Graph *g) {
   return matrix;
 }
 
-double **floydWarshall(const Graph *graph) {
+[[nodiscard]] double **floydWarshall(const Graph *graph) {
   double **distance = malloc(graph->size * sizeof(double *));
   for (unsigned i = 0; i < graph->size; i++) {
     distance[i] = malloc(graph->size * sizeof(double));
@@ -3092,7 +3114,7 @@ double **floydWarshall(const Graph *graph) {
   return distance;
 }
 
-double **forceDirectedLayout(const Graph *g, unsigned iterations) {
+[[nodiscard]] double **forceDirectedLayout(const Graph *g, unsigned iterations) {
   if (!isValid(g)) return nullptr;
   double **position = malloc(g->size * sizeof(double *));
   if (position) for (unsigned v = 0; v < g->size; v++) position[v] = malloc(2 * sizeof(double));
@@ -3370,14 +3392,14 @@ void testBellmanFord() {
   addDirectedEdge(g, 1, 2, 1);
   addDirectedEdge(g, 0, 2, 10);
   addDirectedEdge(g, 2, 3, 1);
-  double *d1 = bellmanFord(g, 0);
+  double *d1 = calculateBellmanFord(g, 0);
   assert(d1 != nullptr);
   assert(d1[3] == 7);
   printf("Bellman-Ford test 1 (positive) passed!\n");
   free(d1);
 
   addDirectedEdge(g, 3, 1, -10);
-  double *d2 = bellmanFord(g, 0);
+  double *d2 = calculateBellmanFord(g, 0);
   assert(d2 == nullptr);
   printf("Bellman-Ford test 2 (negative cycle) passed!\n");
   destroyGraph(g);
