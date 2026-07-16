@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static inline unsigned minimumUnsigned(unsigned a, unsigned b);
-static inline unsigned maximumUnsigned(unsigned a, unsigned b);
+static inline unsigned unsignedMinimum(unsigned a, unsigned b);
+static inline unsigned unsignedMaximum(unsigned a, unsigned b);
 
 void freeMatrix(double **matrix, unsigned n);
 
@@ -231,7 +231,7 @@ double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
-double *closenessCentrality(const Graph *g);
+double *calculateClosenessCentrality(const Graph *g);
 double *bellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
@@ -257,9 +257,9 @@ int main();
 
 
 
-unsigned minimumUnsigned(unsigned a, unsigned b) { return a <= b ? a : b; }
+unsigned unsignedMinimum(unsigned a, unsigned b) { return a <= b ? a : b; }
 
-unsigned maximumUnsigned(unsigned a, unsigned b) { return a >= b ? a : b; }
+unsigned unsignedMaximum(unsigned a, unsigned b) { return a >= b ? a : b; }
 
 
 
@@ -1048,11 +1048,11 @@ static void findArticulationPointsDfs(
   for (Edge *e = g->edges[u]; e; e = e->next) {
     if (e->destination == parent) continue;
     if (discovery[e->destination] > 0) {
-      low[u] = minimumUnsigned(low[u], discovery[e->destination]);
+      low[u] = unsignedMinimum(low[u], discovery[e->destination]);
     } else {
       children++;
       findArticulationPointsDfs(g, e->destination, u, timer, discovery, low, articulations);
-      low[u] = minimumUnsigned(low[u], low[e->destination]);
+      low[u] = unsignedMinimum(low[u], low[e->destination]);
       if (parent != u && low[e->destination] >= discovery[u]) articulations[u] = true;
     }
   }
@@ -1520,7 +1520,7 @@ bool *findMaximumClique(const Graph *g) {
 
 [[nodiscard]] Graph *createUnion(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
-  Graph *g3 = createGraph(maximumUnsigned(g1->size, g2->size));
+  Graph *g3 = createGraph(unsignedMaximum(g1->size, g2->size));
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
       if (!hasDirectedEdge(g3, v, e->destination))
@@ -2975,24 +2975,29 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 
-double *closenessCentrality(const Graph *graph) {
-  if (graph == nullptr) return nullptr;
-  double *centrality = calloc(graph->size, sizeof(double));
-  double **distance = floydWarshall(graph);
-  for (unsigned u = 0; u < graph->size; u++) {
+double *calculateClosenessCentrality(const Graph *g) {
+  if (!g) return nullptr;
+  double *centrality = calloc(g->size, sizeof(double));
+  double **distance = floydWarshall(g);
+  if (!centrality || !distance) {
+    free(centrality);
+    freeMatrix(distance, g->size);
+    return nullptr;
+  }
+  for (unsigned u = 0; u < g->size; u++) {
     double total = 0;
     unsigned count = 0;
-    for (unsigned v = 0; v < graph->size; v++)
+    for (unsigned v = 0; v < g->size; v++)
       if (u != v && distance[u][v] != INFINITY) {
         total += distance[u][v];
         count++;
       }
-    if (total > 0 && count > 0)
-      centrality[u] = count / total;
+    if (total > 0)
+      centrality[u] = (double) count * count / total / (g->size - 1);
     else
       centrality[u] = 0;
   }
-  freeMatrix(distance, graph->size);
+  freeMatrix(distance, g->size);
   return centrality;
 }
 
