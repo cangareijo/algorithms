@@ -2913,22 +2913,18 @@ double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
 
 double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
   if (!isValid(g) || source >= g->size || sink >= g->size) return 0;
-  double **residual = malloc(g->size * sizeof(double *));
-  if (residual)
-    for (unsigned v = 0; v < g->size; v++)
-      residual[v] = calloc(g->size, sizeof(double));
+  double **residual = (double **)allocateTable(g->size, g->size, sizeof(double));
   unsigned *parent = malloc(g->size * sizeof(unsigned));
   bool *visited = malloc(g->size * sizeof(bool));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
-  bool allocated = residual && parent && visited && queue;
-  for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && residual[v];
-  if (!allocated) {
-    if (residual)
-      for (unsigned v = 0; v < g->size; v++)
-        free(residual[v]);
-    free(residual); free(parent); free(visited); free(queue);
+  if (!residual || !parent || !visited || !queue) {
+    freeTable((void **)residual, g->size);
+    free(parent); free(visited); free(queue);
     return 0;
   }
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      residual[u][v] = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       residual[v][e->destination] += e->weight;
@@ -2965,8 +2961,8 @@ double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sin
     }
     max += flow;
   }
-  for (unsigned v = 0; v < g->size; v++) free(residual[v]);
-  free(residual); free(parent); free(visited); free(queue);
+  freeTable((void **)residual, g->size);
+  free(parent); free(visited); free(queue);
   return max;
 }
 
@@ -3099,18 +3095,11 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 [[nodiscard]] double **forceDirectedLayout(const Graph *g, unsigned iterations) {
   if (!isValid(g)) return nullptr;
-  double **position = malloc(g->size * sizeof(double *));
-  if (position) for (unsigned v = 0; v < g->size; v++) position[v] = malloc(2 * sizeof(double));
-  double **displacement = calloc(g->size, sizeof(double *));
-  if (displacement) for (unsigned v = 0; v < g->size; v++) displacement[v] = malloc(2 * sizeof(double));
-  bool allocated = position && displacement;
-  for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && position[v];
-  for (unsigned v = 0; v < g->size && allocated; v++) allocated = allocated && displacement[v];
-  if (!allocated) {
-    if (position) for (unsigned v = 0; v < g->size; v++) free(position[v]);
-    free(position);
-    if (displacement) for (unsigned v = 0; v < g->size; v++) free(displacement[v]);
-    free(displacement);
+  double **position = (double **)allocateTable(g->size, 2, sizeof(double));
+  double **displacement = (double **)allocateTable(g->size, 2, sizeof(double));
+  if (!position || !displacement) {
+    freeTable((void **)position, g->size);
+    freeTable((void **)displacement, g->size);
     return nullptr;
   }
   const double width = 1000;
@@ -3118,8 +3107,8 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   const double area = width * height;
   const double k = 0.75 * sqrt(area / g->size);
   for (unsigned v = 0; v < g->size; v++) {
-    position[v][0] = width / 4 + ((double)rand() / RAND_MAX) * (width / 2);
-    position[v][1] = height / 4 + ((double)rand() / RAND_MAX) * (height / 2);
+    position[v][0] = width / 4 + rand() / ((double)RAND_MAX + 1) * width / 2;
+    position[v][1] = height / 4 + rand() / ((double)RAND_MAX + 1) * height / 2;
   }
   double temperature = width / 10;
   const double cooling = temperature / iterations;
@@ -3133,34 +3122,35 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
         if (u == v) continue;
         double dx = position[u][0] - position[v][0];
         double dy = position[u][1] - position[v][1];
-        if (dx == 0 && dy == 0) {
-          dx = 0.01;
-          dy = 0.01;
+        if (fabs(dx) < 1e-4 && fabs(dy) < 1e-4) {
+          dx = 0.1 * (rand() % 2 ? 1 : -1);
+          dy = 0.1 * (rand() % 2 ? 1 : -1);
         }
-        double distance = sqrt(dx * dx + dy * dy);
-        double force = k * k / distance;
-        displacement[u][0] += dx / distance * force;
-        displacement[u][1] += dy / distance * force;
+        const double distance = sqrt(dx * dx + dy * dy);
+        const double repulsion = k * k / distance / distance;
+        displacement[u][0] += dx * repulsion;
+        displacement[u][1] += dy * repulsion;
       }
     for (unsigned u = 0; u < g->size; u++)
-      for (Edge *e = g->edges[u]; e; e = e->next) {
-        unsigned v = e->destination;
-        double dx = position[u][0] - position[v][0];
-        double dy = position[u][1] - position[v][1];
-        double distance = sqrt(dx * dx + dy * dy);
+      for (const Edge *e = g->edges[u]; e; e = e->next) {
+        const unsigned v = e->destination;
+        if (u == v) continue;
+        const double dx = position[u][0] - position[v][0];
+        const double dy = position[u][1] - position[v][1];
+        const double distance = sqrt(dx * dx + dy * dy);
         if (distance == 0) continue;
-        double force = distance * distance / k;
-        displacement[u][0] -= dx / distance * force;
-        displacement[u][1] -= dy / distance * force;
-        displacement[v][0] += dx / distance * force;
-        displacement[v][1] += dy / distance * force;
+        const double attraction = distance / k;
+        displacement[u][0] -= dx * attraction;
+        displacement[u][1] -= dy * attraction;
+        displacement[v][0] += dx * attraction;
+        displacement[v][1] += dy * attraction;
       }
     for (unsigned v = 0; v < g->size; v++) {
-      double dx = displacement[v][0];
-      double dy = displacement[v][1];
-      double distance = sqrt(dx * dx + dy * dy);
+      const double dx = displacement[v][0];
+      const double dy = displacement[v][1];
+      const double distance = sqrt(dx * dx + dy * dy);
       if (distance == 0) continue;
-      double capped = distance < temperature ? distance : temperature;
+      const double capped = distance < temperature ? distance : temperature;
       position[v][0] += dx / distance * capped;
       position[v][1] += dy / distance * capped;
       if (position[v][0] < 0) position[v][0] = 0;
@@ -3171,7 +3161,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     temperature -= cooling;
     if (temperature < 0) temperature = 0;
   }
-  free(displacement);
+  freeTable((void **)displacement, g->size);
   return position;
 }
 
