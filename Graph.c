@@ -237,8 +237,7 @@ double *calculateClosenessCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
-double **toMatrix(const Graph *g);
-double **floydWarshall(const Graph *g);
+double **calculateFloydWarshall(const Graph *g);
 double **forceDirectedLayout(const Graph *g, unsigned iterations);
 
 void testHasDirectedCycle();
@@ -624,7 +623,7 @@ bool hasInvalidEdges(const Graph *g) {
   if (!g || !g->edges) return false;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size || isnan(e->weight))
+      if (e->destination >= g->size)
         return true;
   return false;
 }
@@ -2999,7 +2998,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 [[nodiscard]] double *calculateClosenessCentrality(const Graph *g) {
   if (!g) return nullptr;
   double *centrality = calloc(g->size, sizeof(double));
-  double **distance = floydWarshall(g);
+  double **distance = calculateFloydWarshall(g);
   if (!centrality || !distance) {
     free(centrality);
     freeTable((void **)distance, g->size);
@@ -3030,17 +3029,14 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   distance[v] = 0;
   for (unsigned i = 1; i < g->size; i++)
     for (unsigned u = 0; u < g->size; u++)
-      if (distance[u] < INFINITY)
-        for (const Edge *e = g->edges[u]; e; e = e->next)
-          if (e->destination < g->size && distance[u] + e->weight < distance[e->destination])
-            distance[e->destination] = distance[u] + e->weight;
-  for (unsigned u = 0; u < g->size; u++)
-    if (distance[u] < INFINITY)
       for (const Edge *e = g->edges[u]; e; e = e->next)
-        if (e->destination < g->size && distance[u] + e->weight < distance[e->destination]) {
-          free(distance);
-          return nullptr;
-        }
+        if (e->destination < g->size && distance[u] + e->weight < distance[e->destination])
+          distance[e->destination] = distance[u] + e->weight;
+  for (unsigned i = 1; i < g->size; i++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (const Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination < g->size && distance[u] + e->weight < distance[e->destination])
+          distance[e->destination] = -INFINITY;
   return distance;
 }
 
@@ -3074,43 +3070,30 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 
-[[nodiscard]] double **toMatrix(const Graph *g) {
-  if (!isValid(g)) return nullptr;
-  double **matrix = malloc(g->size * sizeof(double *));
-  if (!matrix) return nullptr;
-  for (unsigned v = 0; v < g->size; v++) matrix[v] = calloc(g->size, sizeof(double));
-  bool b = true;
-  for (unsigned v = 0; v < g->size && b; v++) b = b && matrix[v];
-  if (!b) {
-    for (unsigned v = 0; v < g->size; v++) free(matrix[v]);
-    free(matrix);
-    return nullptr;
-  }
+[[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  double **distance = (double **)allocateTable(g->size, g->size, sizeof(double));
+  if (!distance) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u == v)
+        distance[u][v] = 0;
+      else
+        distance[u][v] = INFINITY;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      matrix[v][e->destination] += e->weight;
-  return matrix;
-}
-
-[[nodiscard]] double **floydWarshall(const Graph *graph) {
-  double **distance = malloc(graph->size * sizeof(double *));
-  for (unsigned i = 0; i < graph->size; i++) {
-    distance[i] = malloc(graph->size * sizeof(double));
-    for (unsigned j = 0; j < graph->size; j++)
-      if (i == j)
-        distance[i][j] = 0;
-      else
-        distance[i][j] = INFINITY;
-  }
-  for (unsigned v = 0; v < graph->size; v++)
-    for (Edge *e = graph->edges[v]; e; e = e->next)
-      if (e->weight < distance[v][e->destination])
+      if (e->destination < g->size && e->weight < distance[v][e->destination])
         distance[v][e->destination] = e->weight;
-  for (unsigned k = 0; k < graph->size; k++)
-    for (unsigned i = 0; i < graph->size; i++)
-      for (unsigned j = 0; j < graph->size; j++)
-        if (distance[i][k] < INFINITY && distance[k][j] < INFINITY && distance[i][k] + distance[k][j] < distance[i][j])
-          distance[i][j] = distance[i][k] + distance[k][j];
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (distance[u][w] + distance[w][v] < distance[u][v])
+          distance[u][v] = distance[u][w] + distance[w][v];
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (distance[u][w] + distance[w][v] < distance[u][v])
+          distance[u][v] = -INFINITY;
   return distance;
 }
 
@@ -3519,7 +3502,7 @@ void testFloydWarshall() {
     addDirectedEdge(g, 1, 2, 5);
     addDirectedEdge(g, 0, 2, 20);
 
-    double **distances = floydWarshall(g);
+    double **distances = calculateFloydWarshall(g);
 
     assert(distances[0][1] == 10);
     assert(distances[1][2] == 5);
@@ -3537,7 +3520,7 @@ void testFloydWarshall() {
     addDirectedEdge(g, 0, 2, 5);
     addDirectedEdge(g, 1, 2, -2);
 
-    double **distances = floydWarshall(g);
+    double **distances = calculateFloydWarshall(g);
 
     assert(distances[0][2] == 2);
     assert(distances[1][2] == -2);
@@ -3552,7 +3535,7 @@ void testFloydWarshall() {
     addDirectedEdge(g, 0, 1, 1);
     addDirectedEdge(g, 2, 3, 1);
 
-    double **distances = floydWarshall(g);
+    double **distances = calculateFloydWarshall(g);
 
     assert(distances[0][1] == 1);
     assert(distances[0][2] == INFINITY);
@@ -3571,7 +3554,7 @@ void testFloydWarshall() {
     addDirectedEdge(g, 1, 2, 1);
     addDirectedEdge(g, 2, 0, -5);
 
-    double **distances = floydWarshall(g);
+    double **distances = calculateFloydWarshall(g);
 
     bool hasNegativeCycle = false;
     for (unsigned i = 0; i < n; i++)
