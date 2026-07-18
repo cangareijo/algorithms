@@ -16,7 +16,7 @@ bool **createBooleanMatrix(unsigned m, unsigned n);
 void destroyBooleanMatrix(bool **matrix, unsigned m);
 
 double **createMatrix(unsigned m, unsigned n);
-void freeMatrix(double **matrix, unsigned n);
+void destroyMatrix(double **matrix, unsigned n);
 
 typedef struct Edge {
   unsigned destination;
@@ -275,13 +275,14 @@ unsigned unsignedMaximum(unsigned a, unsigned b) { return a >= b ? a : b; }
 void **allocateTable(size_t m, size_t n, size_t size) {
   void **table = malloc(m * sizeof(void *));
   if (!table) return nullptr;
-  for (size_t i = 0; i < m; i++)
-    table[i] = malloc(n * size);
-  for (size_t i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++) {
+    table[i] = calloc(n, size);
     if (!table[i]) {
-      freeTable(table, m);
+      for (size_t j = 0; j < i; j++) free(table[j]);
+      free(table);
       return nullptr;
     }
+  }
   return table;
 }
 
@@ -329,7 +330,7 @@ double **createMatrix(unsigned m, unsigned n) {
   return matrix;
 }
 
-void freeMatrix(double **matrix, unsigned m) {
+void destroyMatrix(double **matrix, unsigned m) {
   if (!matrix) return;
   for (unsigned i = 0; i < m; i++) free(matrix[i]);
   free(matrix);
@@ -2998,12 +2999,12 @@ double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
 
 double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
   if (!isValid(g) || source >= g->size || sink >= g->size) return 0;
-  double **residual = (double **)allocateTable(g->size, g->size, sizeof(double));
+  double **residual = createMatrix(g->size, g->size);
   unsigned *parent = malloc(g->size * sizeof(unsigned));
   bool *visited = malloc(g->size * sizeof(bool));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
   if (!residual || !parent || !visited || !queue) {
-    freeTable((void **)residual, g->size);
+    destroyMatrix(residual, g->size);
     free(parent); free(visited); free(queue);
     return 0;
   }
@@ -3046,7 +3047,7 @@ double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sin
     }
     max += flow;
   }
-  freeTable((void **)residual, g->size);
+  destroyMatrix(residual, g->size);
   free(parent); free(visited); free(queue);
   return max;
 }
@@ -3581,7 +3582,7 @@ void testFloydWarshall() {
     assert(distances[0][2] == 15);
     assert(distances[2][0] == INFINITY);
 
-    freeMatrix(distances, 3);
+    destroyMatrix(distances, 3);
     destroyGraph(g);
     printf("Passed!\n");
   }
@@ -3597,7 +3598,7 @@ void testFloydWarshall() {
     assert(distances[0][2] == 2);
     assert(distances[1][2] == -2);
 
-    freeMatrix(distances, 3);
+    destroyMatrix(distances, 3);
     destroyGraph(g);
     printf("Passed!\n");
   }
@@ -3613,7 +3614,7 @@ void testFloydWarshall() {
     assert(distances[0][2] == INFINITY);
     assert(distances[3][0] == INFINITY);
 
-    freeMatrix(distances, 4);
+    destroyMatrix(distances, 4);
     destroyGraph(g);
     printf("Passed!\n");
   }
@@ -3636,7 +3637,7 @@ void testFloydWarshall() {
     assert(hasNegativeCycle == true);
     assert(distances[0][0] == -3);
 
-    freeMatrix(distances, n);
+    destroyMatrix(distances, n);
     destroyGraph(g);
     printf("Passed!\n");
   }
