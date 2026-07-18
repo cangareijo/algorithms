@@ -9,14 +9,11 @@
 static inline unsigned unsignedMinimum(unsigned a, unsigned b);
 static inline unsigned unsignedMaximum(unsigned a, unsigned b);
 
-void **allocateTable(size_t m, size_t n, size_t size);
-void freeTable(void **table, size_t m);
-
 bool **createBooleanMatrix(unsigned m, unsigned n);
 void destroyBooleanMatrix(bool **matrix, unsigned m);
 
 double **createMatrix(unsigned m, unsigned n);
-void destroyMatrix(double **matrix, unsigned n);
+void destroyMatrix(double **matrix, unsigned m);
 
 typedef struct Edge {
   unsigned destination;
@@ -269,28 +266,6 @@ int main();
 unsigned unsignedMinimum(unsigned a, unsigned b) { return a <= b ? a : b; }
 
 unsigned unsignedMaximum(unsigned a, unsigned b) { return a >= b ? a : b; }
-
-
-
-void **allocateTable(size_t m, size_t n, size_t size) {
-  void **table = malloc(m * sizeof(void *));
-  if (!table) return nullptr;
-  for (size_t i = 0; i < m; i++) {
-    table[i] = calloc(n, size);
-    if (!table[i]) {
-      for (size_t j = 0; j < i; j++) free(table[j]);
-      free(table);
-      return nullptr;
-    }
-  }
-  return table;
-}
-
-void freeTable(void **table, size_t m) {
-  if (!table) return;
-  for (size_t i = 0; i < m; i++) free(table[i]);
-  free(table);
-}
 
 
 
@@ -3083,7 +3058,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   double **distance = calculateFloydWarshall(g);
   if (!centrality || !distance) {
     free(centrality);
-    freeTable((void **)distance, g->size);
+    destroyMatrix(distance, g->size);
     return nullptr;
   }
   for (unsigned u = 0; u < g->size; u++) {
@@ -3099,7 +3074,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     else
       centrality[u] = 0;
   }
-  freeTable((void **)distance, g->size);
+  destroyMatrix(distance, g->size);
   return centrality;
 }
 
@@ -3154,7 +3129,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 [[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
   if (!g || !g->edges) return nullptr;
-  double **distance = (double **)allocateTable(g->size, g->size, sizeof(double));
+  double **distance = createMatrix(g->size, g->size);
   if (!distance) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
@@ -3181,11 +3156,11 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 [[nodiscard]] double **calculateGraphLayout(const Graph *g, unsigned iterations) {
   if (!isValid(g)) return nullptr;
-  double **position = (double **)allocateTable(g->size, 2, sizeof(double));
-  double **displacement = (double **)allocateTable(g->size, 2, sizeof(double));
+  double **position = createMatrix(g->size, 2);
+  double **displacement = createMatrix(g->size, 2);
   if (!position || !displacement) {
-    freeTable((void **)position, g->size);
-    freeTable((void **)displacement, g->size);
+    destroyMatrix(position, g->size);
+    destroyMatrix(displacement, g->size);
     return nullptr;
   }
   const double width = 1000;
@@ -3244,7 +3219,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     temperature -= cooling;
     if (temperature < 0) temperature = 0;
   }
-  freeTable((void **)displacement, g->size);
+  destroyMatrix(displacement, g->size);
   return position;
 }
 
