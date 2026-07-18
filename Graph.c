@@ -9,9 +9,14 @@
 static inline unsigned unsignedMinimum(unsigned a, unsigned b);
 static inline unsigned unsignedMaximum(unsigned a, unsigned b);
 
-void freeMatrix(double **matrix, unsigned n);
 void **allocateTable(size_t m, size_t n, size_t size);
 void freeTable(void **table, size_t m);
+
+bool **createBooleanMatrix(unsigned m, unsigned n);
+void destroyBooleanMatrix(bool **matrix, unsigned m);
+
+double **createMatrix(unsigned m, unsigned n);
+void freeMatrix(double **matrix, unsigned n);
 
 typedef struct Edge {
   unsigned destination;
@@ -111,6 +116,8 @@ bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 
+bool **createAdjacencyMatrix(const Graph *g);
+
 Graph *createGraph(unsigned n);
 Graph *createPath(unsigned n);
 Graph *createCycle(unsigned n);
@@ -184,8 +191,9 @@ unsigned calculateWienerIndex(const Graph *g);
 unsigned countInvalidEdges(const Graph *g);
 unsigned calculateDirectedUnweightedGirth(const Graph *g);
 unsigned calculateUndirectedUnweightedGirth(const Graph *g);
-unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateUnweightedRadius(const Graph *g);
+unsigned calculateUnweightedDiameter(const Graph *g);
+unsigned calculateMinimumVertexCut(const Graph *g);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
@@ -238,7 +246,7 @@ double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
 double **calculateFloydWarshall(const Graph *g);
-double **forceDirectedLayout(const Graph *g, unsigned iterations);
+double **calculateGraphLayout(const Graph *g, unsigned iterations);
 
 void testHasDirectedCycle();
 void testHasUndirectedCycle();
@@ -264,12 +272,6 @@ unsigned unsignedMaximum(unsigned a, unsigned b) { return a >= b ? a : b; }
 
 
 
-void freeMatrix(double **matrix, unsigned n) {
-  if (!matrix) return;
-  for (unsigned i = 0; i < n; i++) free(matrix[i]);
-  free(matrix);
-}
-
 void **allocateTable(size_t m, size_t n, size_t size) {
   void **table = malloc(m * sizeof(void *));
   if (!table) return nullptr;
@@ -287,6 +289,50 @@ void freeTable(void **table, size_t m) {
   if (!table) return;
   for (size_t i = 0; i < m; i++) free(table[i]);
   free(table);
+}
+
+
+
+bool **createBooleanMatrix(unsigned m, unsigned n) {
+  bool **matrix = malloc(m * sizeof(bool *));
+  if (!matrix) return nullptr;
+  for (unsigned i = 0; i < m; i++) {
+    matrix[i] = calloc(n, sizeof(bool));
+    if (!matrix[i]) {
+      for (unsigned j = 0; j < i; j++) free(matrix[j]);
+      free(matrix);
+      return nullptr;
+    }
+  }
+  return matrix;
+}
+
+void destroyBooleanMatrix(bool **matrix, unsigned m) {
+  if (!matrix) return;
+  for (unsigned i = 0; i < m; i++) free(matrix[i]);
+  free(matrix);
+}
+
+
+
+double **createMatrix(unsigned m, unsigned n) {
+  double **matrix = malloc(m * sizeof(double *));
+  if (!matrix) return nullptr;
+  for (unsigned i = 0; i < m; i++) {
+    matrix[i] = calloc(n, sizeof(double));
+    if (!matrix[i]) {
+      for (unsigned j = 0; j < i; j++) free(matrix[j]);
+      free(matrix);
+      return nullptr;
+    }
+  }
+  return matrix;
+}
+
+void freeMatrix(double **matrix, unsigned m) {
+  if (!matrix) return;
+  for (unsigned i = 0; i < m; i++) free(matrix[i]);
+  free(matrix);
 }
 
 
@@ -1235,6 +1281,19 @@ bool *findMaximumClique(const Graph *g) {
 
 
 
+[[nodiscard]] bool **createAdjacencyMatrix(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  bool **adjacency = createBooleanMatrix(g->size, g->size);
+  if (!adjacency) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        adjacency[u][e->destination] = true;
+  return adjacency;
+}
+
+
+
 [[nodiscard]] Graph *createGraph(unsigned n) {
   Graph *g = malloc(sizeof(Graph));
   Edge **edges = calloc(n, sizeof(Edge *));
@@ -2166,6 +2225,32 @@ unsigned calculateUnweightedDiameter(const Graph *g) {
   return diameter;
 }
 
+unsigned calculateMinimumVertexCut(const Graph *g) {
+  if (!g || g->size < 2) return 0;
+  bool **adjacent = createAdjacencyMatrix(g);
+  Graph *net = createGraph(2 * g->size);
+  if (!adjacent || !net) {
+    destroyBooleanMatrix(adjacent, g->size);
+    destroyGraph(net);
+    return 0;
+  }
+  for (unsigned v = 0; v < g->size; v++) addDirectedEdge(net, v, v + g->size, 1);
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (v != e->destination)
+        addDirectedEdge(net, v + g->size, e->destination, INFINITY);
+  double minimum = g->size - 1;
+  for (unsigned s = 0; s < g->size; s++)
+    for (unsigned t = 0; t < g->size; t++) {
+      if (s == t || adjacent[s][t]) continue;
+      double flow = calculateMaxFlowEdmondsKarp(net, s + g->size, t);
+      if (flow < minimum) minimum = flow;
+    }
+  destroyBooleanMatrix(adjacent, g->size);
+  destroyGraph(net);
+  return round(minimum);
+}
+
 unsigned getOutDegree(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned n = 0;
@@ -3093,7 +3178,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return distance;
 }
 
-[[nodiscard]] double **forceDirectedLayout(const Graph *g, unsigned iterations) {
+[[nodiscard]] double **calculateGraphLayout(const Graph *g, unsigned iterations) {
   if (!isValid(g)) return nullptr;
   double **position = (double **)allocateTable(g->size, 2, sizeof(double));
   double **displacement = (double **)allocateTable(g->size, 2, sizeof(double));
@@ -3138,12 +3223,9 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
         const double dx = position[u][0] - position[v][0];
         const double dy = position[u][1] - position[v][1];
         const double distance = sqrt(dx * dx + dy * dy);
-        if (distance == 0) continue;
         const double attraction = distance / k;
         displacement[u][0] -= dx * attraction;
         displacement[u][1] -= dy * attraction;
-        displacement[v][0] += dx * attraction;
-        displacement[v][1] += dy * attraction;
       }
     for (unsigned v = 0; v < g->size; v++) {
       const double dx = displacement[v][0];
