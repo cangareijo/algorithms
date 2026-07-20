@@ -308,13 +308,13 @@ void destroyBooleanMatrix(bool **matrix, unsigned m) {
   matrix->rows = rows;
   matrix->columns = columns;
   matrix->data = malloc(rows * sizeof(double *));
-  if (!matrix->data) {
+  if (rows > 0 && !matrix->data) {
     free(matrix);
     return nullptr;
   }
   for (unsigned i = 0; i < rows; ++i) {
     matrix->data[i] = calloc(columns, sizeof(double));
-    if (!matrix->data[i]) {
+    if (columns > 0 && !matrix->data[i]) {
       for (unsigned j = 0; j < i; ++j) free(matrix->data[j]);
       free(matrix->data);
       free(matrix);
@@ -334,10 +334,11 @@ void destroyMatrix(Matrix *matrix) {
 }
 
 bool isValidMatrix(const Matrix *matrix) {
-  if (!matrix || (matrix->rows > 0 && matrix->columns > 0 && !matrix->data)) return false;
-  for (unsigned i = 0; i < matrix->rows; i++)
-    if (matrix->columns > 0 && !matrix->data[i])
-      return false;
+  if (!matrix || (matrix->rows > 0 && !matrix->data)) return false;
+  if (matrix->columns > 0)
+    for (unsigned i = 0; i < matrix->rows; i++)
+      if (!matrix->data[i])
+        return false;
   return true;
 }
 
