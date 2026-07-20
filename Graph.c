@@ -1744,7 +1744,7 @@ void printGraph(const Graph *g) {
     for (unsigned v = 0; v < g->size; v++)
       for (Edge *e = g->edges[v]; e; e = e->next) {
         if (i++ > 0) printf(", ");
-        printf("(%u, %u, %g)", v, e->destination, e->weight);
+        printf("(%u, %u, %lg)", v, e->destination, e->weight);
       }
   printf("}\n");
 }
@@ -3699,7 +3699,7 @@ void testPrim() {
     double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 4);
     assert(w == 4);
-    printf("Prim test 1 (triangle) passed: weight %lf\n", w);
+    printf("Prim test 1 (triangle) passed: weight %lg\n", w);
     destroyGraph(g);
     destroyGraph(mst);
   }
@@ -3716,7 +3716,7 @@ void testPrim() {
     double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 8);
     assert(w == 16);
-    printf("Prim test 2 (complex) passed: weight %lf\n", w);
+    printf("Prim test 2 (complex) passed: weight %lg\n", w);
     destroyGraph(g);
     destroyGraph(mst);
   }
@@ -3743,7 +3743,7 @@ void testKruskal() {
   double weight = sumWeights(mst) / 2;
   assert(countEdges(mst) == 6);
   assert(weight == 19);
-  printf("Kruskal test passed: weight %lf\n", weight);
+  printf("Kruskal test passed: weight %lg\n", weight);
   destroyGraph(g);
   destroyGraph(mst);
 }
