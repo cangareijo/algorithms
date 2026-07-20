@@ -12,8 +12,16 @@ static inline unsigned unsignedMaximum(unsigned a, unsigned b);
 bool **createBooleanMatrix(unsigned m, unsigned n);
 void destroyBooleanMatrix(bool **matrix, unsigned m);
 
-double **createMatrix(unsigned m, unsigned n);
-void destroyMatrix(double **matrix, unsigned m);
+typedef struct {
+  unsigned rows;
+  unsigned columns;
+  double **data;
+} Matrix;
+
+Matrix *createZeroMatrix(unsigned rows, unsigned columns);
+void destroyMatrix(Matrix *matrix);
+bool isValidMatrix(const Matrix *matrix);
+double calculateMatrixDeterminant(Matrix *matrix);
 
 typedef struct Edge {
   unsigned destination;
@@ -79,11 +87,11 @@ bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double x);
 bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double x);
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
-bool isClique(const Graph *g, const bool *subset);
-bool isIndependentSet(const Graph *g, const bool *subset);
-bool isVertexCover(const Graph *g, const bool *subset);
-bool hasDirectedEdges(const Graph *g, unsigned v, const bool *subset);
-bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *subset);
+bool isClique(const Graph *g, const bool *set);
+bool isIndependentSet(const Graph *g, const bool *set);
+bool isVertexCover(const Graph *g, const bool *set);
+bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set);
+bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
@@ -191,6 +199,8 @@ unsigned calculateUndirectedUnweightedGirth(const Graph *g);
 unsigned calculateUnweightedRadius(const Graph *g);
 unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateMinimumVertexCut(const Graph *g);
+unsigned calculateSpanningTreeCount(const Graph *g);
+unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
@@ -205,6 +215,7 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
 
 unsigned *getInDegrees(const Graph *g);
 unsigned *getOutDegrees(const Graph *g);
+unsigned *getDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *assignColoring(const Graph *g);
@@ -242,8 +253,8 @@ double *calculateClosenessCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
-double **calculateFloydWarshall(const Graph *g);
-double **calculateGraphLayout(const Graph *g, unsigned iterations);
+Matrix *calculateFloydWarshall(const Graph *g);
+Matrix *calculateGraphLayout(const Graph *g, unsigned iterations);
 
 void testHasDirectedCycle();
 void testHasUndirectedCycle();
@@ -291,13 +302,21 @@ void destroyBooleanMatrix(bool **matrix, unsigned m) {
 
 
 
-double **createMatrix(unsigned m, unsigned n) {
-  double **matrix = malloc(m * sizeof(double *));
+[[nodiscard]] Matrix *createZeroMatrix(unsigned rows, unsigned columns) {
+  Matrix *matrix = malloc(sizeof(Matrix));
   if (!matrix) return nullptr;
-  for (unsigned i = 0; i < m; i++) {
-    matrix[i] = calloc(n, sizeof(double));
-    if (!matrix[i]) {
-      for (unsigned j = 0; j < i; j++) free(matrix[j]);
+  matrix->rows = rows;
+  matrix->columns = columns;
+  matrix->data = malloc(rows * sizeof(double *));
+  if (!matrix->data) {
+    free(matrix);
+    return nullptr;
+  }
+  for (unsigned i = 0; i < rows; ++i) {
+    matrix->data[i] = calloc(columns, sizeof(double));
+    if (!matrix->data[i]) {
+      for (unsigned j = 0; j < i; ++j) free(matrix->data[j]);
+      free(matrix->data);
       free(matrix);
       return nullptr;
     }
@@ -305,10 +324,45 @@ double **createMatrix(unsigned m, unsigned n) {
   return matrix;
 }
 
-void destroyMatrix(double **matrix, unsigned m) {
+void destroyMatrix(Matrix *matrix) {
   if (!matrix) return;
-  for (unsigned i = 0; i < m; i++) free(matrix[i]);
+  if (matrix->data) {
+    for (unsigned i = 0; i < matrix->rows; i++) free(matrix->data[i]);
+    free(matrix->data);
+  }
   free(matrix);
+}
+
+bool isValidMatrix(const Matrix *matrix) {
+  if (!matrix || (matrix->rows > 0 && matrix->columns > 0 && !matrix->data)) return false;
+  for (unsigned i = 0; i < matrix->rows; i++)
+    if (matrix->columns > 0 && !matrix->data[i])
+      return false;
+  return true;
+}
+
+double calculateMatrixDeterminant(Matrix *matrix) {
+  if (!isValidMatrix(matrix) || matrix->rows != matrix->columns) return 1;
+  double determinant = 1;
+  for (unsigned i = 0; i < matrix->rows; i++) {
+    unsigned pivot = i;
+    for (unsigned j = i + 1; j < matrix->rows; j++)
+      if (fabs(matrix->data[j][i]) > fabs(matrix->data[pivot][i]))
+        pivot = j;
+    if (fabs(matrix->data[pivot][i]) < 1e-9) return 0;
+    if (pivot != i) {
+      double *temporary = matrix->data[i];
+      matrix->data[i] = matrix->data[pivot];
+      matrix->data[pivot] = temporary;
+      determinant *= -1;
+    }
+    determinant *= matrix->data[i][i];
+    for (unsigned j = i + 1; j < matrix->rows; ++j) {
+      double factor = matrix->data[j][i] / matrix->data[i][i];
+      for (unsigned k = i; k < matrix->rows; ++k) matrix->data[j][k] -= factor * matrix->data[i][k];
+    }
+  }
+  return determinant;
 }
 
 
@@ -937,7 +991,6 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
   return valid;
 }
 
-// If isDirectedCycle(g, s, n) == true, then sequence[i] < g->size, for all i < length
 bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) {
   if (!g || g->size == 0 || !sequence || length == 0) return false;
   bool valid = true;
@@ -1016,13 +1069,11 @@ bool isSubGraph(const Graph *g1, const Graph *g2) {
   return true;
 }
 
-// If countEdges(g) == g->size - 1 && isWeaklyConnected(g), then !hasSelfLoops(g1) && !hasParallelEdges(g1)
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
   return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == g1->size - 1 &&
     isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
-// If countEdges(g) == 2 * (g1->size - 1) && isWeaklyConnected(g) && isUndirected(g), then !hasSelfLoops(g) && !hasParallelEdges(g)
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
   return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == 2 * (g1->size - 1) &&
     !hasSelfLoops(g1) && !hasParallelEdges(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
@@ -1861,21 +1912,16 @@ unsigned getSize(const Graph *g) {
 }
 
 unsigned countEdges(const Graph *g) {
-  if (!g || !g->edges) return 0;
+  if (!g) return 0;
   unsigned n = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      n++;
+  for (unsigned v = 0; v < g->size; v++) n += getOutDegree(g, v);
   return n;
 }
 
 unsigned countSelfLoops(const Graph *g) {
-  if (!g || !g->edges) return 0;
+  if (!g) return 0;
   unsigned n = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination == v)
-        n++;
+  for (unsigned v = 0; v < g->size; v++) n += countSelfLoopsAtVertex(g, v);
   return n;
 }
 
@@ -1937,25 +1983,25 @@ unsigned getMaximumOutDegree(const Graph *g) {
 
 unsigned getMinimumDegree(const Graph *g) {
   if (!g) return UINT_MAX;
-  unsigned *in = getInDegrees(g);
-  if (!in) return UINT_MAX;
+  unsigned *degrees = getDegrees(g);
+  if (!degrees) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   for (unsigned v = 0; v < g->size; v++)
-    if (in[v] + getOutDegree(g, v) < minimum)
-      minimum = in[v] + getOutDegree(g, v);
-  free(in);
+    if (degrees[v] < minimum)
+      minimum = degrees[v];
+  free(degrees);
   return minimum;
 }
 
 unsigned getMaximumDegree(const Graph *g) {
   if (!g) return 0;
-  unsigned *in = getInDegrees(g);
-  if (!in) return 0;
+  unsigned *degrees = getDegrees(g);
+  if (!degrees) return 0;
   unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (in[v] + getOutDegree(g, v) > maximum)
-      maximum = in[v] + getOutDegree(g, v);
-  free(in);
+    if (degrees[v] > maximum)
+      maximum = degrees[v];
+  free(degrees);
   return maximum;
 }
 
@@ -2227,26 +2273,41 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
   return round(minimum);
 }
 
+unsigned calculateSpanningTreeCount(const Graph *g) {
+  if (!g || g->size == 0) return 0;
+  Matrix *laplacian = createZeroMatrix(g->size - 1, g->size - 1);
+  if (!laplacian) return 0;
+  for (unsigned v = 0; v < g->size - 1; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size - 1) {
+        laplacian->data[e->destination][e->destination] += 1;
+        laplacian->data[v][e->destination] -= 1; 
+      }
+  double determinant = calculateMatrixDeterminant(laplacian);
+  destroyMatrix(laplacian);
+  return determinant > 0 ? round(determinant) : 0;
+}
+
+unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
+  return countMatchingEdges(g, v, v);
+}
+
 unsigned getOutDegree(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned n = 0;
-  for (Edge *e = g->edges[v]; e; e = e->next)
-    n++;
+  for (Edge *e = g->edges[v]; e; e = e->next) n++;
   return n;
 }
 
 unsigned getInDegree(const Graph *g, unsigned v) {
-  if (!g || !g->edges || v >= g->size) return 0;
+  if (!g) return 0;
   unsigned n = 0;
-  for (unsigned u = 0; u < g->size; u++)
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination == v)
-        n++;
+  for (unsigned u = 0; u < g->size; u++) n += countMatchingEdges(g, u, v);
   return n;
 }
 
 unsigned getDegree(const Graph *g, unsigned v) {
-  return getInDegree(g, v) + getOutDegree(g, v);
+  return getInDegree(g, v) + getOutDegree(g, v) - countSelfLoopsAtVertex(g, v);
 }
 
 unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v) {
@@ -2400,10 +2461,18 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
 }
 
 [[nodiscard]] unsigned *getOutDegrees(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
+  if (!g) return nullptr;
   unsigned *degrees = calloc(g->size, sizeof(unsigned));
   if (!degrees) return nullptr;
   for (unsigned v = 0; v < g->size; v++) degrees[v] = getOutDegree(g, v);
+  return degrees;
+}
+
+[[nodiscard]] unsigned *getDegrees(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned *degrees = getInDegrees(g);
+  if (!degrees) return nullptr;
+  for (unsigned v = 0; v < g->size; v++) degrees[v] += getOutDegree(g, v) - countSelfLoopsAtVertex(g, v);
   return degrees;
 }
 
@@ -2743,7 +2812,6 @@ static void getBridgesDfs(
   }
 }
 
-// A graph has at most V - 1 bridges, except if V = 0.
 [[nodiscard]] unsigned **getBridges(const Graph *g) {
   if (!isValid(g)) return nullptr;
   unsigned *discovery = calloc(g->size, sizeof(unsigned));
@@ -2974,21 +3042,21 @@ double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
 
 double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
   if (!isValid(g) || source >= g->size || sink >= g->size) return 0;
-  double **residual = createMatrix(g->size, g->size);
+  Matrix *residual = createZeroMatrix(g->size, g->size);
   unsigned *parent = malloc(g->size * sizeof(unsigned));
   bool *visited = malloc(g->size * sizeof(bool));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
   if (!residual || !parent || !visited || !queue) {
-    destroyMatrix(residual, g->size);
+    destroyMatrix(residual);
     free(parent); free(visited); free(queue);
     return 0;
   }
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
-      residual[u][v] = 0;
+      residual->data[u][v] = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
-      residual[v][e->destination] += e->weight;
+      residual->data[v][e->destination] += e->weight;
   double max = 0;
   while (true) {
     for (unsigned v = 0; v < g->size; v++) visited[v] = false;
@@ -3000,7 +3068,7 @@ double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sin
     while (head < tail && !found) {
       unsigned u = queue[head++];
       for (unsigned v = 0; v < g->size && !found; v++)
-        if (!visited[v] && residual[u][v] > 1e-9) {
+        if (!visited[v] && residual->data[u][v] > 1e-9) {
           queue[tail++] = v;
           parent[v] = u;
           visited[v] = true;
@@ -3011,18 +3079,18 @@ double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sin
     double flow = INFINITY;
     unsigned v = sink;
     while (v != source) {
-      if (residual[parent[v]][v] < flow) flow = residual[parent[v]][v];
+      if (residual->data[parent[v]][v] < flow) flow = residual->data[parent[v]][v];
       v = parent[v];
     }
     v = sink;
     while (v != source) {
-      residual[parent[v]][v] -= flow;
-      residual[v][parent[v]] += flow;
+      residual->data[parent[v]][v] -= flow;
+      residual->data[v][parent[v]] += flow;
       v = parent[v];
     }
     max += flow;
   }
-  destroyMatrix(residual, g->size);
+  destroyMatrix(residual);
   free(parent); free(visited); free(queue);
   return max;
 }
@@ -3055,18 +3123,18 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 [[nodiscard]] double *calculateClosenessCentrality(const Graph *g) {
   if (!g) return nullptr;
   double *centrality = calloc(g->size, sizeof(double));
-  double **distance = calculateFloydWarshall(g);
+  Matrix *distance = calculateFloydWarshall(g);
   if (!centrality || !distance) {
     free(centrality);
-    destroyMatrix(distance, g->size);
+    destroyMatrix(distance);
     return nullptr;
   }
   for (unsigned u = 0; u < g->size; u++) {
     double total = 0;
     unsigned count = 0;
     for (unsigned v = 0; v < g->size; v++)
-      if (u != v && distance[u][v] != INFINITY) {
-        total += distance[u][v];
+      if (u != v && distance->data[u][v] != INFINITY) {
+        total += distance->data[u][v];
         count++;
       }
     if (total > 0)
@@ -3074,7 +3142,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     else
       centrality[u] = 0;
   }
-  destroyMatrix(distance, g->size);
+  destroyMatrix(distance);
   return centrality;
 }
 
@@ -3127,40 +3195,40 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 
-[[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
+[[nodiscard]] Matrix *calculateFloydWarshall(const Graph *g) {
   if (!g || !g->edges) return nullptr;
-  double **distance = createMatrix(g->size, g->size);
+  Matrix *distance = createZeroMatrix(g->size, g->size);
   if (!distance) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u == v)
-        distance[u][v] = 0;
+        distance->data[u][v] = 0;
       else
-        distance[u][v] = INFINITY;
+        distance->data[u][v] = INFINITY;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size && e->weight < distance[v][e->destination])
-        distance[v][e->destination] = e->weight;
+      if (e->destination < g->size && e->weight < distance->data[v][e->destination])
+        distance->data[v][e->destination] = e->weight;
   for (unsigned w = 0; w < g->size; w++)
     for (unsigned u = 0; u < g->size; u++)
       for (unsigned v = 0; v < g->size; v++)
-        if (distance[u][w] + distance[w][v] < distance[u][v])
-          distance[u][v] = distance[u][w] + distance[w][v];
+        if (distance->data[u][w] + distance->data[w][v] < distance->data[u][v])
+          distance->data[u][v] = distance->data[u][w] + distance->data[w][v];
   for (unsigned w = 0; w < g->size; w++)
     for (unsigned u = 0; u < g->size; u++)
       for (unsigned v = 0; v < g->size; v++)
-        if (distance[u][w] + distance[w][v] < distance[u][v])
-          distance[u][v] = -INFINITY;
+        if (distance->data[u][w] + distance->data[w][v] < distance->data[u][v])
+          distance->data[u][v] = -INFINITY;
   return distance;
 }
 
-[[nodiscard]] double **calculateGraphLayout(const Graph *g, unsigned iterations) {
+[[nodiscard]] Matrix *calculateGraphLayout(const Graph *g, unsigned iterations) {
   if (!isValid(g)) return nullptr;
-  double **position = createMatrix(g->size, 2);
-  double **displacement = createMatrix(g->size, 2);
+  Matrix *position = createZeroMatrix(g->size, 2);
+  Matrix *displacement = createZeroMatrix(g->size, 2);
   if (!position || !displacement) {
-    destroyMatrix(position, g->size);
-    destroyMatrix(displacement, g->size);
+    destroyMatrix(position);
+    destroyMatrix(displacement);
     return nullptr;
   }
   const double width = 1000;
@@ -3168,58 +3236,58 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   const double area = width * height;
   const double k = 0.75 * sqrt(area / g->size);
   for (unsigned v = 0; v < g->size; v++) {
-    position[v][0] = width / 4 + rand() / ((double)RAND_MAX + 1) * width / 2;
-    position[v][1] = height / 4 + rand() / ((double)RAND_MAX + 1) * height / 2;
+    position->data[v][0] = width / 4 + rand() / ((double)RAND_MAX + 1) * width / 2;
+    position->data[v][1] = height / 4 + rand() / ((double)RAND_MAX + 1) * height / 2;
   }
   double temperature = width / 10;
   const double cooling = temperature / iterations;
   for (unsigned i = 0; i < iterations; i++) {
     for (unsigned v = 0; v < g->size; v++) {
-      displacement[v][0] = 0;
-      displacement[v][1] = 0;
+      displacement->data[v][0] = 0;
+      displacement->data[v][1] = 0;
     }
     for (unsigned u = 0; u < g->size; u++)
       for (unsigned v = 0; v < g->size; v++) {
         if (u == v) continue;
-        double dx = position[u][0] - position[v][0];
-        double dy = position[u][1] - position[v][1];
+        double dx = position->data[u][0] - position->data[v][0];
+        double dy = position->data[u][1] - position->data[v][1];
         if (fabs(dx) < 1e-4 && fabs(dy) < 1e-4) {
           dx = 0.1 * (rand() % 2 ? 1 : -1);
           dy = 0.1 * (rand() % 2 ? 1 : -1);
         }
         const double distance = sqrt(dx * dx + dy * dy);
         const double repulsion = k * k / distance / distance;
-        displacement[u][0] += dx * repulsion;
-        displacement[u][1] += dy * repulsion;
+        displacement->data[u][0] += dx * repulsion;
+        displacement->data[u][1] += dy * repulsion;
       }
     for (unsigned u = 0; u < g->size; u++)
       for (const Edge *e = g->edges[u]; e; e = e->next) {
         const unsigned v = e->destination;
         if (u == v) continue;
-        const double dx = position[u][0] - position[v][0];
-        const double dy = position[u][1] - position[v][1];
+        const double dx = position->data[u][0] - position->data[v][0];
+        const double dy = position->data[u][1] - position->data[v][1];
         const double distance = sqrt(dx * dx + dy * dy);
         const double attraction = distance / k;
-        displacement[u][0] -= dx * attraction;
-        displacement[u][1] -= dy * attraction;
+        displacement->data[u][0] -= dx * attraction;
+        displacement->data[u][1] -= dy * attraction;
       }
     for (unsigned v = 0; v < g->size; v++) {
-      const double dx = displacement[v][0];
-      const double dy = displacement[v][1];
+      const double dx = displacement->data[v][0];
+      const double dy = displacement->data[v][1];
       const double distance = sqrt(dx * dx + dy * dy);
       if (distance == 0) continue;
       const double capped = distance < temperature ? distance : temperature;
-      position[v][0] += dx / distance * capped;
-      position[v][1] += dy / distance * capped;
-      if (position[v][0] < 0) position[v][0] = 0;
-      if (position[v][0] > width) position[v][0] = width;
-      if (position[v][1] < 0) position[v][1] = 0;
-      if (position[v][1] > height) position[v][1] = height;
+      position->data[v][0] += dx / distance * capped;
+      position->data[v][1] += dy / distance * capped;
+      if (position->data[v][0] < 0) position->data[v][0] = 0;
+      if (position->data[v][0] > width) position->data[v][0] = width;
+      if (position->data[v][1] < 0) position->data[v][1] = 0;
+      if (position->data[v][1] > height) position->data[v][1] = height;
     }
     temperature -= cooling;
     if (temperature < 0) temperature = 0;
   }
-  destroyMatrix(displacement, g->size);
+  destroyMatrix(displacement);
   return position;
 }
 
@@ -3431,7 +3499,9 @@ void testBellmanFord() {
 
   addDirectedEdge(g, 3, 1, -10);
   double *d2 = calculateBellmanFord(g, 0);
-  assert(d2 == nullptr);
+  bool b = false;
+  for (unsigned i = 0; i < 4; i++) b = b || d2[i] == -INFINITY;
+  assert(b);
   printf("Bellman-Ford test 2 (negative cycle) passed!\n");
   destroyGraph(g);
 }
@@ -3550,14 +3620,14 @@ void testFloydWarshall() {
     addDirectedEdge(g, 1, 2, 5);
     addDirectedEdge(g, 0, 2, 20);
 
-    double **distances = calculateFloydWarshall(g);
+    Matrix *distances = calculateFloydWarshall(g);
 
-    assert(distances[0][1] == 10);
-    assert(distances[1][2] == 5);
-    assert(distances[0][2] == 15);
-    assert(distances[2][0] == INFINITY);
+    assert(distances->data[0][1] == 10);
+    assert(distances->data[1][2] == 5);
+    assert(distances->data[0][2] == 15);
+    assert(distances->data[2][0] == INFINITY);
 
-    destroyMatrix(distances, 3);
+    destroyMatrix(distances);
     destroyGraph(g);
     printf("Passed!\n");
   }
@@ -3568,12 +3638,12 @@ void testFloydWarshall() {
     addDirectedEdge(g, 0, 2, 5);
     addDirectedEdge(g, 1, 2, -2);
 
-    double **distances = calculateFloydWarshall(g);
+    Matrix *distances = calculateFloydWarshall(g);
 
-    assert(distances[0][2] == 2);
-    assert(distances[1][2] == -2);
+    assert(distances->data[0][2] == 2);
+    assert(distances->data[1][2] == -2);
 
-    destroyMatrix(distances, 3);
+    destroyMatrix(distances);
     destroyGraph(g);
     printf("Passed!\n");
   }
@@ -3583,13 +3653,13 @@ void testFloydWarshall() {
     addDirectedEdge(g, 0, 1, 1);
     addDirectedEdge(g, 2, 3, 1);
 
-    double **distances = calculateFloydWarshall(g);
+    Matrix *distances = calculateFloydWarshall(g);
 
-    assert(distances[0][1] == 1);
-    assert(distances[0][2] == INFINITY);
-    assert(distances[3][0] == INFINITY);
+    assert(distances->data[0][1] == 1);
+    assert(distances->data[0][2] == INFINITY);
+    assert(distances->data[3][0] == INFINITY);
 
-    destroyMatrix(distances, 4);
+    destroyMatrix(distances);
     destroyGraph(g);
     printf("Passed!\n");
   }
@@ -3602,17 +3672,17 @@ void testFloydWarshall() {
     addDirectedEdge(g, 1, 2, 1);
     addDirectedEdge(g, 2, 0, -5);
 
-    double **distances = calculateFloydWarshall(g);
+    Matrix *distances = calculateFloydWarshall(g);
 
     bool hasNegativeCycle = false;
     for (unsigned i = 0; i < n; i++)
-      if (distances[i][i] < 0)
+      if (distances->data[i][i] < 0)
         hasNegativeCycle = true;
 
     assert(hasNegativeCycle == true);
-    assert(distances[0][0] == -3);
+    assert(distances->data[0][0] == -INFINITY);
 
-    destroyMatrix(distances, n);
+    destroyMatrix(distances);
     destroyGraph(g);
     printf("Passed!\n");
   }
