@@ -19,6 +19,7 @@ typedef struct {
 } Matrix;
 
 Matrix *createZeroMatrix(unsigned rows, unsigned columns);
+Matrix *multiplyMatrices(const Matrix *A, const Matrix *B);
 void destroyMatrix(Matrix *matrix);
 bool isValidMatrix(const Matrix *matrix);
 double calculateMatrixDeterminant(Matrix *matrix);
@@ -253,6 +254,7 @@ double *calculateClosenessCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
+Matrix *createLaplacian(const Graph *g);
 Matrix *calculateFloydWarshall(const Graph *g);
 Matrix *calculateGraphLayout(const Graph *g, unsigned iterations);
 
@@ -322,6 +324,17 @@ void destroyBooleanMatrix(bool **matrix, unsigned m) {
     }
   }
   return matrix;
+}
+
+[[nodiscard]] Matrix *multiplyMatrices(const Matrix *A, const Matrix *B) {
+  if (!A || !B || A->columns != B->rows) return nullptr;
+  Matrix *C = createZeroMatrix(A->rows, B->columns);
+  if (!C) return nullptr;
+  for (unsigned i = 0; i < A->rows; i++)
+    for (unsigned j = 0; j < B->columns; j++)
+      for (unsigned k = 0; k < A->columns; k++)
+        C->data[i][j] += A->data[i][k] * B->data[k][j];
+  return C;
 }
 
 void destroyMatrix(Matrix *matrix) {
@@ -2282,7 +2295,7 @@ unsigned calculateSpanningTreeCount(const Graph *g) {
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size - 1) {
         laplacian->data[e->destination][e->destination] += 1;
-        laplacian->data[v][e->destination] -= 1; 
+        laplacian->data[v][e->destination] -= 1;
       }
   double determinant = calculateMatrixDeterminant(laplacian);
   destroyMatrix(laplacian);
@@ -3195,6 +3208,19 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 
+
+[[nodiscard]] Matrix *createLaplacian(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  Matrix *L = createZeroMatrix(g->size, g->size);
+  if (!L) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size) {
+        L->data[u][u] += e->weight;
+        L->data[u][e->destination] -= e->weight;
+      }
+  return L;
+}
 
 [[nodiscard]] Matrix *calculateFloydWarshall(const Graph *g) {
   if (!g || !g->edges) return nullptr;
