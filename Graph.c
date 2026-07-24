@@ -257,6 +257,7 @@ double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
 double *calculateClosenessCentrality(const Graph *g);
+double *calculateBetweennessCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
@@ -409,14 +410,9 @@ double calculateMatrixDeterminant(Matrix *matrix) {
 }
 
 [[nodiscard]] Matrix *powerMatrix(const Matrix *matrix, unsigned k) {
-  if (!isValidMatrix(matrix) || matrix->rows != matrix->columns) return nullptr;
+  if (!matrix || matrix->rows != matrix->columns) return nullptr;
   Matrix *power = createIdentityMatrix(matrix->rows);
   Matrix *base = copyMatrix(matrix);
-  if (!power || !base) {
-    destroyMatrix(power);
-    destroyMatrix(base);
-    return nullptr;
-  }
   while (k > 0) {
     if (k % 2 == 1) {
       Matrix *multiplication = multiplyMatrices(power, base);
@@ -3232,6 +3228,43 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   destroyMatrix(distance);
   return centrality;
+}
+
+[[nodiscard]] double *calculateBetweennessCentrality(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  unsigned n = g->size;
+  double *c = calloc(n, sizeof(double));
+  if (!c || !n) return c;
+  double d[n][n], p[n][n];
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = 0; v < n; v++) {
+      d[u][v] = u == v ? 0 : INFINITY;
+      p[u][v] = u == v;
+    }
+  for (unsigned u = 0; u < n; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (u != e->destination && e->weight < d[u][e->destination]) {
+        d[u][e->destination] = e->weight;
+        p[u][e->destination] = 1;
+      }
+  for (unsigned w = 0; w < n; w++)
+    for (unsigned u = 0; u < n; u++)
+      for (unsigned v = 0; v < n; v++) {
+        double t = d[u][w] + d[w][v];
+        if (t < d[u][v]) {
+          d[u][v] = t;
+          p[u][v] = p[u][w] * p[w][v];
+        } else if (t == d[u][v] && w != u && w != v && d[u][v] < INFINITY) {
+          p[u][v] += p[u][w] * p[w][v];
+        }
+      }
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = 0; v < n; v++)
+      if (u != v && p[u][v] > 0)
+        for (unsigned w = 0; w < n; w++)
+          if (w != u && w != v && d[u][w] + d[w][v] == d[u][v])
+            c[w] += p[u][w] * p[w][v] / p[u][v];
+  return c;
 }
 
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
