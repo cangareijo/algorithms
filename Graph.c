@@ -87,6 +87,7 @@ bool isUndirectedLeaf(const Graph *g, unsigned v);
 bool hasSelfLoopsAtVertex(const Graph *g, unsigned v);
 bool canReachAll(const Graph *g, unsigned v);
 bool isArticulationVertex(const Graph *g, unsigned v);
+bool isSimplicial(const Graph *g, unsigned v);
 bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
@@ -906,6 +907,16 @@ bool isArticulationVertex(const Graph *g, unsigned v) {
   unsigned n = countComponents(g2);
   destroyGraph(g2);
   return n > countComponents(g);
+}
+
+bool isSimplicial(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return false;
+  for (Edge *e1 = g->edges[v]; e1; e1 = e1->next)
+    for (Edge *e2 = e1->next; e2; e2 = e2->next) {
+      unsigned v2 = e1->destination, v3 = e2->destination;
+      if (v != v2 && v != v3 && v2 != v3 && !hasDirectedEdge(g, v2, v3) && !hasDirectedEdge(g, v3, v2)) return false;
+    }
+  return true;
 }
 
 bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
