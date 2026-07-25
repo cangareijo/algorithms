@@ -6,8 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static inline unsigned unsignedMinimum(unsigned a, unsigned b);
-static inline unsigned unsignedMaximum(unsigned a, unsigned b);
+void swapUnsigned(unsigned *a, unsigned *b);
+unsigned unsignedMinimum(unsigned a, unsigned b);
+unsigned unsignedMaximum(unsigned a, unsigned b);
 
 bool **createBooleanMatrix(unsigned m, unsigned n);
 void destroyBooleanMatrix(bool **matrix, unsigned m);
@@ -72,6 +73,7 @@ bool hasDirectedCycle(const Graph *g);
 bool hasUndirectedCycle(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
 bool hasInvalidEdges(const Graph *g);
+bool isSelfComplementary(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
@@ -278,14 +280,26 @@ void testPrim();
 void testKruskal();
 void testFindArticulationPoints();
 void testGraphDensity();
+void testCalculateBetweennessCentrality();
 
 int main();
 
 
 
-unsigned unsignedMinimum(unsigned a, unsigned b) { return a <= b ? a : b; }
+void swapUnsigned(unsigned *a, unsigned *b) {
+  if (!a || !b) return;
+  unsigned t = *a;
+  *a = *b;
+  *b = t;
+}
 
-unsigned unsignedMaximum(unsigned a, unsigned b) { return a >= b ? a : b; }
+unsigned unsignedMinimum(unsigned a, unsigned b) {
+  return a <= b ? a : b;
+}
+
+unsigned unsignedMaximum(unsigned a, unsigned b) {
+  return a >= b ? a : b;
+}
 
 
 
@@ -786,6 +800,29 @@ bool hasInvalidEdges(const Graph *g) {
       if (e->destination >= g->size)
         return true;
   return false;
+}
+
+static bool isSelfComplementaryIsomorphism(const Graph *g, unsigned *p, unsigned i) {
+  if (i == g->size) {
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (u != v && hasDirectedEdge(g, u, v) == hasDirectedEdge(g, p[u], p[v]))
+          return false;
+    return true; 
+  }
+  for (unsigned j = i; j < g->size; j++) {
+    swapUnsigned(&p[i], &p[j]);
+    if (isSelfComplementaryIsomorphism(g, p, i + 1)) return true;
+    swapUnsigned(&p[i], &p[j]);
+  }
+  return false;
+}
+
+bool isSelfComplementary(const Graph *g) {
+  if (!g) return true;
+  unsigned p[g->size];
+  for (unsigned i = 0; i < g->size; i++) p[i] = i;
+  return isSelfComplementaryIsomorphism(g, p, 0);
 }
 
 bool isKRegular(const Graph *g, unsigned k) {
@@ -3231,7 +3268,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 [[nodiscard]] double *calculateBetweennessCentrality(const Graph *g) {
-  if (!isValid(g)) return nullptr;
+  if (!isValid(g) || hasNegativeWeights(g)) return nullptr;
   unsigned n = g->size;
   double *c = calloc(n, sizeof(double));
   if (!c || !n) return c;
@@ -3243,7 +3280,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     }
   for (unsigned u = 0; u < n; u++)
     for (const Edge *e = g->edges[u]; e; e = e->next)
-      if (u != e->destination && e->weight < d[u][e->destination]) {
+      if (e->weight < d[u][e->destination]) {
         d[u][e->destination] = e->weight;
         p[u][e->destination] = 1;
       }
@@ -3251,7 +3288,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     for (unsigned u = 0; u < n; u++)
       for (unsigned v = 0; v < n; v++) {
         double t = d[u][w] + d[w][v];
-        if (t < d[u][v]) {
+        if (t < d[u][v] - 1e-9) {
           d[u][v] = t;
           p[u][v] = p[u][w] * p[w][v];
         } else if (t == d[u][v] && w != u && w != v && d[u][v] < INFINITY) {
@@ -3262,7 +3299,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     for (unsigned v = 0; v < n; v++)
       if (u != v && p[u][v] > 0)
         for (unsigned w = 0; w < n; w++)
-          if (w != u && w != v && d[u][w] + d[w][v] == d[u][v])
+          if (w != u && w != v && fabs(d[u][w] + d[w][v] - d[u][v]) < 1e-9)
             c[w] += p[u][w] * p[w][v] / p[u][v];
   return c;
 }
@@ -3955,6 +3992,86 @@ void testGraphDensity() {
   destroyGraph(graph);
 }
 
+void testCalculateBetweennessCentrality() {
+  printf("\n");
+
+  {
+    printf("[FloatingPointPrecision] Running scenario...\n");
+    Graph *g = createGraph(4);
+    assert(g);
+
+    addDirectedEdge(g, 0, 1, 0.1);
+    addDirectedEdge(g, 1, 2, 0.2);
+
+    addDirectedEdge(g, 0, 3, 0.15);
+    addDirectedEdge(g, 3, 2, 0.15);
+
+    double *centrality = calculateBetweennessCentrality(g);
+    assert(centrality);
+
+    printf("[FloatingPointPrecision] Centrality Node 1: %f, Node 3: %f\n", centrality[1], centrality[3]);
+
+    bool pass = (fabs(centrality[1] - centrality[3]) < 1e-6);
+    free(centrality);
+    destroyGraph(g);
+
+    if (!pass) {
+      printf("[FAIL] Strict floating-point equality missed a valid path!\n\n");
+      assert(false);
+    }
+    printf("[SUCCESS] Floating point precision tolerance verified.\n\n");
+  }
+
+  {
+    printf("[ParallelEdgeOverwrite] Running scenario...\n");
+    Graph *g = createGraph(3);
+    assert(g);
+
+    addDirectedEdge(g, 0, 1, 1.0);
+    addDirectedEdge(g, 0, 1, 1.0);
+    addDirectedEdge(g, 1, 2, 1.0);
+
+    double *centrality = calculateBetweennessCentrality(g);
+    assert(centrality);
+
+    printf("[ParallelEdgeOverwrite] Centrality Node 1: %f\n", centrality[1]);
+
+    bool pass = (centrality[1] > 0.0);
+    free(centrality);
+    destroyGraph(g);
+
+    if (!pass) {
+      printf("[FAIL] Parallel edges corrupted internal path counting arrays!\n\n");
+      assert(false);
+    }
+    printf("[SUCCESS] Parallel edge structural multi-paths verified.\n\n");
+  }
+
+  {
+    printf("[IdentityPathInterference] Running scenario...\n");
+    Graph *g = createGraph(3);
+    assert(g);
+
+    addDirectedEdge(g, 0, 1, 1.0);
+    addDirectedEdge(g, 1, 2, 1.0);
+
+    double *centrality = calculateBetweennessCentrality(g);
+    assert(centrality);
+
+    printf("[IdentityPathInterference] Centrality Node 1 (Expected 1.0): %f\n", centrality[1]);
+
+    bool pass = (fabs(centrality[1] - 1.0) < 1e-6);
+    free(centrality);
+    destroyGraph(g);
+
+    if (!pass) {
+      printf("[FAIL] Identity initialization (u == v) leaked into path products!\n\n");
+      assert(false);
+    }
+    printf("[SUCCESS] Identity path protection verified.\n\n");
+  }
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -3969,6 +4086,7 @@ int main() {
   testKruskal();
   testFindArticulationPoints();
   testGraphDensity();
+  testCalculateBetweennessCentrality();
   printf("All tests passed!\n");
   return 0;
 }
