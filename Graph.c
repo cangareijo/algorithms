@@ -74,6 +74,7 @@ bool hasUndirectedCycle(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
 bool hasInvalidEdges(const Graph *g);
 bool isSelfComplementary(const Graph *g);
+bool isChordal(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
@@ -824,6 +825,31 @@ bool isSelfComplementary(const Graph *g) {
   unsigned p[g->size];
   for (unsigned i = 0; i < g->size; i++) p[i] = i;
   return isSelfComplementaryIsomorphism(g, p, 0);
+}
+
+bool isChordal(const Graph *g) {
+  if (!g) return false;
+  bool removed[g->size] = {};
+  for (unsigned step = 0; step < g->size; step++) {
+    unsigned simplicial = UINT_MAX;
+    for (unsigned u = 0; u < g->size && simplicial == UINT_MAX; u++) {
+      if (removed[u]) continue;
+      bool connected = true;
+      for (Edge *e1 = g->edges[u]; e1 && connected; e1 = e1->next) {
+        unsigned v = e1->destination;
+        if (u == v || removed[v]) continue;
+        for (Edge *e2 = e1->next; e2 && connected; e2 = e2->next) {
+          unsigned w = e2->destination;
+          if (u == w || v == w || removed[w]) continue;
+          if (!hasDirectedEdge(g, v, w) && !hasDirectedEdge(g, w, v)) connected = false;
+        }
+      }
+      if (connected) simplicial = u;
+    }
+    if (simplicial == UINT_MAX) return false;
+    removed[simplicial] = true;
+  }
+  return true;
 }
 
 bool isKRegular(const Graph *g, unsigned k) {
