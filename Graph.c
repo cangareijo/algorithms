@@ -252,6 +252,7 @@ double getMaximumWeight(const Graph *g);
 double calculateAverageClusteringCoefficient(const Graph *g);
 double calculateDirectedWeightedGirth(const Graph *g);
 double calculateUndirectedWeightedGirth(const Graph *g);
+double calculateMinCutStoerWagner(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -3162,6 +3163,39 @@ double calculateUndirectedWeightedGirth(const Graph *g) {
   return minimum;
 }
 
+double calculateMinCutStoerWagner(const Graph *g) {
+  if (!g || !g->edges || g->size < 2) return 0;
+  double minCut = INFINITY, m[g->size][g->size];
+  bool active[g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    active[u] = true;
+    for (unsigned v = 0; v < g->size; v++) m[u][v] = 0;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size) m[u][e->destination] = e->weight;
+  }
+  for (unsigned phase = 0; phase < g->size - 1; phase++) {
+    double w[g->size];
+    bool inA[g->size];
+    for (unsigned v = 0; v < g->size; v++) w[v] = inA[v] = false;
+    unsigned previous = 0, last = 0;
+    for (unsigned step = 0; step < g->size - phase; step++) {
+      double maxW = -1;
+      for (unsigned v = 0; v < g->size; v++)
+        if (active[v] && !inA[v] && w[v] > maxW) maxW = w[last = v];
+      inA[last] = true;
+      if (step < g->size - phase - 1) previous = last;
+      for (unsigned v = 0; v < g->size; v++) w[v] += m[last][v];
+    }
+    if (w[last] < minCut) minCut = w[last];
+    active[last] = false;
+    for (unsigned v = 0; v < g->size; v++) {
+      m[previous][v] += m[last][v];
+      m[v][previous] += m[v][last];
+    }
+  }
+  return minCut;
+}
+
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
@@ -4162,7 +4196,7 @@ void testCalculateBetweennessCentrality() {
     double *centrality = calculateBetweennessCentrality(g);
     assert(centrality);
 
-    printf("[FloatingPointPrecision] Centrality Node 1: %f, Node 3: %f\n", centrality[1], centrality[3]);
+    printf("[FloatingPointPrecision] Centrality Node 1: %lf, Node 3: %lf\n", centrality[1], centrality[3]);
 
     bool pass = (fabs(centrality[1] - centrality[3]) < 1e-6);
     free(centrality);
@@ -4187,7 +4221,7 @@ void testCalculateBetweennessCentrality() {
     double *centrality = calculateBetweennessCentrality(g);
     assert(centrality);
 
-    printf("[ParallelEdgeOverwrite] Centrality Node 1: %f\n", centrality[1]);
+    printf("[ParallelEdgeOverwrite] Centrality Node 1: %lf\n", centrality[1]);
 
     bool pass = (centrality[1] > 0.0);
     free(centrality);
@@ -4211,7 +4245,7 @@ void testCalculateBetweennessCentrality() {
     double *centrality = calculateBetweennessCentrality(g);
     assert(centrality);
 
-    printf("[IdentityPathInterference] Centrality Node 1 (Expected 1.0): %f\n", centrality[1]);
+    printf("[IdentityPathInterference] Centrality Node 1 (Expected 1.0): %lf\n", centrality[1]);
 
     bool pass = (fabs(centrality[1] - 1.0) < 1e-6);
     free(centrality);
