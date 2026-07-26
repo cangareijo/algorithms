@@ -210,7 +210,7 @@ unsigned calculateUndirectedUnweightedGirth(const Graph *g);
 unsigned calculateUnweightedRadius(const Graph *g);
 unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateMinimumVertexCut(const Graph *g);
-unsigned calculateSpanningTreeCount(const Graph *g);
+unsigned countSpanningTrees(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -264,6 +264,7 @@ double *calculateClosenessCentrality(const Graph *g);
 double *calculateBetweennessCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
+double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
 
 Matrix *createLaplacian(const Graph *g);
 Matrix *calculateFloydWarshall(const Graph *g);
@@ -2431,7 +2432,7 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
   return round(minimum);
 }
 
-unsigned calculateSpanningTreeCount(const Graph *g) {
+unsigned countSpanningTrees(const Graph *g) {
   if (!g || g->size == 0) return 0;
   Matrix *laplacian = createZeroMatrix(g->size - 1, g->size - 1);
   if (!laplacian) return 0;
@@ -3386,6 +3387,49 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   free(visited);
   return distances;
+}
+
+double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance) {
+  if (!g || !g->edges || g->size == 0) return nullptr;
+  double *scores = malloc(g->size * sizeof(double));
+  double *next = malloc(g->size * sizeof(double));
+  if (!scores || !next) {
+    free(scores);
+    free(next);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++) scores[v] = 1 / sqrt(g->size);
+  bool converged = false;
+  for (unsigned i = 0; i < iterations; i++) {
+    for (unsigned v = 0; v < g->size; v++) next[v] = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size)
+          next[ve->destination] += e->weight * scores[v];
+    double norm = 0;
+    for (unsigned v = 0; v < g->size; v++) norm += next[v] * next[v];
+    norm = sqrt(norm);
+    if (norm < DBL_EPSILON) break;
+    double max = 0;
+    for (unsigned v = 0; v < g->size; v++) {
+      next[v] /= norm;
+      double delta = fabs(next[v] - scores[v]);
+      if (delta > max) max = delta;
+    }
+    double *swap = scores;
+    scores = next;
+    next = swap;
+    if (max < tolerance) {
+      converged = true;
+      break;
+    }
+  }
+  free(next);
+  if (!converged) {
+    free(scores);
+    return nullptr;
+  }
+  return scores;
 }
 
 
