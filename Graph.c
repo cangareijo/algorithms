@@ -267,6 +267,7 @@ double *calculateBetweennessCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
+double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance);
 
 Matrix *createLaplacian(const Graph *g);
 Matrix *calculateFloydWarshall(const Graph *g);
@@ -822,7 +823,7 @@ static bool isSelfComplementaryIsomorphism(const Graph *g, unsigned *p, unsigned
       for (unsigned v = 0; v < g->size; v++)
         if (u != v && hasDirectedEdge(g, u, v) == hasDirectedEdge(g, p[u], p[v]))
           return false;
-    return true; 
+    return true;
   }
   for (unsigned j = i; j < g->size; j++) {
     swapUnsigned(&p[i], &p[j]);
@@ -3400,7 +3401,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return distances;
 }
 
-double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance) {
+[[nodiscard]] double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance) {
   if (!g || !g->edges || g->size == 0) return nullptr;
   double *scores = malloc(g->size * sizeof(double));
   double *next = malloc(g->size * sizeof(double));
@@ -3439,6 +3440,68 @@ double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, doub
     return nullptr;
   }
   return scores;
+}
+
+[[nodiscard]] double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance) {
+  if (!g || g->size == 0) return nullptr;
+
+  double *ranks = malloc(g->size * sizeof(double));
+  double *nextRanks = malloc(g->size * sizeof(double));
+
+  if (!ranks || !nextRanks) {
+    free(ranks);
+    free(nextRanks);
+    return nullptr;
+  }
+
+  for (unsigned v = 0; v < g->size; v++)
+    ranks[v] = 1.0 / g->size;
+
+  bool converged = false;
+
+  for (unsigned i = 0; i < iterations; i++) {
+    double sinkMass = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (getOutDegree(g, v) == 0)
+        sinkMass += ranks[v];
+
+    for (unsigned v = 0; v < g->size; v++)
+      nextRanks[v] = (1 - damping) / g->size;
+
+    if (sinkMass > 0)
+      for (unsigned v = 0; v < g->size; v++)
+        nextRanks[v] += damping * sinkMass / g->size;
+
+    for (unsigned v = 0; v < g->size; v++)
+      if (getOutDegree(g, v) > 0)
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination < g->size)
+            nextRanks[e->destination] += damping * ranks[v] / getOutDegree(g, v);
+
+    double maxDelta = 0;
+    for (unsigned v = 0; v < g->size; v++) {
+      double delta = fabs(nextRanks[v] - ranks[v]);
+      if (delta > maxDelta) maxDelta = delta;
+    }
+
+    double *swap = ranks;
+    ranks = nextRanks;
+    nextRanks = swap;
+
+    if (maxDelta < tolerance) {
+      converged = true;
+      break;
+    }
+  }
+
+  free(nextRanks);
+
+  if (!converged) {
+    free(ranks);
+    return nullptr;
+  }
+
+  return ranks;
 }
 
 
