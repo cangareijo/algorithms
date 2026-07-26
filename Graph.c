@@ -13,6 +13,8 @@ unsigned unsignedMaximum(unsigned a, unsigned b);
 bool **createBooleanMatrix(unsigned m, unsigned n);
 void destroyBooleanMatrix(bool **matrix, unsigned m);
 
+double calculateEuclideanNorm(double *a, unsigned n);
+
 typedef struct {
   unsigned rows;
   unsigned columns;
@@ -324,6 +326,15 @@ void destroyBooleanMatrix(bool **matrix, unsigned m) {
   if (!matrix) return;
   for (unsigned i = 0; i < m; i++) free(matrix[i]);
   free(matrix);
+}
+
+
+
+double calculateEuclideanNorm(double *a, unsigned n) {
+  if (!a) return 0;
+  double norm = 0;
+  for (unsigned i = 0; i < n; i++) norm += a[i] * a[i];
+  return sqrt(norm);
 }
 
 
@@ -3405,10 +3416,8 @@ double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, doub
     for (unsigned v = 0; v < g->size; v++)
       for (Edge *e = g->edges[v]; e; e = e->next)
         if (e->destination < g->size)
-          next[ve->destination] += e->weight * scores[v];
-    double norm = 0;
-    for (unsigned v = 0; v < g->size; v++) norm += next[v] * next[v];
-    norm = sqrt(norm);
+          next[e->destination] += e->weight * scores[v];
+    double norm = calculateEuclideanNorm(next, g->size);
     if (norm < DBL_EPSILON) break;
     double max = 0;
     for (unsigned v = 0; v < g->size; v++) {
