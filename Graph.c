@@ -243,16 +243,19 @@ unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *leng
 unsigned **getAllPairsUnweightedDistances(const Graph *g);
 unsigned **getBridges(const Graph *g);
 
+double getMinimumWeight(const Graph *g);
+double getMaximumWeight(const Graph *g);
 double sumWeights(const Graph *g);
 double calculateWeightedRadius(const Graph *g);
 double calculateWeightedDiameter(const Graph *g);
 double calculateDensity(const Graph *g);
-double getMinimumWeight(const Graph *g);
-double getMaximumWeight(const Graph *g);
 double calculateAverageClusteringCoefficient(const Graph *g);
 double calculateDirectedWeightedGirth(const Graph *g);
 double calculateUndirectedWeightedGirth(const Graph *g);
-double calculateMinCutStoerWagner(const Graph *g);
+double calculateFordFulkersonMinCut(const Graph *g);
+double calculateStoerWagnerMinCut(const Graph *g);
+double calculateBruteForceMinCut(const Graph *g);
+double calculateMinCut(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -3007,6 +3010,26 @@ static void getBridgesDfs(
 
 
 
+double getMinimumWeight(const Graph *g) {
+  if (!g || !g->edges) return INFINITY;
+  double minimum = INFINITY;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->weight < minimum)
+        minimum = e->weight;
+  return minimum;
+}
+
+double getMaximumWeight(const Graph *g) {
+  if (!g || !g->edges) return -INFINITY;
+  double maximum = -INFINITY;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->weight > maximum)
+        maximum = e->weight;
+  return maximum;
+}
+
 double sumWeights(const Graph *g) {
   if (!g || !g->edges) return 0;
   double sum = 0;
@@ -3046,26 +3069,6 @@ double calculateWeightedDiameter(const Graph *g) {
 double calculateDensity(const Graph *g) {
   if (!g || g->size < 2) return 0;
   return (double)countEdges(g) / g->size / (g->size - 1);
-}
-
-double getMinimumWeight(const Graph *g) {
-  if (!g || !g->edges) return INFINITY;
-  double minimum = INFINITY;
-  for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      if (e->weight < minimum)
-        minimum = e->weight;
-  return minimum;
-}
-
-double getMaximumWeight(const Graph *g) {
-  if (!g || !g->edges) return -INFINITY;
-  double maximum = -INFINITY;
-  for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      if (e->weight > maximum)
-        maximum = e->weight;
-  return maximum;
 }
 
 double calculateAverageClusteringCoefficient(const Graph *g) {
@@ -3163,37 +3166,145 @@ double calculateUndirectedWeightedGirth(const Graph *g) {
   return minimum;
 }
 
-double calculateMinCutStoerWagner(const Graph *g) {
-  if (!g || !g->edges || g->size < 2) return 0;
-  double minCut = INFINITY, m[g->size][g->size];
-  bool active[g->size];
-  for (unsigned u = 0; u < g->size; u++) {
-    active[u] = true;
-    for (unsigned v = 0; v < g->size; v++) m[u][v] = 0;
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size) m[u][e->destination] = e->weight;
-  }
-  for (unsigned phase = 0; phase < g->size - 1; phase++) {
-    double w[g->size];
-    bool inA[g->size];
-    for (unsigned v = 0; v < g->size; v++) w[v] = inA[v] = false;
-    unsigned previous = 0, last = 0;
-    for (unsigned step = 0; step < g->size - phase; step++) {
-      double maxW = -1;
-      for (unsigned v = 0; v < g->size; v++)
-        if (active[v] && !inA[v] && w[v] > maxW) maxW = w[last = v];
-      inA[last] = true;
-      if (step < g->size - phase - 1) previous = last;
-      for (unsigned v = 0; v < g->size; v++) w[v] += m[last][v];
+static double searchFordFulkersonMinCut(unsigned u, unsigned t, double flow, unsigned size, double cap[size][size], bool visited[size]) {
+  if (u == t) return flow;
+  visited[u] = true;
+  for (unsigned v = 0; v < size; v++)
+    if (!visited[v] && cap[u][v] > 1e-9) {
+      double currentCap = flow < cap[u][v] ? flow : cap[u][v];
+      double pushed = searchFordFulkersonMinCut(v, t, currentCap, size, cap, visited);
+      if (pushed > 0) {
+        cap[u][v] -= pushed;
+        cap[v][u] += pushed;
+        return pushed;
+      }
     }
-    if (w[last] < minCut) minCut = w[last];
-    active[last] = false;
-    for (unsigned v = 0; v < g->size; v++) {
-      m[previous][v] += m[last][v];
-      m[v][previous] += m[v][last];
-    }
+  return 0;
+}
+
+double calculateFordFulkersonMinCut(const Graph *g) {
+  if (!isValid(g) || g->size < 2) return 0;
+
+  double minCut = INFINITY;
+
+  for (unsigned t = 1; t < g->size; t++) {
+    double cap[g->size][g->size] = {};
+
+    for (unsigned u = 0; u < g->size; u++)
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        cap[u][e->destination] += e->weight;
+
+    double totalFlow = 0, pushed;
+
+    do {
+      bool visited[g->size] = {};
+      pushed = searchFordFulkersonMinCut(0, t, INFINITY, g->size, cap, visited);
+      totalFlow += pushed;
+    } while (pushed > 0);
+
+    if (totalFlow < minCut) minCut = totalFlow;
   }
+
   return minCut;
+}
+
+double calculateStoerWagnerMinCut(const Graph *g) {
+  if (!isValid(g) || g->size < 2) return 0;
+
+  unsigned n = g->size;
+  double w[n][n] = {};
+  for (unsigned u = 0; u < n; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      w[u][e->destination] += e->weight;
+
+  double minCut = INFINITY;
+
+  while (n > 1) {
+    double distance[n] = {};
+    bool visited[n] = {};
+    unsigned previous = 0, current = 0;
+
+    for (unsigned step = 0; step < n; step++) {
+      unsigned bestV = UINT_MAX;
+
+      for (unsigned v = 0; v < n; v++)
+        if (!visited[v] && (bestV == UINT_MAX || distance[v] > distance[bestV]))
+          bestV = v;
+
+      visited[bestV] = true;
+      previous = current;
+      current = bestV;
+
+      for (unsigned v = 0; v < n; v++)
+        if (!visited[v])
+          distance[v] += w[current][v];
+    }
+
+    if (distance[current] < minCut) minCut = distance[current];
+
+    for (unsigned v = 0; v < n; v++)
+      if (v != previous && v != current) {
+        w[previous][v] += w[current][v];
+        w[v][previous] += w[v][current];
+      }
+
+    unsigned last = n - 1;
+
+    if (current != last) {
+      for (unsigned v = 0; v < n; v++) {
+        w[current][v] = w[last][v];
+        w[v][current] = w[v][last];
+      }
+
+      if (previous == last) previous = current;
+    }
+
+    n--;
+  }
+
+  return minCut;
+}
+
+static double searchBruteForceMinCut(const Graph *g, bool side[g->size], unsigned v) {
+  if (v == g->size) {
+    bool hasSideA = false;
+    bool hasSideB = false;
+
+    for (unsigned u = 0; u < g->size; u++)
+      if (side[u])
+        hasSideA = true;
+      else
+        hasSideB = true;
+
+    if (!hasSideA || !hasSideB) return INFINITY;
+
+    double cut = 0;
+
+    for (unsigned u = 0; u < g->size; u++)
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (side[u] && !side[e->destination])
+          cut += e->weight;
+
+    return cut;
+  }
+
+  side[v] = true;
+  double cutA = searchBruteForceMinCut(g, side, v + 1);
+
+  side[v] = false;
+  double cutB = searchBruteForceMinCut(g, side, v + 1);
+
+  return cutA < cutB ? cutA : cutB;
+}
+
+double calculateBruteForceMinCut(const Graph *g) {
+  if (!isValid(g) || g->size < 2) return 0;
+  bool side[g->size] = {};
+  return searchBruteForceMinCut(g, side, 0);
+}
+
+double calculateMinCut(const Graph *g) {
+  return calculateFordFulkersonMinCut(g);
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
