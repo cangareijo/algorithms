@@ -234,6 +234,7 @@ unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *assignColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
+unsigned *findMaximumBipartiteMatching(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -2780,6 +2781,44 @@ static void getTopologicalSortDfs(const Graph *g, unsigned v, unsigned *ordering
       getTopologicalSortDfs(g, v, ordering, &i, visited);
   free(visited);
   return ordering;
+}
+
+static bool searchMaximumBipartiteMatching(const Graph *g, unsigned u, bool visited[], unsigned match[]) {
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination < g->size && !visited[e->destination]) {
+      visited[e->destination] = true;
+      if (match[e->destination] == UINT_MAX || searchMaximumBipartiteMatching(g, match[e->destination], visited, match)) {
+        match[e->destination] = u;
+        return true;
+      }
+    }
+  return false;
+}
+
+[[nodiscard]] unsigned *findMaximumBipartiteMatching(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+
+  unsigned match[g->size], count = 0;
+  bool visited[g->size];
+
+  for (unsigned v = 0; v < g->size; v++) match[v] = UINT_MAX;
+
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++) visited[v] = false;
+    if (searchMaximumBipartiteMatching(g, u, visited, match)) count++;
+  }
+
+  unsigned *pairs = malloc((2 * count + 1) * sizeof(unsigned)), index = 0;
+  if (!pairs) return nullptr;
+
+  for (unsigned v = 0; v < g->size; v++)
+    if (match[v] < UINT_MAX) {
+      pairs[index++] = match[v];
+      pairs[index++] = v;
+    }
+  pairs[index] = UINT_MAX;
+
+  return pairs;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
