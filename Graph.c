@@ -235,6 +235,8 @@ unsigned *assignColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
+unsigned *findMaximumUnweightedMatching(const Graph *g);
+unsigned *findMaximumWeightedMatching(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -2819,6 +2821,74 @@ static bool searchMaximumBipartiteMatching(const Graph *g, unsigned u, bool visi
   pairs[index] = UINT_MAX;
 
   return pairs;
+}
+
+static void searchMaximumUnweightedMatching(const Graph *g, unsigned u, Edge *e, unsigned *c, unsigned cc, unsigned *b, unsigned *bc) {
+  if (u >= g->size) {
+    if (cc > *bc) {
+      *bc = cc;
+      for (unsigned v = 0; v < g->size; v++) b[v] = c[v];
+    }
+    return;
+  }
+  if (!e) {
+    searchMaximumUnweightedMatching(g, u + 1, g->edges[u + 1], c, cc, b, bc);
+    return;
+  }
+  searchMaximumUnweightedMatching(g, u, e->next, c, cc, b, bc);
+  unsigned v = e->destination;
+  if (c[u] == UINT_MAX && c[v] == UINT_MAX && u != v) {
+    c[u] = v;
+    c[v] = u;
+    searchMaximumUnweightedMatching(g, u, e->next, c, cc + 1, b, bc);
+    c[u] = UINT_MAX;
+    c[v] = UINT_MAX;
+  }
+}
+
+[[nodiscard]] unsigned *findMaximumUnweightedMatching(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  unsigned *best = malloc(g->size * sizeof(unsigned));
+  if (!best) return nullptr;
+  unsigned current[g->size];
+  for (unsigned i = 0; i < g->size; i++) best[i] = current[i] = UINT_MAX;
+  unsigned bestCount = 0;
+  searchMaximumUnweightedMatching(g, 0, g->edges[0], current, 0, best, &bestCount);
+  return best;
+}
+
+static void searchMaximumWeightedMatching(const Graph *g, unsigned u, Edge *e, unsigned *c, double cw, unsigned *b, double *bw) {
+  if (u >= g->size) {
+    if (cw > *bw) {
+      *bw = cw;
+      for (unsigned i = 0; i < g->size; i++) b[i] = c[i];
+    }
+    return;
+  }
+  if (!e) {
+    searchMaximumWeightedMatching(g, u + 1, g->edges[u + 1], c, cw, b, bw);
+    return;
+  }
+  searchMaximumWeightedMatching(g, u, e->next, c, cw, b, bw);
+  unsigned v = e->destination;
+  if (c[u] == UINT_MAX && c[v] == UINT_MAX && u != v) {
+    c[u] = v;
+    c[v] = u;
+    searchMaximumWeightedMatching(g, u, e->next, c, cw + e->weight, b, bw);
+    c[u] = UINT_MAX;
+    c[v] = UINT_MAX;
+  }
+}
+
+[[nodiscard]] unsigned *findMaximumWeightedMatching(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  unsigned *best = malloc(g->size * sizeof(unsigned));
+  if (!best) return nullptr;
+  unsigned current[g->size];
+  for (unsigned i = 0; i < g->size; i++) best[i] = current[i] = UINT_MAX;
+  double bestWeight = -INFINITY;
+  searchMaximumWeightedMatching(g, 0, g->edges[0], current, 0, best, &bestWeight);
+  return best;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
