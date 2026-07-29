@@ -129,6 +129,7 @@ bool *findMaximumClique(const Graph *g);
 bool *getIsolatedVertices(const Graph *g);
 bool *getSources(const Graph *g);
 bool *getSinks(const Graph *g);
+bool *findMinimumVertexCover(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
@@ -1076,11 +1077,11 @@ bool isIndependentSet(const Graph *g, const bool *set) {
 }
 
 bool isVertexCover(const Graph *g, const bool *set) {
-  if (!g || !g->edges || !set) return true;
+  if (!g || !g->edges) return true;
   for (unsigned u = 0; u < g->size; u++)
-    if (!set[u])
+    if (!set || !set[u])
       for (Edge *e = g->edges[u]; e; e = e->next)
-        if (e->destination >= g->size || !set[e->destination])
+        if (!set || e->destination >= g->size || !set[e->destination])
           return false;
   return true;
 }
@@ -1424,6 +1425,39 @@ bool *findMaximumClique(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++) sinks[v] = in[v] > 0 && getOutDegree(g, v) == 0;
   free(in);
   return sinks;
+}
+
+[[nodiscard]] bool *findMinimumVertexCover(const Graph *g) {
+  if (!isValid(g) || g->size == 0) return nullptr;
+  bool *best = malloc(g->size * sizeof(bool));
+  if (!best) return nullptr;
+  bool current[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++) best[v] = true;
+  unsigned bestCount = g->size;
+  while (true) {
+    unsigned currentCount = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (current[v])
+        currentCount++;
+    if (currentCount < bestCount) {
+      bool isCover = true;
+      for (unsigned u = 0; u < g->size && isCover; u++)
+        for (Edge *e = g->edges[u]; e && isCover; e = e->next)
+          if (!current[u] && !current[e->destination])
+            isCover = false;
+      if (isCover) {
+        bestCount = currentCount;
+        for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+      }
+    }
+    unsigned v = 0;
+    while (v < g->size && current[v]) {
+      current[v] = false;
+      v++;
+    }
+    if (v < g->size) current[v] = true; else break;
+  }
+  return best;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
