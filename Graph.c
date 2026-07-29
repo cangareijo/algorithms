@@ -130,6 +130,7 @@ bool *getIsolatedVertices(const Graph *g);
 bool *getSources(const Graph *g);
 bool *getSinks(const Graph *g);
 bool *findMinimumVertexCover(const Graph *g);
+bool *findApproximateVertexCover(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
@@ -1458,6 +1459,21 @@ bool *findMaximumClique(const Graph *g) {
     if (v < g->size) current[v] = true; else break;
   }
   return best;
+}
+
+bool *findApproximateVertexCover(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  bool *cover = calloc(g->size, sizeof(bool));
+  if (!cover) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!cover[v])
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (!cover[e->destination]) {
+          cover[v] = true;
+          cover[e->destination] = true;
+          break;
+        }
+  return cover;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
