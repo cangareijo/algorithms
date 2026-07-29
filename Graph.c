@@ -2824,14 +2824,14 @@ static bool searchMaximumBipartiteMatching(const Graph *g, unsigned u, bool visi
 }
 
 static void searchMaximumUnweightedMatching(const Graph *g, unsigned u, Edge *e, unsigned *c, unsigned cc, unsigned *b, unsigned *bc) {
-  if (u >= g->size) {
-    if (cc > *bc) {
-      *bc = cc;
-      for (unsigned v = 0; v < g->size; v++) b[v] = c[v];
-    }
-    return;
-  }
   if (!e) {
+    if (u + 1 >= g->size) {
+      if (cc > *bc) {
+        *bc = cc;
+        for (unsigned v = 0; v < g->size; v++) b[v] = c[v];
+      }
+      return;
+    }
     searchMaximumUnweightedMatching(g, u + 1, g->edges[u + 1], c, cc, b, bc);
     return;
   }
@@ -2847,7 +2847,7 @@ static void searchMaximumUnweightedMatching(const Graph *g, unsigned u, Edge *e,
 }
 
 [[nodiscard]] unsigned *findMaximumUnweightedMatching(const Graph *g) {
-  if (!isValid(g)) return nullptr;
+  if (!isValid(g) || g->size == 0) return nullptr;
   unsigned *best = malloc(g->size * sizeof(unsigned));
   if (!best) return nullptr;
   unsigned current[g->size];
@@ -2858,14 +2858,14 @@ static void searchMaximumUnweightedMatching(const Graph *g, unsigned u, Edge *e,
 }
 
 static void searchMaximumWeightedMatching(const Graph *g, unsigned u, Edge *e, unsigned *c, double cw, unsigned *b, double *bw) {
-  if (u >= g->size) {
-    if (cw > *bw) {
-      *bw = cw;
-      for (unsigned i = 0; i < g->size; i++) b[i] = c[i];
-    }
-    return;
-  }
   if (!e) {
+    if (u + 1 >= g->size) {
+      if (cw > *bw) {
+        *bw = cw;
+        for (unsigned i = 0; i < g->size; i++) b[i] = c[i];
+      }
+      return;
+    }
     searchMaximumWeightedMatching(g, u + 1, g->edges[u + 1], c, cw, b, bw);
     return;
   }
@@ -2881,7 +2881,7 @@ static void searchMaximumWeightedMatching(const Graph *g, unsigned u, Edge *e, u
 }
 
 [[nodiscard]] unsigned *findMaximumWeightedMatching(const Graph *g) {
-  if (!isValid(g)) return nullptr;
+  if (!isValid(g) || g->size == 0) return nullptr;
   unsigned *best = malloc(g->size * sizeof(unsigned));
   if (!best) return nullptr;
   unsigned current[g->size];
