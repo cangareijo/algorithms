@@ -131,6 +131,9 @@ bool *getSources(const Graph *g);
 bool *getSinks(const Graph *g);
 bool *findMinimumVertexCover(const Graph *g);
 bool *findApproximateVertexCover(const Graph *g);
+bool *getSelfLoops(const Graph *g);
+bool *findMaximumIndependentSet(const Graph *g);
+bool *findGreedyMaximumIndependentSet(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
@@ -1461,7 +1464,7 @@ bool *findMaximumClique(const Graph *g) {
   return best;
 }
 
-bool *findApproximateVertexCover(const Graph *g) {
+[[nodiscard]] bool *findApproximateVertexCover(const Graph *g) {
   if (!isValid(g)) return nullptr;
   bool *cover = calloc(g->size, sizeof(bool));
   if (!cover) return nullptr;
@@ -1474,6 +1477,97 @@ bool *findApproximateVertexCover(const Graph *g) {
           break;
         }
   return cover;
+}
+
+[[nodiscard]] bool *getSelfLoops(const Graph *g) {
+  if (!g) return nullptr;
+  bool *loops = calloc(g->size, sizeof(bool));
+  if (!loops) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination == v)
+        loops[v] = true;
+  return loops;
+}
+
+static void searchForMaximumIndependentSet(
+  const Graph *g, unsigned v, bool *currentSet, unsigned currentCount, bool *bestSet, unsigned *maxCount)
+{
+  if (v >= g->size) {
+    if (currentCount > *maxCount) {
+      *maxCount = currentCount;
+      for (unsigned u = 0; u < g->size; u++) bestSet[u] = currentSet[u];
+    }
+    return;
+  }
+  bool includable = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if ((e->destination < g->size && currentSet[e->destination]) || e->destination == v)
+      includable = false;
+  for (unsigned u = 0; u < v; u++)
+    if (currentSet[u])
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination == v)
+          includable = false;
+  if (includable) {
+    currentSet[v] = true;
+    searchForMaximumIndependentSet(g, v + 1, currentSet, currentCount + 1, bestSet, maxCount);
+    currentSet[v] = false;
+  }
+  searchForMaximumIndependentSet(g, v + 1, currentSet, currentCount, bestSet, maxCount);
+}
+
+[[nodiscard]] bool *findMaximumIndependentSet(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  bool *bestSet = malloc(g->size * sizeof(bool));
+  if (!bestSet) return nullptr;
+  for (unsigned v = 0; v < g->size; v++) bestSet[v] = false;
+  bool currentSet[g->size] = {};
+  unsigned maxCount = 0;
+  searchForMaximumIndependentSet(g, 0, currentSet, 0, bestSet, &maxCount);
+  return bestSet;
+}
+
+[[nodiscard]] bool *findGreedyMaximumIndependentSet(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  unsigned *degrees = malloc(g->size * sizeof(unsigned));
+  bool *removed = getSelfLoops(g);
+  bool *independent = calloc(g->size, sizeof(bool));
+  if (!degrees || !removed || !independent) {
+    free(degrees); free(removed); free(independent);
+    return nullptr;
+  }
+  while (true) {
+    for (unsigned v = 0; v < g->size; v++)
+      degrees[v] = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (!removed[v])
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination < g->size && !removed[e->destination]) {
+            degrees[v]++;
+            degrees[e->destination]++;
+          }
+    unsigned minimumDegree = UINT_MAX;
+    unsigned minimumVertex = UINT_MAX;
+    for (unsigned v = 0; v < g->size; v++)
+      if (!removed[v] && degrees[v] < minimumDegree) {
+        minimumDegree = degrees[v];
+        minimumVertex = v;
+      }
+    if (minimumVertex == UINT_MAX) break;
+    independent[minimumVertex] = true;
+    removed[minimumVertex] = true;
+    for (Edge *e = g->edges[minimumVertex]; e; e = e->next)
+      if (e->destination < g->size)
+        removed[e->destination] = true;
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination == minimumVertex)
+          removed[v] = true;
+  }
+  free(degrees);
+  free(removed);
+  return independent;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
@@ -2697,10 +2791,15 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
 }
 
 [[nodiscard]] unsigned *getDegrees(const Graph *g) {
-  if (!g) return nullptr;
-  unsigned *degrees = getInDegrees(g);
+  if (!g || !g->edges) return nullptr;
+  unsigned *degrees = calloc(g->size, sizeof(unsigned));
   if (!degrees) return nullptr;
-  for (unsigned v = 0; v < g->size; v++) degrees[v] += getOutDegree(g, v) - countSelfLoopsAtVertex(g, v);
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        degrees[v]++;
+        degrees[e->destination]++;
+      }
   return degrees;
 }
 
