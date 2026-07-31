@@ -129,8 +129,8 @@ bool *findMaximumClique(const Graph *g);
 bool *getIsolatedVertices(const Graph *g);
 bool *getSources(const Graph *g);
 bool *getSinks(const Graph *g);
+bool *findMaximalVertexCover(const Graph *g);
 bool *findMinimumVertexCover(const Graph *g);
-bool *findApproximateVertexCover(const Graph *g);
 bool *getSelfLoops(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
 bool *findGreedyMaximumIndependentSet(const Graph *g);
@@ -242,6 +242,8 @@ unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
 unsigned *findMaximumUnweightedMatching(const Graph *g);
 unsigned *findMaximumWeightedMatching(const Graph *g);
+unsigned *findMinimalEdgeCover(const Graph *g);
+unsigned *findMinimumEdgeCover(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -1431,6 +1433,21 @@ bool *findMaximumClique(const Graph *g) {
   return sinks;
 }
 
+[[nodiscard]] bool *findMaximalVertexCover(const Graph *g) {
+  if (!isValid(g)) return nullptr;
+  bool *cover = calloc(g->size, sizeof(bool));
+  if (!cover) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!cover[v])
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (!cover[e->destination]) {
+          cover[v] = true;
+          cover[e->destination] = true;
+          break;
+        }
+  return cover;
+}
+
 [[nodiscard]] bool *findMinimumVertexCover(const Graph *g) {
   if (!isValid(g) || g->size == 0) return nullptr;
   bool *best = malloc(g->size * sizeof(bool));
@@ -1462,21 +1479,6 @@ bool *findMaximumClique(const Graph *g) {
     if (v < g->size) current[v] = true; else break;
   }
   return best;
-}
-
-[[nodiscard]] bool *findApproximateVertexCover(const Graph *g) {
-  if (!isValid(g)) return nullptr;
-  bool *cover = calloc(g->size, sizeof(bool));
-  if (!cover) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    if (!cover[v])
-      for (Edge *e = g->edges[v]; e; e = e->next)
-        if (!cover[e->destination]) {
-          cover[v] = true;
-          cover[e->destination] = true;
-          break;
-        }
-  return cover;
 }
 
 [[nodiscard]] bool *getSelfLoops(const Graph *g) {
@@ -3038,6 +3040,74 @@ static void searchMaximumWeightedMatching(const Graph *g, unsigned u, Edge *e, u
   double bestWeight = -INFINITY;
   searchMaximumWeightedMatching(g, 0, g->edges[0], current, 0, best, &bestWeight);
   return best;
+}
+
+unsigned *findMinimalEdgeCover(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  unsigned *cover = malloc(g->size * sizeof(unsigned));
+  if (!cover) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    cover[v] = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (cover[v] == UINT_MAX && e->destination < g->size && cover[e->destination] == UINT_MAX && v != e->destination) {
+        cover[v] = e->destination;
+        cover[e->destination] = v;
+      }
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (cover[v] == UINT_MAX || (e->destination < g->size && cover[e->destination] == UINT_MAX)) {
+        cover[v] = e->destination;
+        cover[e->destination] = v;
+      }
+  return cover;
+}
+
+static void searchForMinimumEdgeCover(
+  const Graph *g, unsigned v, const Edge *e, unsigned *current, unsigned currentCount, unsigned *minimum, unsigned *minimumCount)
+{
+  if (currentCount >= *minimumCount) return;
+  if (!e) {
+    if (v + 1 < g->size) {
+      searchForMinimumEdgeCover(g, v + 1, g->edges[v + 1], current, currentCount, minimum, minimumCount);
+      return;
+    }
+    bool covered = true;
+    for (unsigned v = 0; v < g->size; v++)
+      if (current[v] == UINT_MAX)
+        covered = false;
+    if (covered && currentCount < *minimumCount) {
+      for (unsigned v = 0; v < g->size; v++) minimum[v] = current[v];
+      *minimumCount = currentCount;
+    }
+    return;
+  }
+  searchForMinimumEdgeCover(g, v, e->next, current, currentCount, minimum, minimumCount);
+  if (e->destination < g->size) {
+    unsigned source = current[v];
+    unsigned target = current[e->destination];
+    current[v] = e->destination;
+    current[e->destination] = v;
+    searchForMinimumEdgeCover(g, v, e->next, current, currentCount + 1, minimum, minimumCount);
+    current[v] = source;
+    current[e->destination] = target;
+  }
+}
+
+unsigned *findMinimumEdgeCover(const Graph *g) {
+  if (!g || !g->edges || g->size == 0) return nullptr;
+  unsigned *current = malloc(g->size * sizeof(unsigned));
+  unsigned *minimum = malloc(g->size * sizeof(unsigned));
+  if (!minimum || !current) {
+    free(current);
+    free(minimum);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++) current[v] = minimum[v] = UINT_MAX;
+  unsigned minimumCount = UINT_MAX;
+  searchForMinimumEdgeCover(g, 0, g->edges[0], current, 0, minimum, &minimumCount);
+  free(current);
+  return minimum;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
