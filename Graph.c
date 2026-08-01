@@ -2936,11 +2936,11 @@ static void getTopologicalSortDfs(const Graph *g, unsigned v, unsigned *ordering
   return ordering;
 }
 
-static bool searchMaximumBipartiteMatching(const Graph *g, unsigned u, bool visited[], unsigned match[]) {
+static bool searchForMaximumBipartiteMatching(const Graph *g, unsigned u, bool *visited, unsigned *match) {
   for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination < g->size && !visited[e->destination]) {
       visited[e->destination] = true;
-      if (match[e->destination] == UINT_MAX || searchMaximumBipartiteMatching(g, match[e->destination], visited, match)) {
+      if (match[e->destination] == UINT_MAX || searchForMaximumBipartiteMatching(g, match[e->destination], visited, match)) {
         match[e->destination] = u;
         return true;
       }
@@ -2950,28 +2950,20 @@ static bool searchMaximumBipartiteMatching(const Graph *g, unsigned u, bool visi
 
 [[nodiscard]] unsigned *findMaximumBipartiteMatching(const Graph *g) {
   if (!g || !g->edges) return nullptr;
-
-  unsigned match[g->size], count = 0;
-  bool visited[g->size];
-
+  bool *visited = malloc(g->size * sizeof(bool));
+  unsigned *match = malloc(g->size * sizeof(unsigned));
+  if (!visited || !match) {
+    free(visited);
+    free(match);
+    return nullptr;
+  }
   for (unsigned v = 0; v < g->size; v++) match[v] = UINT_MAX;
-
   for (unsigned u = 0; u < g->size; u++) {
     for (unsigned v = 0; v < g->size; v++) visited[v] = false;
-    if (searchMaximumBipartiteMatching(g, u, visited, match)) count++;
+    searchForMaximumBipartiteMatching(g, u, visited, match);
   }
-
-  unsigned *pairs = malloc((2 * count + 1) * sizeof(unsigned)), index = 0;
-  if (!pairs) return nullptr;
-
-  for (unsigned v = 0; v < g->size; v++)
-    if (match[v] < UINT_MAX) {
-      pairs[index++] = match[v];
-      pairs[index++] = v;
-    }
-  pairs[index] = UINT_MAX;
-
-  return pairs;
+  free(visited);
+  return match;
 }
 
 static void searchMaximumUnweightedMatching(const Graph *g, unsigned u, Edge *e, unsigned *c, unsigned cc, unsigned *b, unsigned *bc) {
