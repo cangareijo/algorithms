@@ -132,8 +132,8 @@ bool *getSinks(const Graph *g);
 bool *findMaximalVertexCover(const Graph *g);
 bool *findMinimumVertexCover(const Graph *g);
 bool *getSelfLoops(const Graph *g);
+bool *findMaximalIndependentSet(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
-bool *findGreedyMaximumIndependentSet(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
@@ -1492,45 +1492,7 @@ bool *findMaximumClique(const Graph *g) {
   return loops;
 }
 
-static void searchForMaximumIndependentSet(
-  const Graph *g, unsigned v, bool *currentSet, unsigned currentCount, bool *bestSet, unsigned *maxCount)
-{
-  if (v >= g->size) {
-    if (currentCount > *maxCount) {
-      *maxCount = currentCount;
-      for (unsigned u = 0; u < g->size; u++) bestSet[u] = currentSet[u];
-    }
-    return;
-  }
-  bool includable = true;
-  for (Edge *e = g->edges[v]; e; e = e->next)
-    if ((e->destination < g->size && currentSet[e->destination]) || e->destination == v)
-      includable = false;
-  for (unsigned u = 0; u < v; u++)
-    if (currentSet[u])
-      for (Edge *e = g->edges[u]; e; e = e->next)
-        if (e->destination == v)
-          includable = false;
-  if (includable) {
-    currentSet[v] = true;
-    searchForMaximumIndependentSet(g, v + 1, currentSet, currentCount + 1, bestSet, maxCount);
-    currentSet[v] = false;
-  }
-  searchForMaximumIndependentSet(g, v + 1, currentSet, currentCount, bestSet, maxCount);
-}
-
-[[nodiscard]] bool *findMaximumIndependentSet(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
-  bool *bestSet = malloc(g->size * sizeof(bool));
-  if (!bestSet) return nullptr;
-  for (unsigned v = 0; v < g->size; v++) bestSet[v] = false;
-  bool currentSet[g->size] = {};
-  unsigned maxCount = 0;
-  searchForMaximumIndependentSet(g, 0, currentSet, 0, bestSet, &maxCount);
-  return bestSet;
-}
-
-[[nodiscard]] bool *findGreedyMaximumIndependentSet(const Graph *g) {
+[[nodiscard]] bool *findMaximalIndependentSet(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   unsigned *degrees = malloc(g->size * sizeof(unsigned));
   bool *removed = getSelfLoops(g);
@@ -1570,6 +1532,49 @@ static void searchForMaximumIndependentSet(
   free(degrees);
   free(removed);
   return independent;
+}
+
+static void searchForMaximumIndependentSet(
+  const Graph *g, unsigned v, bool *current, unsigned currentCount, bool *maximum, unsigned *maximumCount)
+{
+  if (v >= g->size) {
+    if (currentCount > *maximumCount) {
+      *maximumCount = currentCount;
+      for (unsigned u = 0; u < g->size; u++) maximum[u] = current[u];
+    }
+    return;
+  }
+  bool includable = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if ((e->destination < g->size && current[e->destination]) || e->destination == v)
+      includable = false;
+  for (unsigned u = 0; u < v; u++)
+    if (current[u])
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination == v)
+          includable = false;
+  if (includable) {
+    current[v] = true;
+    searchForMaximumIndependentSet(g, v + 1, current, currentCount + 1, maximum, maximumCount);
+    current[v] = false;
+  }
+  searchForMaximumIndependentSet(g, v + 1, current, currentCount, maximum, maximumCount);
+}
+
+[[nodiscard]] bool *findMaximumIndependentSet(const Graph *g) {
+  if (!g || !g->edges || g->size == 0) return nullptr;
+  bool *current = malloc(g->size * sizeof(bool));
+  bool *maximum = malloc(g->size * sizeof(bool));
+  if (!current || !maximum) {
+    free(current);
+    free(maximum);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++) current[v] = maximum[v] = false;
+  unsigned maximumCount = 0;
+  searchForMaximumIndependentSet(g, 0, current, 0, maximum, &maximumCount);
+  free(current);
+  return maximum;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
