@@ -116,7 +116,6 @@ bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
-bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n);
 bool isSubGraph(const Graph *g1, const Graph *g2);
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
@@ -270,6 +269,7 @@ double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
 double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
+double getOutWeight(const Graph *g, unsigned v);
 double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
 double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
 double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
@@ -1225,24 +1225,6 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
       valid = false;
   destroyGraph(copy);
   return valid;
-}
-
-bool isPerfectMatching(const Graph *g, const unsigned (*pairs)[2], unsigned n) {
-  if (!g || (!pairs && n > 0) || 2 * n != g->size) return false;
-  bool *matched = calloc(g->size, sizeof(bool));
-  if (!matched) return false;
-  for (unsigned i = 0; i < n; i++) {
-    unsigned u = pairs[i][0];
-    unsigned v = pairs[i][1];
-    if (u >= g->size || v >= g->size || u == v || matched[u] || matched[v] || (!hasDirectedEdge(g, u, v) && !hasDirectedEdge(g, v, u))) {
-      free(matched);
-      return false;
-    }
-    matched[u] = true;
-    matched[v] = true;
-  }
-  free(matched);
-  return true;
 }
 
 bool isSubGraph(const Graph *g1, const Graph *g2) {
@@ -3662,6 +3644,14 @@ double calculateLocalClusteringCoefficient(const Graph *g, unsigned v) {
       if (hasDirectedEdge(g, e1->destination, e2->destination))
         edges++;
   return (double)edges / getOutDegree(g, v) / (getOutDegree(g, v) - 1);
+}
+
+double getOutWeight(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return 0;
+  double total = 0;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    total += e->weight;
+  return total;
 }
 
 double getEdgeWeight(const Graph *g, unsigned u, unsigned v) {
