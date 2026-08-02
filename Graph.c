@@ -77,6 +77,7 @@ bool hasNegativeCycle(const Graph *g);
 bool hasInvalidEdges(const Graph *g);
 bool isSelfComplementary(const Graph *g);
 bool isChordal(const Graph *g);
+bool isPerfect(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
@@ -877,6 +878,86 @@ bool isChordal(const Graph *g) {
     removed[simplicial] = true;
   }
   return true;
+}
+
+static void computeCliqueNumberRecursive(
+  const Graph *g, const bool *active, unsigned v, bool *current, unsigned currentSize, unsigned *maximumSize)
+{
+  if (v == g->size) {
+    if (currentSize > *maximumSize) *maximumSize = currentSize;
+    return;
+  }
+  if (active[v]) {
+    bool addable = true;
+    for (unsigned u = 0; u < v; u++)
+      if (current[u] && (!hasDirectedEdge(g, u, v) || !hasDirectedEdge(g, v, u)))
+        addable = false;
+    if (addable) {
+      current[v] = true;
+      computeCliqueNumberRecursive(g, active, v + 1, current, currentSize + 1, maximumSize);
+      current[v] = false;
+    }
+  }
+  computeCliqueNumberRecursive(g, active, v + 1, current, currentSize, maximumSize);
+}
+
+static unsigned computeCliqueNumber(const Graph *g, const bool *active) {
+  bool *current = calloc(g->size, sizeof(bool));
+  if (!current) return 0;
+  unsigned maximum = 0;
+  computeCliqueNumberRecursive(g, active, 0, current, 0, &maximum);
+  free(current);
+  return maximum;
+}
+
+static bool canColor(const Graph *g, const bool *active, unsigned v, unsigned *colors, unsigned numberColors) {
+  if (v == g->size) return true;
+  if (!active[v]) return canColor(g, active, v + 1, colors, numberColors);
+  for (unsigned c = 0; c < numberColors; c++) {
+    bool conflict = false;
+    for (unsigned u = 0; u < v; u++)
+      if (active[u] && colors[u] == c && (hasDirectedEdge(g, u, v) || hasDirectedEdge(g, v, u)))
+        conflict = true;
+    if (!conflict) {
+      colors[v] = c;
+      if (canColor(g, active, v + 1, colors, numberColors)) return true;
+    }
+  }
+  return false;
+}
+
+static unsigned computeChromaticNumber(const Graph *g, const bool *active) {
+  unsigned *colors = malloc(g->size * sizeof(unsigned));
+  if (!colors) return 0;
+  for (unsigned numberColors = 0; numberColors <= g->size; numberColors++)
+    if (canColor(g, active, 0, colors, numberColors)) {
+      free(colors);
+      return numberColors;
+    }
+  free(colors);
+  return 0;
+}
+
+static bool verifyAllInducedSubgraphs(const Graph *g, unsigned v, bool *active, unsigned activeCount) {
+  if (v == g->size) {
+    unsigned omega = computeCliqueNumber(g, active);
+    unsigned chi = computeChromaticNumber(g, active);
+    return omega == chi;
+  }
+  active[v] = false;
+  if (!verifyAllInducedSubgraphs(g, v + 1, active, activeCount)) return false;
+  active[v] = true;
+  if (!verifyAllInducedSubgraphs(g, v + 1, active, activeCount + 1)) return false;
+  return true;
+}
+
+bool isPerfect(const Graph *g) {
+  if (!g || g->size == 0) return true;
+  bool *active = calloc(g->size, sizeof(bool));
+  if (!active) return false;
+  bool result = verifyAllInducedSubgraphs(g, 0, active, 0);
+  free(active);
+  return result;
 }
 
 bool isKRegular(const Graph *g, unsigned k) {
