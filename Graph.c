@@ -236,7 +236,8 @@ unsigned *getOutDegrees(const Graph *g);
 unsigned *getDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
-unsigned *assignColoring(const Graph *g);
+unsigned *findOptimalColoring(const Graph *g);
+unsigned *findOptimumColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
@@ -2899,7 +2900,7 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
   return distribution;
 }
 
-[[nodiscard]] unsigned *assignColoring(const Graph *g) {
+[[nodiscard]] unsigned *findOptimalColoring(const Graph *g) {
   if (!g) return nullptr;
   Graph *g2 = createUndirected(g);
   bool *taken = calloc(g->size, sizeof(bool));
@@ -2926,6 +2927,40 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
   destroyGraph(g2);
   free(taken);
   return colors;
+}
+
+static bool isValidColor(const Graph *g, unsigned v, const unsigned *colors, unsigned color) {
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && colors[e->destination] == color)
+      return false;
+  for (unsigned u = 0; u < g->size; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination == v && colors[u] == color)
+        return false;
+  return true;
+}
+
+static bool canBeColored(const Graph *g, unsigned v, unsigned *colors, unsigned maximumColors) {
+  if (v == g->size) return true;
+  for (unsigned c = 0; c < maximumColors; c++)
+    if (isValidColor(g, v, colors, c)) {
+      colors[v] = c;
+      if (canBeColored(g, v + 1, colors, maximumColors)) return true;
+      colors[v] = UINT_MAX;
+    }
+  return false;
+}
+
+[[nodiscard]] unsigned *findOptimumColoring(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  unsigned *colors = malloc(g->size * sizeof(unsigned));
+  if (!colors) return nullptr;
+  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX; 
+  for (unsigned maximumColors = 0; maximumColors <= g->size; maximumColors++)
+    if (canBeColored(g, 0, colors, maximumColors))
+      return colors;
+  free(colors);
+  return nullptr;
 }
 
 [[nodiscard]] unsigned *getStronglyConnectedComponents(const Graph *g) {
