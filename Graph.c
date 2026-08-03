@@ -218,6 +218,7 @@ unsigned calculateUnweightedRadius(const Graph *g);
 unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateMinimumVertexCut(const Graph *g);
 unsigned countSpanningTrees(const Graph *g);
+unsigned getChromaticNumber(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -970,7 +971,7 @@ bool isKRegular(const Graph *g, unsigned k) {
 }
 
 bool isProperColoring(const Graph *g, const unsigned *coloring) {
-  if (!g || !g->edges) return true;
+  if (!g || !g->edges || !coloring) return false;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size && coloring[v] == coloring[e->destination])
@@ -2681,6 +2682,38 @@ unsigned countSpanningTrees(const Graph *g) {
   return determinant > 0 ? round(determinant) : 0;
 }
 
+static bool isValidColor(const Graph *g, unsigned v, const unsigned *colors, unsigned c) {
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && colors[e->destination] == c)
+      return false;
+  for (unsigned u = 0; u < g->size; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination == v && colors[u] == c)
+        return false;
+  return true;
+}
+
+static bool canBeColored(const Graph *g, unsigned v, unsigned *colors, unsigned maximum) {
+  if (v == g->size) return true;
+  for (unsigned c = 0; c < maximum; c++)
+    if (isValidColor(g, v, colors, c)) {
+      colors[v] = c;
+      if (canBeColored(g, v + 1, colors, maximum)) return true;
+      colors[v] = UINT_MAX;
+    }
+  return false;
+}
+
+unsigned getChromaticNumber(const Graph *g) {
+  if (!g || !g->edges) return UINT_MAX;
+  unsigned colors[g->size];
+  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX; 
+  for (unsigned maximum = 0; maximum <= g->size; maximum++)
+    if (canBeColored(g, 0, colors, maximum))
+      return maximum;
+  return UINT_MAX;
+}
+
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
   return countMatchingEdges(g, v, v);
 }
@@ -2922,35 +2955,13 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
   return colors;
 }
 
-static bool isValidColor(const Graph *g, unsigned v, const unsigned *colors, unsigned c) {
-  for (const Edge *e = g->edges[v]; e; e = e->next)
-    if (e->destination < g->size && colors[e->destination] == c)
-      return false;
-  for (unsigned u = 0; u < g->size; u++)
-    for (const Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination == v && colors[u] == c)
-        return false;
-  return true;
-}
-
-static bool canBeColored(const Graph *g, unsigned v, unsigned *colors, unsigned maximumColors) {
-  if (v == g->size) return true;
-  for (unsigned c = 0; c < maximumColors; c++)
-    if (isValidColor(g, v, colors, c)) {
-      colors[v] = c;
-      if (canBeColored(g, v + 1, colors, maximumColors)) return true;
-      colors[v] = UINT_MAX;
-    }
-  return false;
-}
-
 [[nodiscard]] unsigned *findOptimalColoring(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   unsigned *colors = malloc(g->size * sizeof(unsigned));
   if (!colors) return nullptr;
   for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX; 
-  for (unsigned maximumColors = 0; maximumColors <= g->size; maximumColors++)
-    if (canBeColored(g, 0, colors, maximumColors))
+  for (unsigned maximum = 0; maximum <= g->size; maximum++)
+    if (canBeColored(g, 0, colors, maximum))
       return colors;
   free(colors);
   return nullptr;
