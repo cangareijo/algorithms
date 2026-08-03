@@ -219,6 +219,7 @@ unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateMinimumVertexCut(const Graph *g);
 unsigned countSpanningTrees(const Graph *g);
 unsigned getChromaticNumber(const Graph *g);
+unsigned getCliqueNumber(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -1145,12 +1146,13 @@ bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w) {
 }
 
 bool isClique(const Graph *g, const bool *set) {
-  if (!g || !set) return true;
+  if (!set) return true;
+  if (!g) return false;
   for (unsigned u = 0; u < g->size; u++)
     if (set[u])
-      for (unsigned v = 0; v < g->size; v++)
-        if (set[v] && v != u)
-          if (!hasDirectedEdge(g, u, v))
+      for (unsigned v = u + 1; v < g->size; v++)
+        if (set[v])
+          if (!hasDirectedEdge(g, u, v) && !hasDirectedEdge(g, v, u))
             return false;
   return true;
 }
@@ -2707,11 +2709,30 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned *colors, unsigned 
 unsigned getChromaticNumber(const Graph *g) {
   if (!g || !g->edges) return UINT_MAX;
   unsigned colors[g->size];
-  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX; 
+  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX;
   for (unsigned maximum = 0; maximum <= g->size; maximum++)
     if (canBeColored(g, 0, colors, maximum))
       return maximum;
   return UINT_MAX;
+}
+
+static bool hasCliqueOfSize(const Graph *g, unsigned k, unsigned v, bool *set, unsigned size) {
+  if (size == k) return isClique(g, set);
+  if (v == g->size) return false;
+  set[v] = true;
+  if (hasCliqueOfSize(g, k, v + 1, set, size + 1)) return true;
+  set[v] = false;
+  if (hasCliqueOfSize(g, k, v + 1, set, size)) return true;
+  return false;
+}
+
+unsigned getCliqueNumber(const Graph *g) {
+  if (!g || g->size == 0) return 0;
+  bool set[g->size] = {};
+  for (unsigned k = g->size; k > 0; k--)
+    if (hasCliqueOfSize(g, k, 0, set, 0))
+      return k;
+  return 0;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
@@ -2959,7 +2980,7 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
   if (!g || !g->edges) return nullptr;
   unsigned *colors = malloc(g->size * sizeof(unsigned));
   if (!colors) return nullptr;
-  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX; 
+  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX;
   for (unsigned maximum = 0; maximum <= g->size; maximum++)
     if (canBeColored(g, 0, colors, maximum))
       return colors;
