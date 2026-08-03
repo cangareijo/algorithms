@@ -236,8 +236,8 @@ unsigned *getOutDegrees(const Graph *g);
 unsigned *getDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
+unsigned *findGreedyColoring(const Graph *g);
 unsigned *findOptimalColoring(const Graph *g);
-unsigned *findOptimumColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
@@ -2900,42 +2900,35 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
   return distribution;
 }
 
-[[nodiscard]] unsigned *findOptimalColoring(const Graph *g) {
-  if (!g) return nullptr;
-  Graph *g2 = createUndirected(g);
-  bool *taken = calloc(g->size, sizeof(bool));
+[[nodiscard]] unsigned *findGreedyColoring(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
   unsigned *colors = malloc(g->size * sizeof(unsigned));
-  if (!g2 || !taken || !colors) {
-    destroyGraph(g2);
-    free(taken);
-    free(colors);
-    return nullptr;
+  if (!colors) return nullptr;
+  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX;
+  bool available[g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned c = 0; c < g->size; c++) available[c] = true;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && colors[e->destination] != UINT_MAX)
+        available[colors[e->destination]] = false;
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination == u && colors[v] != UINT_MAX)
+          available[colors[v]] = false;
+    unsigned c = 0;
+    while (!available[c]) c++;
+    colors[u] = c;
   }
-  deleteInvalidEdges(g2);
-  for (unsigned v = 0; v < g2->size; v++) colors[v] = UINT_MAX;
-  for (unsigned v = 0; v < g2->size; v++) {
-    for (Edge *e = g2->edges[v]; e; e = e->next)
-      if (colors[e->destination] < UINT_MAX)
-        taken[colors[e->destination]] = true;
-    unsigned color = 0;
-    while (taken[color]) color++;
-    colors[v] = color;
-    for (Edge *e = g2->edges[v]; e; e = e->next)
-      if (colors[e->destination] < UINT_MAX)
-        taken[colors[e->destination]] = false;
-  }
-  destroyGraph(g2);
-  free(taken);
   return colors;
 }
 
-static bool isValidColor(const Graph *g, unsigned v, const unsigned *colors, unsigned color) {
+static bool isValidColor(const Graph *g, unsigned v, const unsigned *colors, unsigned c) {
   for (const Edge *e = g->edges[v]; e; e = e->next)
-    if (e->destination < g->size && colors[e->destination] == color)
+    if (e->destination < g->size && colors[e->destination] == c)
       return false;
   for (unsigned u = 0; u < g->size; u++)
     for (const Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination == v && colors[u] == color)
+      if (e->destination == v && colors[u] == c)
         return false;
   return true;
 }
@@ -2951,7 +2944,7 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned *colors, unsigned 
   return false;
 }
 
-[[nodiscard]] unsigned *findOptimumColoring(const Graph *g) {
+[[nodiscard]] unsigned *findOptimalColoring(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   unsigned *colors = malloc(g->size * sizeof(unsigned));
   if (!colors) return nullptr;
