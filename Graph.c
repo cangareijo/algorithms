@@ -1152,7 +1152,7 @@ bool isClique(const Graph *g, const bool *set) {
     if (set[u])
       for (unsigned v = u + 1; v < g->size; v++)
         if (set[v])
-          if (!hasDirectedEdge(g, u, v) && !hasDirectedEdge(g, v, u))
+          if (!hasDirectedEdge(g, u, v) || !hasDirectedEdge(g, v, u))
             return false;
   return true;
 }
