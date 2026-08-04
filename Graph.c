@@ -1048,8 +1048,8 @@ bool isArticulationVertex(const Graph *g, unsigned v) {
 
 bool isSimplicial(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return false;
-  for (Edge *e1 = g->edges[v]; e1; e1 = e1->next)
-    for (Edge *e2 = e1->next; e2; e2 = e2->next) {
+  for (const Edge *e1 = g->edges[v]; e1; e1 = e1->next)
+    for (const Edge *e2 = e1->next; e2; e2 = e2->next) {
       unsigned v2 = e1->destination, v3 = e2->destination;
       if (v != v2 && v != v3 && v2 != v3 && !hasDirectedEdge(g, v2, v3) && !hasDirectedEdge(g, v3, v2)) return false;
     }
@@ -1058,7 +1058,7 @@ bool isSimplicial(const Graph *g, unsigned v) {
 
 bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size) return false;
-  for (Edge *e = g->edges[u]; e; e = e->next)
+  for (const Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v)
       return true;
   return false;
@@ -1429,33 +1429,42 @@ bool *findMaximalClique(const Graph *g) {
   return clique;
 }
 
-static void maximumCliqueHelper(const Graph *g, bool *current, unsigned currentSize, bool *best, unsigned *bestSize, unsigned start) {
-  if (currentSize > *bestSize) {
-    *bestSize = currentSize;
-    for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
-  }
-  for (unsigned v = start; v < g->size; v++) {
-    if (currentSize + (g->size - v) <= *bestSize) return;
-    if (hasUndirectedEdges(g, v, current)) {
-      current[v] = true;
-      maximumCliqueHelper(g, current, currentSize + 1, best, bestSize, v + 1);
-      current[v] = false;
+static void findMaximumCliqueRecursive(
+  const Graph *g, unsigned v, bool *current, unsigned currentSize, bool *maximum, unsigned *maximumSize)
+{
+  if (v == g->size) {
+    if (currentSize > *maximumSize) {
+      *maximumSize = currentSize;
+      for (unsigned u = 0; u < g->size; u++) maximum[u] = current[u];
     }
+    return;
   }
+  bool addable = true;
+  for (unsigned u = 0; u < v; u++)
+    if (current[u])
+      if (!hasDirectedEdge(g, v, u) || !hasDirectedEdge(g, u, v))
+        addable = false;
+  if (addable) {
+    current[v] = true;
+    findMaximumCliqueRecursive(g, v + 1, current, currentSize + 1, maximum, maximumSize);
+  }
+  current[v] = false;
+  findMaximumCliqueRecursive(g, v + 1, current, currentSize, maximum, maximumSize);
 }
 
-bool *findMaximumClique(const Graph *g) {
+[[nodiscard]] bool *findMaximumClique(const Graph *g) {
   if (!g) return nullptr;
   bool *current = calloc(g->size, sizeof(bool));
-  bool *best = calloc(g->size, sizeof(bool));
-  if (!current || !best) {
-    free(current); free(best);
+  bool *maximum = calloc(g->size, sizeof(bool));
+  if (!current || !maximum) {
+    free(current);
+    free(maximum);
     return nullptr;
   }
   unsigned size = 0;
-  maximumCliqueHelper(g, current, 0, best, &size, 0);
+  findMaximumCliqueRecursive(g, 0, current, 0, maximum, &size);
   free(current);
-  return best;
+  return maximum;
 }
 
 [[nodiscard]] bool *getIsolatedVertices(const Graph *g) {
@@ -2716,23 +2725,16 @@ unsigned getChromaticNumber(const Graph *g) {
   return UINT_MAX;
 }
 
-static bool hasCliqueOfSize(const Graph *g, unsigned k, unsigned v, bool *set, unsigned size) {
-  if (size == k) return isClique(g, set);
-  if (v == g->size) return false;
-  set[v] = true;
-  if (hasCliqueOfSize(g, k, v + 1, set, size + 1)) return true;
-  set[v] = false;
-  if (hasCliqueOfSize(g, k, v + 1, set, size)) return true;
-  return false;
-}
-
 unsigned getCliqueNumber(const Graph *g) {
-  if (!g || g->size == 0) return 0;
-  bool set[g->size] = {};
-  for (unsigned k = g->size; k > 0; k--)
-    if (hasCliqueOfSize(g, k, 0, set, 0))
-      return k;
-  return 0;
+  if (!g) return 0;
+  bool *clique = findMaximumClique(g);
+  if (!clique) return 0;
+  unsigned size = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (clique[v])
+      size++;
+  free(clique);
+  return size;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
