@@ -120,6 +120,7 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
 bool isSubGraph(const Graph *g1, const Graph *g2);
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
+bool isIsomorphic(const Graph *g1, const Graph *g2);
 
 bool *graphCenter(const Graph *g);
 bool *graphPeriphery(const Graph *g);
@@ -1333,6 +1334,35 @@ bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
     !hasSelfLoops(g1) && !hasParallelEdges(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
+static bool isIsomorphicRecursive(const Graph *g1, const Graph *g2, unsigned v1, unsigned *mapping, bool *used) {
+  for (unsigned u = 0; u < v1; u++)
+    for (const Edge *e = g1->edges[u]; e; e = e->next)
+      if (e->destination < v1 && (u == v1 - 1 || e->destination == v1 - 1)) {
+        unsigned count1 = countMatchingWeightedEdges(g1, u, e->destination, e->weight);
+        unsigned count2 = countMatchingWeightedEdges(g2, mapping[u], mapping[e->destination], e->weight);
+        if (count1 != count2) return false;
+      }
+  if (v1 == g1->size) return true;
+  for (unsigned v2 = 0; v2 < g2->size; v2++)
+    if (!used[v2]) {
+      mapping[v1] = v2;
+      used[v2] = true;
+      if (isIsomorphicRecursive(g1, g2, v1 + 1, mapping, used)) return true;
+      used[v2] = false;
+    }
+  return false;
+}
+
+bool isIsomorphic(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g1->edges || !g2 || !g2->edges) return false;
+  if (g1->size != g2->size) return false;
+  if (g1->size == 0) return true;
+  if (countEdges(g1) != countEdges(g2)) return false;
+  unsigned mapping[g1->size] = {};
+  bool used[g1->size] = {};
+  return isIsomorphicRecursive(g1, g2, 0, mapping, used);
+}
+
 
 
 [[nodiscard]] bool *graphCenter(const Graph *g) {
@@ -2319,9 +2349,11 @@ unsigned getSize(const Graph *g) {
 }
 
 unsigned countEdges(const Graph *g) {
-  if (!g) return 0;
+  if (!g || !g->edges) return 0;
   unsigned n = 0;
-  for (unsigned v = 0; v < g->size; v++) n += getOutDegree(g, v);
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      n++;
   return n;
 }
 
@@ -2863,7 +2895,7 @@ unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v) {
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size) return 0;
   unsigned n = 0;
-  for (Edge *e = g->edges[u]; e; e = e->next)
+  for (const Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v)
       n++;
   return n;
@@ -2872,7 +2904,7 @@ unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x) {
   if (!g || !g->edges || u >= g->size) return 0;
   unsigned n = 0;
-  for (Edge *e = g->edges[u]; e; e = e->next)
+  for (const Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v && e->weight == x)
       n++;
   return n;
