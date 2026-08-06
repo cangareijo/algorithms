@@ -219,8 +219,9 @@ unsigned calculateUnweightedRadius(const Graph *g);
 unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateMinimumVertexCut(const Graph *g);
 unsigned countSpanningTrees(const Graph *g);
-unsigned getChromaticNumber(const Graph *g);
-unsigned getCliqueNumber(const Graph *g);
+unsigned calculateChromaticNumber(const Graph *g);
+unsigned calculateCliqueNumber(const Graph *g);
+unsigned calculateTreewidth(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -2727,7 +2728,7 @@ unsigned countSpanningTrees(const Graph *g) {
   return determinant > 0 ? round(determinant) : 0;
 }
 
-unsigned getChromaticNumber(const Graph *g) {
+unsigned calculateChromaticNumber(const Graph *g) {
   if (!g) return 0;
   unsigned *colors = findOptimalColoring(g);
   if (!colors) return 0;
@@ -2739,7 +2740,7 @@ unsigned getChromaticNumber(const Graph *g) {
   return chromatic;
 }
 
-unsigned getCliqueNumber(const Graph *g) {
+unsigned calculateCliqueNumber(const Graph *g) {
   if (!g) return 0;
   bool *clique = findMaximumClique(g);
   if (!clique) return 0;
@@ -2749,6 +2750,52 @@ unsigned getCliqueNumber(const Graph *g) {
       size++;
   free(clique);
   return size;
+}
+
+static unsigned calculateTreewidthRecursive(const Graph *g, bool adjacent[g->size][g->size], bool eliminated[g->size], unsigned remaining) {
+  if (remaining == 0) return 0;
+  unsigned minimum = UINT_MAX;
+  bool backup[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      backup[u][v] = adjacent[u][v];
+  for (unsigned u = 0; u < g->size; u++) {
+    if (eliminated[u]) continue;
+    unsigned degree = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && !eliminated[v] && adjacent[u][v])
+        degree++;
+    if (degree >= minimum) continue;
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && !eliminated[v] && adjacent[u][v])
+        for (unsigned w = 0; w < g->size; w++)
+          if (u != w && v != w && !eliminated[w] && adjacent[u][w]) {
+            adjacent[v][w] = true;
+            adjacent[w][v] = true;
+          }
+    eliminated[u] = true;
+    unsigned maximum = calculateTreewidthRecursive(g, adjacent, eliminated, remaining - 1);
+    eliminated[u] = false;
+    if (degree > maximum) maximum = degree;
+    if (maximum < minimum) minimum = maximum;
+    for (unsigned v = 0; v < g->size; v++)
+      for (unsigned w = 0; w < g->size; w++)
+        adjacent[v][w] = backup[v][w];
+  }
+  return minimum;
+}
+
+unsigned calculateTreewidth(const Graph *g) {
+  if (!g || !g->edges || g->size <= 1) return 0;
+  bool adjacent[g->size][g->size] = {};
+  bool eliminated[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        adjacent[v][e->destination] = true;
+        adjacent[e->destination][v] = true;
+      }
+  return calculateTreewidthRecursive(g, adjacent, eliminated, g->size);
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
