@@ -135,6 +135,7 @@ bool *findMinimumVertexCover(const Graph *g);
 bool *getSelfLoops(const Graph *g);
 bool *findMaximalIndependentSet(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
+bool *findFeedbackVertexSet(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
@@ -1684,6 +1685,61 @@ static void searchForMaximumIndependentSet(
   searchForMaximumIndependentSet(g, 0, current, 0, maximum, &maximumCount);
   free(current);
   return maximum;
+}
+
+static bool findFeedbackVertexSet_hasCycleDfs(const Graph *g, unsigned v, char *visited, const bool *removed) {
+  visited[v] = 1;
+  for (Edge *e = g->edges[v]; e; e = e->next) {
+    if (e->destination >= g->size || removed[e->destination]) continue;
+    if (visited[e->destination] == 1) return true;
+    if (visited[e->destination] == 0 && findFeedbackVertexSet_hasCycleDfs(g, e->destination, visited, removed)) return true;
+  }
+  visited[v] = 2;
+  return false;
+}
+
+static bool findFeedbackVertexSet_hasCycle(const Graph *g, const bool *removed) {
+  char *visited = calloc(g->size, sizeof(char));
+  if (!visited) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (visited[v] == 0 && !removed[v] && findFeedbackVertexSet_hasCycleDfs(g, v, visited, removed)) {
+      free(visited);
+      return true;
+    }
+  free(visited);
+  return false;
+}
+
+static void findFeedbackVertexSetBacktracking(
+  const Graph *g, unsigned v, bool *current, unsigned currentSize, bool *best, unsigned *bestSize)
+{
+  if (currentSize >= *bestSize) return;
+  if (v == g->size) {
+    if (!findFeedbackVertexSet_hasCycle(g, current)) {
+      for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
+      *bestSize = currentSize;
+    }
+    return;
+  }
+  current[v] = false;
+  findFeedbackVertexSetBacktracking(g, v + 1, current, currentSize, best, bestSize);
+  current[v] = true;
+  findFeedbackVertexSetBacktracking(g, v + 1, current, currentSize + 1, best, bestSize);
+}
+
+[[nodiscard]] bool *findFeedbackVertexSet(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  bool *current = calloc(g->size, sizeof(bool));
+  bool *best = calloc(g->size, sizeof(bool));
+  if (!current || !best) {
+    free(current);
+    free(best);
+    return nullptr;
+  }
+  unsigned bestSize = UINT_MAX;
+  findFeedbackVertexSetBacktracking(g, 0, current, 0, best, &bestSize);
+  free(current);
+  return best;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
