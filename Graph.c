@@ -10,8 +10,8 @@ void swapUnsigned(unsigned *a, unsigned *b);
 unsigned unsignedMinimum(unsigned a, unsigned b);
 unsigned unsignedMaximum(unsigned a, unsigned b);
 
-bool **createBooleanMatrix(unsigned m, unsigned n);
-void destroyBooleanMatrix(bool **matrix, unsigned m);
+bool **allocateFalseMatrix(unsigned m, unsigned n);
+void freeBooleanMatrix(bool **matrix, unsigned m);
 
 double calculateEuclideanNorm(double *a, unsigned n);
 
@@ -142,6 +142,7 @@ bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 
 bool **createAdjacencyMatrix(const Graph *g);
+bool **findFeedbackArcSet(const Graph *g);
 
 Graph *createGraph(unsigned n);
 Graph *createPath(unsigned n);
@@ -330,7 +331,7 @@ unsigned unsignedMaximum(unsigned a, unsigned b) {
 
 
 
-bool **createBooleanMatrix(unsigned m, unsigned n) {
+[[nodiscard]] bool **allocateFalseMatrix(unsigned m, unsigned n) {
   bool **matrix = malloc(m * sizeof(bool *));
   if (!matrix) return nullptr;
   for (unsigned i = 0; i < m; i++) {
@@ -344,7 +345,7 @@ bool **createBooleanMatrix(unsigned m, unsigned n) {
   return matrix;
 }
 
-void destroyBooleanMatrix(bool **matrix, unsigned m) {
+void freeBooleanMatrix(bool **matrix, unsigned m) {
   if (!matrix) return;
   for (unsigned i = 0; i < m; i++) free(matrix[i]);
   free(matrix);
@@ -1687,12 +1688,12 @@ static void searchForMaximumIndependentSet(
   return maximum;
 }
 
-static bool findFeedbackVertexSet_hasCycleDfs(const Graph *g, unsigned v, char *visited, const bool *removed) {
+static bool findFeedbackVertexSet_hasCycleDfs(const Graph *g, const bool *removed, unsigned v, char *visited) {
   visited[v] = 1;
   for (Edge *e = g->edges[v]; e; e = e->next) {
     if (e->destination >= g->size || removed[e->destination]) continue;
     if (visited[e->destination] == 1) return true;
-    if (visited[e->destination] == 0 && findFeedbackVertexSet_hasCycleDfs(g, e->destination, visited, removed)) return true;
+    if (visited[e->destination] == 0 && findFeedbackVertexSet_hasCycleDfs(g, removed, e->destination, visited)) return true;
   }
   visited[v] = 2;
   return false;
@@ -1702,7 +1703,7 @@ static bool findFeedbackVertexSet_hasCycle(const Graph *g, const bool *removed) 
   char *visited = calloc(g->size, sizeof(char));
   if (!visited) return false;
   for (unsigned v = 0; v < g->size; v++)
-    if (visited[v] == 0 && !removed[v] && findFeedbackVertexSet_hasCycleDfs(g, v, visited, removed)) {
+    if (visited[v] == 0 && !removed[v] && findFeedbackVertexSet_hasCycleDfs(g, removed, v, visited)) {
       free(visited);
       return true;
     }
@@ -1804,13 +1805,78 @@ static void findFeedbackVertexSetBacktracking(
 
 [[nodiscard]] bool **createAdjacencyMatrix(const Graph *g) {
   if (!g || !g->edges) return nullptr;
-  bool **adjacency = createBooleanMatrix(g->size, g->size);
+  bool **adjacency = allocateFalseMatrix(g->size, g->size);
   if (!adjacency) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (const Edge *e = g->edges[u]; e; e = e->next)
       if (e->destination < g->size)
         adjacency[u][e->destination] = true;
   return adjacency;
+}
+
+static bool findFeedbackArcSet_hasCycleDfs(const Graph *g, bool **removed, unsigned v, char *visited) {
+  visited[v] = 1;
+  for (Edge *e = g->edges[v]; e; e = e->next) {
+    if (e->destination >= g->size || removed[v][e->destination]) continue;
+    if (visited[e->destination] == 1) return true;
+    if (visited[e->destination] == 0 && findFeedbackArcSet_hasCycleDfs(g, removed, e->destination, visited)) return true;
+  }
+  visited[v] = 2;
+  return false;
+}
+
+static bool findFeedbackArcSet_hasCycle(const Graph *g, bool **removed) {
+  char *visited = calloc(g->size, sizeof(char));
+  if (!visited) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (visited[v] == 0 && findFeedbackArcSet_hasCycleDfs(g, removed, v, visited)) {
+      free(visited);
+      return true;
+    }
+  free(visited);
+  return false;
+}
+
+static void searchFeedbackArcSet(
+  const Graph *g, unsigned u, Edge *e, bool **current, unsigned currentSize, bool **best, unsigned *bestSize)
+{
+  if (currentSize >= *bestSize) return;
+  if (!e) {
+    if (u + 1 >= g->size) {
+      if (!findFeedbackArcSet_hasCycle(g, current)) {
+        *bestSize = currentSize;
+        for (unsigned v = 0; v < g->size; v++)
+          for (unsigned w = 0; w < g->size; w++)
+            best[v][w] = current[v][w];
+      }
+      return;
+    }
+    searchFeedbackArcSet(g, u + 1, g->edges[u + 1], current, currentSize, best, bestSize);
+    return;
+  }
+  if (e->destination >= g->size || !current[u][e->destination])
+    searchFeedbackArcSet(g, u, e->next, current, currentSize, best, bestSize);
+  if (e->destination < g->size) {
+    bool previous = current[u][e->destination];
+    current[u][e->destination] = true;
+    searchFeedbackArcSet(g, u, e->next, current, currentSize + 1, best, bestSize);
+    current[u][e->destination] = previous;
+  }
+}
+
+[[nodiscard]] bool **findFeedbackArcSet(const Graph *g) {
+  if (!g || !g->edges || g->size == 0) return nullptr;
+  bool **current = allocateFalseMatrix(g->size, g->size);
+  bool **best = allocateFalseMatrix(g->size, g->size);
+  if (!current || !best) {
+    freeBooleanMatrix(current, g->size);
+    freeBooleanMatrix(best, g->size);
+    return nullptr;
+  }
+  unsigned bestSize = UINT_MAX;
+  searchFeedbackArcSet(g, 0, g->edges[0], current, 0, best, &bestSize);
+  freeBooleanMatrix(current, g->size);
+  return best;
 }
 
 
@@ -2748,7 +2814,7 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
   bool **adjacent = createAdjacencyMatrix(g);
   Graph *net = createGraph(2 * g->size);
   if (!adjacent || !net) {
-    destroyBooleanMatrix(adjacent, g->size);
+    freeBooleanMatrix(adjacent, g->size);
     destroyGraph(net);
     return 0;
   }
@@ -2764,7 +2830,7 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
       double flow = calculateMaxFlowEdmondsKarp(net, s + g->size, t);
       if (flow < minimum) minimum = flow;
     }
-  destroyBooleanMatrix(adjacent, g->size);
+  freeBooleanMatrix(adjacent, g->size);
   destroyGraph(net);
   return round(minimum);
 }
