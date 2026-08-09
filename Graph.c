@@ -254,6 +254,7 @@ unsigned *findMaximumUnweightedMatching(const Graph *g);
 unsigned *findMaximumWeightedMatching(const Graph *g);
 unsigned *findMinimalEdgeCover(const Graph *g);
 unsigned *findMinimumEdgeCover(const Graph *g);
+unsigned *calculateCoreNumbers(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -3404,7 +3405,7 @@ static void searchMaximumWeightedMatching(const Graph *g, unsigned u, Edge *e, u
   return best;
 }
 
-unsigned *findMinimalEdgeCover(const Graph *g) {
+[[nodiscard]] unsigned *findMinimalEdgeCover(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   unsigned *cover = malloc(g->size * sizeof(unsigned));
   if (!cover) return nullptr;
@@ -3456,7 +3457,7 @@ static void searchForMinimumEdgeCover(
   }
 }
 
-unsigned *findMinimumEdgeCover(const Graph *g) {
+[[nodiscard]] unsigned *findMinimumEdgeCover(const Graph *g) {
   if (!g || !g->edges || g->size == 0) return nullptr;
   unsigned *current = malloc(g->size * sizeof(unsigned));
   unsigned *minimum = malloc(g->size * sizeof(unsigned));
@@ -3470,6 +3471,41 @@ unsigned *findMinimumEdgeCover(const Graph *g) {
   searchForMinimumEdgeCover(g, 0, g->edges[0], current, 0, minimum, &minimumCount);
   free(current);
   return minimum;
+}
+
+[[nodiscard]] unsigned *calculateCoreNumbers(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  bool *processed = calloc(g->size, sizeof(bool));
+  unsigned *degrees = calloc(g->size, sizeof(unsigned));
+  unsigned *core = malloc(g->size * sizeof(unsigned));
+  if (!processed || !degrees || !core) {
+    free(processed);
+    free(degrees);
+    free(core);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination != v && e->destination < g->size)
+        degrees[v]++;
+  while (true) {
+    unsigned degree = UINT_MAX;
+    unsigned v = UINT_MAX;
+    for (unsigned u = 0; u < g->size; u++)
+      if (!processed[u] && degrees[u] < degree) {
+        degree = degrees[u];
+        v = u;
+      }
+    if (v == UINT_MAX) break;
+    core[v] = degree;
+    processed[v] = true;
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && !processed[e->destination] && degrees[e->destination] > degree)
+        degrees[e->destination]--;
+  }
+  free(processed);
+  free(degrees);
+  return core;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
@@ -5056,7 +5092,7 @@ void testCalculateBetweennessCentrality() {
 
     printf("[IdentityPathInterference] Centrality Node 1 (Expected 1.0): %lf\n", centrality[1]);
 
-    bool pass = (fabs(centrality[1] - 1) < 1e-6);
+    bool pass = fabs(centrality[1] - 1) < 1e-6;
     free(centrality);
     destroyGraph(g);
 
