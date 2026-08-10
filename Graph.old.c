@@ -1,0 +1,67 @@
+
+bool **findFeedbackArcSet(const Graph *g);
+
+static bool findFeedbackArcSet_hasCycleDfs(const Graph *g, bool **removed, unsigned v, char *visited) {
+  visited[v] = 1;
+  for (Edge *e = g->edges[v]; e; e = e->next) {
+    if (e->destination >= g->size || removed[v][e->destination]) continue;
+    if (visited[e->destination] == 1) return true;
+    if (visited[e->destination] == 0 && findFeedbackArcSet_hasCycleDfs(g, removed, e->destination, visited)) return true;
+  }
+  visited[v] = 2;
+  return false;
+}
+
+static bool findFeedbackArcSet_hasCycle(const Graph *g, bool **removed) {
+  char *visited = calloc(g->size, sizeof(char));
+  if (!visited) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (visited[v] == 0 && findFeedbackArcSet_hasCycleDfs(g, removed, v, visited)) {
+      free(visited);
+      return true;
+    }
+  free(visited);
+  return false;
+}
+
+static void searchFeedbackArcSet(
+  const Graph *g, unsigned u, Edge *e, bool **current, unsigned currentSize, bool **best, unsigned *bestSize)
+{
+  if (currentSize >= *bestSize) return;
+  if (!e) {
+    if (u + 1 >= g->size) {
+      if (!findFeedbackArcSet_hasCycle(g, current)) {
+        *bestSize = currentSize;
+        for (unsigned v = 0; v < g->size; v++)
+          for (unsigned w = 0; w < g->size; w++)
+            best[v][w] = current[v][w];
+      }
+      return;
+    }
+    searchFeedbackArcSet(g, u + 1, g->edges[u + 1], current, currentSize, best, bestSize);
+    return;
+  }
+  if (e->destination >= g->size || !current[u][e->destination])
+    searchFeedbackArcSet(g, u, e->next, current, currentSize, best, bestSize);
+  if (e->destination < g->size) {
+    bool previous = current[u][e->destination];
+    current[u][e->destination] = true;
+    searchFeedbackArcSet(g, u, e->next, current, currentSize + 1, best, bestSize);
+    current[u][e->destination] = previous;
+  }
+}
+
+[[nodiscard]] bool **findFeedbackArcSet(const Graph *g) {
+  if (!g || !g->edges || g->size == 0) return nullptr;
+  bool **current = allocateFalseMatrix(g->size, g->size);
+  bool **best = allocateFalseMatrix(g->size, g->size);
+  if (!current || !best) {
+    freeBooleanMatrix(current, g->size);
+    freeBooleanMatrix(best, g->size);
+    return nullptr;
+  }
+  unsigned bestSize = UINT_MAX;
+  searchFeedbackArcSet(g, 0, g->edges[0], current, 0, best, &bestSize);
+  freeBooleanMatrix(current, g->size);
+  return best;
+}

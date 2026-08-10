@@ -142,7 +142,6 @@ bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 
 bool **createAdjacencyMatrix(const Graph *g);
-bool **findFeedbackArcSet(const Graph *g);
 
 Graph *createGraph(unsigned n);
 Graph *createPath(unsigned n);
@@ -164,7 +163,7 @@ Graph *createPrim(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
-Graph *findFeedbackArcSetWithWeights(const Graph *g);
+Graph *findFeedbackArcSet(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -241,6 +240,7 @@ unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x);
+unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
 unsigned *getInDegrees(const Graph *g);
 unsigned *getOutDegrees(const Graph *g);
@@ -1820,71 +1820,6 @@ static void findFeedbackVertexSetBacktracking(
   return adjacency;
 }
 
-static bool findFeedbackArcSet_hasCycleDfs(const Graph *g, bool **removed, unsigned v, char *visited) {
-  visited[v] = 1;
-  for (Edge *e = g->edges[v]; e; e = e->next) {
-    if (e->destination >= g->size || removed[v][e->destination]) continue;
-    if (visited[e->destination] == 1) return true;
-    if (visited[e->destination] == 0 && findFeedbackArcSet_hasCycleDfs(g, removed, e->destination, visited)) return true;
-  }
-  visited[v] = 2;
-  return false;
-}
-
-static bool findFeedbackArcSet_hasCycle(const Graph *g, bool **removed) {
-  char *visited = calloc(g->size, sizeof(char));
-  if (!visited) return false;
-  for (unsigned v = 0; v < g->size; v++)
-    if (visited[v] == 0 && findFeedbackArcSet_hasCycleDfs(g, removed, v, visited)) {
-      free(visited);
-      return true;
-    }
-  free(visited);
-  return false;
-}
-
-static void searchFeedbackArcSet(
-  const Graph *g, unsigned u, Edge *e, bool **current, unsigned currentSize, bool **best, unsigned *bestSize)
-{
-  if (currentSize >= *bestSize) return;
-  if (!e) {
-    if (u + 1 >= g->size) {
-      if (!findFeedbackArcSet_hasCycle(g, current)) {
-        *bestSize = currentSize;
-        for (unsigned v = 0; v < g->size; v++)
-          for (unsigned w = 0; w < g->size; w++)
-            best[v][w] = current[v][w];
-      }
-      return;
-    }
-    searchFeedbackArcSet(g, u + 1, g->edges[u + 1], current, currentSize, best, bestSize);
-    return;
-  }
-  if (e->destination >= g->size || !current[u][e->destination])
-    searchFeedbackArcSet(g, u, e->next, current, currentSize, best, bestSize);
-  if (e->destination < g->size) {
-    bool previous = current[u][e->destination];
-    current[u][e->destination] = true;
-    searchFeedbackArcSet(g, u, e->next, current, currentSize + 1, best, bestSize);
-    current[u][e->destination] = previous;
-  }
-}
-
-[[nodiscard]] bool **findFeedbackArcSet(const Graph *g) {
-  if (!g || !g->edges || g->size == 0) return nullptr;
-  bool **current = allocateFalseMatrix(g->size, g->size);
-  bool **best = allocateFalseMatrix(g->size, g->size);
-  if (!current || !best) {
-    freeBooleanMatrix(current, g->size);
-    freeBooleanMatrix(best, g->size);
-    return nullptr;
-  }
-  unsigned bestSize = UINT_MAX;
-  searchFeedbackArcSet(g, 0, g->edges[0], current, 0, best, &bestSize);
-  freeBooleanMatrix(current, g->size);
-  return best;
-}
-
 
 
 [[nodiscard]] Graph *createGraph(unsigned n) {
@@ -2156,7 +2091,7 @@ static void searchFeedbackArcSet(
   return closure;
 }
 
-[[nodiscard]] Graph *findFeedbackArcSetWithWeights(const Graph *g) {
+[[nodiscard]] Graph *findFeedbackArcSet(const Graph *g) {
   if (!g) return nullptr;
   double *weights = calloc(g->size, sizeof(double));
   unsigned *permutation = malloc(g->size * sizeof(unsigned));
@@ -2177,9 +2112,9 @@ static void searchFeedbackArcSet(
       }
   for (unsigned i = 0; i < g->size; i++) permutation[i] = i;
   for (unsigned i = 1; i < g->size; i++) {
-    unsigned key = permutation[i], j;
-    for (j = i; j > 0 && weights[permutation[j - 1]] < weights[key]; j--) permutation[j] = permutation[j - 1];
-    permutation[j] = key;
+    unsigned v = permutation[i], j;
+    for (j = i; j > 0 && weights[permutation[j - 1]] < weights[v]; j--) permutation[j] = permutation[j - 1];
+    permutation[j] = v;
   }
   for (unsigned i = 0; i < g->size; i++) position[permutation[i]] = i;
   for (unsigned v = 0; v < g->size; v++)
@@ -3174,6 +3109,26 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
     if (e->destination == v && e->weight == x)
       n++;
   return n;
+}
+
+unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
+  if (!g || !ordering) return 0;
+  unsigned *position = malloc(g->size * sizeof(unsigned));
+  if (!position) return 0;
+  for (unsigned i = 0; i < g->size; i++)
+    if (ordering[i] < g->size)
+      position[ordering[i]] = i;
+  unsigned bandwidth = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        unsigned i = position[v];
+        unsigned j = position[e->destination];
+        unsigned distance = i >= j ? i - j : j - i;
+        if (distance > bandwidth) bandwidth = distance;
+      }
+  free(position);
+  return bandwidth;
 }
 
 
