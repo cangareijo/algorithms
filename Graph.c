@@ -227,6 +227,7 @@ unsigned calculateChromaticNumber(const Graph *g);
 unsigned calculateCliqueNumber(const Graph *g);
 unsigned calculateTreewidth(const Graph *g);
 unsigned calculateDirectedEdgeConnectivity(const Graph *g);
+unsigned calculateDegeneracy(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -2965,6 +2966,18 @@ unsigned calculateDirectedEdgeConnectivity(const Graph *g) {
   calculateDirectedEdgeConnectivityRecursive(g, copy, 0, g->edges[0], 0, &minimum);
   destroyGraph(copy);
   return minimum;
+}
+
+unsigned calculateDegeneracy(const Graph *g) {
+  if (!g || g->size == 0) return 0;
+  unsigned *core = calculateCoreNumbers(g);
+  if (!core) return 0;
+  unsigned degeneracy = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (core[v] > degeneracy)
+      degeneracy = core[v];
+  free(core);
+  return degeneracy;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
