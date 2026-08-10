@@ -164,6 +164,7 @@ Graph *createPrim(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
+Graph *findFeedbackArcSetWithWeights(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -2155,6 +2156,42 @@ static void searchFeedbackArcSet(
   return closure;
 }
 
+[[nodiscard]] Graph *findFeedbackArcSetWithWeights(const Graph *g) {
+  if (!g) return nullptr;
+  double *weights = calloc(g->size, sizeof(double));
+  unsigned *permutation = malloc(g->size * sizeof(unsigned));
+  unsigned *position = malloc(g->size * sizeof(unsigned));
+  Graph *result = createGraph(g->size);
+  if ((g->size > 0 && (!weights || !permutation || !position)) || !result) {
+    free(weights);
+    free(permutation);
+    free(position);
+    destroyGraph(result);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        weights[v] += e->weight;
+        weights[e->destination] -= e->weight;
+      }
+  for (unsigned i = 0; i < g->size; i++) permutation[i] = i;
+  for (unsigned i = 1; i < g->size; i++) {
+    unsigned key = permutation[i], j;
+    for (j = i; j > 0 && weights[permutation[j - 1]] < weights[key]; j--) permutation[j] = permutation[j - 1];
+    permutation[j] = key;
+  }
+  for (unsigned i = 0; i < g->size; i++) position[permutation[i]] = i;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && position[v] >= position[e->destination])
+        addWeightedDirectedEdge(result, v, e->destination, e->weight);
+  free(weights);
+  free(permutation);
+  free(position);
+  return result;
+}
+
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
   if (!g) return nullptr;
   Graph *power = createGraph(g->size);
@@ -2946,7 +2983,7 @@ static void calculateDirectedEdgeConnectivityRecursive(
   if (current >= *minimum) return;
   if (countStronglyConnectedComponents(copy) >= 2) {
     *minimum = current;
-    return; 
+    return;
   }
   if (!e) {
     if (v + 1 < g->size) calculateDirectedEdgeConnectivityRecursive(g, copy, v + 1, g->edges[v + 1], current, minimum);
