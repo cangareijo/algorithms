@@ -257,6 +257,7 @@ unsigned *findMaximumWeightedMatching(const Graph *g);
 unsigned *findMinimalEdgeCover(const Graph *g);
 unsigned *findMinimumEdgeCover(const Graph *g);
 unsigned *calculateCoreNumbers(const Graph *g);
+unsigned *findCommunities(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -288,6 +289,7 @@ double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
 double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
 double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
+double calculateModularity(const Graph *g, const unsigned *partition);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
 double *calculateClosenessCentrality(const Graph *g);
@@ -3513,6 +3515,38 @@ static void searchForMinimumEdgeCover(
   return core;
 }
 
+[[nodiscard]] unsigned *findCommunities(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  unsigned *partition = malloc(g->size * sizeof(unsigned));
+  if (!partition) return nullptr;
+  for (unsigned v = 0; v < g->size; v++) partition[v] = v;
+  double current_modularity = calculateModularity(g, partition);
+  bool active = true;
+  while (active) {
+    active = false;
+    for (unsigned u = 0; u < g->size; u++) {
+      unsigned original_community = partition[u];
+      unsigned best_community = original_community;
+      double maximum_modularity = current_modularity;
+      for (const Edge *e = g->edges[u]; e; e = e->next) {
+        if (e->destination >= g->size || partition[e->destination] == best_community) continue;
+        partition[u] = partition[e->destination];
+        double next_modularity = calculateModularity(g, partition);
+        if (next_modularity > maximum_modularity) {
+          maximum_modularity = next_modularity;
+          best_community = partition[u];
+        }
+      }
+      partition[u] = best_community;
+      if (best_community != original_community) {
+        current_modularity = maximum_modularity;
+        active = true;
+      }
+    }
+  }
+  return partition;
+}
+
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
   if (!isValid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
@@ -4163,6 +4197,43 @@ double calculateSubgraphDensity(const Graph *g, const bool *set) {
     }
   if (vertices < 2) return 0;
   return (double)edges / vertices / (vertices - 1);
+}
+
+double calculateModularity(const Graph *g, const unsigned *partition) {
+  if (!g || !partition || g->size == 0) return 0;
+  double *in = calloc(g->size, sizeof(double));
+  double *out = calloc(g->size, sizeof(double));
+  if (!in || !out) {
+    free(in);
+    free(out);
+    return 0;
+  }
+  double total = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        out[v] += e->weight;
+        in[e->destination] += e->weight;
+        total += e->weight;
+      }
+  if (total <= DBL_EPSILON) {
+    free(in);
+    free(out);
+    return 0;
+  }
+  double actual = 0;
+  double expected = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && partition[e->destination] == partition[u])
+        actual += e->weight;
+    for (unsigned v = 0; v < g->size; v++)
+      if (partition[v] == partition[u])
+        expected += out[u] * in[v] / total;
+  }
+  free(in);
+  free(out);
+  return (actual - expected) / total;
 }
 
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length) {
