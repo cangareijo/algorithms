@@ -244,7 +244,8 @@ unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
 unsigned getLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
-unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x);
+unsigned countPaths(const Graph *g, unsigned u, unsigned v);
+unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
 unsigned *getInDegrees(const Graph *g);
@@ -3193,11 +3194,29 @@ unsigned getLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v) {
   return connectivity;
 }
 
-unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x) {
+static unsigned countPathsDfs(const Graph *g, unsigned u, unsigned v, bool visited[]) {
+  if (u == v) return 1;
+  if (visited[u]) return 0;
+  visited[u] = true;
+  unsigned count = 0;
+  for (const Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination < g->size)
+      count += countPathsDfs(g, e->destination, v, visited);
+  visited[u] = false;
+  return count;
+}
+
+unsigned countPaths(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return 0;
+  bool visited[g->size] = {};
+  return countPathsDfs(g, u, v, visited);
+}
+
+unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight) {
   if (!g || !g->edges || u >= g->size) return 0;
   unsigned n = 0;
   for (const Edge *e = g->edges[u]; e; e = e->next)
-    if (e->destination == v && e->weight == x)
+    if (e->destination == v && e->weight == weight)
       n++;
   return n;
 }
