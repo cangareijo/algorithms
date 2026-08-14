@@ -79,6 +79,7 @@ bool isSelfComplementary(const Graph *g);
 bool isChordal(const Graph *g);
 bool isPerfect(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
+bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
 bool isDense(const Graph *g, double threshold);
@@ -136,10 +137,12 @@ bool *getSelfLoops(const Graph *g);
 bool *findMaximalIndependentSet(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
 bool *findFeedbackVertexSet(const Graph *g);
+bool *getVertexCut(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getReachable(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
+bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v);
 
 bool **createAdjacencyMatrix(const Graph *g);
 
@@ -228,6 +231,7 @@ unsigned calculateCliqueNumber(const Graph *g);
 unsigned calculateTreewidth(const Graph *g);
 unsigned calculateDirectedEdgeConnectivity(const Graph *g);
 unsigned calculateDegeneracy(const Graph *g);
+unsigned getVertexConnectivity(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -239,6 +243,7 @@ unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
+unsigned getLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
@@ -983,6 +988,10 @@ bool isKRegular(const Graph *g, unsigned k) {
   return true;
 }
 
+bool isKConnected(const Graph *g, unsigned k) {
+  return getVertexConnectivity(g) >= k;
+}
+
 bool isProperColoring(const Graph *g, const unsigned *coloring) {
   if (!g || !g->edges) return false;
   if (g->size == 0) return true;
@@ -1447,7 +1456,7 @@ static void findArticulationPointsDfs(
   if (parent == u && children > 1) articulations[u] = true;
 }
 
-bool *findArticulationPoints(const Graph *g) {
+[[nodiscard]] bool *findArticulationPoints(const Graph *g) {
   if (!isValid(g) || g->size == 0) return nullptr;
   bool *articulations = calloc(g->size, sizeof(bool));
   if (!articulations) return nullptr;
@@ -1462,7 +1471,7 @@ bool *findArticulationPoints(const Graph *g) {
   return articulations;
 }
 
-bool *findMaximalClique(const Graph *g) {
+[[nodiscard]] bool *findMaximalClique(const Graph *g) {
   if (!g) return nullptr;
   bool *clique = calloc(g->size, sizeof(bool));
   if (!clique) return nullptr;
@@ -1751,6 +1760,19 @@ static void findFeedbackVertexSetBacktracking(
   return best;
 }
 
+[[nodiscard]] bool *getVertexCut(const Graph *g) {
+  if (!g || g->size <= 1) return nullptr;
+  unsigned global = getVertexConnectivity(g);
+  if (global >= g->size - 1) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      if (u == v || hasDirectedEdge(g, u, v)) continue;
+      unsigned local = getLocalVertexConnectivity(g, u, v);
+      if (local == global) return getLocalVertexCut(g, u, v);
+    }
+  return nullptr;
+}
+
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
   if (!g || !g->edges) return nullptr;
   bool *neighbors = calloc(g->size, sizeof(bool));
@@ -1807,6 +1829,48 @@ static void findFeedbackVertexSetBacktracking(
   for (unsigned w = 0; w < g->size; w++) s1[w] = s1[w] && s2[w];
   free(s2);
   return s1;
+}
+
+static bool findAugmentingPath(unsigned u, unsigned v, unsigned n, unsigned capacity[n][n], bool visited[n]) {
+  if (u == v) return true;
+  visited[u] = true;
+  for (unsigned w = 0; w < n; w++)
+    if (!visited[w] && capacity[u][w] > 0 && findAugmentingPath(w, v, n, capacity, visited)) {
+      capacity[u][w]--;
+      capacity[w][u]++;
+      return true;
+    }
+  return false;
+}
+
+static void findReachable(unsigned u, unsigned n, unsigned capacity[n][n], bool visited[n]) {
+  visited[u] = true;
+  for (unsigned v = 0; v < n; v++)
+    if (!visited[v] && capacity[u][v] > 0)
+      findReachable(v, n, capacity, visited);
+}
+
+[[nodiscard]] bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v || hasDirectedEdge(g, u, v)) return nullptr;
+  unsigned capacity[2 * g->size][2 * g->size] = {};
+  bool visited[2 * g->size] = {};
+  for (unsigned w = 0; w < g->size; w++) capacity[2 * w][2 * w + 1] = 1;
+  for (unsigned w = 0; w < g->size; w++)
+    for (Edge *e = g->edges[w]; e; e = e->next)
+      if (e->destination < g->size)
+        capacity[2 * w + 1][2 * e->destination] = g->size + 1;
+  while (true) {
+    for (unsigned i = 0; i < 2 * g->size; i++) visited[i] = false;
+    if (!findAugmentingPath(2 * u + 1, 2 * v, 2 * g->size, capacity, visited)) break;
+  }
+  for (unsigned i = 0; i < 2 * g->size; i++) visited[i] = false;
+  findReachable(2 * u + 1, 2 * g->size, capacity, visited);
+  bool *cut = calloc(g->size, sizeof(bool));
+  if (!cut) return nullptr;
+  for (unsigned w = 0; w < g->size; w++)
+    if (w != u && w != v && visited[2 * w] && !visited[2 * w + 1])
+      cut[w] = true;
+  return cut;
 }
 
 
@@ -2818,10 +2882,10 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
       if (v != e->destination)
         addWeightedDirectedEdge(net, v + g->size, e->destination, INFINITY);
   double minimum = g->size - 1;
-  for (unsigned s = 0; s < g->size; s++)
-    for (unsigned t = 0; t < g->size; t++) {
-      if (s == t || adjacent[s][t]) continue;
-      double flow = calculateMaxFlowEdmondsKarp(net, s + g->size, t);
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      if (u == v || adjacent[u][v]) continue;
+      double flow = calculateMaxFlowEdmondsKarp(net, u + g->size, v);
       if (flow < minimum) minimum = flow;
     }
   freeBooleanMatrix(adjacent, g->size);
@@ -2952,6 +3016,18 @@ unsigned calculateDegeneracy(const Graph *g) {
       degeneracy = core[v];
   free(core);
   return degeneracy;
+}
+
+unsigned getVertexConnectivity(const Graph *g) {
+  if (!g || g->size <= 1) return 0;
+  unsigned minimum = g->size - 1;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      if (u == v) continue;
+      unsigned local = getLocalVertexConnectivity(g, u, v);
+      if (local < minimum) minimum = local;
+    }
+  return minimum;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
@@ -3102,6 +3178,19 @@ unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
     if (e->destination == v)
       n++;
   return n;
+}
+
+unsigned getLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v) {
+  if (!g || u >= g->size || v >= g->size || u == v) return 0;
+  if (hasDirectedEdge(g, u, v)) return g->size - 1;
+  bool *cut = getLocalVertexCut(g, u, v);
+  if (!cut) return 0;
+  unsigned connectivity = 0;
+  for (unsigned i = 0; i < g->size; i++)
+    if (cut[i])
+      connectivity++;
+  free(cut);
+  return connectivity;
 }
 
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double x) {
