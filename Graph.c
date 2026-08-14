@@ -243,7 +243,8 @@ unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
-unsigned getLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
+unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
+unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned countPaths(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
@@ -1768,7 +1769,7 @@ static void findFeedbackVertexSetBacktracking(
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
       if (u == v || hasDirectedEdge(g, u, v)) continue;
-      unsigned local = getLocalVertexConnectivity(g, u, v);
+      unsigned local = calculateLocalVertexConnectivity(g, u, v);
       if (local == global) return getLocalVertexCut(g, u, v);
     }
   return nullptr;
@@ -3025,7 +3026,7 @@ unsigned getVertexConnectivity(const Graph *g) {
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
       if (u == v) continue;
-      unsigned local = getLocalVertexConnectivity(g, u, v);
+      unsigned local = calculateLocalVertexConnectivity(g, u, v);
       if (local < minimum) minimum = local;
     }
   return minimum;
@@ -3181,7 +3182,7 @@ unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
   return n;
 }
 
-unsigned getLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v) {
+unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v) {
   if (!g || u >= g->size || v >= g->size || u == v) return 0;
   if (hasDirectedEdge(g, u, v)) return g->size - 1;
   bool *cut = getLocalVertexCut(g, u, v);
@@ -3192,6 +3193,44 @@ unsigned getLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v) {
       connectivity++;
   free(cut);
   return connectivity;
+}
+
+static bool calculateLocalEdgeConnectivityHelper(
+  unsigned u, unsigned v, unsigned n, unsigned residual[n][n], bool visited[n], unsigned parent[n])
+{
+  visited[u] = true;
+  if (u == v) return true;
+  for (unsigned w = 0; w < n; w++)
+    if (!visited[w] && residual[u][w] > 0) {
+      parent[w] = u;
+      if (calculateLocalEdgeConnectivityHelper(w, v, n, residual, visited, parent)) return true;
+    }
+  return false;
+}
+
+unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return 0;
+  unsigned residual[g->size][g->size] = {};
+  for (unsigned w = 0; w < g->size; w++)
+    for (const Edge *e = g->edges[w]; e; e = e->next)
+      if (e->destination < g->size)
+        residual[w][e->destination]++;
+  unsigned flow = 0;
+  while (true) {
+    bool visited[g->size] = {};
+    unsigned parent[g->size];
+    for (unsigned w = 0; w < g->size; w++) parent[w] = UINT_MAX;
+    if (!calculateLocalEdgeConnectivityHelper(u, v, g->size, residual, visited, parent)) break;
+    unsigned current = v;
+    while (current != u) {
+      unsigned previous = parent[current];
+      residual[previous][current] -= 1;
+      residual[current][previous] += 1;
+      current = previous;
+    }
+    flow += 1;
+  }
+  return flow;
 }
 
 static unsigned countPathsDfs(const Graph *g, unsigned u, unsigned v, bool visited[]) {
