@@ -145,6 +145,7 @@ bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v);
 
 bool **createAdjacencyMatrix(const Graph *g);
+bool **findEdgeCut(const Graph *g);
 bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v);
 
 Graph *createGraph(unsigned n);
@@ -1886,6 +1887,28 @@ static void findReachableVertices(unsigned u, unsigned n, unsigned capacity[n][n
       if (e->destination < g->size)
         adjacency[u][e->destination] = true;
   return adjacency;
+}
+
+[[nodiscard]] bool **findEdgeCut(const Graph *g) {
+  if (!g || !g->edges || g->size <= 1) return nullptr;
+  unsigned minimum = UINT_MAX;
+  unsigned source = 0;
+  unsigned sink = 1;
+  for (unsigned v = 1; v < g->size; v++) {
+    unsigned flow = calculateLocalEdgeConnectivity(g, 0, v);
+    if (flow < minimum) {
+      minimum = flow;
+      source = 0;
+      sink = v;
+    }
+    flow = calculateLocalEdgeConnectivity(g, v, 0);
+    if (flow < minimum) {
+      minimum = flow;
+      source = v;
+      sink = 0;
+    }
+  }
+  return findLocalEdgeCut(g, source, sink);
 }
 
 static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][g->size]) {
