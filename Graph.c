@@ -231,7 +231,8 @@ unsigned calculateCliqueNumber(const Graph *g);
 unsigned calculateTreewidth(const Graph *g);
 unsigned calculateDirectedEdgeConnectivity(const Graph *g);
 unsigned calculateDegeneracy(const Graph *g);
-unsigned getVertexConnectivity(const Graph *g);
+unsigned calculateVertexConnectivity(const Graph *g);
+unsigned calculateEdgeConnectivity(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -991,7 +992,7 @@ bool isKRegular(const Graph *g, unsigned k) {
 }
 
 bool isKConnected(const Graph *g, unsigned k) {
-  return getVertexConnectivity(g) >= k;
+  return calculateVertexConnectivity(g) >= k;
 }
 
 bool isProperColoring(const Graph *g, const unsigned *coloring) {
@@ -1762,7 +1763,7 @@ static void findFeedbackVertexSetBacktracking(
 
 [[nodiscard]] bool *getVertexCut(const Graph *g) {
   if (!g || g->size <= 1) return nullptr;
-  unsigned global = getVertexConnectivity(g);
+  unsigned global = calculateVertexConnectivity(g);
   if (global >= g->size - 1) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
@@ -3018,7 +3019,7 @@ unsigned calculateDegeneracy(const Graph *g) {
   return degeneracy;
 }
 
-unsigned getVertexConnectivity(const Graph *g) {
+unsigned calculateVertexConnectivity(const Graph *g) {
   if (!g || g->size <= 1) return 0;
   unsigned minimum = g->size - 1;
   for (unsigned u = 0; u < g->size; u++)
@@ -3027,6 +3028,19 @@ unsigned getVertexConnectivity(const Graph *g) {
       unsigned local = calculateLocalVertexConnectivity(g, u, v);
       if (local < minimum) minimum = local;
     }
+  return minimum;
+}
+
+unsigned calculateEdgeConnectivity(const Graph *g) {
+  if (!g || g->size <= 1) return 0;
+  unsigned minimum = UINT_MAX;
+  for (unsigned v = 1; v < g->size; v++) {
+    unsigned flow = calculateLocalEdgeConnectivity(g, 0, v);
+    if (flow < minimum) minimum = flow;
+    flow = calculateLocalEdgeConnectivity(g, v, 0);
+    if (flow < minimum) minimum = flow;
+    if (minimum == 0) return 0;
+  }
   return minimum;
 }
 
