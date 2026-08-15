@@ -145,6 +145,7 @@ bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v);
 
 bool **createAdjacencyMatrix(const Graph *g);
+bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v);
 
 Graph *createGraph(unsigned n);
 Graph *createPath(unsigned n);
@@ -1844,11 +1845,11 @@ static bool findAugmentingPath(unsigned u, unsigned v, unsigned n, unsigned capa
   return false;
 }
 
-static void findReachable(unsigned u, unsigned n, unsigned capacity[n][n], bool visited[n]) {
+static void findReachableVertices(unsigned u, unsigned n, unsigned capacity[n][n], bool visited[n]) {
   visited[u] = true;
   for (unsigned v = 0; v < n; v++)
     if (!visited[v] && capacity[u][v] > 0)
-      findReachable(v, n, capacity, visited);
+      findReachableVertices(v, n, capacity, visited);
 }
 
 [[nodiscard]] bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v) {
@@ -1865,7 +1866,7 @@ static void findReachable(unsigned u, unsigned n, unsigned capacity[n][n], bool 
     if (!findAugmentingPath(2 * u + 1, 2 * v, 2 * g->size, capacity, visited)) break;
   }
   for (unsigned i = 0; i < 2 * g->size; i++) visited[i] = false;
-  findReachable(2 * u + 1, 2 * g->size, capacity, visited);
+  findReachableVertices(2 * u + 1, 2 * g->size, capacity, visited);
   bool *cut = calloc(g->size, sizeof(bool));
   if (!cut) return nullptr;
   for (unsigned w = 0; w < g->size; w++)
@@ -1885,6 +1886,33 @@ static void findReachable(unsigned u, unsigned n, unsigned capacity[n][n], bool 
       if (e->destination < g->size)
         adjacency[u][e->destination] = true;
   return adjacency;
+}
+
+static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][g->size]) {
+  for (unsigned u = 0; u < g->size; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        residual[u][e->destination]++;
+}
+
+[[nodiscard]] bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return nullptr;
+  bool **cut = allocateFalseMatrix(g->size, g->size);
+  if (!cut) return nullptr;
+  unsigned residual[g->size][g->size] = {};
+  initializeResidualMatrix(g, residual);
+  while (true) {
+    bool visited[g->size] = {};
+    if (!findAugmentingPath(u, v, g->size, residual, visited)) break;
+  }
+  bool reachable[g->size] = {};
+  findReachableVertices(u, g->size, residual, reachable);
+  for (unsigned w = 0; w < g->size; w++)
+    if (reachable[w])
+      for (const Edge *e = g->edges[w]; e; e = e->next)
+        if (e->destination < g->size && !reachable[e->destination])
+          cut[w][e->destination] = true;
+  return cut;
 }
 
 
