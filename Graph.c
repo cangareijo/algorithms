@@ -1445,7 +1445,7 @@ static void findArticulationPointsDfs(
   discovery[u] = low[u] = ++(*timer);
   unsigned children = 0;
   for (Edge *e = g->edges[u]; e; e = e->next) {
-    if (e->destination == parent) continue;
+    if (e->destination >= g->size || e->destination == parent) continue;
     if (discovery[e->destination] > 0) {
       low[u] = unsignedMinimum(low[u], discovery[e->destination]);
     } else {
@@ -1462,10 +1462,8 @@ static void findArticulationPointsDfs(
   if (!isValid(g) || g->size == 0) return nullptr;
   bool *articulations = calloc(g->size, sizeof(bool));
   if (!articulations) return nullptr;
-  unsigned discovery[g->size];
-  unsigned low[g->size];
-  memset(discovery, 0, sizeof(discovery));
-  memset(low, 0, sizeof(low));
+  unsigned discovery[g->size] = {};
+  unsigned low[g->size] = {};
   unsigned timer = 0;
   for (unsigned v = 0; v < g->size; v++)
     if (discovery[v] == 0)
@@ -3195,15 +3193,14 @@ unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v
   return connectivity;
 }
 
-static bool calculateLocalEdgeConnectivityHelper(
-  unsigned u, unsigned v, unsigned n, unsigned residual[n][n], bool visited[n], unsigned parent[n])
-{
+static bool calculateLocalEdgeConnectivityHelper(unsigned u, unsigned v, unsigned n, unsigned residual[n][n], bool visited[n]) {
   visited[u] = true;
   if (u == v) return true;
   for (unsigned w = 0; w < n; w++)
-    if (!visited[w] && residual[u][w] > 0) {
-      parent[w] = u;
-      if (calculateLocalEdgeConnectivityHelper(w, v, n, residual, visited, parent)) return true;
+    if (!visited[w] && residual[u][w] > 0 && calculateLocalEdgeConnectivityHelper(w, v, n, residual, visited)) {
+      residual[u][w]--;
+      residual[w][u]++;
+      return true;
     }
   return false;
 }
@@ -3218,17 +3215,8 @@ unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v) 
   unsigned flow = 0;
   while (true) {
     bool visited[g->size] = {};
-    unsigned parent[g->size];
-    for (unsigned w = 0; w < g->size; w++) parent[w] = UINT_MAX;
-    if (!calculateLocalEdgeConnectivityHelper(u, v, g->size, residual, visited, parent)) break;
-    unsigned current = v;
-    while (current != u) {
-      unsigned previous = parent[current];
-      residual[previous][current] -= 1;
-      residual[current][previous] += 1;
-      current = previous;
-    }
-    flow += 1;
+    if (!calculateLocalEdgeConnectivityHelper(u, v, g->size, residual, visited)) break;
+    flow++;
   }
   return flow;
 }
