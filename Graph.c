@@ -250,6 +250,7 @@ unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
 unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v);
+unsigned countWalks(const Graph *g, unsigned u, unsigned v);
 unsigned countPaths(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
@@ -3334,6 +3335,48 @@ unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v) 
     flow++;
   }
   return flow;
+}
+
+static void canReachTargetHelper(const Graph *g, unsigned v, bool *reach) {
+  reach[v] = true;
+  for (unsigned u = 0; u < g->size; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination == v && !reach[u])
+        canReachTargetHelper(g, u, reach);
+}
+
+static bool hasInfiniteWalkHelper(const Graph *g, unsigned v, const bool *reach, bool *visiting) {
+  if (v >= g->size) return false;
+  if (visiting[v]) return reach[v];
+  visiting[v] = true;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (hasInfiniteWalkHelper(g, e->destination, reach, visiting))
+      return true;
+  visiting[v] = false;
+  return false;
+}
+
+static unsigned countAcyclicWalksHelper(const Graph *g, unsigned u, unsigned v, const bool *reach) {
+  if (u >= g->size || !reach[u]) return 0;
+  if (u == v) return 1;
+  unsigned total = 0;
+  for (const Edge *e = g->edges[u]; e; e = e->next) {
+    unsigned result = countAcyclicWalksHelper(g, e->destination, v, reach);
+    if (total > UINT_MAX - result)
+      total = UINT_MAX;
+    else
+      total += result;
+  }
+  return total;
+}
+
+unsigned countWalks(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return 0;
+  bool reach[g->size] = {};
+  bool visiting[g->size] = {};
+  canReachTargetHelper(g, v, reach);
+  if (hasInfiniteWalkHelper(g, u, reach, visiting)) return UINT_MAX;
+  return countAcyclicWalksHelper(g, u, v, reach);
 }
 
 static unsigned countPathsDfs(const Graph *g, unsigned u, unsigned v, bool visited[]) {
