@@ -140,7 +140,8 @@ bool *findFeedbackVertexSet(const Graph *g);
 bool *getVertexCut(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
-bool *getReachable(const Graph *g, unsigned v);
+bool *getVerticesReachableFrom(const Graph *g, unsigned v);
+bool *getVerticesThatCanReach(const Graph *g, unsigned v);
 bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v);
 
@@ -576,7 +577,7 @@ bool isBalanced(const Graph *g) {
 
 bool isEulerianUndirected(const Graph *g) {
   if (!g || isEmpty(g)) return true;
-  bool *reachable = getReachable(g, getFirstActiveVertex(g));
+  bool *reachable = getVerticesReachableFrom(g, getFirstActiveVertex(g));
   bool b = reachable;
   for (unsigned v = 0; v < g->size && b; v++) b = b && getOutDegree(g, v) % 2 == 0 && (reachable[v] || !g->edges[v]);
   free(reachable);
@@ -586,7 +587,7 @@ bool isEulerianUndirected(const Graph *g) {
 bool isEulerianDirected(const Graph *g) {
   if (!g || isEmpty(g)) return true;
   if (!isBalanced(g)) return false;
-  bool *reachable = getReachable(g, getFirstActiveVertex(g));
+  bool *reachable = getVerticesReachableFrom(g, getFirstActiveVertex(g));
   bool *isolated = getIsolatedVertices(g);
   bool b = reachable && isolated;
   for (unsigned v = 0; v < g->size && b; v++) b = b && (reachable[v] || isolated[v]);
@@ -1061,7 +1062,7 @@ bool hasSelfLoopsAtVertex(const Graph *g, unsigned v) {
 }
 
 bool canReachAll(const Graph *g, unsigned v) {
-  bool *reachable = getReachable(g, v);
+  bool *reachable = getVerticesReachableFrom(g, v);
   if (!g || !reachable) return false;
   bool b = true;
   for (unsigned v = 0; v < g->size && b; v++) b = b && reachable[v];
@@ -1800,28 +1801,43 @@ static void findFeedbackVertexSetBacktracking(
   return neighbors;
 }
 
-[[nodiscard]] bool *getReachable(const Graph *g, unsigned v) {
+[[nodiscard]] bool *getVerticesReachableFrom(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
-  unsigned *stack = malloc(g->size * sizeof(unsigned));
-  bool *visited = calloc(g->size, sizeof(bool));
-  if (!stack || !visited) {
-    free(stack);
-    free(visited);
-    return nullptr;
-  }
+  bool *reach = calloc(g->size, sizeof(bool));
+  if (!reach) return nullptr;
+  unsigned stack[g->size];
   unsigned top = 0;
   stack[top++] = v;
-  visited[v] = true;
-  while (top > 0) {
-    unsigned u = stack[--top];
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size && !visited[e->destination]) {
-        visited[e->destination] = true;
+  reach[v] = true;
+  while (top > 0)
+    for (Edge *e = g->edges[stack[--top]]; e; e = e->next)
+      if (e->destination < g->size && !reach[e->destination]) {
+        reach[e->destination] = true;
         stack[top++] = e->destination;
       }
+  return reach;
+}
+
+[[nodiscard]] bool *getVerticesThatCanReach(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return nullptr;
+  bool *reach = calloc(g->size, sizeof(bool));
+  if (!reach) return nullptr;
+  unsigned stack[g->size];
+  unsigned top = 0;
+  stack[top++] = v;
+  reach[v] = true;
+  while (top > 0) {
+    unsigned u = stack[--top];
+    for (unsigned w = 0; w < g->size; w++)
+      if (!reach[w])
+        for (Edge *e = g->edges[w]; e; e = e->next)
+          if (e->destination == u) {
+            reach[w] = true;
+            stack[top++] = w;
+            break;
+          }
   }
-  free(stack);
-  return visited;
+  return reach;
 }
 
 [[nodiscard]] bool *getCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
