@@ -97,3 +97,28 @@ unsigned countDirectedTrails(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++) trails += countDirectedTrailsFrom(v, g->size, adjacency);
   return trails;
 }
+
+static unsigned countUndirectedTrailsFrom(unsigned v, unsigned n, unsigned adjacency[n][n]) {
+  unsigned trails = 0;
+  for (unsigned w = 0; w < n; w++)
+    if (adjacency[v][w] > 0 && adjacency[w][v] > 0) {
+      adjacency[v][w]--;
+      if (v != w) adjacency[w][v]--;
+      trails += 1 + countUndirectedTrailsFrom(w, n, adjacency);
+      adjacency[v][w]++;
+      if (v != w) adjacency[w][v]++;
+    }
+  return trails;
+}
+
+unsigned countUndirectedTrails(const Graph *g) {
+  if (!g || !g->edges || g->size == 0) return 0;
+  unsigned adjacency[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        adjacency[v][e->destination]++;
+  unsigned trails = 0;
+  for (unsigned v = 0; v < g->size; v++) trails += countUndirectedTrailsFrom(v, g->size, adjacency);
+  return trails;
+}
