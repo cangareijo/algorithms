@@ -45,9 +45,9 @@ typedef struct {
 } Graph;
 
 bool isValid(const Graph *g);
-bool isNull(const Graph *g);
-bool isTrivial(const Graph *g);
 bool isEmpty(const Graph *g);
+bool isTrivial(const Graph *g);
+bool isEdgeless(const Graph *g);
 bool isRegular(const Graph *g);
 bool isComplete(const Graph *g);
 bool hasSelfLoops(const Graph *g);
@@ -532,16 +532,16 @@ bool isValid(const Graph *g) {
   return true;
 }
 
-bool isNull(const Graph *g) {
-  return !g || g->size == 0;
+bool isEmpty(const Graph *g) {
+  return g && g->size == 0;
 }
 
 bool isTrivial(const Graph *g) {
-  return g && g->size == 1 && (!g->edges || !g->edges[0]);
+  return g && g->size == 1 && g->edges && !g->edges[0];
 }
 
-bool isEmpty(const Graph *g) {
-  if (!g || !g->edges) return true;
+bool isEdgeless(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return false;
   for (unsigned v = 0; v < g->size; v++)
     if (g->edges[v])
       return false;
@@ -580,7 +580,7 @@ bool isBalanced(const Graph *g) {
 }
 
 bool isEulerianUndirected(const Graph *g) {
-  if (!g || isEmpty(g)) return true;
+  if (!g || isEdgeless(g)) return true;
   bool *reachable = getVerticesReachableFrom(g, getFirstActiveVertex(g));
   bool b = reachable;
   for (unsigned v = 0; v < g->size && b; v++) b = b && getOutDegree(g, v) % 2 == 0 && (reachable[v] || !g->edges[v]);
@@ -589,7 +589,7 @@ bool isEulerianUndirected(const Graph *g) {
 }
 
 bool isEulerianDirected(const Graph *g) {
-  if (!g || isEmpty(g)) return true;
+  if (!g || isEdgeless(g)) return true;
   if (!isBalanced(g)) return false;
   bool *reachable = getVerticesReachableFrom(g, getFirstActiveVertex(g));
   bool *isolated = getIsolatedVertices(g);
@@ -705,7 +705,7 @@ bool isUndirectedTree(const Graph *g) {
 
 bool isPathGraph(const Graph *g) {
   if (getSize(g) == 0) return false;
-  if (getSize(g) == 1) return isEmpty(g);
+  if (getSize(g) == 1) return isEdgeless(g);
   if (hasSelfLoops(g)) return false;
   if (hasParallelEdges(g)) return false;
   if (!isWeaklyConnected(g)) return false;
