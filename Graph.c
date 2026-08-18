@@ -74,7 +74,6 @@ bool isCubic(const Graph *g);
 bool hasDirectedCycle(const Graph *g);
 bool hasUndirectedCycle(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
-bool hasInvalidEdges(const Graph *g);
 bool isSelfComplementary(const Graph *g);
 bool isChordal(const Graph *g);
 bool isPerfect(const Graph *g);
@@ -525,7 +524,12 @@ double calculateMatrixDeterminant(Matrix *matrix) {
 
 
 bool isValid(const Graph *g) {
-  return g && (g->size == 0 || g->edges) && !hasInvalidEdges(g);
+  if (!g || (g->size > 0 && !g->edges)) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return false;
+  return true;
 }
 
 bool isNull(const Graph *g) {
@@ -848,15 +852,6 @@ bool hasNegativeCycle(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       if (distances[v] + e->weight < distances[e->destination])
-        return true;
-  return false;
-}
-
-bool hasInvalidEdges(const Graph *g) {
-  if (!g || !g->edges) return false;
-  for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination >= g->size)
         return true;
   return false;
 }
@@ -3379,7 +3374,7 @@ static unsigned countAcyclicWalksHelper(const Graph *g, unsigned u, unsigned v, 
   for (const Edge *e = g->edges[u]; e; e = e->next) {
     unsigned result = countAcyclicWalksHelper(g, e->destination, v, reach);
     if (total > UINT_MAX - result)
-      total = UINT_MAX;
+      return UINT_MAX;
     else
       total += result;
   }
@@ -3395,7 +3390,7 @@ unsigned countWalks(const Graph *g, unsigned u, unsigned v) {
   return countAcyclicWalksHelper(g, u, v, reach);
 }
 
-static unsigned countPathsDfs(const Graph *g, unsigned u, unsigned v, bool visited[]) {
+static unsigned countPathsDfs(const Graph *g, unsigned u, unsigned v, bool visited[g->size]) {
   if (u == v) return 1;
   if (visited[u]) return 0;
   visited[u] = true;
