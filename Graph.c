@@ -235,7 +235,6 @@ unsigned calculateDirectedEdgeConnectivity(const Graph *g);
 unsigned calculateDegeneracy(const Graph *g);
 unsigned calculateVertexConnectivity(const Graph *g);
 unsigned calculateEdgeConnectivity(const Graph *g);
-unsigned countDirectedTrails(const Graph *g);
 unsigned countUndirectedTrails(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
@@ -252,6 +251,7 @@ unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v
 unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned countWalks(const Graph *g, unsigned u, unsigned v);
 unsigned countPaths(const Graph *g, unsigned u, unsigned v);
+unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
@@ -3109,29 +3109,6 @@ unsigned calculateEdgeConnectivity(const Graph *g) {
   return minimum;
 }
 
-static unsigned countDirectedTrailsFrom(unsigned v, unsigned n, unsigned adjacency[n][n]) {
-  unsigned trails = 0;
-  for (unsigned w = 0; w < n; w++)
-    if (adjacency[v][w] > 0) {
-      adjacency[v][w]--;
-      trails += 1 + countDirectedTrailsFrom(w, n, adjacency);
-      adjacency[v][w]++;
-    }
-  return trails;
-}
-
-unsigned countDirectedTrails(const Graph *g) {
-  if (!g || !g->edges || g->size == 0) return 0;
-  unsigned adjacency[g->size][g->size] = {};
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size)
-        adjacency[v][e->destination]++;
-  unsigned trails = 0;
-  for (unsigned v = 0; v < g->size; v++) trails += countDirectedTrailsFrom(v, g->size, adjacency);
-  return trails;
-}
-
 static unsigned countUndirectedTrailsFrom(unsigned v, unsigned n, unsigned adjacency[n][n]) {
   unsigned trails = 0;
   for (unsigned w = 0; w < n; w++)
@@ -3406,6 +3383,27 @@ unsigned countPaths(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size || v >= g->size) return 0;
   bool visited[g->size] = {};
   return countPathsDfs(g, u, v, visited);
+}
+
+static unsigned countDirectedTrailsDfs(const Graph *g, unsigned u, unsigned v, unsigned capacity[g->size][g->size]) {
+  unsigned trails = u == v ? 1 : 0;
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination < g->size && capacity[u][e->destination] > 0) {
+      capacity[u][e->destination]--;
+      trails += countDirectedTrailsDfs(g, e->destination, v, capacity);
+      capacity[u][e->destination]++;
+    }
+  return trails;
+}
+
+unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return 0;
+  unsigned capacity[g->size][g->size] = {};
+  for (unsigned w = 0; w < g->size; w++)
+    for (Edge *e = g->edges[w]; e; e = e->next)
+      if (e->destination < g->size)
+        capacity[w][e->destination]++;
+  return countDirectedTrailsDfs(g, u, v, capacity);
 }
 
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight) {
