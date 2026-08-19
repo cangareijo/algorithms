@@ -551,14 +551,28 @@ bool isEdgeless(const Graph *g) {
 }
 
 bool isRegular(const Graph *g) {
-  unsigned *in = getInDegrees(g);
-  unsigned *out = getOutDegrees(g);
-  bool b = g && (g->size == 0 || (in && out && in[0] == out[0]));
-  for (unsigned v = 1; b && v < g->size; v++)
-    b = b && in[v - 1] == in[v] && out[v - 1] == out[v];
-  free(in);
-  free(out);
-  return b;
+  if (!g || !g->edges) return false;
+  if (g->size <= 1) return true;
+  unsigned target_in = 0;
+  unsigned target_out = 0;
+  for (Edge *e = g->edges[0]; e; e = e->next)
+    target_out++;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination == 0)
+        target_in++;
+  for (unsigned u = 1; u < g->size; u++) {
+    unsigned current_in = 0;
+    unsigned current_out = 0;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      current_out++;
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination == u)
+          current_in++;
+    if (current_out != target_out || current_in != target_in) return false;
+  }
+  return true;
 }
 
 bool isComplete(const Graph *g) {

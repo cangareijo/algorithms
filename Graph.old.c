@@ -122,3 +122,14 @@ unsigned countUndirectedTrails(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++) trails += countUndirectedTrailsFrom(v, g->size, adjacency);
   return trails;
 }
+
+bool isRegular(const Graph *g) {
+  unsigned *in = getInDegrees(g);
+  unsigned *out = getOutDegrees(g);
+  bool b = g && (g->size == 0 || (in && out && in[0] == out[0]));
+  for (unsigned v = 1; b && v < g->size; v++)
+    b = b && in[v - 1] == in[v] && out[v - 1] == out[v];
+  free(in);
+  free(out);
+  return b;
+}
