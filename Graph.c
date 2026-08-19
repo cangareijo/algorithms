@@ -271,6 +271,7 @@ unsigned *findMinimalEdgeCover(const Graph *g);
 unsigned *findMinimumEdgeCover(const Graph *g);
 unsigned *calculateCoreNumbers(const Graph *g);
 unsigned *findCommunities(const Graph *g);
+unsigned *findKTrusses(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -3845,6 +3846,43 @@ static void searchForMinimumEdgeCover(
     }
   }
   return partition;
+}
+
+[[nodiscard]] unsigned *findKTrusses(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  unsigned *truss = calloc(g->size, sizeof(unsigned));
+  if (!truss) return nullptr;
+  bool adjacent[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (u != e->destination && e->destination < g->size) {
+        adjacent[u][e->destination] = true;
+        adjacent[e->destination][u] = true;
+      }
+  for (unsigned k = 2; k <= g->size; k++) {
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (unsigned u = 0; u < g->size; u++)
+        for (unsigned v = 0; v < g->size; v++)
+          if (adjacent[u][v]) {
+            unsigned triangles = 0;
+            for (unsigned w = 0; w < g->size; w++)
+              if (adjacent[u][w] && adjacent[v][w])
+                triangles++;
+            if (triangles < k - 2) {
+              adjacent[u][v] = false;
+              adjacent[v][u] = false;
+              changed = true;
+            }
+          }
+    }
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (adjacent[u][v])
+          truss[u] = k;
+  }
+  return truss;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
