@@ -272,6 +272,7 @@ unsigned *findMinimumEdgeCover(const Graph *g);
 unsigned *calculateCoreNumbers(const Graph *g);
 unsigned *findCommunities(const Graph *g);
 unsigned *findKTrusses(const Graph *g);
+unsigned *findDegeneracyOrdering(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -3883,6 +3884,34 @@ static void searchForMinimumEdgeCover(
           truss[u] = k;
   }
   return truss;
+}
+
+[[nodiscard]] unsigned *findDegeneracyOrdering(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  if (g->size == 0) return malloc(sizeof(unsigned));
+  unsigned *ordering = malloc(g->size * sizeof(unsigned));
+  if (!ordering) return nullptr;
+  bool removed[g->size] = {};
+  for (unsigned step = 0; step < g->size; step++) {
+    unsigned minimum = -1;
+    unsigned chosen = 0;
+    for (unsigned u = 0; u < g->size; u++)
+      if (!removed[u]) {
+        unsigned degree = 0;
+        for (unsigned v = 0; v < g->size; v++)
+          if (!removed[v])
+            for (Edge *e = g->edges[v]; e; e = e->next)
+              if (v != e->destination && e->destination < g->size && !removed[e->destination] && (u == v || u == e->destination))
+                degree++;
+        if (degree < minimum) {
+          minimum = degree;
+          chosen = u;
+        }
+      }
+    ordering[step] = chosen;
+    removed[chosen] = true;
+  }
+  return ordering;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
