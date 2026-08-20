@@ -77,6 +77,7 @@ bool hasNegativeCycle(const Graph *g);
 bool isSelfComplementary(const Graph *g);
 bool isChordal(const Graph *g);
 bool isPerfect(const Graph *g);
+bool isPlanar(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -998,6 +999,55 @@ bool isPerfect(const Graph *g) {
   bool result = verifyAllInducedSubgraphs(g, 0, active, 0);
   free(active);
   return result;
+}
+
+static bool holdsForbidden(unsigned n, bool adjacent[n][n], bool active[n]) {
+  for (unsigned a = 0; a < n; a++) if (active[a])
+  for (unsigned b = a + 1; b < n; b++) if (active[b] && adjacent[a][b])
+  for (unsigned c = b + 1; c < n; c++) if (active[c] && adjacent[a][c] && adjacent[b][c])
+  for (unsigned d = c + 1; d < n; d++) if (active[d] && adjacent[a][d] && adjacent[b][d] && adjacent[c][d])
+  for (unsigned e = d + 1; e < n; e++) if (active[e] && adjacent[a][e] && adjacent[b][e] && adjacent[c][e] && adjacent[d][e])
+    return true;
+  for (unsigned a = 0; a < n; a++) if (active[a])
+  for (unsigned b = 0; b < n; b++) if (active[b] && adjacent[a][b])
+  for (unsigned c = a + 1; c < n; c++) if (active[c] && adjacent[b][c])
+  for (unsigned d = b + 1; d < n; d++) if (active[d] && adjacent[a][d] && adjacent[c][d])
+  for (unsigned e = c + 1; e < n; e++) if (active[e] && adjacent[b][e] && adjacent[d][e])
+  for (unsigned f = d + 1; f < n; f++) if (active[f] && adjacent[a][f] && adjacent[c][f] && adjacent[e][f])
+    return true;
+  return false;
+}
+
+static bool checkMinors(unsigned n, bool adjacent[n][n], bool active[n]) {
+  if (holdsForbidden(n, adjacent, active)) return false;
+  for (unsigned u = 0; u < n; u++) if (active[u])
+    for (unsigned v = u + 1; v < n; v++) if (active[v] && adjacent[u][v]) {
+      adjacent[u][v] = adjacent[v][u] = false;
+      if (!checkMinors(n, adjacent, active)) return false;
+      adjacent[u][v] = adjacent[v][u] = true;
+
+      bool backup[n];
+      for (unsigned w = 0; w < n; w++) backup[w] = adjacent[u][w];
+      for (unsigned w = 0; w < n; w++) if (adjacent[v][w]) adjacent[u][w] = adjacent[w][u] = true;
+      adjacent[u][u] = false;
+      active[v] = false;
+      if (!checkMinors(n, adjacent, active)) return false;
+      active[v] = true;
+      for (unsigned w = 0; w < n; w++) adjacent[u][w] = adjacent[w][u] = backup[w];
+    }
+  return true;
+}
+
+bool isPlanar(const Graph *g) {
+  if (!g || !g->edges || g->size < 5) return true;
+  bool adjacent[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (v != e->destination && e->destination < g->size)
+        adjacent[v][e->destination] = adjacent[e->destination][v] = true;
+  bool active[g->size];
+  for (unsigned v = 0; v < g->size; v++) active[v] = true;
+  return checkMinors(g->size, adjacent, active);
 }
 
 bool isKRegular(const Graph *g, unsigned k) {
