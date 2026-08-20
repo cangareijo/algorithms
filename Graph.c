@@ -554,25 +554,17 @@ bool isEdgeless(const Graph *g) {
 bool isRegular(const Graph *g) {
   if (!g || !g->edges) return false;
   if (g->size <= 1) return true;
-  unsigned target_in = 0;
-  unsigned target_out = 0;
-  for (Edge *e = g->edges[0]; e; e = e->next)
-    target_out++;
+  unsigned outdegrees[g->size] = {};
+  unsigned indegrees[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination == 0)
-        target_in++;
-  for (unsigned u = 1; u < g->size; u++) {
-    unsigned current_in = 0;
-    unsigned current_out = 0;
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      current_out++;
-    for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next)
-        if (e->destination == u)
-          current_in++;
-    if (current_out != target_out || current_in != target_in) return false;
-  }
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        outdegrees[v]++;
+        indegrees[e->destination]++;
+      }
+  for (unsigned v = 1; v < g->size; v++)
+    if (outdegrees[0] != outdegrees[v] || indegrees[0] != indegrees[v])
+      return false;
   return true;
 }
 
@@ -1008,12 +1000,12 @@ static bool holdsForbidden(unsigned n, bool adjacent[n][n], bool active[n]) {
   for (unsigned d = c + 1; d < n; d++) if (active[d] && adjacent[a][d] && adjacent[b][d] && adjacent[c][d])
   for (unsigned e = d + 1; e < n; e++) if (active[e] && adjacent[a][e] && adjacent[b][e] && adjacent[c][e] && adjacent[d][e])
     return true;
-  for (unsigned a = 0; a < n; a++) if (active[a])
-  for (unsigned b = 0; b < n; b++) if (active[b] && adjacent[a][b])
-  for (unsigned c = a + 1; c < n; c++) if (active[c] && adjacent[b][c])
-  for (unsigned d = b + 1; d < n; d++) if (active[d] && adjacent[a][d] && adjacent[c][d])
-  for (unsigned e = c + 1; e < n; e++) if (active[e] && adjacent[b][e] && adjacent[d][e])
-  for (unsigned f = d + 1; f < n; f++) if (active[f] && adjacent[a][f] && adjacent[c][f] && adjacent[e][f])
+  for (unsigned l1 = 0; l1 < n; l1++) if (active[l1])
+  for (unsigned r1 = 0; r1 < n; r1++) if (active[r1] && adjacent[l1][r1])
+  for (unsigned l2 = l1 + 1; l2 < n; l2++) if (active[l2] && adjacent[l2][r1])
+  for (unsigned r2 = r1 + 1; r2 < n; r2++) if (active[r2] && adjacent[l1][r2] && adjacent[l2][r2])
+  for (unsigned l3 = l2 + 1; l3 < n; l3++) if (active[l3] && adjacent[l3][r1] && adjacent[l3][r2])
+  for (unsigned r3 = r2 + 1; r3 < n; r3++) if (active[r3] && adjacent[l1][r3] && adjacent[l2][r3] && adjacent[l3][r3])
     return true;
   return false;
 }
