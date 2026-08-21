@@ -552,8 +552,9 @@ bool isEdgeless(const Graph *g) {
 }
 
 bool isRegular(const Graph *g) {
-  if (!g || !g->edges) return false;
-  if (g->size <= 1) return true;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
   unsigned outdegrees[g->size] = {};
   unsigned indegrees[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
@@ -569,7 +570,20 @@ bool isRegular(const Graph *g) {
 }
 
 bool isComplete(const Graph *g) {
-  return !g || (!hasSelfLoops(g) && !hasParallelEdges(g) && countEdges(g) == g->size * (g->size - 1));
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+  bool visited[g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++) visited[v] = false;
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        visited[e->destination] = true;
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && !visited[v])
+        return false;
+  }
+  return true;
 }
 
 bool hasSelfLoops(const Graph *g) {
@@ -2014,8 +2028,8 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createGraph(unsigned n) {
   Graph *g = malloc(sizeof(Graph));
-  Edge **edges = calloc(n, sizeof(Edge *));
-  if (!g || (n > 0 && !edges)) {
+  Edge **edges = calloc(n + 1, sizeof(Edge *));
+  if (!g || !edges) {
     free(g);
     free(edges);
     return nullptr;
