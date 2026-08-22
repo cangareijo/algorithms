@@ -133,3 +133,11 @@ bool isRegular(const Graph *g) {
   free(out);
   return b;
 }
+
+bool hasSelfLoopsAtVertex(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return false;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination == v)
+      return true;
+  return false;
+}

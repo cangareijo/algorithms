@@ -89,7 +89,6 @@ bool isSink(const Graph *g, unsigned v);
 bool isUniversalSink(const Graph *g, unsigned v);
 bool isDirectedLeaf(const Graph *g, unsigned v);
 bool isUndirectedLeaf(const Graph *g, unsigned v);
-bool hasSelfLoopsAtVertex(const Graph *g, unsigned v);
 bool canReachAll(const Graph *g, unsigned v);
 bool isArticulationVertex(const Graph *g, unsigned v);
 bool isSimplicial(const Graph *g, unsigned v);
@@ -592,10 +591,11 @@ bool isComplete(const Graph *g) {
 }
 
 bool hasSelfLoops(const Graph *g) {
-  if (!g) return false;
+  if (!g || !g->edges) return false;
   for (unsigned v = 0; v < g->size; v++)
-    if (hasSelfLoopsAtVertex(g, v))
-      return true;
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination == v)
+        return true;
   return false;
 }
 
@@ -1123,14 +1123,6 @@ bool isDirectedLeaf(const Graph *g, unsigned v) {
 
 bool isUndirectedLeaf(const Graph *g, unsigned v) {
   return getOutDegree(g, v) == 1;
-}
-
-bool hasSelfLoopsAtVertex(const Graph *g, unsigned v) {
-  if (!g || !g->edges || v >= g->size) return false;
-  for (Edge *e = g->edges[v]; e; e = e->next)
-    if (e->destination == v)
-      return true;
-  return false;
 }
 
 bool canReachAll(const Graph *g, unsigned v) {
