@@ -235,6 +235,7 @@ unsigned calculateDirectedEdgeConnectivity(const Graph *g);
 unsigned calculateDegeneracy(const Graph *g);
 unsigned calculateVertexConnectivity(const Graph *g);
 unsigned calculateEdgeConnectivity(const Graph *g);
+unsigned countAutomorphisms(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -3190,6 +3191,49 @@ unsigned calculateEdgeConnectivity(const Graph *g) {
     if (minimum == 0) return 0;
   }
   return minimum;
+}
+
+static double countAutomorphisms_getEdgeWeight(const Graph *g, unsigned u, unsigned v) {
+  for (const Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination == v)
+      return e->weight;
+  return 0;
+}
+
+static bool countAutomorphisms_isValidMapping(const Graph *g, const unsigned *p, unsigned u) {
+  for (unsigned v = 0; v <= u; v++) {
+    if (countAutomorphisms_getEdgeWeight(g, u, v) != countAutomorphisms_getEdgeWeight(g, p[u], p[v])) return false;
+    if (countAutomorphisms_getEdgeWeight(g, v, u) != countAutomorphisms_getEdgeWeight(g, p[v], p[u])) return false;
+  }
+  return true;
+}
+
+static unsigned countAutomorphisms_permute(const Graph *g, unsigned *p, bool *used, unsigned v) {
+  if (v == g->size) return 1;
+
+  unsigned count = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    if (!used[u]) {
+      p[v] = u;
+
+      if (countAutomorphisms_isValidMapping(g, p, v)) {
+        used[u] = true;
+        count += countAutomorphisms_permute(g, p, used, v + 1);
+        used[u] = false;
+      }
+    }
+  return count;
+}
+
+unsigned countAutomorphisms(const Graph *g) {
+  if (!g) return 0;
+  if (g->size == 0) return 1;
+  if (!g->edges) return 0;
+
+  unsigned p[g->size] = {};
+  bool used[g->size] = {};
+
+  return countAutomorphisms_permute(g, p, used, 0);
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
