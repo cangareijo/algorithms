@@ -296,6 +296,7 @@ double calculateFordFulkersonMinCut(const Graph *g);
 double calculateStoerWagnerMinCut(const Graph *g);
 double calculateBruteForceMinCut(const Graph *g);
 double calculateMinCut(const Graph *g);
+double calculateGraphEnergy(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -4595,6 +4596,62 @@ double calculateBruteForceMinCut(const Graph *g) {
 
 double calculateMinCut(const Graph *g) {
   return calculateFordFulkersonMinCut(g);
+}
+
+double calculateGraphEnergy(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+
+  double A[g->size][g->size] = {};
+
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        A[v][e->destination] = e->weight;
+        A[e->destination][v] = e->weight;
+      }
+
+  const int max_iterations = 1000;
+  const double epsilon = 1e-9;
+
+  for (int i = 0; i < max_iterations; i++) {
+    unsigned p = 0, q = 1;
+    double max_value = 0;
+
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = u + 1; v < g->size; v++)
+        if (fabs(A[u][v]) > max_value) {
+          max_value = fabs(A[u][v]);
+          p = u;
+          q = v;
+        }
+
+    if (max_value < epsilon) break;
+
+    double phi = atan2(2 * A[p][q], A[q][q] - A[p][p]) / 2;
+    double c = cos(phi);
+    double s = sin(phi);
+
+    double app = A[p][p];
+    double aqq = A[q][q];
+    double apq = A[p][q];
+
+    A[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq;
+    A[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq;
+    A[p][q] = A[q][p] = 0;
+
+    for (unsigned r = 0; r < g->size; r++)
+      if (r != p && r != q) {
+        double arp = c * A[r][p] - s * A[r][q];
+        double arq = s * A[r][p] + c * A[r][q];
+        A[r][p] = A[p][r] = arp;
+        A[r][q] = A[q][r] = arq;
+      }
+  }
+
+  double energy = 0;
+  for (unsigned v = 0; v < g->size; v++) energy += fabs(A[v][v]);
+
+  return energy;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
