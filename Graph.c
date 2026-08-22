@@ -277,7 +277,7 @@ unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
 unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
-unsigned *findPostmanTour(const Graph *g, unsigned *length);
+unsigned *findChinesePostmanTour(const Graph *g, unsigned *length);
 unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
 unsigned **getAllPairsUnweightedDistances(const Graph *g);
@@ -601,11 +601,24 @@ bool hasSelfLoops(const Graph *g) {
 }
 
 bool isBalanced(const Graph *g) {
-  unsigned *in = getInDegrees(g);
-  bool b = g && (g->size == 0 || in);
-  for (unsigned v = 0; b && v < g->size; v++) b = b && in[v] == getOutDegree(g, v);
-  free(in);
-  return b;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+
+  int balance[g->size] = {};
+
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        balance[v]++;
+        balance[e->destination]--;
+      }
+
+  for (unsigned v = 0; v < g->size; v++)
+    if (balance[v] != 0)
+      return false;
+
+  return true;
 }
 
 bool isEulerianUndirected(const Graph *g) {
@@ -4086,7 +4099,7 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
   return result;
 }
 
-[[nodiscard]] unsigned *findPostmanTour(const Graph *g, unsigned *length) {
+[[nodiscard]] unsigned *findChinesePostmanTour(const Graph *g, unsigned *length) {
   if (!length) return nullptr;
   *length = 0;
   if (!g || g->size == 0 || !g->edges) return nullptr;
