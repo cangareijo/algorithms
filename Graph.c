@@ -278,6 +278,7 @@ unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
 unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
+unsigned *findPostmanTour(const Graph *g, unsigned *length);
 unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
 unsigned **getAllPairsUnweightedDistances(const Graph *g);
@@ -527,7 +528,9 @@ double calculateMatrixDeterminant(Matrix *matrix) {
 
 
 bool isValid(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return false;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination >= g->size)
@@ -544,7 +547,9 @@ bool isTrivial(const Graph *g) {
 }
 
 bool isEdgeless(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return false;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
   for (unsigned v = 0; v < g->size; v++)
     if (g->edges[v])
       return false;
@@ -3458,7 +3463,7 @@ static unsigned countUndirectedTrailsDfs(const Graph *g, unsigned u, unsigned v,
   for (const Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination < g->size && available[u][e->destination] > 0 && available[e->destination][u] > 0) {
       available[u][e->destination]--;
-      if (u != e->destination) available[e->destination][u]--; 
+      if (u != e->destination) available[e->destination][u]--;
       trails += countUndirectedTrailsDfs(g, e->destination, v, available);
       available[u][e->destination]++;
       if (u != e->destination) available[e->destination][u]++;
@@ -4086,6 +4091,97 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
   }
   free(visited);
   return result;
+}
+
+[[nodiscard]] unsigned *findPostmanTour(const Graph *g, unsigned *length) {
+  if (!length) return nullptr;
+  *length = 0;
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+
+  double distance[g->size][g->size];
+  unsigned next_node[g->size][g->size];
+  unsigned adjacent[g->size][g->size] = {};
+  unsigned degree[g->size] = {};
+  unsigned odds[g->size] = {};
+
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      distance[u][v] = u == v ? 0 : INFINITY;
+      next_node[u][v] = v;
+    }
+
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        adjacent[v][e->destination]++;
+        degree[v]++;
+        if (e->weight < distance[v][e->destination]) distance[v][e->destination] = e->weight;
+      }
+
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (distance[u][w] + distance[w][v] < distance[u][v]) {
+          distance[u][v] = distance[u][w] + distance[w][v];
+          next_node[u][v] = next_node[u][w];
+        }
+
+  unsigned odd_count = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degree[v] % 2 != 0)
+      odds[odd_count++] = v;
+
+  bool paired[odd_count] = {};
+  for (unsigned i = 0; i < odd_count; i++) {
+    if (paired[i]) continue;
+    unsigned best_j = UINT_MAX;
+    double min_distance = INFINITY;
+
+    for (unsigned j = i + 1; j < odd_count; j++)
+      if (!paired[j] && distance[odds[i]][odds[j]] < min_distance) {
+        min_distance = distance[odds[i]][odds[j]];
+        best_j = j;
+      }
+
+    if (best_j != UINT_MAX) {
+      paired[i] = paired[best_j] = true;
+      unsigned current = odds[i], target = odds[best_j];
+      while (current != target) {
+        unsigned next = next_node[current][target];
+        adjacent[current][next]++;
+        adjacent[next][current]++;
+        current = next;
+      }
+    }
+  }
+
+  unsigned max_edges = g->size * g->size * 2;
+  unsigned current_path[max_edges];
+
+  unsigned *tour = malloc(max_edges * sizeof(unsigned));
+  if (!tour) return nullptr;
+
+  unsigned path_top = 0, tour_top = 0;
+  current_path[path_top++] = 0;
+
+  while (path_top > 0) {
+    unsigned u = current_path[path_top - 1];
+    unsigned has_neighbor = 0;
+
+    for (unsigned v = 0; v < g->size; v++)
+      if (adjacent[u][v] > 0) {
+        adjacent[u][v]--;
+        adjacent[v][u]--;
+        current_path[path_top++] = v;
+        has_neighbor = 1;
+        break;
+      }
+
+    if (!has_neighbor) tour[tour_top++] = current_path[--path_top];
+  }
+
+  *length = tour_top;
+  return tour;
 }
 
 [[nodiscard]] unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length) {
