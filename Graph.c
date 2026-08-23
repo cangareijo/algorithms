@@ -236,6 +236,7 @@ unsigned calculateDegeneracy(const Graph *g);
 unsigned calculateVertexConnectivity(const Graph *g);
 unsigned calculateEdgeConnectivity(const Graph *g);
 unsigned countAutomorphisms(const Graph *g);
+unsigned calculateUnsignedVertexFrustrationNumber(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -3262,6 +3263,50 @@ unsigned countAutomorphisms(const Graph *g) {
   bool used[g->size] = {};
 
   return countAutomorphisms_permute(g, p, used, 0);
+}
+
+static bool isBipartiteWithRemovals(const Graph *g, bool removed[g->size]) {
+  int color[g->size] = {};
+  unsigned queue[g->size];
+  for (unsigned start = 0; start < g->size; start++) {
+    if (removed[start] || color[start] != 0) continue;
+    unsigned head = 0, tail = 0;
+    queue[tail++] = start;
+    color[start] = 1;
+    while (head < tail) {
+      unsigned u = queue[head++];
+      for (Edge *e = g->edges[u]; e; e = e->next) {
+        if (e->destination >= g->size || removed[e->destination]) continue;
+        if (color[e->destination] == 0) {
+          color[e->destination] = color[u] == 1 ? 2 : 1;
+          queue[tail++] = e->destination;
+        } else if (color[e->destination] == color[u]) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+static void findMinimumBipartiteRemovals(const Graph *g, unsigned v, unsigned count, unsigned *frustration, bool removed[g->size]) {
+  if (count >= *frustration) return;
+  if (v == g->size) {
+    if (isBipartiteWithRemovals(g, removed)) *frustration = count;
+    return;
+  }
+  findMinimumBipartiteRemovals(g, v + 1, count, frustration, removed);
+  removed[v] = true;
+  findMinimumBipartiteRemovals(g, v + 1, count + 1, frustration, removed);
+  removed[v] = false;
+}
+
+unsigned calculateUnsignedVertexFrustrationNumber(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  bool removed[g->size] = {};
+  unsigned frustration = g->size;
+  findMinimumBipartiteRemovals(g, 0, 0, &frustration, removed);
+  return frustration;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
