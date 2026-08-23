@@ -622,13 +622,41 @@ bool isBalanced(const Graph *g) {
   return true;
 }
 
+static void isEulerianUndirected_traverseGraph(const Graph *g, unsigned v, bool visited[g->size]) {
+  visited[v] = true;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && !visited[e->destination])
+      isEulerianUndirected_traverseGraph(g, e->destination, visited);
+}
+
 bool isEulerianUndirected(const Graph *g) {
-  if (!g || isEdgeless(g)) return true;
-  bool *reachable = getVerticesReachableFrom(g, getFirstActiveVertex(g));
-  bool b = reachable;
-  for (unsigned v = 0; v < g->size && b; v++) b = b && getOutDegree(g, v) % 2 == 0 && (reachable[v] || !g->edges[v]);
-  free(reachable);
-  return b;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+
+  unsigned degrees[g->size] = {};
+  bool visited[g->size] = {};
+  unsigned first_active = g->size;
+
+  for (unsigned v = 0; v < g->size; v++) {
+    for (const Edge *e = g->edges[v]; e; e = e->next) degrees[v]++;
+    if (degrees[v] > 0 && first_active == g->size) first_active = v;
+  }
+
+  if (first_active < g->size) {
+    isEulerianUndirected_traverseGraph(g, first_active, visited);
+
+    for (unsigned v = 0; v < g->size; v++)
+      if (degrees[v] > 0 && !visited[v])
+        return false;
+  }
+
+  unsigned odd_count = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degrees[v] % 2 != 0)
+      odd_count++;
+
+  return odd_count == 0 || odd_count == 2;
 }
 
 bool isEulerianDirected(const Graph *g) {
