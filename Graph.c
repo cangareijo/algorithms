@@ -236,7 +236,8 @@ unsigned calculateDegeneracy(const Graph *g);
 unsigned calculateVertexConnectivity(const Graph *g);
 unsigned calculateEdgeConnectivity(const Graph *g);
 unsigned countAutomorphisms(const Graph *g);
-unsigned calculateUnsignedVertexFrustrationNumber(const Graph *g);
+unsigned calculateVertexFrustrationNumber(const Graph *g);
+unsigned calculateEdgeFrustrationNumber(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -3326,11 +3327,39 @@ static void findMinimumBipartiteRemovals(const Graph *g, unsigned v, unsigned co
   removed[v] = false;
 }
 
-unsigned calculateUnsignedVertexFrustrationNumber(const Graph *g) {
+unsigned calculateVertexFrustrationNumber(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
   bool removed[g->size] = {};
   unsigned frustration = g->size;
   findMinimumBipartiteRemovals(g, 0, 0, &frustration, removed);
+  return frustration;
+}
+
+static void calculateEdgeFrustrationNumberRecursively(const Graph *g, unsigned v, bool colors[], unsigned current, unsigned *frustration) {
+  if (current >= *frustration) return;
+  if (v >= g->size) {
+    *frustration = current;
+    return;
+  }
+  colors[v] = false;
+  unsigned conflicts_false = 0;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < v && colors[e->destination] == false)
+      conflicts_false++;
+  calculateEdgeFrustrationNumberRecursively(g, v + 1, colors, current + conflicts_false, frustration);
+  colors[v] = true;
+  unsigned conflicts_true = 0;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < v && colors[e->destination] == true)
+      conflicts_true++;
+  calculateEdgeFrustrationNumberRecursively(g, v + 1, colors, current + conflicts_true, frustration);
+}
+
+unsigned calculateEdgeFrustrationNumber(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  bool colors[g->size];
+  unsigned frustration = UINT_MAX;
+  calculateEdgeFrustrationNumberRecursively(g, 0, colors, 0, &frustration);
   return frustration;
 }
 
