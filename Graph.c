@@ -660,16 +660,41 @@ bool isEulerianUndirected(const Graph *g) {
   return odd_count == 0 || odd_count == 2;
 }
 
+static void isEulerianDirected_checkReachability(const Graph *g, unsigned v, bool visited[]) {
+  visited[v] = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && !visited[e->destination])
+      isEulerianDirected_checkReachability(g, e->destination, visited);
+}
+
 bool isEulerianDirected(const Graph *g) {
-  if (!g || isEdgeless(g)) return true;
-  if (!isBalanced(g)) return false;
-  bool *reachable = getVerticesReachableFrom(g, getFirstActiveVertex(g));
-  bool *isolated = getIsolatedVertices(g);
-  bool b = reachable && isolated;
-  for (unsigned v = 0; v < g->size && b; v++) b = b && (reachable[v] || isolated[v]);
-  free(isolated);
-  free(reachable);
-  return b;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+  unsigned in_degree[g->size] = {};
+  unsigned out_degree[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        out_degree[v]++;
+        in_degree[e->destination]++;
+      }
+  for (unsigned v = 0; v < g->size; v++)
+    if (in_degree[v] != out_degree[v])
+      return false;
+  unsigned start = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (out_degree[v] > 0) {
+      start = v;
+      break;
+    }
+  if (start == UINT_MAX) return true;
+  bool visited[g->size] = {};
+  isEulerianDirected_checkReachability(g, start, visited);
+  for (unsigned i = 0; i < g->size; i++)
+    if (out_degree[i] > 0 && !visited[i])
+      return false;
+  return true;
 }
 
 bool isWeaklyConnected(const Graph *g) {
