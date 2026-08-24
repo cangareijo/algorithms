@@ -699,11 +699,31 @@ bool isEulerianDirected(const Graph *g) {
 }
 
 bool isWeaklyConnected(const Graph *g) {
-  if (getSize(g) < 2) return true;
-  Graph *g2 = createUndirected(g);
-  bool reachable = canReachAll(g2, 0);
-  destroyGraph(g2);
-  return reachable;
+  if (!g) return false;
+  if (g->size <= 1) return true;
+  if (!g->edges) return false;
+  bool visited[g->size] = {};
+  unsigned queue[g->size];
+  unsigned head = 0, tail = 0;
+  visited[0] = true;
+  queue[tail++] = 0;
+  while (head < tail) {
+    unsigned u = queue[head++];
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && !visited[e->destination]) {
+        visited[e->destination] = true;
+        queue[tail++] = e->destination;
+      }
+    for (unsigned v = 0; v < g->size; v++)
+      if (!visited[v])
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination == u) {
+            visited[v] = true;
+            queue[tail++] = v;
+            break;
+          }
+  }
+  return tail == g->size;
 }
 
 bool isStronglyConnected(const Graph *g) {
