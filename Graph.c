@@ -727,12 +727,25 @@ bool isWeaklyConnected(const Graph *g) {
   return tail == g->size;
 }
 
+static void isStronglyConnectedDfs(const Graph *g, unsigned v, bool visited[g->size]) {
+  visited[v] = true;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && !visited[e->destination])
+      isStronglyConnectedDfs(g, e->destination, visited);
+}
+
 bool isStronglyConnected(const Graph *g) {
-  if (getSize(g) < 2) return true;
-  Graph *g2 = createTranspose(g);
-  bool reachable = canReachAll(g, 0) && canReachAll(g2, 0);
-  destroyGraph(g2);
-  return reachable;
+  if (!g) return false;
+  if (g->size <= 1) return true;
+  if (!g->edges) return false;
+  for (unsigned u = 0; u < g->size; u++) {
+    bool visited[g->size] = {};
+    isStronglyConnectedDfs(g, u, visited);
+    for (unsigned v = 0; v < g->size; v++)
+      if (!visited[v])
+        return false;
+  }
+  return true;
 }
 
 bool isBipartite(const Graph *g) {
