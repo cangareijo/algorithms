@@ -4397,11 +4397,18 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
         if (start_node == g->size) start_node = v;
       }
   if (total_edges == 0) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    if (balance[v] > 0) {
+  unsigned positive_balances = 0;
+  unsigned negative_balances = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    if (balance[v] > 1 || balance[v] < -1) return nullptr;
+    if (balance[v] == 1) {
       start_node = v;
-      break;
+      positive_balances++;
+    } else if (balance[v] == -1) {
+      negative_balances++;
     }
+  }
+  if (positive_balances > 1 || positive_balances != negative_balances) return nullptr;
   const Edge *current_edge[g->size];
   for (unsigned v = 0; v < g->size; v++) current_edge[v] = g->edges[v];
   unsigned stack[total_edges + 1], stack_size = 0, path_size = 0;
