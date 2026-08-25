@@ -281,6 +281,7 @@ unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
 unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
 unsigned *findChinesePostmanTour(const Graph *g, unsigned *length);
+unsigned *findEulerianPathOrCircuit(const Graph *g, unsigned *length);
 unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
 
 unsigned **getAllPairsUnweightedDistances(const Graph *g);
@@ -4379,6 +4380,51 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 
   *length = tour_top;
   return tour;
+}
+
+[[nodiscard]] unsigned *findEulerianPathOrCircuit(const Graph *g, unsigned *length) {
+  if (!length) return nullptr;
+  *length = 0;
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  int balance[g->size] = {};
+  unsigned total_edges = 0, start_node = g->size;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        balance[v]++;
+        balance[e->destination]--;
+        total_edges++;
+        if (start_node == g->size) start_node = v;
+      }
+  if (total_edges == 0) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    if (balance[v] > 0) {
+      start_node = v;
+      break;
+    }
+  const Edge *current_edge[g->size];
+  for (unsigned v = 0; v < g->size; v++) current_edge[v] = g->edges[v];
+  unsigned stack[total_edges + 1], stack_size = 0, path_size = 0;
+  unsigned *result = malloc((total_edges + 1) * sizeof(unsigned));
+  if (!result) return nullptr;
+  stack[stack_size++] = start_node;
+  while (stack_size > 0) {
+    unsigned v = stack[stack_size - 1];
+    const Edge *e = current_edge[v];
+    while (e && e->destination >= g->size) e = e->next;
+    if (e) {
+      current_edge[v] = e->next;
+      stack[stack_size++] = e->destination;
+    } else {
+      result[total_edges - path_size++] = stack[--stack_size];
+    }
+  }
+  if (path_size != total_edges + 1) {
+    free(result);
+    return nullptr;
+  }
+  *length = path_size;
+  return result;
 }
 
 [[nodiscard]] unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length) {
