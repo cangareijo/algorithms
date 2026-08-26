@@ -125,8 +125,8 @@ bool isIsomorphic(const Graph *g1, const Graph *g2);
 bool *graphCenter(const Graph *g);
 bool *graphPeriphery(const Graph *g);
 bool *findArticulationPoints(const Graph *g);
-bool *findMaximalClique(const Graph *g);
 bool *findMaximumClique(const Graph *g);
+bool *findApproximatedMaximumClique(const Graph *g);
 bool *getIsolatedVertices(const Graph *g);
 bool *getSources(const Graph *g);
 bool *getSinks(const Graph *g);
@@ -1647,16 +1647,6 @@ static void findArticulationPointsDfs(
   return articulations;
 }
 
-[[nodiscard]] bool *findMaximalClique(const Graph *g) {
-  if (!g) return nullptr;
-  bool *clique = calloc(g->size, sizeof(bool));
-  if (!clique) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    if (hasUndirectedEdges(g, v, clique))
-      clique[v] = true;
-  return clique;
-}
-
 static void findMaximumCliqueRecursive(
   const Graph *g, unsigned v, bool *current, unsigned currentSize, bool *maximum, unsigned *maximumSize)
 {
@@ -1693,6 +1683,40 @@ static void findMaximumCliqueRecursive(
   findMaximumCliqueRecursive(g, 0, current, 0, maximum, &size);
   free(current);
   return maximum;
+}
+
+[[nodiscard]] bool *findApproximatedMaximumClique(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  bool *clique = calloc(g->size, sizeof(bool));
+  if (!clique) return nullptr;
+  bool adjacent[g->size][g->size] = {};
+  unsigned degrees[g->size] = {};
+  unsigned vertices[g->size];
+  for (unsigned v = 0; v < g->size; v++) {
+    vertices[v] = v;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        degrees[v]++;
+        adjacent[v][e->destination] = true;
+      }
+  }
+  for (unsigned i = 0; i < g->size; i++)
+    for (unsigned j = i + 1; j < g->size; j++)
+      if (degrees[vertices[i]] < degrees[vertices[j]]) {
+        unsigned temporary = vertices[i];
+        vertices[i] = vertices[j];
+        vertices[j] = temporary;
+      }
+  for (unsigned i = 0; i < g->size; i++) {
+    bool can_add = true;
+    for (unsigned v = 0; v < g->size; v++)
+      if (clique[v] && (!adjacent[vertices[i]][v] || !adjacent[v][vertices[i]])) {
+        can_add = false;
+        break;
+      }
+    if (can_add) clique[vertices[i]] = true;
+  }
+  return clique;
 }
 
 [[nodiscard]] bool *getIsolatedVertices(const Graph *g) {
