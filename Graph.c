@@ -136,7 +136,8 @@ bool *getSelfLoops(const Graph *g);
 bool *findMaximalIndependentSet(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
 bool *findFeedbackVertexSet(const Graph *g);
-bool *getVertexCut(const Graph *g);
+bool *findVertexCut(const Graph *g);
+bool *findMinimumDominatingSet(const Graph *g);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getVerticesReachableFrom(const Graph *g, unsigned v);
@@ -1935,7 +1936,7 @@ static void findFeedbackVertexSetBacktracking(
   return best;
 }
 
-[[nodiscard]] bool *getVertexCut(const Graph *g) {
+[[nodiscard]] bool *findVertexCut(const Graph *g) {
   if (!g || g->size <= 1) return nullptr;
   unsigned global = calculateVertexConnectivity(g);
   if (global >= g->size - 1) return nullptr;
@@ -1946,6 +1947,39 @@ static void findFeedbackVertexSetBacktracking(
       if (local == global) return getLocalVertexCut(g, u, v);
     }
   return nullptr;
+}
+
+static void searchForMinimumDominatingSet(
+  const Graph *g, unsigned v, bool current_set[], unsigned current_size, bool best_set[], unsigned *min_size)
+{
+  if (v == g->size) {
+    for (unsigned u = 0; u < g->size; u++) {
+      bool covered = current_set[u];
+      for (const Edge *e = g->edges[u]; e && !covered; e = e->next)
+        if (e->destination < g->size && current_set[e->destination])
+          covered = true;
+      if (!covered) return;
+    }
+    if (current_size < *min_size) {
+      *min_size = current_size;
+      for (unsigned u = 0; u < g->size; u++) best_set[u] = current_set[u];
+    }
+    return;
+  }
+  current_set[v] = false;
+  searchForMinimumDominatingSet(g, v + 1, current_set, current_size, best_set, min_size);
+  current_set[v] = true;
+  searchForMinimumDominatingSet(g, v + 1, current_set, current_size + 1, best_set, min_size);
+}
+
+[[nodiscard]] bool *findMinimumDominatingSet(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  bool *best_set = malloc(g->size * sizeof(bool));
+  if (!best_set) return nullptr;
+  bool current_set[g->size] = {};
+  unsigned min_size = g->size + 1;
+  searchForMinimumDominatingSet(g, 0, current_set, 0, best_set, &min_size);
+  return best_set;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
