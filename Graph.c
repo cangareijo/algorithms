@@ -130,8 +130,8 @@ bool *findApproximatedMaximumClique(const Graph *g);
 bool *getIsolatedVertices(const Graph *g);
 bool *getSources(const Graph *g);
 bool *getSinks(const Graph *g);
-bool *findMaximalVertexCover(const Graph *g);
 bool *findMinimumVertexCover(const Graph *g);
+bool *findApproximatedMinimumVertexCover(const Graph *g);
 bool *getSelfLoops(const Graph *g);
 bool *findMaximalIndependentSet(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
@@ -1761,21 +1761,6 @@ static void findMaximumCliqueRecursive(
   return sinks;
 }
 
-[[nodiscard]] bool *findMaximalVertexCover(const Graph *g) {
-  if (!isValid(g)) return nullptr;
-  bool *cover = calloc(g->size, sizeof(bool));
-  if (!cover) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    if (!cover[v])
-      for (Edge *e = g->edges[v]; e; e = e->next)
-        if (!cover[e->destination]) {
-          cover[v] = true;
-          cover[e->destination] = true;
-          break;
-        }
-  return cover;
-}
-
 [[nodiscard]] bool *findMinimumVertexCover(const Graph *g) {
   if (!isValid(g) || g->size == 0) return nullptr;
   bool *best = malloc(g->size * sizeof(bool));
@@ -1807,6 +1792,21 @@ static void findMaximumCliqueRecursive(
     if (v < g->size) current[v] = true; else break;
   }
   return best;
+}
+
+[[nodiscard]] bool *findApproximatedMinimumVertexCover(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  bool *cover = calloc(g->size, sizeof(bool));
+  if (!cover) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!cover[v])
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && !cover[e->destination]) {
+          cover[v] = true;
+          cover[e->destination] = true;
+          break; 
+        }
+  return cover;
 }
 
 [[nodiscard]] bool *getSelfLoops(const Graph *g) {
