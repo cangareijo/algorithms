@@ -79,6 +79,7 @@ bool isChordal(const Graph *g);
 bool isPerfect(const Graph *g);
 bool isPlanar(const Graph *g);
 bool isOuterplanar(const Graph *g);
+bool isSelfCentered(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -1169,9 +1170,8 @@ bool isPlanar(const Graph *g) {
 
 bool isOuterplanar(const Graph *g) {
   if (!g) return false;
-  if (g->size == 0) return true;
-  if (!g->edges) return false;
   if (g->size <= 3) return true;
+  if (!g->edges) return false;
   bool adjacent[g->size][g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
@@ -1179,14 +1179,12 @@ bool isOuterplanar(const Graph *g) {
         adjacent[v][e->destination] = true;
         adjacent[e->destination][v] = true;
       }
-  bool removed[g->size] = {};
-  bool progress;
+  bool progress, removed[g->size] = {};
   do {
     progress = false;
     for (unsigned u = 0; u < g->size; u++) {
       if (removed[u]) continue;
-      unsigned degree = 0;
-      unsigned neighbors[2];
+      unsigned degree = 0, neighbors[2];
       for (unsigned v = 0; v < g->size; v++)
         if (!removed[v] && adjacent[u][v] && u != v) {
           if (degree < 2) neighbors[degree] = v;
@@ -1199,13 +1197,44 @@ bool isOuterplanar(const Graph *g) {
       if (degree <= 2) {
         removed[u] = true;
         progress = true;
-        break;
       }
     }
   } while (progress);
   for (unsigned v = 0; v < g->size; v++)
     if (!removed[v])
       return false;
+  return true;
+}
+
+bool isSelfCentered(const Graph *g) {
+  if (!g) return false;
+  if (g->size <= 1) return true;
+  if (!g->edges) return false;
+  double distance[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++)
+      distance[u][v] = u == v ? 0 : INFINITY;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && e->weight < distance[u][e->destination])
+        distance[u][e->destination] = e->weight;
+  }
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (distance[u][w] + distance[w][v] < distance[u][v])
+          distance[u][v] = distance[u][w] + distance[w][v];
+  double target_eccentricity;
+  for (unsigned u = 0; u < g->size; u++) {
+    double current_eccentricity = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (distance[u][v] > current_eccentricity)
+        current_eccentricity = distance[u][v];
+    if (current_eccentricity == INFINITY) return false;
+    if (u == 0)
+      target_eccentricity = current_eccentricity;
+    else if (current_eccentricity != target_eccentricity)
+      return false;
+  }
   return true;
 }
 
