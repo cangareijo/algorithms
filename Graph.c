@@ -78,6 +78,7 @@ bool isSelfComplementary(const Graph *g);
 bool isChordal(const Graph *g);
 bool isPerfect(const Graph *g);
 bool isPlanar(const Graph *g);
+bool isOuterplanar(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -1166,6 +1167,48 @@ bool isPlanar(const Graph *g) {
   return checkMinors(g->size, adjacent, active);
 }
 
+bool isOuterplanar(const Graph *g) {
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+  if (g->size <= 3) return true;
+  bool adjacent[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        adjacent[v][e->destination] = true;
+        adjacent[e->destination][v] = true;
+      }
+  bool removed[g->size] = {};
+  bool progress;
+  do {
+    progress = false;
+    for (unsigned u = 0; u < g->size; u++) {
+      if (removed[u]) continue;
+      unsigned degree = 0;
+      unsigned neighbors[2];
+      for (unsigned v = 0; v < g->size; v++)
+        if (!removed[v] && adjacent[u][v] && u != v) {
+          if (degree < 2) neighbors[degree] = v;
+          degree++;
+        }
+      if (degree == 2) {
+        adjacent[neighbors[0]][neighbors[1]] = true;
+        adjacent[neighbors[1]][neighbors[0]] = true;
+      }
+      if (degree <= 2) {
+        removed[u] = true;
+        progress = true;
+        break;
+      }
+    }
+  } while (progress);
+  for (unsigned v = 0; v < g->size; v++)
+    if (!removed[v])
+      return false;
+  return true;
+}
+
 bool isKRegular(const Graph *g, unsigned k) {
   if (!g) return true;
   for (unsigned v = 0; v < g->size; v++)
@@ -1804,7 +1847,7 @@ static void findMaximumCliqueRecursive(
         if (e->destination < g->size && !cover[e->destination]) {
           cover[v] = true;
           cover[e->destination] = true;
-          break; 
+          break;
         }
   return cover;
 }
