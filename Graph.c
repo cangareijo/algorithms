@@ -80,6 +80,7 @@ bool isPerfect(const Graph *g);
 bool isPlanar(const Graph *g);
 bool isOuterplanar(const Graph *g);
 bool isSelfCentered(const Graph *g);
+bool isDistanceRegular(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -1234,6 +1235,60 @@ bool isSelfCentered(const Graph *g) {
       target_eccentricity = current_eccentricity;
     else if (current_eccentricity != target_eccentricity)
       return false;
+  }
+  return true;
+}
+
+bool isDistanceRegular(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++) {
+    bool visited[g->size] = {};
+    for (const Edge *e = g->edges[v]; e; e = e->next) {
+      if (e->destination == v || e->destination >= g->size || visited[e->destination]) return false;
+      visited[e->destination] = true;
+    }
+  }
+  unsigned distance[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      distance[u][v] = u == v ? 0 : UINT_MAX;
+  unsigned queue[g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned head = 0, tail = 0;
+    queue[tail++] = u;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (distance[u][e->destination] == UINT_MAX) {
+          distance[u][e->destination] = distance[u][v] + 1;
+          queue[tail++] = e->destination;
+        }
+    }
+  }
+  unsigned diameter = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      if (distance[u][v] == UINT_MAX || distance[u][v] != distance[v][u]) return false;
+      if (distance[u][v] > diameter) diameter = distance[u][v];
+    }
+  unsigned b_parameter[diameter + 1];
+  unsigned c_parameter[diameter + 1];
+  bool seen[diameter + 1] = {};
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++) {
+      unsigned count_b = 0, count_c = 0;
+      for (Edge *e = g->edges[v]; e; e = e->next) {
+        if (distance[u][e->destination] == distance[u][v] + 1) count_b++;
+        else if (distance[u][v] > 0 && distance[u][e->destination] == distance[u][v] - 1) count_c++;
+      }
+      if (!seen[distance[u][v]]) {
+        b_parameter[distance[u][v]] = count_b;
+        c_parameter[distance[u][v]] = count_c;
+        seen[distance[u][v]] = true;
+      } else if (b_parameter[distance[u][v]] != count_b || c_parameter[distance[u][v]] != count_c) {
+        return false;
+      }
+    }
   }
   return true;
 }
