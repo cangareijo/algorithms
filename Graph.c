@@ -780,12 +780,21 @@ bool isBipartite(const Graph *g) {
 }
 
 bool isUndirected(const Graph *g) {
-  if (!g || !g->edges) return true;
-  for (unsigned u = 0; u < g->size; u++)
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size)
-        if (countMatchingWeightedEdges(g, u, e->destination, e->weight) != countMatchingWeightedEdges(g, e->destination, u, e->weight))
-          return false;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      if (e->destination >= g->size) return false;
+      unsigned forward = 0, backward = 0;
+      for (Edge *f = g->edges[v]; f; f = f->next)
+        if (f->destination == e->destination && f->weight == e->weight)
+          forward++;
+      for (Edge *b = g->edges[e->destination]; b; b = b->next)
+        if (b->destination == v && b->weight == e->weight)
+          backward++;
+      if (forward != backward) return false;
+    }
   return true;
 }
 
