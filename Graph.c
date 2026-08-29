@@ -753,32 +753,29 @@ bool isStronglyConnected(const Graph *g) {
 }
 
 bool isBipartite(const Graph *g) {
-  if (!g || !g->edges) return false;
-  unsigned *colors = calloc(g->size, sizeof(unsigned));
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  bool bipartite = true;
-  if (colors && queue)
-    for (unsigned u = 0; u < g->size && bipartite; u++)
-      if (colors[u] == 0) {
-        colors[u] = 1;
-        unsigned head = 0, tail = 0;
-        queue[tail++] = u;
-        while (head < tail && bipartite) {
-          unsigned v = queue[head++];
-          for (Edge *e = g->edges[v]; e && bipartite; e = e->next)
-            if (e->destination < g->size) {
-              if (colors[e->destination] == 0) {
-                colors[e->destination] = (colors[v] == 1) ? 2 : 1;
-                queue[tail++] = e->destination;
-              } else if (colors[e->destination] == colors[v]) {
-                bipartite = false;
-              }
-            }
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+  unsigned colors[g->size] = {}, stack[g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    if (colors[u] != 0) continue;
+    unsigned top = 0;
+    stack[top++] = u;
+    colors[u] = 1;
+    while (top > 0) {
+      unsigned v = stack[--top], c = 3 - colors[v];
+      for (Edge *e = g->edges[v]; e; e = e->next) {
+        if (e->destination >= g->size) continue;
+        if (colors[e->destination] == 0) {
+          colors[e->destination] = c;
+          stack[top++] = e->destination;
+        } else if (colors[e->destination] == colors[v]) {
+          return false;
         }
       }
-  free(colors);
-  free(queue);
-  return bipartite;
+    }
+  }
+  return true;
 }
 
 bool isUndirected(const Graph *g) {
@@ -1274,7 +1271,7 @@ bool isDistanceRegular(const Graph *g) {
   unsigned b_parameter[diameter + 1];
   unsigned c_parameter[diameter + 1];
   bool seen[diameter + 1] = {};
-  for (unsigned u = 0; u < g->size; u++) {
+  for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
       unsigned count_b = 0, count_c = 0;
       for (Edge *e = g->edges[v]; e; e = e->next) {
@@ -1289,7 +1286,6 @@ bool isDistanceRegular(const Graph *g) {
         return false;
       }
     }
-  }
   return true;
 }
 
