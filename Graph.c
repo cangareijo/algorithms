@@ -243,6 +243,7 @@ unsigned countAutomorphisms(const Graph *g);
 unsigned calculateVertexFrustrationNumber(const Graph *g);
 unsigned calculateEdgeFrustrationNumber(const Graph *g);
 unsigned calculateIndependenceNumber(const Graph *g);
+unsigned calculateDominatingNumber(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -3612,6 +3613,36 @@ unsigned calculateIndependenceNumber(const Graph *g) {
     set[v] = true;
   }
   return maximum;
+}
+
+unsigned calculateDominatingNumber(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  unsigned minimum = g->size;
+  bool set[g->size] = {};
+  while (true) {
+    bool covered[g->size] = {};
+    unsigned size = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (set[v]) {
+        size++;
+        covered[v] = true;
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination < g->size)
+            covered[e->destination] = true;
+      }
+    bool dominating = true;
+    for (unsigned v = 0; v < g->size; v++)
+      if (!covered[v]) {
+        dominating = false;
+        break;
+      }
+    if (dominating && size < minimum) minimum = size;
+    unsigned v = 0;
+    while (v < g->size && set[v]) set[v++] = false;
+    if (v == g->size) break;
+    set[v] = true;
+  }
+  return minimum;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
