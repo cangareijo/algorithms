@@ -800,21 +800,16 @@ bool isUndirected(const Graph *g) {
 }
 
 bool hasParallelEdges(const Graph *g) {
-  if (!g || !g->edges) return false;
-  bool *seen = malloc(g->size * sizeof(bool));
-  bool b = false;
-  if (seen)
-    for (unsigned v = 0; v < g->size && !b; v++) {
-      for (Edge *e = g->edges[v]; e; e = e->next)
-        if (e->destination < g->size)
-          seen[e->destination] = false;
-      for (Edge *e = g->edges[v]; e && !b; e = e->next)
-        if (e->destination < g->size) {
-          if (seen[e->destination]) b = true; else seen[e->destination] = true;
-        }
+  if (!g || g->size == 0 || !g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++) {
+    bool visited[g->size] = {};
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      if (e->destination >= g->size) continue;
+      if (visited[e->destination]) return true;
+      visited[e->destination] = true;
     }
-  free(seen);
-  return b;
+  }
+  return false;
 }
 
 bool isDirectedForest(const Graph *g) {
