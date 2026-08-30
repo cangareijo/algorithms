@@ -244,6 +244,7 @@ unsigned calculateVertexFrustrationNumber(const Graph *g);
 unsigned calculateEdgeFrustrationNumber(const Graph *g);
 unsigned calculateIndependenceNumber(const Graph *g);
 unsigned calculateDominatingNumber(const Graph *g);
+unsigned calculateVertexCoverNumber(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -3638,6 +3639,41 @@ unsigned calculateDominatingNumber(const Graph *g) {
     set[v] = true;
   }
   return minimum;
+}
+
+unsigned calculateVertexCoverNumber(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  bool chosen[g->size];
+  for (unsigned k = 0; k <= g->size; k++) {
+    for (unsigned v = 0; v < g->size; v++) chosen[v] = v < k;
+    while (true) {
+      bool cover = true;
+      for (unsigned v = 0; v < g->size; v++) {
+        for (const Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination < g->size && !chosen[v] && !chosen[e->destination]) {
+            cover = false;
+            break;
+          }
+        if (!cover) break;
+      }
+      if (cover) return k;
+      bool swap = false;
+      unsigned u = 0;
+      for (unsigned v = 1; v < g->size; v++)
+        if (chosen[v - 1]) {
+          chosen[v - 1] = false;
+          if (!chosen[v]) {
+            chosen[v] = true;
+            swap = true;
+            break;
+          } else {
+            chosen[u++] = true;
+          }
+        }
+      if (!swap) break;
+    }
+  }
+  return g->size;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
