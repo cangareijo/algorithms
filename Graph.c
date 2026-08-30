@@ -276,8 +276,8 @@ unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
 unsigned *findMaximumUnweightedMatching(const Graph *g);
 unsigned *findMaximumWeightedMatching(const Graph *g);
-unsigned *findMinimalEdgeCover(const Graph *g);
 unsigned *findMinimumEdgeCover(const Graph *g);
+unsigned *findApproximatedMinimumEdgeCover(const Graph *g);
 unsigned *calculateCoreNumbers(const Graph *g);
 unsigned *findCommunities(const Graph *g);
 unsigned *findKTrusses(const Graph *g);
@@ -4243,27 +4243,6 @@ static void searchMaximumWeightedMatching(const Graph *g, unsigned u, Edge *e, u
   return best;
 }
 
-[[nodiscard]] unsigned *findMinimalEdgeCover(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
-  unsigned *cover = malloc(g->size * sizeof(unsigned));
-  if (!cover) return nullptr;
-  for (unsigned v = 0; v < g->size; v++)
-    cover[v] = UINT_MAX;
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (cover[v] == UINT_MAX && e->destination < g->size && cover[e->destination] == UINT_MAX && v != e->destination) {
-        cover[v] = e->destination;
-        cover[e->destination] = v;
-      }
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (cover[v] == UINT_MAX || (e->destination < g->size && cover[e->destination] == UINT_MAX)) {
-        cover[v] = e->destination;
-        cover[e->destination] = v;
-      }
-  return cover;
-}
-
 static void searchForMinimumEdgeCover(
   const Graph *g, unsigned v, const Edge *e, unsigned *current, unsigned currentCount, unsigned *minimum, unsigned *minimumCount)
 {
@@ -4309,6 +4288,27 @@ static void searchForMinimumEdgeCover(
   searchForMinimumEdgeCover(g, 0, g->edges[0], current, 0, minimum, &minimumCount);
   free(current);
   return minimum;
+}
+
+[[nodiscard]] unsigned *findApproximatedMinimumEdgeCover(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  unsigned *cover = malloc(g->size * sizeof(unsigned));
+  if (!cover) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    cover[v] = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (cover[v] == UINT_MAX && e->destination < g->size && cover[e->destination] == UINT_MAX && v != e->destination) {
+        cover[v] = e->destination;
+        cover[e->destination] = v;
+      }
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (cover[v] == UINT_MAX || (e->destination < g->size && cover[e->destination] == UINT_MAX)) {
+        cover[v] = e->destination;
+        cover[e->destination] = v;
+      }
+  return cover;
 }
 
 [[nodiscard]] unsigned *calculateCoreNumbers(const Graph *g) {
