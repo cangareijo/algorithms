@@ -814,11 +814,21 @@ bool hasParallelEdges(const Graph *g) {
 }
 
 bool isDirectedForest(const Graph *g) {
-  unsigned *degree = getInDegrees(g);
-  bool b = g && !hasDirectedCycle(g) && (g->size == 0 || degree);
-  for (unsigned v = 0; b && v < g->size; v++) b = b && degree[v] < 2;
-  free(degree);
-  return b;
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!g->edges) return false;
+  unsigned in_degree[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size || ++in_degree[e->destination] > 1) return false;
+  unsigned queue[g->size], head = 0, tail = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (in_degree[v] == 0)
+      queue[tail++] = v;
+  while (head < tail)
+    for (Edge *e = g->edges[queue[head++]]; e; e = e->next)
+      queue[tail++] = e->destination;
+  return tail == g->size;
 }
 
 bool isUndirectedForest(const Graph *g) {
