@@ -192,6 +192,7 @@ void deleteOutgoingEdges(Graph *g, unsigned v);
 void deleteIncomingEdges(Graph *g, unsigned v);
 void deleteVertex(Graph *g, unsigned v);
 void addDirectedEdge(Graph *g, unsigned u, unsigned v);
+void addUndirectedEdge(Graph *g, unsigned u, unsigned v);
 void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v);
 void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v);
 void deleteMatchingEdges(Graph *g, unsigned u, unsigned v);
@@ -200,7 +201,7 @@ void transferIncomingEdges(Graph *g, unsigned u, unsigned v);
 void contractVertices(Graph *g, unsigned u, unsigned v);
 void subdivideEdge(Graph *g, unsigned u, unsigned v);
 void addWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
-void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void addWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 
@@ -262,6 +263,7 @@ unsigned countWalks(const Graph *g, unsigned u, unsigned v);
 unsigned countPaths(const Graph *g, unsigned u, unsigned v);
 unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v);
+unsigned countCyclesSharingEdge(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
@@ -2340,27 +2342,27 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createPath(unsigned n) {
   Graph *g = createGraph(n);
-  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, v - 1, v, 1);
+  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, v - 1, v);
   return g;
 }
 
 [[nodiscard]] Graph *createCycle(unsigned n) {
   Graph *g = createGraph(n);
-  for (unsigned v = 0; v < n; v++) addUndirectedEdge(g, v, (v + 1) % n, 1);
+  for (unsigned v = 0; v < n; v++) addUndirectedEdge(g, v, (v + 1) % n);
   return g;
 }
 
 [[nodiscard]] Graph *createStar(unsigned n) {
   Graph *g = createGraph(n);
-  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v, 1);
+  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v);
   return g;
 }
 
 [[nodiscard]] Graph *createWheel(unsigned n) {
   Graph *g = createGraph(n);
-  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v, 1);
-  for (unsigned v = 2; v < n; v++) addUndirectedEdge(g, v - 1, v, 1);
-  addUndirectedEdge(g, n - 1, 1, 1);
+  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v);
+  for (unsigned v = 2; v < n; v++) addUndirectedEdge(g, v - 1, v);
+  addUndirectedEdge(g, n - 1, 1);
   return g;
 }
 
@@ -2381,7 +2383,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
       if (u != v)
         if (rand() / ((double)RAND_MAX + 1) < p) {
           double weight = weighted ? 1 + (rand() / ((double)RAND_MAX + 1)) * 9 : 1;
-          if (directed) addWeightedDirectedEdge(g, u, v, weight); else addUndirectedEdge(g, u, v, weight);
+          if (directed) addWeightedDirectedEdge(g, u, v, weight); else addWeightedUndirectedEdge(g, u, v, weight);
         }
   return g;
 }
@@ -2418,7 +2420,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
   Graph *g2 = createGraph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      addUndirectedEdge(g2, v, e->destination, e->weight);
+      addWeightedUndirectedEdge(g2, v, e->destination, e->weight);
   return g2;
 }
 
@@ -2464,9 +2466,9 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
           for (Edge *e = g->edges[v]; e; e = e->next) {
             if (v < e->destination || (v == e->destination && vSelf % 2 == 0)) {
               if (i < j && (u == v || u == e->destination || d->destination == v || d->destination == e->destination))
-                addUndirectedEdge(g2, i, j, 1);
+                addUndirectedEdge(g2, i, j);
               if (i == j && (u == e->destination || d->destination == v))
-                addUndirectedEdge(g2, i, j, 1);
+                addUndirectedEdge(g2, i, j);
               j++;
             }
             if (v == e->destination) vSelf++;
@@ -2486,7 +2488,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (v != e->destination && !hasUndirectedEdge(g2, v, e->destination))
-        addUndirectedEdge(g2, v, e->destination, 1);
+        addUndirectedEdge(g2, v, e->destination);
   return g2;
 }
 
@@ -2504,7 +2506,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
           weight = e->weight;
         }
     if (weight == INFINITY) break;
-    addUndirectedEdge(mst, u, v, weight);
+    addWeightedUndirectedEdge(mst, u, v, weight);
   }
   return mst;
 }
@@ -2546,7 +2548,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
   } while (u != UINT_MAX);
   for (unsigned v = 1; v < g->size; ++v)
     if (parents[v] != UINT_MAX)
-      addUndirectedEdge(mst, parents[v], v, weights[v]);
+      addWeightedUndirectedEdge(mst, parents[v], v, weights[v]);
   free(added);
   free(weights);
   free(parents);
@@ -2574,8 +2576,8 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
     unsigned self = 0;
     for (Edge *e = g->edges[v]; e; e = e->next) {
       if (v < e->destination || (v == e->destination && self % 2 == 0)) {
-        addUndirectedEdge(g2, v, u, e->weight);
-        addUndirectedEdge(g2, u, e->destination, e->weight);
+        addWeightedUndirectedEdge(g2, v, u, e->weight);
+        addWeightedUndirectedEdge(g2, u, e->destination, e->weight);
         u++;
       }
       if (v == e->destination) self++;
@@ -2837,6 +2839,11 @@ void addDirectedEdge(Graph *g, unsigned u, unsigned v) {
   addWeightedDirectedEdge(g, u, v, 1);
 }
 
+void addUndirectedEdge(Graph *g, unsigned u, unsigned v) {
+  addDirectedEdge(g, u, v);
+  addDirectedEdge(g, u, v);
+}
+
 void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size) return;
   Edge **e = &g->edges[u];
@@ -2852,9 +2859,8 @@ void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
 }
 
 void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v) {
-  double weight = getEdgeWeight(g, u, v);
-  deleteFirstWeightedDirectedEdge(g, u, v, weight);
-  deleteFirstWeightedDirectedEdge(g, v, u, weight);
+  deleteFirstDirectedEdge(g, u, v);
+  deleteFirstDirectedEdge(g, v, u);
 }
 
 void deleteMatchingEdges(Graph *g, unsigned u, unsigned v) {
@@ -2923,9 +2929,9 @@ void addWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
   g->edges[u] = e;
 }
 
-void addUndirectedEdge(Graph *g, unsigned u, unsigned v, double x) {
-  addWeightedDirectedEdge(g, u, v, x);
-  addWeightedDirectedEdge(g, v, u, x);
+void addWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
+  addWeightedDirectedEdge(g, u, v, weight);
+  addWeightedDirectedEdge(g, v, u, weight);
 }
 
 void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
@@ -3979,6 +3985,29 @@ unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v) {
       if (e->destination < g->size)
         available[w][e->destination]++;
   return countUndirectedTrailsDfs(g, u, v, available);
+}
+
+static void countCyclesSharingEdgeDfs(const Graph *g, unsigned u, unsigned v, bool visited[], unsigned *count) {
+  if (u == v) {
+    (*count)++;
+    return;
+  }
+  visited[u] = true;
+  for (const Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination < g->size && !visited[e->destination])
+      countCyclesSharingEdgeDfs(g, e->destination, v, visited, count);
+  visited[u] = false;
+}
+
+unsigned countCyclesSharingEdge(const Graph *g, unsigned u, unsigned v) {
+  if (!g || g->size == 0 || !g->edges || u >= g->size || v >= g->size || !hasDirectedEdge(g, u, v)) return 0;
+  bool visited[g->size] = {};
+  unsigned count = 0;
+  visited[v] = true;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination != u && e->destination < g->size)
+      countCyclesSharingEdgeDfs(g, e->destination, u, visited, &count);
+  return count;
 }
 
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight) {
@@ -5752,8 +5781,8 @@ void testHasDirectedCycle() {
 
 void testHasUndirectedCycle() {
   Graph *g1 = createGraph(3);
-  addUndirectedEdge(g1, 0, 1, 1);
-  addUndirectedEdge(g1, 1, 2, 1);
+  addUndirectedEdge(g1, 0, 1);
+  addUndirectedEdge(g1, 1, 2);
   if (!hasUndirectedCycle(g1))
     printf("Undirected Test 1 passed: Tree is acyclic.\n");
   else
@@ -5761,9 +5790,9 @@ void testHasUndirectedCycle() {
   destroyGraph(g1);
 
   Graph *g2 = createGraph(3);
-  addUndirectedEdge(g2, 0, 1, 1);
-  addUndirectedEdge(g2, 1, 2, 1);
-  addUndirectedEdge(g2, 2, 0, 1);
+  addUndirectedEdge(g2, 0, 1);
+  addUndirectedEdge(g2, 1, 2);
+  addUndirectedEdge(g2, 2, 0);
   if (hasUndirectedCycle(g2))
     printf("Undirected Test 2 passed: Triangle cycle detected.\n");
   else
@@ -5771,10 +5800,10 @@ void testHasUndirectedCycle() {
   destroyGraph(g2);
 
   Graph *g3 = createGraph(5);
-  addUndirectedEdge(g3, 0, 1, 1);
-  addUndirectedEdge(g3, 2, 3, 1);
-  addUndirectedEdge(g3, 3, 4, 1);
-  addUndirectedEdge(g3, 4, 2, 1);
+  addUndirectedEdge(g3, 0, 1);
+  addUndirectedEdge(g3, 2, 3);
+  addUndirectedEdge(g3, 3, 4);
+  addUndirectedEdge(g3, 4, 2);
   if (hasUndirectedCycle(g3))
     printf("Undirected Test 3 passed: Cycle in disconnected component detected.\n");
   else
@@ -5782,7 +5811,7 @@ void testHasUndirectedCycle() {
   destroyGraph(g3);
 
   Graph *g4 = createGraph(2);
-  addUndirectedEdge(g4, 0, 1, 1);
+  addUndirectedEdge(g4, 0, 1);
   if (!hasUndirectedCycle(g4))
     printf("Undirected Test 4 passed: Simple edge is acyclic.\n");
   else
@@ -6111,9 +6140,9 @@ void testFloydWarshall() {
 void testPrim() {
   {
     Graph *g = createGraph(3);
-    addUndirectedEdge(g, 0, 1, 1);
-    addUndirectedEdge(g, 1, 2, 3);
-    addUndirectedEdge(g, 0, 2, 4);
+    addWeightedUndirectedEdge(g, 0, 1, 1);
+    addWeightedUndirectedEdge(g, 1, 2, 3);
+    addWeightedUndirectedEdge(g, 0, 2, 4);
     Graph *mst = createPrim(g);
     double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 4);
@@ -6124,13 +6153,13 @@ void testPrim() {
   }
   {
     Graph *g = createGraph(5);
-    addUndirectedEdge(g, 0, 1, 2);
-    addUndirectedEdge(g, 0, 3, 6);
-    addUndirectedEdge(g, 1, 2, 3);
-    addUndirectedEdge(g, 1, 3, 8);
-    addUndirectedEdge(g, 1, 4, 5);
-    addUndirectedEdge(g, 2, 4, 7);
-    addUndirectedEdge(g, 3, 4, 9);
+    addWeightedUndirectedEdge(g, 0, 1, 2);
+    addWeightedUndirectedEdge(g, 0, 3, 6);
+    addWeightedUndirectedEdge(g, 1, 2, 3);
+    addWeightedUndirectedEdge(g, 1, 3, 8);
+    addWeightedUndirectedEdge(g, 1, 4, 5);
+    addWeightedUndirectedEdge(g, 2, 4, 7);
+    addWeightedUndirectedEdge(g, 3, 4, 9);
     Graph *mst = createPrim(g);
     double w = sumWeights(mst) / 2;
     assert(countEdges(mst) == 8);
@@ -6153,11 +6182,11 @@ void testPrim() {
 
 void testKruskal() {
   Graph *g = createGraph(4);
-  addUndirectedEdge(g, 0, 1, 10);
-  addUndirectedEdge(g, 1, 3, 15);
-  addUndirectedEdge(g, 3, 2, 4);
-  addUndirectedEdge(g, 2, 0, 6);
-  addUndirectedEdge(g, 0, 3, 5);
+  addWeightedUndirectedEdge(g, 0, 1, 10);
+  addWeightedUndirectedEdge(g, 1, 3, 15);
+  addWeightedUndirectedEdge(g, 3, 2, 4);
+  addWeightedUndirectedEdge(g, 2, 0, 6);
+  addWeightedUndirectedEdge(g, 0, 3, 5);
   Graph *mst = createKruskal(g);
   double weight = sumWeights(mst) / 2;
   assert(countEdges(mst) == 6);
@@ -6171,8 +6200,8 @@ void testFindArticulationPoints() {
   {
     unsigned n = 3;
     Graph *g = createGraph(n);
-    addUndirectedEdge(g, 0, 1, 1);
-    addUndirectedEdge(g, 1, 2, 1);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 1, 2);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, true, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -6183,9 +6212,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 3;
     Graph *g = createGraph(n);
-    addUndirectedEdge(g, 0, 1, 1);
-    addUndirectedEdge(g, 1, 2, 1);
-    addUndirectedEdge(g, 2, 0, 1);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 1, 2);
+    addUndirectedEdge(g, 2, 0);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -6196,9 +6225,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 4;
     Graph *g = createGraph(n);
-    addUndirectedEdge(g, 0, 1, 1);
-    addUndirectedEdge(g, 0, 2, 1);
-    addUndirectedEdge(g, 0, 3, 1);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 0, 2);
+    addUndirectedEdge(g, 0, 3);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {true, false, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -6209,9 +6238,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 6;
     Graph *g = createGraph(n);
-    addUndirectedEdge(g, 0, 1, 1); addUndirectedEdge(g, 1, 2, 1); addUndirectedEdge(g, 2, 0, 1);
-    addUndirectedEdge(g, 2, 3, 1);
-    addUndirectedEdge(g, 3, 4, 1); addUndirectedEdge(g, 4, 5, 1); addUndirectedEdge(g, 5, 3, 1);
+    addUndirectedEdge(g, 0, 1); addUndirectedEdge(g, 1, 2); addUndirectedEdge(g, 2, 0);
+    addUndirectedEdge(g, 2, 3);
+    addUndirectedEdge(g, 3, 4); addUndirectedEdge(g, 4, 5); addUndirectedEdge(g, 5, 3);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, false, true, true, false, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
@@ -6222,9 +6251,9 @@ void testFindArticulationPoints() {
   {
     unsigned n = 5;
     Graph *g = createGraph(n);
-    addUndirectedEdge(g, 0, 1, 1);
-    addUndirectedEdge(g, 2, 3, 1);
-    addUndirectedEdge(g, 3, 4, 1);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 2, 3);
+    addUndirectedEdge(g, 3, 4);
     bool *articulations = findArticulationPoints(g);
     bool expected[] = {false, false, false, true, false};
     for (unsigned i = 0; i < n; i++) assert(articulations[i] == expected[i]);
