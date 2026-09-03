@@ -976,9 +976,11 @@ bool hasDirectedCycle(const Graph *g) {
 static bool hasUndirectedCycleDfs(const Graph *g, unsigned v, unsigned parent, bool visited[g->size]) {
   visited[v] = true;
   for (Edge *e = g->edges[v]; e; e = e->next)
-    if (visited[e->destination]) {
+    if (e->destination < g->size && visited[e->destination]) {
       if (e->destination != parent)
         return true;
+      else
+        parent = UINT_MAX;
     } else if (hasUndirectedCycleDfs(g, e->destination, v, visited)) {
       return true;
     }
@@ -986,7 +988,7 @@ static bool hasUndirectedCycleDfs(const Graph *g, unsigned v, unsigned parent, b
 }
 
 bool hasUndirectedCycle(const Graph *g) {
-  if (!isValid(g)) return false;
+  if (!g || g->size == 0 || !g->edges) return false;
   bool visited[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
     if (!visited[v] && hasUndirectedCycleDfs(g, v, UINT_MAX, visited))
