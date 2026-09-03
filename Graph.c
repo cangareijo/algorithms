@@ -251,6 +251,7 @@ unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
 unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v);
+unsigned countSimpleCyclesThroughVertex(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
@@ -3724,6 +3725,26 @@ unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v) {
       eccentricity = distance[u];
   free(distance);
   return eccentricity;
+}
+
+static unsigned countSimpleCyclesThroughVertexDfs(const Graph *g, unsigned u, unsigned v, bool *visited, unsigned length) {
+  if (v >= g->size || visited[v]) return 0;
+  if (u == v && length >= 3) return 1;
+  visited[v] = true;
+  unsigned count = 0;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    count += countSimpleCyclesThroughVertexDfs(g, u, e->destination, visited, length + 1);
+  visited[v] = false;
+  return count;
+}
+
+unsigned countSimpleCyclesThroughVertex(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return 0;
+  bool visited[g->size] = {};
+  unsigned count = 0;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    count += countSimpleCyclesThroughVertexDfs(g, v, e->destination, visited, 1);
+  return count;
 }
 
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
