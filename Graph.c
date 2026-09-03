@@ -1415,6 +1415,7 @@ static bool isCactusDfs(
   visited[v] = true;
   for (const Edge *e = g->edges[v]; e; e = e->next) {
     if (e->destination >= g->size) continue;
+    if (e->destination == v) return false;
     if (e->destination == parent) {
       parent = UINT_MAX;
       continue;
