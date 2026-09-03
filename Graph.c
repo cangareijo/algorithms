@@ -264,7 +264,7 @@ unsigned countWalks(const Graph *g, unsigned u, unsigned v);
 unsigned countPaths(const Graph *g, unsigned u, unsigned v);
 unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v);
-unsigned countCyclesSharingEdge(const Graph *g, unsigned u, unsigned v);
+unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
@@ -2841,8 +2841,7 @@ void addDirectedEdge(Graph *g, unsigned u, unsigned v) {
 }
 
 void addUndirectedEdge(Graph *g, unsigned u, unsigned v) {
-  addDirectedEdge(g, u, v);
-  addDirectedEdge(g, u, v);
+  addWeightedUndirectedEdge(g, u, v, 1);
 }
 
 void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
@@ -3727,7 +3726,7 @@ unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v) {
   return eccentricity;
 }
 
-static unsigned countSimpleCyclesThroughVertexDfs(const Graph *g, unsigned u, unsigned v, bool *visited, unsigned length) {
+static unsigned countSimpleCyclesThroughVertexDfs(const Graph *g, unsigned u, unsigned v, bool visited[g->size], unsigned length) {
   if (v >= g->size || visited[v]) return 0;
   if (u == v && length >= 3) return 1;
   visited[v] = true;
@@ -4008,26 +4007,25 @@ unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v) {
   return countUndirectedTrailsDfs(g, u, v, available);
 }
 
-static void countCyclesSharingEdgeDfs(const Graph *g, unsigned u, unsigned v, bool visited[], unsigned *count) {
-  if (u == v) {
-    (*count)++;
-    return;
-  }
-  visited[u] = true;
-  for (const Edge *e = g->edges[u]; e; e = e->next)
-    if (e->destination < g->size && !visited[e->destination])
-      countCyclesSharingEdgeDfs(g, e->destination, v, visited, count);
-  visited[u] = false;
+static unsigned countSimpleCyclesThroughEdgeDfs(const Graph *g, unsigned u, unsigned v, bool visited[g->size]) {
+  if (v >= g->size || visited[v]) return 0;
+  if (u == v) return 1;
+  visited[v] = true;
+  unsigned count = 0;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    count += countSimpleCyclesThroughEdgeDfs(g, u, e->destination, visited);
+  visited[v] = false;
+  return count;
 }
 
-unsigned countCyclesSharingEdge(const Graph *g, unsigned u, unsigned v) {
-  if (!g || g->size == 0 || !g->edges || u >= g->size || v >= g->size || !hasDirectedEdge(g, u, v)) return 0;
+unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || !hasDirectedEdge(g, u, v)) return 0;
   bool visited[g->size] = {};
-  unsigned count = 0;
   visited[v] = true;
+  unsigned count = 0;
   for (const Edge *e = g->edges[v]; e; e = e->next)
-    if (e->destination != u && e->destination < g->size)
-      countCyclesSharingEdgeDfs(g, e->destination, u, visited, &count);
+    if (e->destination != u)
+      count += countSimpleCyclesThroughEdgeDfs(g, u, e->destination, visited);
   return count;
 }
 
