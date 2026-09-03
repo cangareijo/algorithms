@@ -95,6 +95,7 @@ bool isUndirectedLeaf(const Graph *g, unsigned v);
 bool canReachAll(const Graph *g, unsigned v);
 bool isArticulationVertex(const Graph *g, unsigned v);
 bool isSimplicial(const Graph *g, unsigned v);
+bool isCactus(const Graph *g);
 bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
@@ -1399,6 +1400,52 @@ bool isSimplicial(const Graph *g, unsigned v) {
       unsigned v2 = e1->destination, v3 = e2->destination;
       if (v != v2 && v != v3 && v2 != v3 && !hasDirectedEdge(g, v2, v3) && !hasDirectedEdge(g, v3, v2)) return false;
     }
+  return true;
+}
+
+static bool isCactusDfs(
+  const Graph *g,
+  unsigned v,
+  unsigned parent,
+  bool visited[g->size],
+  unsigned depth[g->size],
+  unsigned parent_node[g->size],
+  unsigned cycle_count[g->size])
+{
+  visited[v] = true;
+  for (const Edge *e = g->edges[v]; e; e = e->next) {
+    if (e->destination >= g->size) continue;
+    if (e->destination == parent) {
+      parent = UINT_MAX;
+      continue;
+    }
+    if (visited[e->destination]) {
+      if (depth[e->destination] < depth[v])
+        for (unsigned u = v; u != e->destination; u = parent_node[u]) {
+          cycle_count[u]++;
+          if (cycle_count[u] > 1) return false;
+        }
+    } else {
+      parent_node[e->destination] = v;
+      depth[e->destination] = depth[v] + 1;
+      if (!isCactusDfs(g, e->destination, v, visited, depth, parent_node, cycle_count)) return false;
+    }
+  }
+  return true;
+}
+
+bool isCactus(const Graph *g) {
+  if (!g) return false;
+  if (g->size <= 1) return true;
+  if (!g->edges) return false;
+  bool visited[g->size] = {};
+  unsigned depth[g->size] = {};
+  unsigned parent_node[g->size];
+  unsigned cycle_count[g->size] = {};
+  if (!isCactusDfs(g, 0, UINT_MAX, visited, depth, parent_node, cycle_count)) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!visited[v])
+      return false;
   return true;
 }
 
