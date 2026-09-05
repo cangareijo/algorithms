@@ -174,6 +174,7 @@ Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *findFeedbackArcSet(const Graph *g);
+Graph *getCactus(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -207,7 +208,7 @@ void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double we
 void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 
 unsigned getSize(const Graph *g);
-unsigned countEdges(const Graph *g);
+unsigned countRawEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *g);
 unsigned getMinimumInDegree(const Graph *g);
@@ -349,6 +350,7 @@ void testKruskal();
 void testFindArticulationPoints();
 void testGraphDensity();
 void testCalculateBetweennessCentrality();
+void testCreateCactus();
 
 int main();
 
@@ -1345,7 +1347,7 @@ bool hasConstantWeights(const Graph *g, double weight) {
 }
 
 bool isDense(const Graph *g, double threshold) {
-  return !g || countEdges(g) >= threshold * g->size * (g->size - 1);
+  return !g || countRawEdges(g) >= threshold * g->size * (g->size - 1);
 }
 
 bool isIsolated(const Graph *g, unsigned v) {
@@ -1716,12 +1718,12 @@ bool isSubGraph(const Graph *g1, const Graph *g2) {
 }
 
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == g1->size - 1 &&
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countRawEdges(g1) == g1->size - 1 &&
     isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countEdges(g1) == 2 * (g1->size - 1) &&
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countRawEdges(g1) == 2 * (g1->size - 1) &&
     !hasSelfLoops(g1) && !hasParallelEdges(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
@@ -1748,7 +1750,7 @@ bool isIsomorphic(const Graph *g1, const Graph *g2) {
   if (!g1 || !g1->edges || !g2 || !g2->edges) return false;
   if (g1->size != g2->size) return false;
   if (g1->size == 0) return true;
-  if (countEdges(g1) != countEdges(g2)) return false;
+  if (countRawEdges(g1) != countRawEdges(g2)) return false;
   unsigned mapping[g1->size] = {};
   bool used[g1->size] = {};
   return isIsomorphicRecursive(g1, g2, 0, mapping, used);
@@ -2487,7 +2489,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createDirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(countEdges(g));
+  Graph *g2 = createGraph(countRawEdges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++)
     for (Edge *d = g->edges[u]; d; d = d->next) {
@@ -2505,7 +2507,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createUndirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(countEdges(g) / 2);
+  Graph *g2 = createGraph(countRawEdges(g) / 2);
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++) {
     unsigned uSelf = 0;
@@ -2608,7 +2610,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size + countEdges(g));
+  Graph *g2 = createGraph(g->size + countRawEdges(g));
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
@@ -2621,7 +2623,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createUndirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size + countEdges(g) / 2);
+  Graph *g2 = createGraph(g->size + countRawEdges(g) / 2);
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++) {
     unsigned self = 0;
@@ -2681,6 +2683,56 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
   free(permutation);
   free(position);
   return result;
+}
+
+static void getCactusDfs(
+  const Graph *g, unsigned v, unsigned discovery[g->size], unsigned parent[g->size], bool taken[g->size][g->size], unsigned *timer)
+{
+  discovery[v] = ++(*timer);
+  for (const Edge *e = g->edges[v]; e; e = e->next) {
+    if (e->destination >= g->size || e->destination == parent[v]) continue;
+    if (discovery[e->destination] && discovery[e->destination] < discovery[v]) {
+      bool free = true;
+      for (unsigned u = v; u != e->destination; u = parent[u])
+        if (taken[u][parent[u]]) {
+          free = false;
+          break;
+        }
+      if (free) {
+        taken[v][e->destination] = taken[e->destination][v] = true;
+        for (unsigned u = v; u != e->destination; u = parent[u]) taken[u][parent[u]] = taken[parent[u]][u] = true;
+      }
+    } else if (!discovery[e->destination]) {
+      parent[e->destination] = v;
+      getCactusDfs(g, e->destination, discovery, parent, taken, timer);
+    }
+  }
+}
+
+Graph *getCactus(const Graph *g) {
+  if (!g) return nullptr;
+  Graph *cactus = createGraph(g->size);
+  if (!cactus) return nullptr;
+  if (g->size == 0) return cactus;
+  if (!g->edges) return nullptr;
+  unsigned discovery[g->size] = {}, parent[g->size], timer = 0;
+  bool taken[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++) parent[v] = g->size;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!discovery[v])
+      getCactusDfs(g, v, discovery, parent, taken, &timer);
+  for (unsigned u = 0; u < g->size; u++) {
+    if (parent[u] != g->size) addUndirectedEdge(cactus, u, parent[u]);
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (
+        e->destination < g->size && u < e->destination &&
+        parent[u] != e->destination && parent[e->destination] != u && taken[u][e->destination]
+      ) {
+        addUndirectedEdge(cactus, u, e->destination);
+        taken[u][e->destination] = false;
+      }
+  }
+  return cactus;
 }
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
@@ -3010,7 +3062,7 @@ unsigned getSize(const Graph *g) {
   return g->size;
 }
 
-unsigned countEdges(const Graph *g) {
+unsigned countRawEdges(const Graph *g) {
   if (!g || !g->edges) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -5016,7 +5068,7 @@ double calculateWeightedDiameter(const Graph *g) {
 
 double calculateDensity(const Graph *g) {
   if (!g || g->size < 2) return 0;
-  return (double)countEdges(g) / g->size / (g->size - 1);
+  return (double)countRawEdges(g) / g->size / (g->size - 1);
 }
 
 double calculateAverageClusteringCoefficient(const Graph *g) {
@@ -6214,7 +6266,7 @@ void testPrim() {
     addWeightedUndirectedEdge(g, 0, 2, 4);
     Graph *mst = createPrim(g);
     double w = sumWeights(mst) / 2;
-    assert(countEdges(mst) == 4);
+    assert(countRawEdges(mst) == 4);
     assert(w == 4);
     printf("Prim test 1 (triangle) passed: weight %lg\n", w);
     destroyGraph(g);
@@ -6231,7 +6283,7 @@ void testPrim() {
     addWeightedUndirectedEdge(g, 3, 4, 9);
     Graph *mst = createPrim(g);
     double w = sumWeights(mst) / 2;
-    assert(countEdges(mst) == 8);
+    assert(countRawEdges(mst) == 8);
     assert(w == 16);
     printf("Prim test 2 (complex) passed: weight %lg\n", w);
     destroyGraph(g);
@@ -6241,7 +6293,7 @@ void testPrim() {
     Graph *g = createGraph(1);
     Graph *mst = createPrim(g);
     double w = sumWeights(mst);
-    assert(countEdges(mst) == 0);
+    assert(countRawEdges(mst) == 0);
     assert(w == 0);
     printf("Prim test 3 (single vertex) passed!\n");
     destroyGraph(g);
@@ -6258,7 +6310,7 @@ void testKruskal() {
   addWeightedUndirectedEdge(g, 0, 3, 5);
   Graph *mst = createKruskal(g);
   double weight = sumWeights(mst) / 2;
-  assert(countEdges(mst) == 6);
+  assert(countRawEdges(mst) == 6);
   assert(weight == 19);
   printf("Kruskal test passed: weight %lg\n", weight);
   destroyGraph(g);
@@ -6419,6 +6471,93 @@ void testCalculateBetweennessCentrality() {
   }
 }
 
+void testCreateCactus() {
+  {
+    Graph *g = createGraph(4);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 0, 2);
+    addUndirectedEdge(g, 1, 2);
+    addUndirectedEdge(g, 1, 3);
+    addUndirectedEdge(g, 2, 3);
+
+    Graph *cactus = getCactus(g);
+
+    printf("getCactus: Theta: Original raw edge count: %u (Expected: 10)\n", countRawEdges(g));
+    printf("getCactus: Theta: Cactus raw edge count:    %u (Expected:  8)\n", countRawEdges(cactus));
+    assert(countRawEdges(cactus) == 8);
+
+    destroyGraph(g);
+    destroyGraph(cactus);
+  }
+
+  {
+    Graph *g = createGraph(5);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 1, 2);
+    addUndirectedEdge(g, 2, 0);
+
+    addUndirectedEdge(g, 2, 3);
+    addUndirectedEdge(g, 3, 4);
+    addUndirectedEdge(g, 4, 2);
+
+    Graph *cactus = getCactus(g);
+
+    printf("getCactus: Hourglass: Original edge count: %u (Expected: 12)\n", countRawEdges(g));
+    printf("getCactus: Hourglass: Cactus edge count:   %u (Expected: 12)\n", countRawEdges(cactus));
+    assert(countRawEdges(cactus) == 12);
+
+    destroyGraph(g);
+    destroyGraph(cactus);
+  }
+
+  {
+    Graph *g = createGraph(2);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 0, 1);
+
+    Graph *cactus = getCactus(g);
+
+    printf("getCactus: Parallel: Original edge count: %u (Expected: 6)\n", countRawEdges(g));
+    printf("getCactus: Parallel: Cactus edge count:   %u (Expected: 2)\n", countRawEdges(cactus));
+    assert(countRawEdges(cactus) == 2);
+
+    destroyGraph(g);
+    destroyGraph(cactus);
+  }
+
+  {
+    Graph *g = createGraph(1);
+    addUndirectedEdge(g, 0, 0);
+    addUndirectedEdge(g, 0, 0);
+    addUndirectedEdge(g, 0, 0);
+
+    Graph *cactus = getCactus(g);
+
+    printf("getCactus: Self-Loop: Original edge count: %u (Expected: 6)\n", countRawEdges(g));
+    printf("getCactus: Self-Loop: Cactus edge count:   %u (Expected: 0)\n", countRawEdges(cactus));
+    assert(countRawEdges(cactus) == 0);
+
+    destroyGraph(g);
+    destroyGraph(cactus);
+  }
+
+  {
+    Graph *g = createGraph(4);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 2, 3);
+
+    Graph *cactus = getCactus(g);
+
+    printf("getCactus: Disconnected: Original edge count: %u (Expected: 4)\n", countRawEdges(g));
+    printf("getCactus: Disconnected: Cactus edge count:   %u (Expected: 4)\n", countRawEdges(cactus));
+    assert(countRawEdges(cactus) == 4);
+
+    destroyGraph(g);
+    destroyGraph(cactus);
+  }
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -6434,6 +6573,7 @@ int main() {
   testFindArticulationPoints();
   testGraphDensity();
   testCalculateBetweennessCentrality();
+  testCreateCactus();
   printf("All tests passed!\n");
   return 0;
 }
