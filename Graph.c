@@ -315,6 +315,7 @@ double calculateMinCut(const Graph *g);
 double calculateGraphEnergy(const Graph *g);
 double calculateAssortativityCoefficient(const Graph *g);
 double calculateAlgebraicConnectivity(const Graph *g);
+double calculateGlobalEfficiency(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -5429,6 +5430,36 @@ double calculateAlgebraicConnectivity(const Graph *g) {
   return result < 1e-5 ? 0 : result;
 }
 
+double calculateGlobalEfficiency(const Graph *g) {
+  if (!g || g->size < 2 || !g->edges) return 0;
+
+  unsigned n = g->size;
+  double distance[n][n];
+
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = 0; v < n; v++)
+      distance[u][v] = (u == v) ? 0 : INFINITY;
+
+  for (unsigned u = 0; u < n; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < n && e->weight < distance[u][e->destination])
+        distance[u][e->destination] = e->weight;
+
+  for (unsigned w = 0; w < n; w++)
+    for (unsigned u = 0; u < n; u++)
+      for (unsigned v = 0; v < n; v++)
+        if (distance[u][w] + distance[w][v] < distance[u][v])
+          distance[u][v] = distance[u][w] + distance[w][v];
+
+  double sum = 0;
+  for (unsigned u = 0; u < n; ++u)
+    for (unsigned v = 0; v < n; ++v)
+      if (u != v && !isinf(distance[u][v]))
+        sum += 1 / distance[u][v];
+
+  return sum / n / (n - 1);
+}
+
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
@@ -6735,6 +6766,78 @@ void testCalculateAlgebraicConnectivity() {
   destroyGraph(g6);
 }
 
+void testCalculateGlobalEfficiency() {
+  printf("Running Global Efficiency Tests...\n");
+
+  {
+    Graph *g = createGraph(1);
+    assert(g);
+    assert(fabs(calculateGlobalEfficiency(g) - 0) < 1e-9);
+    destroyGraph(g);
+  }
+
+  {
+    Graph *g = createGraph(2);
+    assert(g);
+    assert(fabs(calculateGlobalEfficiency(g) - 0) < 1e-9);
+    destroyGraph(g);
+  }
+
+  {
+    Graph *g = createGraph(2);
+    assert(g);
+    addUndirectedEdge(g, 0, 1);
+    assert(fabs(calculateGlobalEfficiency(g) - 1) < 1e-9);
+    destroyGraph(g);
+  }
+
+  {
+    Graph *g = createGraph(3);
+    assert(g);
+    addUndirectedEdge(g, 0, 1);
+    addUndirectedEdge(g, 1, 2);
+    assert(fabs(calculateGlobalEfficiency(g) - (5.0 / 6.0)) < 1e-9);
+    destroyGraph(g);
+  }
+
+  {
+    Graph *g = createGraph(3);
+    assert(g);
+    addWeightedUndirectedEdge(g, 0, 1, 4);
+    addWeightedUndirectedEdge(g, 1, 2, 4);
+    addWeightedUndirectedEdge(g, 0, 2, 2);
+    assert(fabs(calculateGlobalEfficiency(g) - (1.0 / 3.0)) < 1e-9);
+    destroyGraph(g);
+  }
+
+  {
+    Graph *g = createGraph(3);
+    assert(g);
+    addWeightedDirectedEdge(g, 0, 1, 1);
+    addWeightedDirectedEdge(g, 1, 2, 1);
+    addWeightedDirectedEdge(g, 2, 0, 1);
+    assert(fabs(calculateGlobalEfficiency(g) - 0.75) < 1e-9);
+    destroyGraph(g);
+  }
+
+  {
+    Graph *g = createGraph(4);
+    assert(g);
+    assert(fabs(calculateGlobalEfficiency(g) - 0) < 1e-9);
+    destroyGraph(g);
+  }
+
+  {
+    Graph *g = createGraph(2);
+    assert(g);
+    addWeightedDirectedEdge(g, 0, 1, 5);
+    addWeightedDirectedEdge(g, 0, 1, 2);
+    addWeightedDirectedEdge(g, 1, 0, 2);
+    assert(fabs(calculateGlobalEfficiency(g) - 0.5) < 1e-9);
+    destroyGraph(g);
+  }
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -6753,6 +6856,7 @@ int main() {
   testCreateCactus();
   testCalculateAssortativityCoefficient();
   testCalculateAlgebraicConnectivity();
+  testCalculateGlobalEfficiency();
   printf("All tests passed!\n");
   return 0;
 }
