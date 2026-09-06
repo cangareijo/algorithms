@@ -316,6 +316,7 @@ double calculateGraphEnergy(const Graph *g);
 double calculateAssortativityCoefficient(const Graph *g);
 double calculateAlgebraicConnectivity(const Graph *g);
 double calculateGlobalEfficiency(const Graph *g);
+double calculateEffectiveGraphResistance(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -5460,6 +5461,36 @@ double calculateGlobalEfficiency(const Graph *g) {
   return sum / n / (n - 1);
 }
 
+double calculateEffectiveGraphResistance(const Graph *g) {
+  if (!g || g->size <= 1 || !g->edges) return 0;
+  unsigned n = g->size;
+  double matrix[n][2 * n];
+  for (unsigned u = 0; u < n; u++) {
+    for (unsigned v = 0; v < n; v++) {
+      matrix[u][v] = 1.0 / n;
+      matrix[u][v + n] = u == v ? 1 : 0;
+    }
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < n) {
+        matrix[u][u] += e->weight;
+        matrix[u][e->destination] -= e->weight;
+      }
+  }
+  for (unsigned u = 0; u < n; u++) {
+    double pivot = matrix[u][u];
+    if (fabs(pivot) < 1e-9) return INFINITY;
+    for (unsigned v = u; v < 2 * n; v++) matrix[u][v] /= pivot;
+    for (unsigned w = 0; w < n; w++)
+      if (w != u) {
+        double factor = matrix[w][u];
+        for (unsigned v = u; v < 2 * n; v++) matrix[w][v] -= factor * matrix[u][v];
+      }
+  }
+  double trace = 0;
+  for (unsigned u = 0; u < n; u++) trace += matrix[u][u + n];
+  return n * (trace - 1);
+}
+
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
@@ -6838,6 +6869,53 @@ void testCalculateGlobalEfficiency() {
   }
 }
 
+void testCalculateEffectiveGraphResistance() {
+  Graph *g_empty = createGraph(1);
+  assert(fabs(calculateEffectiveGraphResistance(g_empty) - 0) < 1e-6);
+  destroyGraph(g_empty);
+
+  Graph *g_line = createGraph(3);
+  addUndirectedEdge(g_line, 0, 1);
+  addUndirectedEdge(g_line, 1, 2);
+  double res_line = calculateEffectiveGraphResistance(g_line);
+  printf("Test Undirected Line Graph (0-1-2): Expected ~4.0000, Got %.4f\n", res_line);
+  assert(fabs(res_line - 4) < 1e-6);
+  destroyGraph(g_line);
+
+  Graph *g_k3 = createGraph(3);
+  addUndirectedEdge(g_k3, 0, 1);
+  addUndirectedEdge(g_k3, 1, 2);
+  addUndirectedEdge(g_k3, 2, 0);
+  double res_k3 = calculateEffectiveGraphResistance(g_k3);
+  printf("Test Complete Graph K3: Expected ~2.0000, Got %.4f\n", res_k3);
+  assert(fabs(res_k3 - 2) < 1e-6);
+  destroyGraph(g_k3);
+
+  Graph *g_star = createGraph(4);
+  addWeightedUndirectedEdge(g_star, 0, 1, 2.0);
+  addWeightedUndirectedEdge(g_star, 0, 2, 1.0);
+  addWeightedUndirectedEdge(g_star, 0, 3, 0.5);
+  double res_star = calculateEffectiveGraphResistance(g_star);
+  printf("Test Weighted Star Graph: Expected ~10.5000, Got %.4f\n", res_star);
+  assert(fabs(res_star - 10.5) < 1e-6);
+  destroyGraph(g_star);
+
+  Graph *g_disconnected = createGraph(3);
+  addUndirectedEdge(g_disconnected, 0, 1); 
+  double res_disconnected = calculateEffectiveGraphResistance(g_disconnected);
+  printf("Test Disconnected Graph: Expected inf, Got %.4f\n", res_disconnected);
+  assert(isinf(res_disconnected));
+  destroyGraph(g_disconnected);
+
+  Graph *g_directed = createGraph(3);
+  addDirectedEdge(g_directed, 0, 1);
+  addDirectedEdge(g_directed, 1, 2);
+  double res_directed = calculateEffectiveGraphResistance(g_directed);
+  printf("Test Directed Line Graph (0->1->2): Expected ~6.0000, Got %.4f\n", res_directed);
+  assert(fabs(res_directed - 6) < 1e-6);
+  destroyGraph(g_directed);
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -6857,6 +6935,7 @@ int main() {
   testCalculateAssortativityCoefficient();
   testCalculateAlgebraicConnectivity();
   testCalculateGlobalEfficiency();
+  testCalculateEffectiveGraphResistance();
   printf("All tests passed!\n");
   return 0;
 }
