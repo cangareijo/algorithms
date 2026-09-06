@@ -314,6 +314,7 @@ double calculateBruteForceMinCut(const Graph *g);
 double calculateMinCut(const Graph *g);
 double calculateGraphEnergy(const Graph *g);
 double calculateAssortativityCoefficient(const Graph *g);
+double calculateAlgebraicConnectivity(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -353,6 +354,7 @@ void testGraphDensity();
 void testCalculateBetweennessCentrality();
 void testCreateCactus();
 void testCalculateAssortativityCoefficient();
+void testCalculateAlgebraicConnectivity();
 
 int main();
 
@@ -5385,6 +5387,48 @@ double calculateAssortativityCoefficient(const Graph *g) {
   return denominator != 0 ? (m * a - b * b / 4) / denominator : 0;
 }
 
+double calculateAlgebraicConnectivity(const Graph *g) {
+  if (!g || g->size < 2 || !g->edges) return 0;
+  unsigned n = g->size;
+  double l[n][n] = {}, max_w = 1;
+
+  for (unsigned u = 0; u < n; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < n) {
+        l[u][e->destination] -= e->weight;
+        l[u][u] += e->weight;
+        if (e->weight > max_w) max_w = e->weight;
+      }
+
+  double alpha = 100 * n * max_w, beta = 10 * alpha, b[n][n], x[n], eigenvalue = 0;
+  for (unsigned u = 0; u < n; u++) {
+    x[u] = u + 1;
+    for (unsigned v = 0; v < n; v++)
+      b[u][v] = (u == v ? beta : 0) - (l[u][v] + alpha);
+  }
+
+  for (int iter = 0; iter < 10000; iter++) {
+    double y[n] = {}, norm = 0, num = 0, den = 0;
+    for (unsigned u = 0; u < n; u++)
+      for (unsigned v = 0; v < n; v++)
+        y[u] += b[u][v] * x[v];
+
+    for (unsigned u = 0; u < n; u++) norm += y[u] * y[u];
+    norm = sqrt(norm);
+    if (norm < 1e-9) break;
+
+    for (unsigned u = 0; u < n; u++) {
+      num += x[u] * y[u];
+      den += x[u] * x[u];
+    }
+    eigenvalue = num / den;
+    for (unsigned u = 0; u < n; u++) x[u] = y[u] / norm;
+  }
+
+  double result = beta - eigenvalue;
+  return result < 1e-5 ? 0 : result;
+}
+
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
@@ -6634,6 +6678,63 @@ void testCalculateAssortativityCoefficient() {
   printf("All assortativity tests passed successfully!\n");
 }
 
+void testCalculateAlgebraicConnectivity() {
+  printf("--- Running Algebraic Connectivity Tests ---\n");
+
+  Graph *g1 = createGraph(3);
+  addUndirectedEdge(g1, 0, 1);
+  addUndirectedEdge(g1, 1, 2);
+  double r1 = calculateAlgebraicConnectivity(g1);
+  printf("Test 1 (Path P3): %f (Expected: 1.0000)\n", r1);
+  assert(fabs(r1 - 1) < 0.01);
+  destroyGraph(g1);
+
+  Graph *g2 = createGraph(3);
+  addUndirectedEdge(g2, 0, 1);
+  double r2 = calculateAlgebraicConnectivity(g2);
+  printf("Test 2 (Disconnected): %f (Expected: 0.0000)\n", r2);
+  assert(fabs(r2 - 0) < 0.001);
+  destroyGraph(g2);
+
+  Graph *g3 = createGraph(3);
+  addUndirectedEdge(g3, 0, 1);
+  addUndirectedEdge(g3, 1, 2);
+  addUndirectedEdge(g3, 2, 0);
+  double r3 = calculateAlgebraicConnectivity(g3);
+  printf("Test 3 (Complete K3): %f (Expected: 3.0000)\n", r3);
+  assert(fabs(r3 - 3) < 0.001);
+  destroyGraph(g3);
+
+  Graph *g4 = createGraph(4);
+  addUndirectedEdge(g4, 0, 1);
+  addUndirectedEdge(g4, 1, 2);
+  addUndirectedEdge(g4, 2, 3);
+  double r4 = calculateAlgebraicConnectivity(g4);
+  double expected4 = 2 - sqrt(2);
+  printf("Test 4 (Path P4): %f (Expected: ~%f)\n", r4, expected4);
+  assert(fabs(r4 - expected4) < 0.01);
+  destroyGraph(g4);
+
+  Graph *g5 = createGraph(4);
+  addUndirectedEdge(g5, 0, 1);
+  addUndirectedEdge(g5, 1, 2);
+  addUndirectedEdge(g5, 2, 3);
+  addUndirectedEdge(g5, 3, 0);
+  double r5 = calculateAlgebraicConnectivity(g5);
+  printf("Test 5 (Cycle C4): %f (Expected: 2.0000)\n", r5);
+  assert(fabs(r5 - 2) < 0.01);
+  destroyGraph(g5);
+
+  Graph *g6 = createGraph(3);
+  addWeightedUndirectedEdge(g6, 0, 1, 0.5);
+  addWeightedUndirectedEdge(g6, 1, 2, 2.5);
+  double r6 = calculateAlgebraicConnectivity(g6);
+  double expected6 = 3 - sqrt(5.25);
+  printf("Test 6 (Weighted Chain): %f (Expected: ~%f)\n", r6, expected6);
+  assert(fabs(r6 - expected6) < 0.01);
+  destroyGraph(g6);
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -6651,6 +6752,7 @@ int main() {
   testCalculateBetweennessCentrality();
   testCreateCactus();
   testCalculateAssortativityCoefficient();
+  testCalculateAlgebraicConnectivity();
   printf("All tests passed!\n");
   return 0;
 }
