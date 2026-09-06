@@ -174,7 +174,7 @@ Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *findFeedbackArcSet(const Graph *g);
-Graph *getCactus(const Graph *g);
+Graph *extractCactus(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -313,6 +313,7 @@ double calculateStoerWagnerMinCut(const Graph *g);
 double calculateBruteForceMinCut(const Graph *g);
 double calculateMinCut(const Graph *g);
 double calculateGraphEnergy(const Graph *g);
+double calculateAssortativityCoefficient(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -351,6 +352,7 @@ void testFindArticulationPoints();
 void testGraphDensity();
 void testCalculateBetweennessCentrality();
 void testCreateCactus();
+void testCalculateAssortativityCoefficient();
 
 int main();
 
@@ -2382,8 +2384,8 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createGraph(unsigned n) {
   Graph *g = malloc(sizeof(Graph));
-  Edge **edges = calloc(n + 1, sizeof(Edge *));
-  if (!g || !edges) {
+  Edge **edges = calloc(n, sizeof(Edge *));
+  if (!g || (n > 0 && !edges)) {
     free(g);
     free(edges);
     return nullptr;
@@ -2685,7 +2687,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
   return result;
 }
 
-static void getCactusDfs(
+static void extractCactusDfs(
   const Graph *g, unsigned v, unsigned discovery[g->size], unsigned parent[g->size], bool taken[g->size][g->size], unsigned *timer)
 {
   discovery[v] = ++(*timer);
@@ -2704,12 +2706,12 @@ static void getCactusDfs(
       }
     } else if (!discovery[e->destination]) {
       parent[e->destination] = v;
-      getCactusDfs(g, e->destination, discovery, parent, taken, timer);
+      extractCactusDfs(g, e->destination, discovery, parent, taken, timer);
     }
   }
 }
 
-Graph *getCactus(const Graph *g) {
+Graph *extractCactus(const Graph *g) {
   if (!g) return nullptr;
   Graph *cactus = createGraph(g->size);
   if (!cactus) return nullptr;
@@ -2720,7 +2722,7 @@ Graph *getCactus(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++) parent[v] = g->size;
   for (unsigned v = 0; v < g->size; v++)
     if (!discovery[v])
-      getCactusDfs(g, v, discovery, parent, taken, &timer);
+      extractCactusDfs(g, v, discovery, parent, taken, &timer);
   for (unsigned u = 0; u < g->size; u++) {
     if (parent[u] != g->size) addUndirectedEdge(cactus, u, parent[u]);
     for (const Edge *e = g->edges[u]; e; e = e->next)
@@ -5363,6 +5365,26 @@ double calculateGraphEnergy(const Graph *g) {
   return energy;
 }
 
+double calculateAssortativityCoefficient(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  double degree[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        degree[v]++;
+  double a = 0, b = 0, c = 0, m = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        a += degree[v] * degree[e->destination];
+        b += degree[v] + degree[e->destination];
+        c += degree[v] * degree[v] + degree[e->destination] * degree[e->destination];
+        m++;
+      }
+  double denominator = m * c / 2 - b * b / 4;
+  return denominator != 0 ? (m * a - b * b / 4) / denominator : 0;
+}
+
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
@@ -6480,10 +6502,10 @@ void testCreateCactus() {
     addUndirectedEdge(g, 1, 3);
     addUndirectedEdge(g, 2, 3);
 
-    Graph *cactus = getCactus(g);
+    Graph *cactus = extractCactus(g);
 
-    printf("getCactus: Theta: Original raw edge count: %u (Expected: 10)\n", countRawEdges(g));
-    printf("getCactus: Theta: Cactus raw edge count:    %u (Expected:  8)\n", countRawEdges(cactus));
+    printf("extractCactus: Theta: Original raw edge count: %u (Expected: 10)\n", countRawEdges(g));
+    printf("extractCactus: Theta: Cactus raw edge count:    %u (Expected:  8)\n", countRawEdges(cactus));
     assert(countRawEdges(cactus) == 8);
 
     destroyGraph(g);
@@ -6500,10 +6522,10 @@ void testCreateCactus() {
     addUndirectedEdge(g, 3, 4);
     addUndirectedEdge(g, 4, 2);
 
-    Graph *cactus = getCactus(g);
+    Graph *cactus = extractCactus(g);
 
-    printf("getCactus: Hourglass: Original edge count: %u (Expected: 12)\n", countRawEdges(g));
-    printf("getCactus: Hourglass: Cactus edge count:   %u (Expected: 12)\n", countRawEdges(cactus));
+    printf("extractCactus: Hourglass: Original raw edge count: %u (Expected: 12)\n", countRawEdges(g));
+    printf("extractCactus: Hourglass: Cactus raw edge count:   %u (Expected: 12)\n", countRawEdges(cactus));
     assert(countRawEdges(cactus) == 12);
 
     destroyGraph(g);
@@ -6516,10 +6538,10 @@ void testCreateCactus() {
     addUndirectedEdge(g, 0, 1);
     addUndirectedEdge(g, 0, 1);
 
-    Graph *cactus = getCactus(g);
+    Graph *cactus = extractCactus(g);
 
-    printf("getCactus: Parallel: Original edge count: %u (Expected: 6)\n", countRawEdges(g));
-    printf("getCactus: Parallel: Cactus edge count:   %u (Expected: 2)\n", countRawEdges(cactus));
+    printf("extractCactus: Parallel: Original raw edge count: %u (Expected: 6)\n", countRawEdges(g));
+    printf("extractCactus: Parallel: Cactus raw edge count:   %u (Expected: 2)\n", countRawEdges(cactus));
     assert(countRawEdges(cactus) == 2);
 
     destroyGraph(g);
@@ -6532,10 +6554,10 @@ void testCreateCactus() {
     addUndirectedEdge(g, 0, 0);
     addUndirectedEdge(g, 0, 0);
 
-    Graph *cactus = getCactus(g);
+    Graph *cactus = extractCactus(g);
 
-    printf("getCactus: Self-Loop: Original edge count: %u (Expected: 6)\n", countRawEdges(g));
-    printf("getCactus: Self-Loop: Cactus edge count:   %u (Expected: 0)\n", countRawEdges(cactus));
+    printf("extractCactus: Self-Loop: Original raw edge count: %u (Expected: 6)\n", countRawEdges(g));
+    printf("extractCactus: Self-Loop: Cactus raw edge count:   %u (Expected: 0)\n", countRawEdges(cactus));
     assert(countRawEdges(cactus) == 0);
 
     destroyGraph(g);
@@ -6547,15 +6569,69 @@ void testCreateCactus() {
     addUndirectedEdge(g, 0, 1);
     addUndirectedEdge(g, 2, 3);
 
-    Graph *cactus = getCactus(g);
+    Graph *cactus = extractCactus(g);
 
-    printf("getCactus: Disconnected: Original edge count: %u (Expected: 4)\n", countRawEdges(g));
-    printf("getCactus: Disconnected: Cactus edge count:   %u (Expected: 4)\n", countRawEdges(cactus));
+    printf("extractCactus: Disconnected: Original raw edge count: %u (Expected: 4)\n", countRawEdges(g));
+    printf("extractCactus: Disconnected: Cactus raw edge count:   %u (Expected: 4)\n", countRawEdges(cactus));
     assert(countRawEdges(cactus) == 4);
 
     destroyGraph(g);
     destroyGraph(cactus);
   }
+}
+
+void testCalculateAssortativityCoefficient() {
+  Graph *g1 = createGraph(3);
+  double r1 = calculateAssortativityCoefficient(g1);
+  assert(fabs(r1 - 0) < 1e-6);
+  destroyGraph(g1);
+
+  Graph *g2 = createGraph(5);
+  addUndirectedEdge(g2, 0, 1);
+  addUndirectedEdge(g2, 2, 3);
+  addUndirectedEdge(g2, 3, 4);
+  addUndirectedEdge(g2, 4, 2);
+  double r2 = calculateAssortativityCoefficient(g2);
+  assert(fabs(r2 - 1) < 1e-6);
+  destroyGraph(g2);
+
+  Graph *g3 = createGraph(4);
+  addUndirectedEdge(g3, 0, 1);
+  addUndirectedEdge(g3, 0, 2);
+  addUndirectedEdge(g3, 0, 3);
+  double r3 = calculateAssortativityCoefficient(g3);
+  assert(fabs(r3 - (-1)) < 1e-6);
+  destroyGraph(g3);
+
+  Graph *g4 = createGraph(3);
+  addUndirectedEdge(g4, 0, 1);
+  addUndirectedEdge(g4, 0, 1);
+  addUndirectedEdge(g4, 2, 2);
+  double r4 = calculateAssortativityCoefficient(g4);
+  assert(!isnan(r4));
+  destroyGraph(g4);
+
+  Graph *g5 = createGraph(2);
+  addUndirectedEdge(g5, 0, 1);
+  Edge *corrupt = malloc(sizeof(Edge));
+  corrupt->destination = 999;
+  corrupt->weight = 1;
+  corrupt->next = g5->edges[0];
+  g5->edges[0] = corrupt;
+  double r5 = calculateAssortativityCoefficient(g5);
+  assert(!isnan(r5));
+  destroyGraph(g5);
+
+  Graph *g6 = createGraph(3);
+  addUndirectedEdge(g6, 0, 1);
+  addUndirectedEdge(g6, 1, 2);
+  addUndirectedEdge(g6, 2, 0);
+  double r6 = calculateAssortativityCoefficient(g6);
+  assert(!isnan(r6));
+  assert(fabs(r6 - 0.0) < 1e-6);
+  destroyGraph(g6);
+
+  printf("All assortativity tests passed successfully!\n");
 }
 
 int main() {
@@ -6574,6 +6650,7 @@ int main() {
   testGraphDensity();
   testCalculateBetweennessCentrality();
   testCreateCactus();
+  testCalculateAssortativityCoefficient();
   printf("All tests passed!\n");
   return 0;
 }
