@@ -103,8 +103,8 @@ bool hasPath(const Graph *g, unsigned u, unsigned v);
 bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
-bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double x);
-bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double x);
+bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double weight);
+bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double weight);
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
 bool isClique(const Graph *g, const bool *set);
 bool isIndependentSet(const Graph *g, const bool *set);
@@ -184,6 +184,7 @@ Graph *createDisjointUnion(const Graph *g1, const Graph *g2);
 Graph *createCartesianProduct(const Graph *g1, const Graph *g2);
 Graph *createTensorProduct(const Graph *g1, const Graph *g2);
 Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2);
+Graph *createStrongProduct(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *g);
 void addVertex(Graph *g);
@@ -1556,7 +1557,7 @@ bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
 
 bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double weight) {
   if (!g || !g->edges || u >= g->size) return false;
-  for (Edge *e = g->edges[u]; e; e = e->next)
+  for (const Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v && e->weight == weight)
       return true;
   return false;
@@ -2863,6 +2864,25 @@ Graph *extractCactus(const Graph *g) {
   return g3;
 }
 
+[[nodiscard]] Graph *createStrongProduct(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g2) return nullptr;
+  if (g1->size == 0 || g2->size == 0) return createGraph(0);
+  if (!g1->edges || !g2->edges) return nullptr;
+  Graph *product = createGraph(g1->size * g2->size);
+  if (!product) return nullptr;
+  for (unsigned u = 0; u < g1->size; u++)
+    for (unsigned v = 0; v < g2->size; v++) {
+      for (Edge *e2 = g2->edges[v]; e2; e2 = e2->next)
+        addWeightedDirectedEdge(product, u * g2->size + v, u * g2->size + e2->destination, e2->weight);
+      for (Edge *e1 = g1->edges[u]; e1; e1 = e1->next)
+        addWeightedDirectedEdge(product, u * g2->size + v, e1->destination * g2->size + v, e1->weight);
+      for (Edge *e1 = g1->edges[u]; e1; e1 = e1->next)
+        for (Edge *e2 = g2->edges[v]; e2; e2 = e2->next)
+          addWeightedDirectedEdge(product, u * g2->size + v, e1->destination * g2->size + e2->destination, e1->weight * e2->weight);
+    }
+  return product;
+}
+
 
 
 void destroyGraph(Graph *g) {
@@ -2911,14 +2931,14 @@ void deleteInvalidEdges(Graph *g) {
 }
 
 void printGraph(const Graph *g) {
-  printf("{");
-  unsigned i = 0;
-  if (g && g->edges)
-    for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next) {
-        if (i++ > 0) printf(", ");
-        printf("(%u, %u, %lg)", v, e->destination, e->weight);
-      }
+  printf("{\n");
+  if (!g || g->size == 0 || !g->edges) return;
+  for (unsigned v = 0; v < g->size; v++)
+    if (g->edges[v]) {
+      printf("  ");
+      for (const Edge *e = g->edges[v]; e; e = e->next) printf("(%u, %u, %lg), ", v, e->destination, e->weight);
+      printf("\n");
+    }
   printf("}\n");
 }
 
@@ -6962,6 +6982,172 @@ void testHasHamiltonianPathSufficientCondition() {
   destroyGraph(g3);
 }
 
+void testCreateStrongProduct() {
+  printf("Running testCreateStrongProduct...\n");
+
+  {
+    printf("\n--- Test Case 1: Simple Directed Paths ---\n");
+    Graph *g1 = createGraph(2);
+    Graph *g2 = createGraph(2);
+
+    addWeightedDirectedEdge(g1, 0, 1, 1.5);
+    addWeightedDirectedEdge(g2, 0, 1, 2.0);
+
+    printf("Graph 1:\n"); printGraph(g1);
+    printf("Graph 2:\n"); printGraph(g2);
+
+    Graph *prod = createStrongProduct(g1, g2);
+    assert(prod != nullptr);
+    assert(prod->size == 4);
+
+    printf("Strong Product Graph:\n");
+    printGraph(prod);
+
+    assert(hasWeightedDirectedEdge(prod, 0, 1, 2.0));
+    assert(hasWeightedDirectedEdge(prod, 0, 2, 1.5));
+    assert(hasWeightedDirectedEdge(prod, 0, 3, 3.0));
+
+    destroyGraph(prod);
+    destroyGraph(g1);
+    destroyGraph(g2);
+  }
+
+  {
+    printf("\n--- Test Case 2: Undirected Cycles/Paths ---\n");
+    Graph *g1 = createGraph(2);
+    Graph *g2 = createGraph(2);
+
+    addUndirectedEdge(g1, 0, 1);
+    addUndirectedEdge(g2, 0, 1);
+
+    printf("Graph 1:\n"); printGraph(g1);
+    printf("Graph 2:\n"); printGraph(g2);
+
+    Graph *prod = createStrongProduct(g1, g2);
+    assert(prod != nullptr);
+
+    printf("Strong Product Graph:\n");
+    printGraph(prod);
+
+    assert(hasDirectedEdge(prod, 0, 3));
+    assert(hasDirectedEdge(prod, 3, 0));
+    assert(hasDirectedEdge(prod, 1, 2));
+    assert(hasDirectedEdge(prod, 2, 1));
+
+    destroyGraph(prod);
+    destroyGraph(g1);
+    destroyGraph(g2);
+  }
+
+  {
+    printf("\n--- Test Case 3: Disconnected Graphs ---\n");
+    Graph *g1 = createGraph(3);
+    Graph *g2 = createGraph(2);
+
+    Graph *prod = createStrongProduct(g1, g2);
+    assert(prod != nullptr);
+    assert(prod->size == 6);
+
+    printf("Strong Product Graph (Expected Empty):\n");
+    printGraph(prod);
+
+    for (unsigned i = 0; i < prod->size; ++i) {
+      assert(prod->edges[i] == nullptr);
+    }
+
+    destroyGraph(prod);
+    destroyGraph(g1);
+    destroyGraph(g2);
+  }
+
+  {
+    printf("\n--- Test Case 4: Self-Loops ---\n");
+    Graph *g1 = createGraph(1);
+    Graph *g2 = createGraph(1);
+
+    addWeightedDirectedEdge(g1, 0, 0, 2.5);
+    addWeightedDirectedEdge(g2, 0, 0, 4.0);
+
+    Graph *prod = createStrongProduct(g1, g2);
+    assert(prod != nullptr);
+    assert(prod->size == 1);
+
+    printf("Strong Product Graph:\n");
+    printGraph(prod);
+
+    assert(hasWeightedDirectedEdge(prod, 0, 0, 4.0));
+    assert(hasWeightedDirectedEdge(prod, 0, 0, 2.5));
+    assert(hasWeightedDirectedEdge(prod, 0, 0, 10.0));
+
+    destroyGraph(prod);
+    destroyGraph(g1);
+    destroyGraph(g2);
+  }
+
+  {
+    printf("\n--- Test Case 5: Asymmetric Sizes (3x2) ---\n");
+    Graph *g1 = createGraph(3);
+    Graph *g2 = createGraph(2);
+
+    addDirectedEdge(g1, 0, 1);
+    addDirectedEdge(g1, 1, 2);
+    addDirectedEdge(g2, 0, 1);
+
+    Graph *prod = createStrongProduct(g1, g2);
+    assert(prod != nullptr);
+    assert(prod->size == 6);
+
+    printf("Strong Product Graph:\n");
+    printGraph(prod);
+
+    assert(hasDirectedEdge(prod, 2, 4));
+    assert(hasDirectedEdge(prod, 2, 3));
+    assert(hasDirectedEdge(prod, 2, 5));
+
+    destroyGraph(prod);
+    destroyGraph(g1);
+    destroyGraph(g2);
+  }
+
+  {
+    printf("\n--- Test Case 6: Edge Count Verification ---\n");
+    Graph *g1 = createGraph(3);
+    Graph *g2 = createGraph(3);
+
+    addDirectedEdge(g1, 0, 1);
+    addDirectedEdge(g1, 1, 2);
+
+    addDirectedEdge(g2, 0, 1);
+    addDirectedEdge(g2, 1, 2);
+    addDirectedEdge(g2, 2, 0);
+
+    unsigned e1 = countRawEdges(g1);
+    unsigned e2 = countRawEdges(g2);
+
+    Graph *prod = createStrongProduct(g1, g2);
+    assert(prod != nullptr);
+
+    unsigned actual_edges = countRawEdges(prod);
+    unsigned expected_edges = (g1->size * e2) + (g2->size * e1) + (e1 * e2);
+
+    printf("G1 Edges: %u, G2 Edges: %u\n", e1, e2);
+    printf("Strong Product Edges -> Expected: %u, Got: %u\n", expected_edges, actual_edges);
+
+    assert(actual_edges == expected_edges);
+
+    destroyGraph(prod);
+    destroyGraph(g1);
+    destroyGraph(g2);
+  }
+
+  {
+    Graph *g1 = createGraph(2);
+    assert(createStrongProduct(g1, nullptr) == nullptr);
+    assert(createStrongProduct(nullptr, g1) == nullptr);
+    destroyGraph(g1);
+  }
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -6983,6 +7169,7 @@ int main() {
   testCalculateGlobalEfficiency();
   testCalculateEffectiveGraphResistance();
   testHasHamiltonianPathSufficientCondition();
+  testCreateStrongProduct();
   printf("All tests passed!\n");
   return 0;
 }
