@@ -81,6 +81,7 @@ bool isPlanar(const Graph *g);
 bool isOuterplanar(const Graph *g);
 bool isSelfCentered(const Graph *g);
 bool isDistanceRegular(const Graph *g);
+bool hasHamiltonianPathSufficientCondition(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -1317,6 +1318,28 @@ bool isDistanceRegular(const Graph *g) {
         return false;
       }
     }
+  return true;
+}
+
+bool hasHamiltonianPathSufficientCondition(const Graph *g) {
+  if (!g) return false;
+  if (g->size < 2) return true;
+  if (!g->edges) return false;
+  unsigned n = g->size, degree[n] = {};
+  bool adjacent[n][n];
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = 0; v < n; v++)
+      adjacent[u][v] = (u == v);
+  for (unsigned u = 0; u < n; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && !adjacent[u][e->destination]) {
+        adjacent[u][e->destination] = true;
+        degree[u]++;
+      }
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = u + 1; v < n; v++)
+      if (!adjacent[u][v] && degree[u] + degree[v] < n - 1)
+        return false;
   return true;
 }
 
@@ -6870,6 +6893,8 @@ void testCalculateGlobalEfficiency() {
 }
 
 void testCalculateEffectiveGraphResistance() {
+  printf("Running Effective Graph Resistance Tests...\n");
+
   Graph *g_empty = createGraph(1);
   assert(fabs(calculateEffectiveGraphResistance(g_empty) - 0) < 1e-6);
   destroyGraph(g_empty);
@@ -6901,7 +6926,7 @@ void testCalculateEffectiveGraphResistance() {
   destroyGraph(g_star);
 
   Graph *g_disconnected = createGraph(3);
-  addUndirectedEdge(g_disconnected, 0, 1); 
+  addUndirectedEdge(g_disconnected, 0, 1);
   double res_disconnected = calculateEffectiveGraphResistance(g_disconnected);
   printf("Test Disconnected Graph: Expected inf, Got %.4f\n", res_disconnected);
   assert(isinf(res_disconnected));
@@ -6914,6 +6939,27 @@ void testCalculateEffectiveGraphResistance() {
   printf("Test Directed Line Graph (0->1->2): Expected ~6.0000, Got %.4f\n", res_directed);
   assert(fabs(res_directed - 6) < 1e-6);
   destroyGraph(g_directed);
+}
+
+void testHasHamiltonianPathSufficientCondition() {
+  printf("Running Hamiltonian Path Sufficient Condition Tests...\n");
+  Graph *g1 = createGraph(4);
+  assert(hasHamiltonianPathSufficientCondition(g1) == false);
+  destroyGraph(g1);
+
+  Graph *g2 = createGraph(4);
+  for (unsigned u = 0; u < 4; u++)
+    for (unsigned v = u + 1; v < 4; v++)
+      addUndirectedEdge(g2, u, v);
+  assert(hasHamiltonianPathSufficientCondition(g2) == true);
+  destroyGraph(g2);
+
+  Graph *g3 = createGraph(5);
+  for (unsigned v = 1; v < 5; v++) addUndirectedEdge(g3, 0, v);
+  addUndirectedEdge(g3, 1, 2);
+  addUndirectedEdge(g3, 3, 4);
+  assert(hasHamiltonianPathSufficientCondition(g3) == true);
+  destroyGraph(g3);
 }
 
 int main() {
@@ -6936,6 +6982,7 @@ int main() {
   testCalculateAlgebraicConnectivity();
   testCalculateGlobalEfficiency();
   testCalculateEffectiveGraphResistance();
+  testHasHamiltonianPathSufficientCondition();
   printf("All tests passed!\n");
   return 0;
 }
