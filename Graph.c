@@ -112,6 +112,7 @@ bool isVertexCover(const Graph *g, const bool *set);
 bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set);
 bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
+bool isPerfectMatching(const Graph *g, const unsigned *matching);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length);
@@ -1492,7 +1493,7 @@ bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
 }
 
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v) {
-  return hasWeightedDirectedEdge(g, u, v, getEdgeWeight(g, u, v)) && hasWeightedDirectedEdge(g, v, u, getEdgeWeight(g, u, v));
+  return hasDirectedEdge(g, u, v) && hasDirectedEdge(g, v, u);
 }
 
 bool hasPath(const Graph *g, unsigned u, unsigned v) {
@@ -1639,6 +1640,14 @@ bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (position[v] >= position[e->destination])
         return false;
+  return true;
+}
+
+bool isPerfectMatching(const Graph *g, const unsigned *matching) {
+  if (!g || g->size % 2 != 0 || (g->size > 0 && (!g->edges || !matching))) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (matching[v] >= g->size || matching[v] == v || matching[matching[v]] != v || !hasDirectedEdge(g, v, matching[v]))
+      return false;
   return true;
 }
 
@@ -7219,12 +7228,12 @@ void testCreateRootedProduct(void) {
   assert(result_complex->size == 6);
   assert(countRawEdges(result_complex) == 7);
   assert(hasWeightedDirectedEdge(result_complex, 0, 1, 10.0));
-  assert(hasWeightedDirectedEdge(result_complex, 0, 2, 1.0)); // 0 -> 1
-  assert(hasWeightedDirectedEdge(result_complex, 2, 3, 2.0)); // 1 -> 2
-  assert(hasWeightedDirectedEdge(result_complex, 3, 0, 3.0)); // 2 -> 0
-  assert(hasWeightedDirectedEdge(result_complex, 1, 4, 1.0)); // 0 -> 1
-  assert(hasWeightedDirectedEdge(result_complex, 4, 5, 2.0)); // 1 -> 2
-  assert(hasWeightedDirectedEdge(result_complex, 5, 1, 3.0)); // 2 -> 0
+  assert(hasWeightedDirectedEdge(result_complex, 0, 2, 1.0));
+  assert(hasWeightedDirectedEdge(result_complex, 2, 3, 2.0));
+  assert(hasWeightedDirectedEdge(result_complex, 3, 0, 3.0));
+  assert(hasWeightedDirectedEdge(result_complex, 1, 4, 1.0));
+  assert(hasWeightedDirectedEdge(result_complex, 4, 5, 2.0));
+  assert(hasWeightedDirectedEdge(result_complex, 5, 1, 3.0));
   destroyGraph(result_complex);
   destroyGraph(g_complex1);
   destroyGraph(g_complex2);
@@ -7250,6 +7259,65 @@ void testCreateRootedProduct(void) {
   printf("All createRootedProduct tests passed successfully!\n");
 }
 
+void testIsPerfectMatching() {
+  printf("Running tests for isPerfectMatching...\n");
+
+  assert(isPerfectMatching(nullptr, nullptr) == false);
+  
+  Graph *g_empty = createGraph(0);
+  assert(isPerfectMatching(g_empty, nullptr) == true);
+  destroyGraph(g_empty);
+
+  Graph *g_odd = createGraph(3);
+  addUndirectedEdge(g_odd, 0, 1);
+  addUndirectedEdge(g_odd, 1, 2);
+  unsigned matching_odd[3] = {1, 0, 2};
+  assert(isPerfectMatching(g_odd, matching_odd) == false);
+  destroyGraph(g_odd);
+
+  Graph *g_disconnected = createGraph(4);
+  unsigned matching_disconnected[4] = {1, 0, 3, 2};
+  assert(isPerfectMatching(g_disconnected, matching_disconnected) == false);
+  destroyGraph(g_disconnected);
+
+  Graph *g_square = createGraph(4);
+  addUndirectedEdge(g_square, 0, 1);
+  addUndirectedEdge(g_square, 1, 2);
+  addUndirectedEdge(g_square, 2, 3);
+  addUndirectedEdge(g_square, 3, 0);
+
+  unsigned matching_valid[4] = {1, 0, 3, 2};
+  assert(isPerfectMatching(g_square, matching_valid) == true);
+
+  unsigned matching_missing_edges[4] = {2, 3, 0, 1};
+  assert(isPerfectMatching(g_square, matching_missing_edges) == false);
+
+  unsigned matching_self_loop[4] = {0, 1, 3, 2};
+  assert(isPerfectMatching(g_square, matching_self_loop) == false);
+
+  unsigned matching_out_of_bounds[4] = {99, 0, 3, 2};
+  assert(isPerfectMatching(g_square, matching_out_of_bounds) == false);
+
+  unsigned matching_asymmetric[4] = {1, 2, 3, 0};
+  assert(isPerfectMatching(g_square, matching_asymmetric) == false);
+
+  destroyGraph(g_square);
+
+  Graph *g_six = createGraph(6);
+  addUndirectedEdge(g_six, 0, 5);
+  addUndirectedEdge(g_six, 1, 2);
+  addUndirectedEdge(g_six, 3, 4);
+
+  unsigned matching_six[6] = {5, 2, 1, 4, 3, 0};
+  assert(isPerfectMatching(g_six, matching_six) == true);
+
+  matching_six[0] = 4; 
+  assert(isPerfectMatching(g_six, matching_six) == false);
+
+  destroyGraph(g_six);
+  printf("All isPerfectMatching tests PASSED!\n");
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -7273,6 +7341,7 @@ int main() {
   testHasHamiltonianPathSufficientCondition();
   testCreateStrongProduct();
   testCreateRootedProduct();
+  testIsPerfectMatching();
   printf("All tests passed!\n");
   return 0;
 }
