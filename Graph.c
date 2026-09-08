@@ -185,6 +185,7 @@ Graph *createCartesianProduct(const Graph *g1, const Graph *g2);
 Graph *createTensorProduct(const Graph *g1, const Graph *g2);
 Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2);
 Graph *createStrongProduct(const Graph *g1, const Graph *g2);
+Graph *createRootedProduct(const Graph *g1, const Graph *g2);
 
 void destroyGraph(Graph *g);
 void addVertex(Graph *g);
@@ -2865,9 +2866,7 @@ Graph *extractCactus(const Graph *g) {
 }
 
 [[nodiscard]] Graph *createStrongProduct(const Graph *g1, const Graph *g2) {
-  if (!g1 || !g2) return nullptr;
-  if (g1->size == 0 || g2->size == 0) return createGraph(0);
-  if (!g1->edges || !g2->edges) return nullptr;
+  if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
   Graph *product = createGraph(g1->size * g2->size);
   if (!product) return nullptr;
   for (unsigned u = 0; u < g1->size; u++)
@@ -2881,6 +2880,26 @@ Graph *extractCactus(const Graph *g) {
           addWeightedDirectedEdge(product, u * g2->size + v, e1->destination * g2->size + e2->destination, e1->weight * e2->weight);
     }
   return product;
+}
+
+[[nodiscard]] Graph *createRootedProduct(const Graph *g1, const Graph *g2) {
+  if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
+  unsigned n = g1->size;
+  if (g2->size > 1) n += g1->size * (g2->size - 1);
+  Graph *result = createGraph(n);
+  if (!result) return nullptr;
+  for (unsigned u = 0; u < g1->size; u++)
+    for (const Edge *e = g1->edges[u]; e; e = e->next)
+      addWeightedDirectedEdge(result, u, e->destination, e->weight);
+  for (unsigned u = 0; u < g1->size; u++)
+    for (unsigned v = 0; v < g2->size; v++) {
+      unsigned mapped_source = (v == 0) ? u : g1->size + u * (g2->size - 1) + (v - 1);
+      for (const Edge *e = g2->edges[v]; e; e = e->next) {
+        unsigned mapped_destination = (e->destination == 0) ? u : g1->size + u * (g2->size - 1) + (e->destination - 1);
+        addWeightedDirectedEdge(result, mapped_source, mapped_destination, e->weight);
+      }
+    }
+  return result;
 }
 
 
@@ -7148,6 +7167,89 @@ void testCreateStrongProduct() {
   }
 }
 
+void testCreateRootedProduct(void) {
+  Graph *g1 = createGraph(2);
+  addWeightedDirectedEdge(g1, 0, 1, 1.5);
+  Graph *g2 = createGraph(2);
+  addWeightedDirectedEdge(g2, 0, 1, 2.5);
+  Graph *result1 = createRootedProduct(g1, g2);
+  assert(result1 != nullptr);
+  assert(result1->size == 4);
+  assert(countRawEdges(result1) == 3);
+  assert(hasWeightedDirectedEdge(result1, 0, 1, 1.5));
+  assert(hasWeightedDirectedEdge(result1, 0, 2, 2.5));
+  assert(hasWeightedDirectedEdge(result1, 1, 3, 2.5));
+  destroyGraph(result1);
+  destroyGraph(g1);
+  destroyGraph(g2);
+
+  Graph *g3 = createGraph(3);
+  addWeightedDirectedEdge(g3, 0, 1, 4.0);
+  addWeightedDirectedEdge(g3, 1, 2, 5.0);
+  Graph *g4 = createGraph(1);
+  Graph *result2 = createRootedProduct(g3, g4);
+  assert(result2 != nullptr);
+  assert(result2->size == 3);
+  assert(countRawEdges(result2) == 2);
+  assert(hasWeightedDirectedEdge(result2, 0, 1, 4.0));
+  assert(hasWeightedDirectedEdge(result2, 1, 2, 5.0));
+  destroyGraph(result2);
+  destroyGraph(g3);
+  destroyGraph(g4);
+
+  Graph *g_empty = createGraph(0);
+  Graph *g_normal = createGraph(3);
+  addDirectedEdge(g_normal, 0, 1);
+  Graph *result_empty = createRootedProduct(g_empty, g_normal);
+  assert(result_empty != nullptr);
+  assert(result_empty->size == 0);
+  assert(countRawEdges(result_empty) == 0);
+  destroyGraph(result_empty);
+  destroyGraph(g_empty);
+  destroyGraph(g_normal);
+
+  Graph *g_complex1 = createGraph(2);
+  addWeightedDirectedEdge(g_complex1, 0, 1, 10.0);
+  Graph *g_complex2 = createGraph(3);
+  addWeightedDirectedEdge(g_complex2, 0, 1, 1.0);
+  addWeightedDirectedEdge(g_complex2, 1, 2, 2.0);
+  addWeightedDirectedEdge(g_complex2, 2, 0, 3.0);
+  Graph *result_complex = createRootedProduct(g_complex1, g_complex2);
+  assert(result_complex != nullptr);
+  assert(result_complex->size == 6);
+  assert(countRawEdges(result_complex) == 7);
+  assert(hasWeightedDirectedEdge(result_complex, 0, 1, 10.0));
+  assert(hasWeightedDirectedEdge(result_complex, 0, 2, 1.0)); // 0 -> 1
+  assert(hasWeightedDirectedEdge(result_complex, 2, 3, 2.0)); // 1 -> 2
+  assert(hasWeightedDirectedEdge(result_complex, 3, 0, 3.0)); // 2 -> 0
+  assert(hasWeightedDirectedEdge(result_complex, 1, 4, 1.0)); // 0 -> 1
+  assert(hasWeightedDirectedEdge(result_complex, 4, 5, 2.0)); // 1 -> 2
+  assert(hasWeightedDirectedEdge(result_complex, 5, 1, 3.0)); // 2 -> 0
+  destroyGraph(result_complex);
+  destroyGraph(g_complex1);
+  destroyGraph(g_complex2);
+
+  Graph *g_undir1 = createGraph(2);
+  addWeightedUndirectedEdge(g_undir1, 0, 1, 7.0);
+  Graph *g_undir2 = createGraph(2);
+  addWeightedUndirectedEdge(g_undir2, 0, 1, 8.0);
+  Graph *result_undir = createRootedProduct(g_undir1, g_undir2);
+  assert(result_undir != nullptr);
+  assert(result_undir->size == 4);
+  assert(countRawEdges(result_undir) == 6);
+  assert(hasWeightedDirectedEdge(result_undir, 0, 1, 7.0));
+  assert(hasWeightedDirectedEdge(result_undir, 1, 0, 7.0));
+  assert(hasWeightedDirectedEdge(result_undir, 0, 2, 8.0));
+  assert(hasWeightedDirectedEdge(result_undir, 2, 0, 8.0));
+  assert(hasWeightedDirectedEdge(result_undir, 1, 3, 8.0));
+  assert(hasWeightedDirectedEdge(result_undir, 3, 1, 8.0));
+  destroyGraph(result_undir);
+  destroyGraph(g_undir1);
+  destroyGraph(g_undir2);
+
+  printf("All createRootedProduct tests passed successfully!\n");
+}
+
 int main() {
   testHasDirectedCycle();
   testHasUndirectedCycle();
@@ -7170,6 +7272,7 @@ int main() {
   testCalculateEffectiveGraphResistance();
   testHasHamiltonianPathSufficientCondition();
   testCreateStrongProduct();
+  testCreateRootedProduct();
   printf("All tests passed!\n");
   return 0;
 }
