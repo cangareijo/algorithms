@@ -118,6 +118,8 @@ bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length);
 bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length);
+bool isDirectedEulerianPath(const Graph *g, const unsigned *sequence, unsigned length);
+bool isUndirectedEulerianPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned length);
@@ -1695,6 +1697,47 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
       valid = false;
   destroyGraph(copy);
   return valid;
+}
+
+bool isDirectedEulerianPath(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!g || (g->size > 0 && !g->edges) || (length > 0 && !sequence)) return false;
+  if (g->size == 0) return length == 0;
+  unsigned unused[g->size][g->size] = {};
+  unsigned edges = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        unused[v][e->destination]++;
+        edges++;
+      }
+  if (length != edges + 1) return length == 0 && edges == 0;
+  if (length > 0 && sequence[0] >= g->size) return false;
+  for (unsigned i = 1; i < length; i++) {
+    if (sequence[i] >= g->size || unused[sequence[i - 1]][sequence[i]] == 0) return false;
+    unused[sequence[i - 1]][sequence[i]]--;
+  }
+  return true;
+}
+
+bool isUndirectedEulerianPath(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!g || (g->size > 0 && !g->edges) || (length > 0 && !sequence)) return false;
+  if (g->size == 0) return length == 0;
+  unsigned unused[g->size][g->size] = {};
+  unsigned edges = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        unused[v][e->destination]++;
+        edges++;
+      }
+  if (2 * length != edges + 2) return length == 0 && edges == 0;
+  if (length > 0 && sequence[0] >= g->size) return false;
+  for (unsigned i = 1; i < length; i++) {
+    if (sequence[i] >= g->size || unused[sequence[i - 1]][sequence[i]] == 0 || unused[sequence[i]][sequence[i - 1]] == 0 ) return false;
+    unused[sequence[i - 1]][sequence[i]]--;
+    unused[sequence[i]][sequence[i - 1]]--;
+  }
+  return true;
 }
 
 bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) {
@@ -7263,7 +7306,7 @@ void testIsPerfectMatching() {
   printf("Running tests for isPerfectMatching...\n");
 
   assert(isPerfectMatching(nullptr, nullptr) == false);
-  
+
   Graph *g_empty = createGraph(0);
   assert(isPerfectMatching(g_empty, nullptr) == true);
   destroyGraph(g_empty);
@@ -7311,7 +7354,7 @@ void testIsPerfectMatching() {
   unsigned matching_six[6] = {5, 2, 1, 4, 3, 0};
   assert(isPerfectMatching(g_six, matching_six) == true);
 
-  matching_six[0] = 4; 
+  matching_six[0] = 4;
   assert(isPerfectMatching(g_six, matching_six) == false);
 
   destroyGraph(g_six);
