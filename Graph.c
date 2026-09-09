@@ -5617,6 +5617,22 @@ double calculateEffectiveGraphResistance(const Graph *g) {
   return n * (trace - 1);
 }
 
+/*
+The Randić index is a classic topological descriptor widely used in 
+quantitative structure-activity relationship (QSAR) and structure-property 
+relationship (QSPR) studies within chemistry and pharmacology. It translates 
+the branchiness and structural shape of a chemical molecule—modeled as a 
+graph where atoms are vertices and bonds are edges—into a single numerical 
+value. Because the index correlates strongly with physical properties like 
+boiling points, chromatography retention times, and molar volumes, as well 
+as biological activity like drug efficacy, it allows researchers to predict 
+how new or hypothetical chemical compounds will behave. By analyzing 
+molecular connectivity mathematically, computational chemists can screen vast 
+virtual libraries of molecular structures to identify promising drug 
+candidates or materials without running costly and time-consuming physical 
+lab experiments.
+*/
+
 double calculateRandicIndex(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
   unsigned degrees[g->size] = {};
