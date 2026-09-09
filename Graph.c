@@ -328,6 +328,8 @@ double calculateAlgebraicConnectivity(const Graph *g);
 double calculateGlobalEfficiency(const Graph *g);
 double calculateEffectiveGraphResistance(const Graph *g);
 double calculateRandicIndex(const Graph *g);
+double calculateZagrebIndex(const Graph *g);
+double calculateSecondZagrebIndex(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -5646,6 +5648,52 @@ double calculateRandicIndex(const Graph *g) {
       if (e->destination < g->size && v < e->destination && degrees[v] > 0 && degrees[e->destination] > 0)
         randic_index += 1 / sqrt((double)degrees[v] * degrees[e->destination]);
   return randic_index;
+}
+
+/*
+ * The calculateZagrebIndex function computes the First Zagreb Index, a classical topological descriptor
+ * used primarily in mathematical chemistry and cheminformatics for quantitative structure-property (QSPR)
+ * and structure-activity (QSAR) relationship modeling. By summing the squares of all vertex degrees, this 
+ * index provides a numerical fingerprint of a molecule's structural branching and connectivity profile. 
+ * It is traditionally utilized to approximate the total pi-electron energy in conjugated hydrocarbons and 
+ * serves as a reliable geometric predictor for macroscopic physical properties such as molecular boiling 
+ * points, chemical stability, and chromatographic retention times.
+ */
+
+double calculateZagrebIndex(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  double sum = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    unsigned degree = 0;
+    for (const Edge *e = g->edges[v]; e; e = e->next) degree++;
+    sum += (double)degree * degree;
+  }
+  return sum;
+}
+
+/*
+ * The calculateSecondZagrebIndex function calculates the Second Zagreb Index, which measures the cumulative 
+ * structural complexity of a network by summing the products of the degrees of all pairs of adjacent vertices. 
+ * While the first index treats vertices independently, the second index focuses specifically on the nature 
+ * of the edges and bond interactions within a molecular graph. In pharmacology and virtual drug screening, 
+ * it is extensively deployed within QSAR frameworks to predict biological activity, toxicological impacts, 
+ * and receptor-binding affinities, as it sensitively captures variations in branching patterns across neighboring 
+ * atoms.
+ */
+
+double calculateSecondZagrebIndex(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  double sum = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (u < e->destination && e->destination < g->size) {
+        unsigned degree_u = 0;
+        for (const Edge *e_u = g->edges[u]; e_u; e_u = e_u->next) degree_u++;
+        unsigned degree_v = 0;
+        for (const Edge *e_v = g->edges[e->destination]; e_v; e_v = e_v->next) degree_v++;
+        sum += (double)degree_u * degree_v;
+      }
+  return sum;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
