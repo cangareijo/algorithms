@@ -5686,14 +5686,14 @@ double calculateSecondZagrebIndex(const Graph *g) {
   double sum = 0;
   for (unsigned u = 0; u < g->size; u++)
     for (const Edge *e = g->edges[u]; e; e = e->next)
-      if (u < e->destination && e->destination < g->size) {
+      if (e->destination < g->size) {
         unsigned degree_u = 0;
         for (const Edge *e_u = g->edges[u]; e_u; e_u = e_u->next) degree_u++;
         unsigned degree_v = 0;
         for (const Edge *e_v = g->edges[e->destination]; e_v; e_v = e_v->next) degree_v++;
         sum += (double)degree_u * degree_v;
       }
-  return sum;
+  return sum / 2;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
