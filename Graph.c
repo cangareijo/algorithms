@@ -327,6 +327,7 @@ double calculateAssortativityCoefficient(const Graph *g);
 double calculateAlgebraicConnectivity(const Graph *g);
 double calculateGlobalEfficiency(const Graph *g);
 double calculateEffectiveGraphResistance(const Graph *g);
+double calculateRandicIndex(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -5614,6 +5615,21 @@ double calculateEffectiveGraphResistance(const Graph *g) {
   double trace = 0;
   for (unsigned u = 0; u < n; u++) trace += matrix[u][u + n];
   return n * (trace - 1);
+}
+
+double calculateRandicIndex(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  unsigned degrees[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        degrees[v]++;
+  double randic_index = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && v < e->destination && degrees[v] > 0 && degrees[e->destination] > 0)
+        randic_index += 1 / sqrt((double)degrees[v] * degrees[e->destination]);
+  return randic_index;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
