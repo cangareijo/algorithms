@@ -218,7 +218,8 @@ void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double we
 void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 
 unsigned getSize(const Graph *g);
-unsigned countRawEdges(const Graph *g);
+unsigned countDirectedEdges(const Graph *g);
+unsigned countUndirectedEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *g);
 unsigned getMinimumInDegree(const Graph *g);
@@ -1377,7 +1378,7 @@ bool hasConstantWeights(const Graph *g, double weight) {
 }
 
 bool isDense(const Graph *g, double threshold) {
-  return !g || countRawEdges(g) >= threshold * g->size * (g->size - 1);
+  return !g || countDirectedEdges(g) >= threshold * g->size * (g->size - 1);
 }
 
 bool isIsolated(const Graph *g, unsigned v) {
@@ -1797,12 +1798,12 @@ bool isSubGraph(const Graph *g1, const Graph *g2) {
 }
 
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countRawEdges(g1) == g1->size - 1 &&
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countDirectedEdges(g1) == g1->size - 1 &&
     isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countRawEdges(g1) == 2 * (g1->size - 1) &&
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countUndirectedEdges(g1) == g1->size - 1 &&
     !hasSelfLoops(g1) && !hasParallelEdges(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
@@ -1826,10 +1827,10 @@ static bool isIsomorphicRecursive(const Graph *g1, const Graph *g2, unsigned v1,
 }
 
 bool isIsomorphic(const Graph *g1, const Graph *g2) {
-  if (!g1 || !g1->edges || !g2 || !g2->edges) return false;
-  if (g1->size != g2->size) return false;
+  if (!g1 || !g2 || g1->size != g2->size) return false;
   if (g1->size == 0) return true;
-  if (countRawEdges(g1) != countRawEdges(g2)) return false;
+  if (!g1->edges || !g2->edges) return false;
+  if (countDirectedEdges(g1) != countDirectedEdges(g2)) return false;
   unsigned mapping[g1->size] = {};
   bool used[g1->size] = {};
   return isIsomorphicRecursive(g1, g2, 0, mapping, used);
@@ -2568,7 +2569,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createDirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(countRawEdges(g));
+  Graph *g2 = createGraph(countDirectedEdges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++)
     for (Edge *d = g->edges[u]; d; d = d->next) {
@@ -2586,7 +2587,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createUndirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(countRawEdges(g) / 2);
+  Graph *g2 = createGraph(countUndirectedEdges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++) {
     unsigned uSelf = 0;
@@ -2689,7 +2690,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size + countRawEdges(g));
+  Graph *g2 = createGraph(g->size + countDirectedEdges(g));
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
@@ -2702,7 +2703,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
 
 [[nodiscard]] Graph *createUndirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size + countRawEdges(g) / 2);
+  Graph *g2 = createGraph(g->size + countUndirectedEdges(g));
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++) {
     unsigned self = 0;
@@ -3178,13 +3179,17 @@ unsigned getSize(const Graph *g) {
   return g->size;
 }
 
-unsigned countRawEdges(const Graph *g) {
+unsigned countDirectedEdges(const Graph *g) {
   if (!g || !g->edges) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       n++;
   return n;
+}
+
+unsigned countUndirectedEdges(const Graph *g) {
+  return countDirectedEdges(g) / 2;
 }
 
 unsigned countSelfLoops(const Graph *g) {
@@ -5184,7 +5189,7 @@ double calculateWeightedDiameter(const Graph *g) {
 
 double calculateDensity(const Graph *g) {
   if (!g || g->size < 2) return 0;
-  return (double)countRawEdges(g) / g->size / (g->size - 1);
+  return (double)countDirectedEdges(g) / g->size / (g->size - 1);
 }
 
 double calculateAverageClusteringCoefficient(const Graph *g) {
