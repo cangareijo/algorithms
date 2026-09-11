@@ -184,6 +184,7 @@ Graph *createTransitiveClosure(const Graph *g);
 Graph *findFeedbackArcSet(const Graph *g);
 Graph *createCactusGraph(const Graph *g);
 Graph *createDualGraph(const Graph *g);
+Graph *createBipartiteDoubleCover(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -2871,6 +2872,18 @@ static void createCactusGraphDfs(
     if (r != UINT_MAX && i < r) addWeightedUndirectedEdge(dual, faces[i], faces[r], weights[i]);
   }
   return dual;
+}
+
+[[nodiscard]] Graph *createBipartiteDoubleCover(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  Graph *g2 = createGraph(g->size * 2);
+  if (!g2) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next) {
+      addWeightedDirectedEdge(g2, v, e->destination + g->size, e->weight);
+      addWeightedDirectedEdge(g2, v + g->size, e->destination, e->weight);
+    }
+  return g2;
 }
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
