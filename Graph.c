@@ -182,7 +182,8 @@ Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *findFeedbackArcSet(const Graph *g);
-Graph *extractCactus(const Graph *g);
+Graph *createCactusGraph(const Graph *g);
+Graph *createDualGraph(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -2432,19 +2433,15 @@ static void findReachableVertices(unsigned u, unsigned n, unsigned capacity[n][n
   return findLocalEdgeCut(g, source, sink);
 }
 
-static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][g->size]) {
-  for (unsigned u = 0; u < g->size; u++)
-    for (const Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size)
-        residual[u][e->destination]++;
-}
-
 [[nodiscard]] bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return nullptr;
   bool **cut = allocateFalseMatrix(g->size, g->size);
   if (!cut) return nullptr;
   unsigned residual[g->size][g->size] = {};
-  initializeResidualMatrix(g, residual);
+  for (unsigned w = 0; w < g->size; w++)
+    for (const Edge *e = g->edges[w]; e; e = e->next)
+      if (e->destination < g->size)
+        residual[w][e->destination]++;
   while (true) {
     bool visited[g->size] = {};
     if (!findAugmentingPath(u, v, g->size, residual, visited)) break;
@@ -2766,7 +2763,7 @@ static void initializeResidualMatrix(const Graph *g, unsigned residual[g->size][
   return result;
 }
 
-static void extractCactusDfs(
+static void createCactusGraphDfs(
   const Graph *g, unsigned v, unsigned discovery[g->size], unsigned parent[g->size], bool taken[g->size][g->size], unsigned *timer)
 {
   discovery[v] = ++(*timer);
@@ -2785,12 +2782,12 @@ static void extractCactusDfs(
       }
     } else if (!discovery[e->destination]) {
       parent[e->destination] = v;
-      extractCactusDfs(g, e->destination, discovery, parent, taken, timer);
+      createCactusGraphDfs(g, e->destination, discovery, parent, taken, timer);
     }
   }
 }
 
-Graph *extractCactus(const Graph *g) {
+[[nodiscard]] Graph *createCactusGraph(const Graph *g) {
   if (!g) return nullptr;
   Graph *cactus = createGraph(g->size);
   if (!cactus) return nullptr;
@@ -2801,7 +2798,7 @@ Graph *extractCactus(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++) parent[v] = g->size;
   for (unsigned v = 0; v < g->size; v++)
     if (!discovery[v])
-      extractCactusDfs(g, v, discovery, parent, taken, &timer);
+      createCactusGraphDfs(g, v, discovery, parent, taken, &timer);
   for (unsigned u = 0; u < g->size; u++) {
     if (parent[u] != g->size) addUndirectedEdge(cactus, u, parent[u]);
     for (const Edge *e = g->edges[u]; e; e = e->next)
@@ -2814,6 +2811,66 @@ Graph *extractCactus(const Graph *g) {
       }
   }
   return cactus;
+}
+
+[[nodiscard]] Graph *createDualGraph(const Graph *g) {
+  if (!g) return nullptr;
+  if (g->size == 0) return createGraph(0);
+  if (!g->edges) return nullptr;
+  unsigned total = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      total++;
+  if (total == 0) return createGraph(1);
+  unsigned sources[total];
+  unsigned targets[total];
+  double weights[total];
+  unsigned occurrences[total];
+  unsigned faces[total];
+  for (unsigned i = 0; i < total; i++) faces[i] = UINT_MAX;
+  for (unsigned v = 0, i = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next) {
+      unsigned occurrence = 0;
+      for (unsigned j = 0; j < i; j++)
+        if (sources[j] == v && targets[j] == e->destination && weights[j] == e->weight)
+          occurrence++;
+      sources[i] = v;
+      targets[i] = e->destination;
+      weights[i] = e->weight;
+      occurrences[i] = occurrence;
+      i++;
+    }
+  unsigned face = 0;
+  for (unsigned i = 0; i < total; i++)
+    if (faces[i] == UINT_MAX) {
+      unsigned current = i;
+      while (current != UINT_MAX && faces[current] == UINT_MAX) {
+        faces[current] = face;
+        unsigned reverse_occurrence = sources[current] == targets[current] ? occurrences[current] ^ 1 : occurrences[current];
+        unsigned occurrence = 0;
+        unsigned next = UINT_MAX;
+        for (unsigned v = 0, j = 0; v < g->size && next == UINT_MAX; v++) {
+          unsigned first = j;
+          for (const Edge *e = g->edges[v]; e && next == UINT_MAX; e = e->next, j++)
+            if (v == targets[current] && e->destination == sources[current] && e->weight == weights[current]) {
+              if (occurrence == reverse_occurrence) next = e->next ? j + 1 : first;
+              occurrence++;
+            }
+        }
+        current = next;
+      }
+      face++;
+    }
+  Graph *dual = createGraph(face);
+  for (unsigned i = 0; i < total; i++) {
+    unsigned reverse_occurrence = sources[i] == targets[i] ? occurrences[i] ^ 1 : occurrences[i];
+    unsigned r = UINT_MAX;
+    for (unsigned j = 0; j < total && r == UINT_MAX; j++)
+      if (sources[j] == targets[i] && targets[j] == sources[i] && weights[j] == weights[i] && occurrences[j] == reverse_occurrence)
+        r = j;
+    if (r != UINT_MAX && i < r) addWeightedUndirectedEdge(dual, faces[i], faces[r], weights[i]);
+  }
+  return dual;
 }
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
@@ -3923,7 +3980,7 @@ unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
 unsigned getOutDegree(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned n = 0;
-  for (Edge *e = g->edges[v]; e; e = e->next) n++;
+  for (const Edge *e = g->edges[v]; e; e = e->next) n++;
   return n;
 }
 
@@ -5625,22 +5682,6 @@ double calculateEffectiveGraphResistance(const Graph *g) {
   return n * (trace - 1);
 }
 
-/*
- * The Randić index is a classic topological descriptor widely used in
- * quantitative structure-activity relationship (QSAR) and structure-property
- * relationship (QSPR) studies within chemistry and pharmacology. It translates
- * the branchiness and structural shape of a chemical molecule—modeled as a
- * graph where atoms are vertices and bonds are edges—into a single numerical
- * value. Because the index correlates strongly with physical properties like
- * boiling points, chromatography retention times, and molar volumes, as well
- * as biological activity like drug efficacy, it allows researchers to predict
- * how new or hypothetical chemical compounds will behave. By analyzing
- * molecular connectivity mathematically, computational chemists can screen vast
- * virtual libraries of molecular structures to identify promising drug
- * candidates or materials without running costly and time-consuming physical
- * lab experiments.
- */
-
 double calculateRandicIndex(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
   unsigned degrees[g->size] = {};
@@ -5656,16 +5697,6 @@ double calculateRandicIndex(const Graph *g) {
   return randic_index;
 }
 
-/*
- * The calculateZagrebIndex function computes the First Zagreb Index, a classical topological descriptor
- * used primarily in mathematical chemistry and cheminformatics for quantitative structure-property (QSPR)
- * and structure-activity (QSAR) relationship modeling. By summing the squares of all vertex degrees, this
- * index provides a numerical fingerprint of a molecule's structural branching and connectivity profile.
- * It is traditionally utilized to approximate the total pi-electron energy in conjugated hydrocarbons and
- * serves as a reliable geometric predictor for macroscopic physical properties such as molecular boiling
- * points, chemical stability, and chromatographic retention times.
- */
-
 double calculateZagrebIndex(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
   double sum = 0;
@@ -5676,16 +5707,6 @@ double calculateZagrebIndex(const Graph *g) {
   }
   return sum;
 }
-
-/*
- * The calculateSecondZagrebIndex function calculates the Second Zagreb Index, which measures the cumulative
- * structural complexity of a network by summing the products of the degrees of all pairs of adjacent vertices.
- * While the first index treats vertices independently, the second index focuses specifically on the nature
- * of the edges and bond interactions within a molecular graph. In pharmacology and virtual drug screening,
- * it is extensively deployed within QSAR frameworks to predict biological activity, toxicological impacts,
- * and receptor-binding affinities, as it sensitively captures variations in branching patterns across neighboring
- * atoms.
- */
 
 double calculateSecondZagrebIndex(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
