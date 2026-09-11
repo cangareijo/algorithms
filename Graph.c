@@ -185,6 +185,7 @@ Graph *findFeedbackArcSet(const Graph *g);
 Graph *createCactusGraph(const Graph *g);
 Graph *createDualGraph(const Graph *g);
 Graph *createBipartiteDoubleCover(const Graph *g);
+Graph *createStronglyConnectedComponentsQuotient(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -2884,6 +2885,56 @@ static void createCactusGraphDfs(
       addWeightedDirectedEdge(g2, v + g->size, e->destination, e->weight);
     }
   return g2;
+}
+
+static void createStronglyConnectedComponentsQuotientForward(
+  const Graph *g, unsigned v, bool visited[g->size], unsigned stack[g->size], unsigned *top)
+{
+  visited[v] = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && !visited[e->destination])
+      createStronglyConnectedComponentsQuotientForward(g, e->destination, visited, stack, top);
+  stack[(*top)++] = v;
+}
+
+static void createStronglyConnectedComponentsQuotientBackward(
+  const Graph *t, unsigned v, bool visited[t->size], unsigned scc, unsigned sccs[t->size])
+{
+  visited[v] = true;
+  sccs[v] = scc;
+  for (Edge *e = t->edges[v]; e; e = e->next)
+    if (e->destination < t->size && !visited[e->destination])
+      createStronglyConnectedComponentsQuotientBackward(t, e->destination, visited, scc, sccs);
+}
+
+[[nodiscard]] Graph *createStronglyConnectedComponentsQuotient(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned n = g->size;
+  if (n == 0) return createGraph(0);
+  if (!g->edges) return nullptr;
+  bool visited[n] = {};
+  unsigned stack[n], top = 0;
+  for (unsigned v = 0; v < n; v++)
+    if (!visited[v])
+      createStronglyConnectedComponentsQuotientForward(g, v, visited, stack, &top);
+  Graph *transpose = createTranspose(g);
+  if (!transpose) return nullptr;
+  for (unsigned v = 0; v < n; v++)
+    visited[v] = false;
+  unsigned count = 0, sccs[n];
+  for (unsigned i = n; i > 0; i--)
+    if (!visited[stack[i - 1]]) {
+      createStronglyConnectedComponentsQuotientBackward(transpose, stack[i - 1], visited, count, sccs);
+      count++;
+    }
+  destroyGraph(transpose);
+  Graph *q = createGraph(count);
+  if (!q) return nullptr;
+  for (unsigned v = 0; v < n; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < n && sccs[v] != sccs[e->destination])
+        addWeightedDirectedEdge(q, sccs[v], sccs[e->destination], e->weight);
+  return q;
 }
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
