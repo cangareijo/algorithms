@@ -298,7 +298,7 @@ unsigned *findMaximumUnweightedMatching(const Graph *g);
 unsigned *findMaximumWeightedMatching(const Graph *g);
 unsigned *findMinimumEdgeCover(const Graph *g);
 unsigned *findApproximatedMinimumEdgeCover(const Graph *g);
-unsigned *calculateCoreNumbers(const Graph *g);
+unsigned *calculateCoreDecomposition(const Graph *g);
 unsigned *findCommunities(const Graph *g);
 unsigned *findKTrusses(const Graph *g);
 unsigned *findDegeneracyOrdering(const Graph *g);
@@ -2253,36 +2253,37 @@ static void findFeedbackVertexSetBacktracking(
 }
 
 static void searchForMinimumDominatingSet(
-  const Graph *g, unsigned v, bool current_set[], unsigned current_size, bool best_set[], unsigned *min_size)
+  const Graph *g, unsigned v, bool current[], unsigned current_size, bool minimum[], unsigned *minimum_size)
 {
+  if (current_size >= *minimum_size) return;
   if (v == g->size) {
     for (unsigned u = 0; u < g->size; u++) {
-      bool covered = current_set[u];
+      bool covered = current[u];
       for (const Edge *e = g->edges[u]; e && !covered; e = e->next)
-        if (e->destination < g->size && current_set[e->destination])
+        if (e->destination < g->size && current[e->destination])
           covered = true;
       if (!covered) return;
     }
-    if (current_size < *min_size) {
-      *min_size = current_size;
-      for (unsigned u = 0; u < g->size; u++) best_set[u] = current_set[u];
+    if (current_size < *minimum_size) {
+      *minimum_size = current_size;
+      for (unsigned u = 0; u < g->size; u++) minimum[u] = current[u];
     }
     return;
   }
-  current_set[v] = false;
-  searchForMinimumDominatingSet(g, v + 1, current_set, current_size, best_set, min_size);
-  current_set[v] = true;
-  searchForMinimumDominatingSet(g, v + 1, current_set, current_size + 1, best_set, min_size);
+  current[v] = false;
+  searchForMinimumDominatingSet(g, v + 1, current, current_size, minimum, minimum_size);
+  current[v] = true;
+  searchForMinimumDominatingSet(g, v + 1, current, current_size + 1, minimum, minimum_size);
 }
 
 [[nodiscard]] bool *findMinimumDominatingSet(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
-  bool *best_set = malloc(g->size * sizeof(bool));
-  if (!best_set) return nullptr;
-  bool current_set[g->size] = {};
-  unsigned min_size = g->size + 1;
-  searchForMinimumDominatingSet(g, 0, current_set, 0, best_set, &min_size);
-  return best_set;
+  bool *minimum = malloc(g->size * sizeof(bool));
+  if (!minimum) return nullptr;
+  bool current[g->size] = {};
+  unsigned minimum_size = g->size + 1;
+  searchForMinimumDominatingSet(g, 0, current, 0, minimum, &minimum_size);
+  return minimum;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
@@ -3796,7 +3797,7 @@ unsigned calculateDirectedEdgeConnectivity(const Graph *g) {
 
 unsigned calculateDegeneracy(const Graph *g) {
   if (!g || g->size == 0) return 0;
-  unsigned *core = calculateCoreNumbers(g);
+  unsigned *core = calculateCoreDecomposition(g);
   if (!core) return 0;
   unsigned degeneracy = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -4750,39 +4751,79 @@ static void searchForMinimumEdgeCover(
   return cover;
 }
 
-[[nodiscard]] unsigned *calculateCoreNumbers(const Graph *g) {
-  if (!g || g->size == 0) return nullptr;
-  bool *processed = calloc(g->size, sizeof(bool));
-  unsigned *degrees = calloc(g->size, sizeof(unsigned));
-  unsigned *core = malloc(g->size * sizeof(unsigned));
-  if (!processed || !degrees || !core) {
-    free(processed);
+[[nodiscard]] unsigned *calculateCoreDecomposition(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned n = g->size;
+  unsigned *degrees = malloc(n * sizeof(unsigned));
+  unsigned *vertices = malloc(n * sizeof(unsigned));
+  unsigned *positions = malloc(n * sizeof(unsigned));
+  unsigned *cores = malloc(n * sizeof(unsigned));
+  if (!degrees || !vertices || !positions || !cores) {
     free(degrees);
-    free(core);
+    free(vertices);
+    free(positions);
+    free(cores);
     return nullptr;
   }
-  for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination != v && e->destination < g->size)
-        degrees[v]++;
-  while (true) {
-    unsigned degree = UINT_MAX;
-    unsigned v = UINT_MAX;
-    for (unsigned u = 0; u < g->size; u++)
-      if (!processed[u] && degrees[u] < degree) {
-        degree = degrees[u];
-        v = u;
-      }
-    if (v == UINT_MAX) break;
-    core[v] = degree;
-    processed[v] = true;
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size && !processed[e->destination] && degrees[e->destination] > degree)
-        degrees[e->destination]--;
+  unsigned maximum_degree = 0;
+  for (unsigned v = 0; v < n; v++) {
+    unsigned degree = 0;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < n)
+        degree++;
+    degrees[v] = degree;
+    if (degree > maximum_degree) maximum_degree = degree;
   }
-  free(processed);
+  unsigned *bin = calloc(maximum_degree + 1, sizeof(unsigned));
+  if (!bin) {
+    free(degrees);
+    free(vertices);
+    free(positions);
+    free(cores);
+    return nullptr;
+  }
+  for (unsigned v = 0; v < n; v++) bin[degrees[v]]++;
+  unsigned start = 0;
+  for (unsigned degree = 0; degree <= maximum_degree; degree++) {
+    unsigned count = bin[degree];
+    bin[degree] = start;
+    start += count;
+  }
+  for (unsigned v = 0; v < n; v++) {
+    unsigned degree = degrees[v];
+    unsigned i = bin[degree];
+    positions[v] = i;
+    vertices[i] = v;
+    bin[degree]++;
+  }
+  for (unsigned degree = maximum_degree; degree > 0; degree--) bin[degree] = bin[degree - 1];
+  bin[0] = 0;
+  for (unsigned i = 0; i < n; i++) {
+    unsigned u = vertices[i];
+    cores[u] = degrees[u];
+    for (Edge *e = g->edges[u]; e; e = e->next) {
+      unsigned v = e->destination;
+      if (v < n && degrees[v] > degrees[u]) {
+        unsigned degree_v = degrees[v];
+        unsigned position_v = positions[v];
+        unsigned bin_start_v = bin[degree_v];
+        unsigned w = vertices[bin_start_v];
+        if (v != w) {
+          positions[v] = bin_start_v;
+          vertices[position_v] = w;
+          positions[w] = position_v;
+          vertices[bin_start_v] = v;
+        }
+        bin[degree_v]++;
+        degrees[v]--;
+      }
+    }
+  }
   free(degrees);
-  return core;
+  free(vertices);
+  free(positions);
+  free(bin);
+  return cores;
 }
 
 [[nodiscard]] unsigned *findCommunities(const Graph *g) {
