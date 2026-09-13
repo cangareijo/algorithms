@@ -291,6 +291,7 @@ unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *findGreedyColoring(const Graph *g);
 unsigned *findOptimalColoring(const Graph *g);
+unsigned *findWelchPowellGraphColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
@@ -4516,6 +4517,73 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
       return colors;
   free(colors);
   return nullptr;
+}
+
+[[nodiscard]] unsigned *findWelchPowellGraphColoring(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (const Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination == v)
+        return nullptr;
+  unsigned *last_seen_neighbor = calloc(g->size, sizeof(unsigned));
+  unsigned *count = calloc(g->size, sizeof(unsigned));
+  unsigned *vertices = malloc(g->size * sizeof(unsigned));
+  unsigned *degrees = calloc(g->size, sizeof(unsigned));
+  unsigned *last_blocked_by = calloc(g->size, sizeof(unsigned));
+  unsigned *colors = calloc(g->size, sizeof(unsigned));
+  if (!last_seen_neighbor || !count || !vertices || !degrees || !last_blocked_by || !colors) {
+    free(last_seen_neighbor);
+    free(count);
+    free(vertices);
+    free(degrees);
+    free(last_blocked_by);
+    free(colors);
+    return nullptr;
+  }
+  for (unsigned u = 0; u < g->size; u++) {
+    const unsigned marker = u + 1;
+    for (const Edge *e = g->edges[u]; e; e = e->next) {
+      unsigned v = e->destination;
+      if (v < g->size && last_seen_neighbor[v] != marker) {
+        last_seen_neighbor[v] = marker;
+        degrees[u]++;
+      }
+    }
+    count[degrees[u]]++;
+  }
+  free(last_seen_neighbor);
+  unsigned total = 0;
+  for (unsigned degree = g->size; degree > 0; degree--) {
+    unsigned c = count[degree - 1];
+    count[degree - 1] = total;
+    total += c;
+  }
+  for (unsigned v = 0; v < g->size; v++) {
+    unsigned degree = degrees[v];
+    vertices[count[degree]++] = v;
+  }
+  free(count);
+  unsigned current_color = 1;
+  unsigned colored_count = 0;
+  while (colored_count < g->size) {
+    for (unsigned i = 0; i < g->size; i++) {
+      unsigned u = vertices[i];
+      if (colors[u] != 0) continue;
+      if (last_blocked_by[u] != current_color) {
+        colors[u] = current_color;
+        colored_count++;
+        for (const Edge *e = g->edges[u]; e; e = e->next) {
+          unsigned v = e->destination;
+          if (v < g->size) last_blocked_by[v] = current_color;
+        }
+      }
+    }
+    current_color++;
+  }
+  free(vertices);
+  free(degrees);
+  free(last_blocked_by);
+  return colors;
 }
 
 [[nodiscard]] unsigned *getStronglyConnectedComponents(const Graph *g) {
