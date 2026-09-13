@@ -358,7 +358,6 @@ double *calculatePageRank(const Graph *g, double damping, unsigned iterations, d
 double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 
 Matrix *calculateFloydWarshall(const Graph *g);
-Matrix *calculateGraphLayout(const Graph *g, unsigned iterations);
 
 int main();
 
@@ -6344,7 +6343,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
           dy = 0.1 * (rand() % 2 ? 1 : -1);
         }
         const double distance_squared = dx * dx + dy * dy;
-        const double repulsion = k * k / distance_squared;
+        const double repulsion = k_squared / distance_squared;
         displacement[u][0] += dx * repulsion;
         displacement[u][1] += dy * repulsion;
         displacement[v][0] -= dx * repulsion;
