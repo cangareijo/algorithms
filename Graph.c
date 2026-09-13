@@ -357,7 +357,7 @@ double *calculatePageRank(const Graph *g, double damping, unsigned iterations, d
 
 double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 
-Matrix *calculateFloydWarshall(const Graph *g);
+double **calculateFloydWarshall(const Graph *g);
 
 int main();
 
@@ -395,6 +395,14 @@ unsigned unsignedMaximum(unsigned a, unsigned b) {
 }
 
 void freeBooleanMatrix(bool **matrix, unsigned m) {
+  if (!matrix) return;
+  for (unsigned i = 0; i < m; i++) free(matrix[i]);
+  free(matrix);
+}
+
+
+
+void freeMatrix(double **matrix, unsigned m) {
   if (!matrix) return;
   for (unsigned i = 0; i < m; i++) free(matrix[i]);
   free(matrix);
@@ -6095,19 +6103,19 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 [[nodiscard]] double *calculateClosenessCentrality(const Graph *g) {
   if (!g) return nullptr;
+  double **distance = calculateFloydWarshall(g);
   double *centrality = calloc(g->size, sizeof(double));
-  Matrix *distance = calculateFloydWarshall(g);
-  if (!centrality || !distance) {
+  if (!distance || !centrality) {
+    freeMatrix(distance, g->size);
     free(centrality);
-    destroyMatrix(distance);
     return nullptr;
   }
   for (unsigned u = 0; u < g->size; u++) {
     double total = 0;
     unsigned count = 0;
     for (unsigned v = 0; v < g->size; v++)
-      if (u != v && distance->data[u][v] != INFINITY) {
-        total += distance->data[u][v];
+      if (u != v && distance[u][v] != INFINITY) {
+        total += distance[u][v];
         count++;
       }
     if (total > 0)
@@ -6115,7 +6123,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     else
       centrality[u] = 0;
   }
-  destroyMatrix(distance);
+  freeMatrix(distance, g->size);
   return centrality;
 }
 
@@ -6383,32 +6391,42 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 
-[[nodiscard]] Matrix *calculateFloydWarshall(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
-  Matrix *distance = createZeroMatrix(g->size, g->size);
+[[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  const unsigned n = g->size;
+  double **distance = malloc(n * sizeof(double *));
   if (!distance) return nullptr;
-  for (unsigned u = 0; u < g->size; u++)
-    for (unsigned v = 0; v < g->size; v++)
-      if (u == v)
-        distance->data[u][v] = 0;
-      else
-        distance->data[u][v] = INFINITY;
-  for (unsigned v = 0; v < g->size; v++)
+  for (unsigned u = 0; u < n; u++) {
+    distance[u] = malloc(n * sizeof(double));
+    if (!distance[u]) {
+      for (unsigned v = 0; v < u; v++) free(distance[v]);
+      free(distance);
+      return nullptr;
+    }
+  }
+  for (unsigned u = 0; u < n; u++)
+    for (unsigned v = 0; v < n; v++)
+      distance[u][v] = u == v ? 0 : INFINITY;
+  for (unsigned v = 0; v < n; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size && e->weight < distance->data[v][e->destination])
-        distance->data[v][e->destination] = e->weight;
-  for (unsigned w = 0; w < g->size; w++)
-    for (unsigned u = 0; u < g->size; u++)
-      for (unsigned v = 0; v < g->size; v++)
-        if (distance->data[u][w] + distance->data[w][v] < distance->data[u][v])
-          distance->data[u][v] = distance->data[u][w] + distance->data[w][v];
-  for (unsigned w = 0; w < g->size; w++)
-    for (unsigned u = 0; u < g->size; u++)
-      for (unsigned v = 0; v < g->size; v++)
-        if (distance->data[u][w] + distance->data[w][v] < distance->data[u][v])
-          distance->data[u][v] = -INFINITY;
+      if (e->destination < n && e->weight < distance[v][e->destination])
+        distance[v][e->destination] = e->weight;
+  for (unsigned w = 0; w < n; w++)
+    for (unsigned u = 0; u < n; u++)
+      if (distance[u][w] != INFINITY)
+        for (unsigned v = 0; v < n; v++)
+          if (distance[w][v] != INFINITY && distance[u][w] + distance[w][v] < distance[u][v])
+            distance[u][v] = distance[u][w] + distance[w][v];
+  for (unsigned w = 0; w < n; w++)
+    if (distance[w][w] < 0)
+      for (unsigned u = 0; u < n; u++)
+        for (unsigned v = 0; v < n; v++)
+          if (distance[u][w] != INFINITY && distance[w][v] != INFINITY)
+            distance[u][v] = -INFINITY;
   return distance;
 }
+
+
 
 int main() {
   return 0;
