@@ -355,7 +355,8 @@ double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
 double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance);
 
-Matrix *createLaplacian(const Graph *g);
+double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
+
 Matrix *calculateFloydWarshall(const Graph *g);
 Matrix *calculateGraphLayout(const Graph *g, unsigned iterations);
 
@@ -4562,7 +4563,6 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   free(counts);
   for (unsigned i = 0; i < g->size; i++) {
     unsigned u = vertices[i];
-    
     for (const Edge *e = g->edges[u]; e; e = e->next) {
       unsigned v = e->destination;
       if (v < g->size && colors[v] != 0) blocked_colors[colors[v]] = u + 1;
@@ -6309,18 +6309,80 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 
-[[nodiscard]] Matrix *createLaplacian(const Graph *g) {
-  if (!g || !g->edges) return nullptr;
-  Matrix *L = createZeroMatrix(g->size, g->size);
-  if (!L) return nullptr;
-  for (unsigned u = 0; u < g->size; u++)
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size) {
-        L->data[u][u] += e->weight;
-        L->data[u][e->destination] -= e->weight;
+[[nodiscard]] double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2] {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double (*displacement)[2] = malloc(g->size * sizeof(*displacement));
+  double (*position)[2] = malloc(g->size * sizeof(*position));
+  if (!displacement || !position) {
+    free(position);
+    free(displacement);
+    return nullptr;
+  }
+  const double width = 1000;
+  const double height = 1000;
+  const double area = width * height;
+  const double k = 0.75 * sqrt(area / g->size);
+  const double k_squared = k * k;
+  const double inverse_k = 1 / k;
+  for (unsigned v = 0; v < g->size; v++) {
+    position[v][0] = width / 4 + rand() / ((double)RAND_MAX + 1) * width / 2;
+    position[v][1] = height / 4 + rand() / ((double)RAND_MAX + 1) * height / 2;
+  }
+  double temperature = width / 10;
+  const double cooling = temperature / iterations;
+  for (unsigned i = 0; i < iterations; i++) {
+    for (unsigned v = 0; v < g->size; v++) {
+      displacement[v][0] = 0;
+      displacement[v][1] = 0;
+    }
+    for (unsigned u = 1; u < g->size; u++)
+      for (unsigned v = 0; v < u; v++) {
+        double dx = position[u][0] - position[v][0];
+        double dy = position[u][1] - position[v][1];
+        if (fabs(dx) < 1e-4 && fabs(dy) < 1e-4) {
+          dx = 0.1 * (rand() % 2 ? 1 : -1);
+          dy = 0.1 * (rand() % 2 ? 1 : -1);
+        }
+        const double distance_squared = dx * dx + dy * dy;
+        const double repulsion = k * k / distance_squared;
+        displacement[u][0] += dx * repulsion;
+        displacement[u][1] += dy * repulsion;
+        displacement[v][0] -= dx * repulsion;
+        displacement[v][1] -= dy * repulsion;
       }
-  return L;
+    for (unsigned u = 0; u < g->size; u++)
+      for (const Edge *e = g->edges[u]; e; e = e->next) {
+        const unsigned v = e->destination;
+        if (u == v || e->destination >= g->size) continue;
+        const double dx = position[u][0] - position[v][0];
+        const double dy = position[u][1] - position[v][1];
+        const double distance = sqrt(dx * dx + dy * dy);
+        if (distance < 1e-4) continue;
+        const double attraction = distance * inverse_k;
+        displacement[u][0] -= dx * attraction;
+        displacement[u][1] -= dy * attraction;
+      }
+    for (unsigned v = 0; v < g->size; v++) {
+      const double dx = displacement[v][0];
+      const double dy = displacement[v][1];
+      const double distance = sqrt(dx * dx + dy * dy);
+      if (distance == 0) continue;
+      const double capped = distance < temperature ? distance : temperature;
+      position[v][0] += dx / distance * capped;
+      position[v][1] += dy / distance * capped;
+      if (position[v][0] < 0) position[v][0] = 0;
+      else if (position[v][0] > width) position[v][0] = width;
+      if (position[v][1] < 0) position[v][1] = 0;
+      else if (position[v][1] > height) position[v][1] = height;
+    }
+    temperature -= cooling;
+    if (temperature < 0) temperature = 0;
+  }
+  free(displacement);
+  return position;
 }
+
+
 
 [[nodiscard]] Matrix *calculateFloydWarshall(const Graph *g) {
   if (!g || !g->edges) return nullptr;
@@ -6347,75 +6409,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
         if (distance->data[u][w] + distance->data[w][v] < distance->data[u][v])
           distance->data[u][v] = -INFINITY;
   return distance;
-}
-
-[[nodiscard]] Matrix *calculateGraphLayout(const Graph *g, unsigned iterations) {
-  if (!isValid(g)) return nullptr;
-  Matrix *position = createZeroMatrix(g->size, 2);
-  Matrix *displacement = createZeroMatrix(g->size, 2);
-  if (!position || !displacement) {
-    destroyMatrix(position);
-    destroyMatrix(displacement);
-    return nullptr;
-  }
-  const double width = 1000;
-  const double height = 1000;
-  const double area = width * height;
-  const double k = 0.75 * sqrt(area / g->size);
-  for (unsigned v = 0; v < g->size; v++) {
-    position->data[v][0] = width / 4 + rand() / ((double)RAND_MAX + 1) * width / 2;
-    position->data[v][1] = height / 4 + rand() / ((double)RAND_MAX + 1) * height / 2;
-  }
-  double temperature = width / 10;
-  const double cooling = temperature / iterations;
-  for (unsigned i = 0; i < iterations; i++) {
-    for (unsigned v = 0; v < g->size; v++) {
-      displacement->data[v][0] = 0;
-      displacement->data[v][1] = 0;
-    }
-    for (unsigned u = 0; u < g->size; u++)
-      for (unsigned v = 0; v < g->size; v++) {
-        if (u == v) continue;
-        double dx = position->data[u][0] - position->data[v][0];
-        double dy = position->data[u][1] - position->data[v][1];
-        if (fabs(dx) < 1e-4 && fabs(dy) < 1e-4) {
-          dx = 0.1 * (rand() % 2 ? 1 : -1);
-          dy = 0.1 * (rand() % 2 ? 1 : -1);
-        }
-        const double distance = sqrt(dx * dx + dy * dy);
-        const double repulsion = k * k / distance / distance;
-        displacement->data[u][0] += dx * repulsion;
-        displacement->data[u][1] += dy * repulsion;
-      }
-    for (unsigned u = 0; u < g->size; u++)
-      for (const Edge *e = g->edges[u]; e; e = e->next) {
-        const unsigned v = e->destination;
-        if (u == v) continue;
-        const double dx = position->data[u][0] - position->data[v][0];
-        const double dy = position->data[u][1] - position->data[v][1];
-        const double distance = sqrt(dx * dx + dy * dy);
-        const double attraction = distance / k;
-        displacement->data[u][0] -= dx * attraction;
-        displacement->data[u][1] -= dy * attraction;
-      }
-    for (unsigned v = 0; v < g->size; v++) {
-      const double dx = displacement->data[v][0];
-      const double dy = displacement->data[v][1];
-      const double distance = sqrt(dx * dx + dy * dy);
-      if (distance == 0) continue;
-      const double capped = distance < temperature ? distance : temperature;
-      position->data[v][0] += dx / distance * capped;
-      position->data[v][1] += dy / distance * capped;
-      if (position->data[v][0] < 0) position->data[v][0] = 0;
-      if (position->data[v][0] > width) position->data[v][0] = width;
-      if (position->data[v][1] < 0) position->data[v][1] = 0;
-      if (position->data[v][1] > height) position->data[v][1] = height;
-    }
-    temperature -= cooling;
-    if (temperature < 0) temperature = 0;
-  }
-  destroyMatrix(displacement);
-  return position;
 }
 
 int main() {
