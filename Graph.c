@@ -4525,18 +4525,18 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
     for (const Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination == v)
         return nullptr;
-  unsigned *last_seen_neighbor = calloc(g->size, sizeof(unsigned));
-  unsigned *count = calloc(g->size, sizeof(unsigned));
+  unsigned *neighbor_mask = calloc(g->size, sizeof(unsigned));
+  unsigned *counts = calloc(g->size, sizeof(unsigned));
   unsigned *vertices = malloc(g->size * sizeof(unsigned));
   unsigned *degrees = calloc(g->size, sizeof(unsigned));
-  unsigned *last_blocked_by = calloc(g->size, sizeof(unsigned));
+  unsigned *blocked_colors = calloc(g->size + 1, sizeof(unsigned));
   unsigned *colors = calloc(g->size, sizeof(unsigned));
-  if (!last_seen_neighbor || !count || !vertices || !degrees || !last_blocked_by || !colors) {
-    free(last_seen_neighbor);
-    free(count);
+  if (!neighbor_mask || !counts || !vertices || !degrees || !blocked_colors || !colors) {
+    free(neighbor_mask);
+    free(counts);
     free(vertices);
     free(degrees);
-    free(last_blocked_by);
+    free(blocked_colors);
     free(colors);
     return nullptr;
   }
@@ -4544,45 +4544,36 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
     const unsigned marker = u + 1;
     for (const Edge *e = g->edges[u]; e; e = e->next) {
       unsigned v = e->destination;
-      if (v < g->size && last_seen_neighbor[v] != marker) {
-        last_seen_neighbor[v] = marker;
+      if (v < g->size && neighbor_mask[v] != marker) {
+        neighbor_mask[v] = marker;
         degrees[u]++;
       }
     }
-    count[degrees[u]]++;
+    counts[degrees[u]]++;
   }
-  free(last_seen_neighbor);
+  free(neighbor_mask);
   unsigned total = 0;
   for (unsigned degree = g->size; degree > 0; degree--) {
-    unsigned c = count[degree - 1];
-    count[degree - 1] = total;
-    total += c;
+    unsigned count = counts[degree - 1];
+    counts[degree - 1] = total;
+    total += count;
   }
-  for (unsigned v = 0; v < g->size; v++) {
-    unsigned degree = degrees[v];
-    vertices[count[degree]++] = v;
-  }
-  free(count);
-  unsigned current_color = 1;
-  unsigned colored_count = 0;
-  while (colored_count < g->size) {
-    for (unsigned i = 0; i < g->size; i++) {
-      unsigned u = vertices[i];
-      if (colors[u] != 0) continue;
-      if (last_blocked_by[u] != current_color) {
-        colors[u] = current_color;
-        colored_count++;
-        for (const Edge *e = g->edges[u]; e; e = e->next) {
-          unsigned v = e->destination;
-          if (v < g->size) last_blocked_by[v] = current_color;
-        }
-      }
+  for (unsigned v = 0; v < g->size; v++) vertices[counts[degrees[v]]++] = v;
+  free(counts);
+  for (unsigned i = 0; i < g->size; i++) {
+    unsigned u = vertices[i];
+    
+    for (const Edge *e = g->edges[u]; e; e = e->next) {
+      unsigned v = e->destination;
+      if (v < g->size && colors[v] != 0) blocked_colors[colors[v]] = u + 1;
     }
-    current_color++;
+    unsigned assigned_color = 1;
+    while (blocked_colors[assigned_color] == u + 1) assigned_color++;
+    colors[u] = assigned_color;
   }
-  free(vertices);
   free(degrees);
-  free(last_blocked_by);
+  free(vertices);
+  free(blocked_colors);
   return colors;
 }
 
