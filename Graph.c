@@ -319,6 +319,7 @@ double calculateRandicIndex(const Graph *g);
 double calculateZagrebIndex(const Graph *g);
 double calculateSecondZagrebIndex(const Graph *g);
 double calculateGraphEfficiency(const Graph *g);
+double calculateNaturalConnectivity(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -3536,8 +3537,8 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
 
 unsigned countSpanningTrees(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
-  if (g->size == 1) return 1;
   const unsigned n = g->size;
+  if (n == 1) return 1;
   const unsigned m = n - 1;
   double laplacian[m][m] = {};
   for (unsigned u = 0; u < n; u++)
@@ -5761,16 +5762,6 @@ double calculateSecondZagrebIndex(const Graph *g) {
   return sum / 2;
 }
 
-/*
- * This function calculates the global efficiency of a directed, weighted graph.
- * It uses the Floyd-Warshall algorithm to determine the shortest path distances
- * between all pairs of nodes in the network. It then computes the average of the
- * inverse shortest path distances for all distinct pairs of nodes. The resulting
- * value ranges from 0 to 1, where a higher score indicates a more integrated network
- * where information or traffic can flow rapidly and efficiently between nodes via
- * shorter paths.
- */
-
 double calculateGraphEfficiency(const Graph *g) {
   if (!g || g->size <= 1 || !g->edges) return 0;
   double distance[g->size][g->size];
@@ -5792,6 +5783,53 @@ double calculateGraphEfficiency(const Graph *g) {
       if (u != v && distance[u][v] < INFINITY)
         sum += 1 / distance[u][v];
   return sum / g->size / (g->size - 1);
+}
+
+double calculateNaturalConnectivity(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0.0;
+  unsigned n = g->size;
+  double (*matrix)[n] = calloc(n, sizeof(double[n]));
+  if (!matrix) return 0.0;
+  for (unsigned i = 0; i < n; i++)
+    for (Edge *e = g->edges[i]; e; e = e->next)
+      if (e->destination < n)
+        matrix[i][e->destination] += e->weight;
+  unsigned max_sweeps = 50;
+  double epsilon = 1e-12;
+  for (unsigned sweep = 0; sweep < max_sweeps; sweep++) {
+    bool rotated = false;
+    for (unsigned p = 0; p < n; p++)
+      for (unsigned q = p + 1; q < n; q++) {
+        double apq = matrix[p][q];
+        if (fabs(apq) < epsilon) continue;
+        rotated = true;
+        double app = matrix[p][p];
+        double aqq = matrix[q][q];
+        double tau = (aqq - app) / (2.0 * apq);
+        double t = tau >= 0.0 ? 1.0 / (tau + sqrt(1.0 + tau * tau)) : -1.0 / (-tau + sqrt(1.0 + tau * tau));
+        double c = 1.0 / sqrt(1.0 + t * t);
+        double s = t * c;
+        double tau_opt = s / (1.0 + c);
+        matrix[p][p] = app - t * apq;
+        matrix[q][q] = aqq + t * apq;
+        matrix[p][q] = 0.0;
+        matrix[q][p] = 0.0;
+        for (unsigned i = 0; i < n; i++)
+          if (i != p && i != q) {
+            double a_ip = matrix[i][p];
+            double a_iq = matrix[i][q];
+            matrix[i][p] = a_ip - s * (a_iq + tau_opt * a_ip);
+            matrix[p][i] = matrix[i][p];
+            matrix[i][q] = a_iq + s * (a_ip - tau_opt * a_iq);
+            matrix[q][i] = matrix[i][q];
+          }
+      }
+    if (!rotated) break;
+  }
+  double sum_exp = 0.0;
+  for (unsigned i = 0; i < n; i++) sum_exp += exp(matrix[i][i]);
+  free(matrix);
+  return log(sum_exp / n);
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
