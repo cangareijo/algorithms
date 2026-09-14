@@ -343,7 +343,7 @@ double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
 double getOutWeight(const Graph *g, unsigned v);
 double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
 double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
-double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned u, unsigned v);
+double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculateModularity(const Graph *g, const unsigned *partition);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
@@ -3683,7 +3683,7 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
       if (u == v || adjacent[u][v]) continue;
-      double flow = calculateMaxFlowEdmondsKarp(net, u + g->size, v);
+      double flow = calculateEdmondsKarpMaximumFlow(net, u + g->size, v);
       if (flow < minimum) minimum = flow;
     }
   freeBooleanMatrix(adjacent, g->size);
@@ -5984,59 +5984,56 @@ double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
   return distance;
 }
 
-double calculateMaxFlowEdmondsKarp(const Graph *g, unsigned source, unsigned sink) {
-  if (!isValid(g) || source >= g->size || sink >= g->size) return 0;
-  Matrix *residual = createZeroMatrix(g->size, g->size);
-  unsigned *parent = malloc(g->size * sizeof(unsigned));
-  bool *visited = malloc(g->size * sizeof(bool));
-  unsigned *queue = malloc(g->size * sizeof(unsigned));
-  if (!residual || !parent || !visited || !queue) {
-    destroyMatrix(residual);
-    free(parent); free(visited); free(queue);
+double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return 0;
+  unsigned n = g->size;
+  double (*residualCapacity)[n] = calloc(1, sizeof(double[n][n]));
+  unsigned *parent = malloc(n * sizeof(unsigned));
+  unsigned *queue = malloc(n * sizeof(unsigned));
+  if (!residualCapacity || !parent || !queue) {
+    free(residualCapacity);
+    free(parent);
+    free(queue);
     return 0;
   }
-  for (unsigned u = 0; u < g->size; u++)
-    for (unsigned v = 0; v < g->size; v++)
-      residual->data[u][v] = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      residual->data[v][e->destination] += e->weight;
-  double max = 0;
+  for (unsigned i = 0; i < n; i++)
+    for (Edge *e = g->edges[i]; e; e = e->next)
+      if (e->destination < n)
+        residualCapacity[i][e->destination] += e->weight;
+  double maxFlow = 0;
+  const unsigned unvisited = n;
   while (true) {
-    for (unsigned v = 0; v < g->size; v++) visited[v] = false;
-    visited[source] = true;
+    for (unsigned i = 0; i < n; i++) parent[i] = unvisited;
     unsigned head = 0, tail = 0;
-    queue[tail++] = source;
-    bool found = false;
-    parent[source] = source;
-    while (head < tail && !found) {
-      unsigned u = queue[head++];
-      for (unsigned v = 0; v < g->size && !found; v++)
-        if (!visited[v] && residual->data[u][v] > 1e-9) {
-          queue[tail++] = v;
-          parent[v] = u;
-          visited[v] = true;
-          if (v == sink) found = true;
+    queue[tail++] = u;
+    parent[u] = u;
+    while (head < tail) {
+      unsigned i = queue[head++];
+      for (unsigned j = 0; j < n; j++)
+        if (parent[j] == unvisited && residualCapacity[i][j] > 0) {
+          parent[j] = i;
+          queue[tail++] = j;
+          if (j == v) break;
         }
+      if (parent[v] != unvisited) break;
     }
-    if (!found) break;
-    double flow = INFINITY;
-    unsigned v = sink;
-    while (v != source) {
-      if (residual->data[parent[v]][v] < flow) flow = residual->data[parent[v]][v];
-      v = parent[v];
+    if (parent[v] == unvisited) break;
+    double pathFlow = DBL_MAX;
+    for (unsigned j = v; j != u; j = parent[j]) {
+      unsigned i = parent[j];
+      if (residualCapacity[i][j] < pathFlow) pathFlow = residualCapacity[i][j];
     }
-    v = sink;
-    while (v != source) {
-      residual->data[parent[v]][v] -= flow;
-      residual->data[v][parent[v]] += flow;
-      v = parent[v];
+    for (unsigned j = v; j != u; j = parent[j]) {
+      unsigned i = parent[j];
+      residualCapacity[i][j] -= pathFlow;
+      residualCapacity[j][i] += pathFlow;
     }
-    max += flow;
+    maxFlow += pathFlow;
   }
-  destroyMatrix(residual);
-  free(parent); free(visited); free(queue);
-  return max;
+  free(parent);
+  free(queue);
+  free(residualCapacity);
+  return maxFlow;
 }
 
 double calculateSubgraphDensity(const Graph *g, const bool *set) {
