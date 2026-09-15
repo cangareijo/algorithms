@@ -133,6 +133,7 @@ bool *findMaximumIndependentSet(const Graph *g);
 bool *findFeedbackVertexSet(const Graph *g);
 bool *findVertexCut(const Graph *g);
 bool *findMinimumDominatingSet(const Graph *g);
+bool *findCriticalNodesAttack(const Graph *g, unsigned k);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
 bool *getVerticesReachableFrom(const Graph *g, unsigned v);
@@ -2138,6 +2139,55 @@ static void searchForMinimumDominatingSet(
   unsigned minimum_size = g->size + 1;
   searchForMinimumDominatingSet(g, 0, current, 0, minimum, &minimum_size);
   return minimum;
+}
+
+[[nodiscard]] bool *findCriticalNodesAttack(const Graph *g, unsigned k) {
+  if (!g || !g->edges || k > g->size) return nullptr;
+  bool *visited = malloc(g->size * sizeof(bool));
+  unsigned *stack = malloc(g->size * sizeof(unsigned));
+  bool *removed = calloc(g->size, sizeof(bool));
+  if (!removed || !visited || !stack) {
+    free(visited);
+    free(stack);
+    free(removed);
+    return nullptr;
+  }
+  for (unsigned step = 0; step < k; step++) {
+    unsigned best_node = 0;
+    unsigned max_components = 0;
+    bool found = false;
+    for (unsigned u = 0; u < g->size; u++) {
+      if (removed[u]) continue;
+      removed[u] = true;
+      for (unsigned v = 0; v < g->size; v++) visited[v] = false;
+      unsigned components = 0;
+      for (unsigned start = 0; start < g->size; start++) {
+        if (removed[start] || visited[start]) continue;
+        components++;
+        unsigned top = 0;
+        stack[top++] = start;
+        visited[start] = true;
+        while (top > 0)
+          for (Edge *e = g->edges[stack[--top]]; e; e = e->next) {
+            unsigned v = e->destination;
+            if (v < g->size && !removed[v] && !visited[v]) {
+              visited[v] = true;
+              stack[top++] = v;
+            }
+          }
+      }
+      removed[u] = false;
+      if (!found || components > max_components) {
+        max_components = components;
+        best_node = u;
+        found = true;
+      }
+    }
+    if (found) removed[best_node] = true;
+  }
+  free(visited);
+  free(stack);
+  return removed;
 }
 
 [[nodiscard]] bool *getInNeighbors(const Graph *g, unsigned v) {
