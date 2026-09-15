@@ -320,6 +320,7 @@ double calculateZagrebIndex(const Graph *g);
 double calculateSecondZagrebIndex(const Graph *g);
 double calculateGraphEfficiency(const Graph *g);
 double calculateNaturalConnectivity(const Graph *g);
+double calculatePercolationThreshold(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -5830,6 +5831,103 @@ double calculateNaturalConnectivity(const Graph *g) {
   for (unsigned i = 0; i < n; i++) sum_exp += exp(matrix[i][i]);
   free(matrix);
   return log(sum_exp / n);
+}
+
+double calculatePercolationThreshold(const Graph *g) {
+  if (!g || g->size <= 1 || !g->edges) return 0.0;
+  unsigned total_edges = 0;
+  for (unsigned src = 0; src < g->size; src++)
+    for (Edge *e = g->edges[src]; e; e = e->next)
+      if (src < e->destination && e->destination < g->size)
+        total_edges++;
+  if (total_edges == 0) return 0.0;
+  unsigned *src_nodes = malloc(total_edges * sizeof(unsigned));
+  unsigned *dest_nodes = malloc(total_edges * sizeof(unsigned));
+  double *weights = malloc(total_edges * sizeof(double));
+  unsigned *parent = malloc(g->size * sizeof(unsigned));
+  unsigned *comp_size = malloc(g->size * sizeof(unsigned));
+  if (!src_nodes || !dest_nodes || !weights || !parent || !comp_size) {
+    free(src_nodes);
+    free(dest_nodes);
+    free(weights);
+    free(parent);
+    free(comp_size);
+    return 0.0;
+  }
+  unsigned edge_idx = 0;
+  for (unsigned src = 0; src < g->size; src++)
+    for (Edge *e = g->edges[src]; e; e = e->next)
+      if (src < e->destination && e->destination < g->size) {
+        src_nodes[edge_idx] = src;
+        dest_nodes[edge_idx] = e->destination;
+        weights[edge_idx] = e->weight;
+        edge_idx++;
+      }
+  for (unsigned v = 0; v < g->size; v++) {
+    parent[v] = v;
+    comp_size[v] = 1;
+  }
+  for (unsigned gap = total_edges / 2; gap > 0; gap /= 2)
+    for (unsigned i = gap; i < total_edges; i++) {
+      double current_w = weights[i];
+      unsigned current_u = src_nodes[i];
+      unsigned current_v = dest_nodes[i];
+      unsigned j = i;
+      while (j >= gap && weights[j - gap] > current_w) {
+        weights[j] = weights[j - gap];
+        src_nodes[j] = src_nodes[j - gap];
+        dest_nodes[j] = dest_nodes[j - gap];
+        j -= gap;
+      }
+      weights[j] = current_w;
+      src_nodes[j] = current_u;
+      dest_nodes[j] = current_v;
+    }
+  double threshold_weight = 0.0;
+  bool threshold_reached = false;
+  unsigned giant_component_threshold = g->size / 2;
+  for (unsigned i = 0; i < total_edges; i++) {
+    unsigned root_u = src_nodes[i];
+    while (root_u != parent[root_u]) {
+      root_u = parent[root_u];
+    }
+    unsigned curr_u = src_nodes[i];
+    while (curr_u != root_u) {
+      unsigned next = parent[curr_u];
+      parent[curr_u] = root_u;
+      curr_u = next;
+    }
+    unsigned root_v = dest_nodes[i];
+    while (root_v != parent[root_v]) {
+      root_v = parent[root_v];
+    }
+    unsigned curr_v = dest_nodes[i];
+    while (curr_v != root_v) {
+      unsigned next = parent[curr_v];
+      parent[curr_v] = root_v;
+      curr_v = next;
+    }
+    if (root_u != root_v) {
+      if (comp_size[root_u] < comp_size[root_v]) {
+        unsigned temp = root_u;
+        root_u = root_v;
+        root_v = temp;
+      }
+      parent[root_v] = root_u;
+      comp_size[root_u] += comp_size[root_v];
+      if (comp_size[root_u] >= giant_component_threshold) {
+        threshold_weight = weights[i];
+        threshold_reached = true;
+        break;
+      }
+    }
+  }
+  free(src_nodes);
+  free(dest_nodes);
+  free(weights);
+  free(parent);
+  free(comp_size);
+  return threshold_reached ? threshold_weight : 0.0;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
