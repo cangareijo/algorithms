@@ -344,6 +344,7 @@ double *calculatePageRank(const Graph *g, double damping, unsigned iterations, d
 double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 
 double **calculateFloydWarshall(const Graph *g);
+double **calculateJaccardCoefficientMatrix(const Graph *g);
 
 int main();
 
@@ -6473,6 +6474,42 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
           if (distance[u][w] != INFINITY && distance[w][v] != INFINITY)
             distance[u][v] = -INFINITY;
   return distance;
+}
+
+[[nodiscard]] double **calculateJaccardCoefficientMatrix(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double **matrix = malloc(g->size * sizeof(double *));
+  if (!matrix) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) {
+    matrix[u] = malloc(g->size * sizeof(double));
+    if (!matrix[u]) {
+      for (unsigned v = 0; v < u; v++) free(matrix[v]);
+      free(matrix);
+      return nullptr;
+    }
+  }
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      unsigned intersection_count = 0;
+      unsigned union_count = 0;
+      for (unsigned w = 0; w < g->size; w++) {
+        bool in_u = false;
+        bool in_v = false;
+        for (Edge *e = g->edges[u]; e; e = e->next)
+          if (e->destination == w)
+            in_u = true;
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination == w)
+            in_v = true;
+        if (in_u && in_v) intersection_count++;
+        if (in_u || in_v) union_count++;
+      }
+      if (union_count == 0)
+        matrix[u][v] = 1;
+      else
+        matrix[u][v] = (double)intersection_count / union_count;
+    }
+  return matrix;
 }
 
 
