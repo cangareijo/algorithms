@@ -331,6 +331,7 @@ double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
 double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
+double calculateConductance(const Graph *g, const bool *set);
 double calculateModularity(const Graph *g, const unsigned *partition);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
@@ -6091,6 +6092,16 @@ double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v) {
   return maxFlow;
 }
 
+/*
+ * This function calculates the density of a subgraph defined by a specific subset of vertices. 
+ * It iterates through the graph to count the number of active vertices included in the 'set' 
+ * and the number of directed edges connecting these vertices. If the subgraph contains at 
+ * least two vertices, it returns the actual density as the ratio of existing directed edges 
+ * to the maximum possible number of directed edges V × (V - 1) for a graph of that size. If
+ * the graph pointer is invalid, the set is null, or fewer than two vertices are selected, the
+ * function returns 0.
+ */
+
 double calculateSubgraphDensity(const Graph *g, const bool *set) {
   if (!g || !g->edges || !set) return 0;
   unsigned vertices = 0;
@@ -6104,6 +6115,34 @@ double calculateSubgraphDensity(const Graph *g, const bool *set) {
     }
   if (vertices < 2) return 0;
   return (double)edges / vertices / (vertices - 1);
+}
+
+/**
+ * Calculates the conductance of a specific cut (subset of vertices) in a graph.
+ * Conductance is a metric used to evaluate the quality of a graph cut or community
+ * by comparing the total weight of edges crossing the cut (cut weight) to the total
+ * edge weight connected to the smaller side of the cut (minimum volume between the 
+ * set and its complement). This function iterates through all edges, computes the 
+ * volumes and the crossing weights based on the boolean membership array, and 
+ * returns the ratio of the cut weight to the minimum volume, or 0 if the graph is 
+ * invalid or a partition has zero volume.
+ */
+
+double calculateConductance(const Graph *g, const bool *set) {
+  if (!g || g->size == 0 || !g->edges || !set) return 0;
+  double cut_weight = 0, volume_set = 0, volume_complement = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size) {
+        if (set[u])
+          volume_set += e->weight;
+        else
+          volume_complement += e->weight;
+        if (set[u] && !set[e->destination]) cut_weight += e->weight;
+      }
+  double min_volume = volume_set <= volume_complement ? volume_set : volume_complement;
+  if (min_volume == 0) return 0;
+  return cut_weight / min_volume;
 }
 
 double calculateModularity(const Graph *g, const unsigned *partition) {
