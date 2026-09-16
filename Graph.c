@@ -6517,6 +6517,17 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return distance;
 }
 
+/*
+ * This function calculates the Jaccard similarity coefficient matrix for all pairs
+ * of vertices in a given graph. It dynamic allocates a 2D array of doubles where
+ * each cell `matrix[u][v]` represents the neighborhood similarity between vertex `u`
+ * and vertex `v`. The similarity is computed as the size of the intersection of
+ * their neighbor sets divided by the size of their union. If both vertices have
+ * no neighbors, their similarity is defined as 1. The function properly handles
+ * empty graphs, invalid inputs, and performs clean memory rollbacks if any internal
+ * allocation fails.
+ */
+
 [[nodiscard]] double **calculateJaccardCoefficientMatrix(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   double **matrix = malloc(g->size * sizeof(double *));
@@ -6529,19 +6540,17 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
       return nullptr;
     }
   }
+  bool adjacent[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        adjacent[v][e->destination] = true;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
       unsigned intersection_count = 0, union_count = 0;
       for (unsigned w = 0; w < g->size; w++) {
-        bool in_u = false, in_v = false;
-        for (Edge *e = g->edges[u]; e; e = e->next)
-          if (e->destination == w)
-            in_u = true;
-        for (Edge *e = g->edges[v]; e; e = e->next)
-          if (e->destination == w)
-            in_v = true;
-        if (in_u && in_v) intersection_count++;
-        if (in_u || in_v) union_count++;
+        if (adjacent[u][w] && adjacent[v][w]) intersection_count++;
+        if (adjacent[u][w] || adjacent[v][w]) union_count++;
       }
       if (union_count == 0)
         matrix[u][v] = 1;
@@ -6550,6 +6559,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     }
   return matrix;
 }
+
 /*
  * This function calculates the Adamic-Adar index for all pairs of nodes in a given graph.
  * The Adamic-Adar index is a link prediction metric used to measure the similarity or
@@ -6579,10 +6589,10 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     for (Edge *e = g->edges[v]; e; e = e->next)
       degrees[v]++;
   bool adjacent[g->size][g->size] = {};
-  for (unsigned u = 0; u < g->size; u++)
-    for (Edge *e = g->edges[u]; e; e = e->next)
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size)
-        adjacent[u][e->destination] = true;
+        adjacent[v][e->destination] = true;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v)
