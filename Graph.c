@@ -345,6 +345,7 @@ double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 
 double **calculateFloydWarshall(const Graph *g);
 double **calculateJaccardCoefficientMatrix(const Graph *g);
+double **calculateAdamicAdarIndex(const Graph *g);
 
 int main();
 
@@ -6490,11 +6491,9 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
-      unsigned intersection_count = 0;
-      unsigned union_count = 0;
+      unsigned intersection_count = 0, union_count = 0;
       for (unsigned w = 0; w < g->size; w++) {
-        bool in_u = false;
-        bool in_v = false;
+        bool in_u = false, in_v = false;
         for (Edge *e = g->edges[u]; e; e = e->next)
           if (e->destination == w)
             in_u = true;
@@ -6508,6 +6507,41 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
         matrix[u][v] = 1;
       else
         matrix[u][v] = (double)intersection_count / union_count;
+    }
+  return matrix;
+}
+
+[[nodiscard]] double **calculateAdamicAdarIndex(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double **matrix = malloc(g->size * sizeof(double *));
+  if (!matrix) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) {
+    matrix[u] = calloc(g->size, sizeof(double));
+    if (!matrix[u]) {
+      for (unsigned v = 0; v < u; v++) free(matrix[v]);
+      free(matrix);
+      return nullptr;
+    }
+  }
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      if (u == v) continue;
+      double score = 0;
+      for (unsigned w = 0; w < g->size; w++) {
+        bool u_has_w = false, v_has_w = false;
+        for (Edge *e = g->edges[u]; e; e = e->next)
+          if (e->destination == w)
+            u_has_w = true;
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination == w)
+            v_has_w = true;
+        if (u_has_w && v_has_w) {
+          unsigned degree = 0;
+          for (Edge *e = g->edges[w]; e; e = e->next) degree++;
+          if (degree > 1) score += 1 / log(degree);
+        }
+      }
+      matrix[u][v] = score;
     }
   return matrix;
 }
