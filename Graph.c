@@ -6093,10 +6093,10 @@ double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v) {
 }
 
 /*
- * This function calculates the density of a subgraph defined by a specific subset of vertices. 
- * It iterates through the graph to count the number of active vertices included in the 'set' 
- * and the number of directed edges connecting these vertices. If the subgraph contains at 
- * least two vertices, it returns the actual density as the ratio of existing directed edges 
+ * This function calculates the density of a subgraph defined by a specific subset of vertices.
+ * It iterates through the graph to count the number of active vertices included in the 'set'
+ * and the number of directed edges connecting these vertices. If the subgraph contains at
+ * least two vertices, it returns the actual density as the ratio of existing directed edges
  * to the maximum possible number of directed edges V × (V - 1) for a graph of that size. If
  * the graph pointer is invalid, the set is null, or fewer than two vertices are selected, the
  * function returns 0.
@@ -6121,10 +6121,10 @@ double calculateSubgraphDensity(const Graph *g, const bool *set) {
  * Calculates the conductance of a specific cut (subset of vertices) in a graph.
  * Conductance is a metric used to evaluate the quality of a graph cut or community
  * by comparing the total weight of edges crossing the cut (cut weight) to the total
- * edge weight connected to the smaller side of the cut (minimum volume between the 
- * set and its complement). This function iterates through all edges, computes the 
- * volumes and the crossing weights based on the boolean membership array, and 
- * returns the ratio of the cut weight to the minimum volume, or 0 if the graph is 
+ * edge weight connected to the smaller side of the cut (minimum volume between the
+ * set and its complement). This function iterates through all edges, computes the
+ * volumes and the crossing weights based on the boolean membership array, and
+ * returns the ratio of the cut weight to the minimum volume, or 0 if the graph is
  * invalid or a partition has zero volume.
  */
 
@@ -6550,47 +6550,53 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     }
   return matrix;
 }
+/*
+ * This function calculates the Adamic-Adar index for all pairs of nodes in a given graph.
+ * The Adamic-Adar index is a link prediction metric used to measure the similarity or
+ * connection strength between two nodes based on their shared neighbors. For every pair
+ * of distinct nodes, the function identifies their mutual neighbors and sums the reciprocal
+ * of the natural logarithm of each shared neighbor's degree. Common neighbors with smaller
+ * degrees contribute more heavily to the final score, under the assumption that sharing a
+ * rare connection is a stronger indicator of similarity than sharing a highly connected hub.
+ * The function dynamically allocates and returns a 2D array of doubles containing these
+ * similarity scores, safely handling memory allocation failures and invalid graph inputs.
+ */
 
 [[nodiscard]] double **calculateAdamicAdarIndex(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
-  double **matrix = malloc(g->size * sizeof(double *));
-  if (!matrix) return nullptr;
+  double **scores = malloc(g->size * sizeof(double *));
+  if (!scores) return nullptr;
   for (unsigned u = 0; u < g->size; u++) {
-    matrix[u] = calloc(g->size, sizeof(double));
-    if (!matrix[u]) {
-      for (unsigned v = 0; v < u; v++) free(matrix[v]);
-      free(matrix);
+    scores[u] = calloc(g->size, sizeof(double));
+    if (!scores[u]) {
+      for (unsigned v = 0; v < u; v++) free(scores[v]);
+      free(scores);
       return nullptr;
     }
   }
+  unsigned degrees[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      degrees[v]++;
+  bool adjacent[g->size][g->size] = {};
   for (unsigned u = 0; u < g->size; u++)
-    for (unsigned v = 0; v < g->size; v++) {
-      if (u == v) continue;
-      double score = 0;
-      for (unsigned w = 0; w < g->size; w++) {
-        bool u_has_w = false, v_has_w = false;
-        for (Edge *e = g->edges[u]; e; e = e->next)
-          if (e->destination == w)
-            u_has_w = true;
-        for (Edge *e = g->edges[v]; e; e = e->next)
-          if (e->destination == w)
-            v_has_w = true;
-        if (u_has_w && v_has_w) {
-          unsigned degree = 0;
-          for (Edge *e = g->edges[w]; e; e = e->next) degree++;
-          if (degree > 1) score += 1 / log(degree);
-        }
-      }
-      matrix[u][v] = score;
-    }
-  return matrix;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        adjacent[u][e->destination] = true;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v)
+        for (unsigned w = 0; w < g->size; w++)
+          if (adjacent[u][w] && adjacent[v][w] && degrees[w] > 1)
+            scores[u][v] += 1 / log(degrees[w]);
+  return scores;
 }
 
 /*
  * Computes the Preferential Attachment score for all pairs of nodes in a network graph.
- * This metric is used in social network analysis and link prediction to estimate the 
- * likelihood of a future connection between two nodes, based on the principle that 
- * highly connected nodes ("rich-get-richer") are more likely to form new links. The 
+ * This metric is used in social network analysis and link prediction to estimate the
+ * likelihood of a future connection between two nodes, based on the principle that
+ * highly connected nodes ("rich-get-richer") are more likely to form new links. The
  * resulting square matrix stores the product of the degrees of each node pair (u, v).
  */
 
