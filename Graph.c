@@ -346,6 +346,7 @@ double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 double **calculateFloydWarshall(const Graph *g);
 double **calculateJaccardCoefficientMatrix(const Graph *g);
 double **calculateAdamicAdarIndex(const Graph *g);
+double **calculatePreferentialAttachment(const Graph *g);
 
 int main();
 
@@ -6543,6 +6544,36 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
       }
       matrix[u][v] = score;
     }
+  return matrix;
+}
+
+/*
+ * Computes the Preferential Attachment score for all pairs of nodes in a network graph.
+ * This metric is used in social network analysis and link prediction to estimate the 
+ * likelihood of a future connection between two nodes, based on the principle that 
+ * highly connected nodes ("rich-get-richer") are more likely to form new links. The 
+ * resulting square matrix stores the product of the degrees of each node pair (u, v).
+ */
+
+[[nodiscard]] double **calculatePreferentialAttachment(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double **matrix = malloc(g->size * sizeof(double *));
+  if (!matrix) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) {
+    matrix[u] = malloc(g->size * sizeof(double));
+    if (!matrix[u]) {
+      for (unsigned v = 0; v < u; v++) free(matrix[v]);
+      free(matrix);
+      return nullptr;
+    }
+  }
+  unsigned degrees[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      degrees[v]++;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      matrix[u][v] = (double)degrees[u] * degrees[v];
   return matrix;
 }
 
