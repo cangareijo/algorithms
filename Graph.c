@@ -349,6 +349,7 @@ double **calculateFloydWarshall(const Graph *g);
 double **calculateJaccardCoefficientMatrix(const Graph *g);
 double **calculateAdamicAdarIndex(const Graph *g);
 double **calculatePreferentialAttachment(const Graph *g);
+double **calculateOllivierRicciCurvature(const Graph *g);
 
 int main();
 
@@ -855,8 +856,6 @@ static bool hasUndirectedCycleDfs(const Graph *g, unsigned v, unsigned parent, b
     if (e->destination < g->size && visited[e->destination]) {
       if (e->destination != parent)
         return true;
-      else
-        parent = UINT_MAX;
     } else if (hasUndirectedCycleDfs(g, e->destination, v, visited)) {
       return true;
     }
@@ -6675,6 +6674,95 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     for (unsigned v = 0; v < g->size; v++)
       matrix[u][v] = (double)degrees[u] * degrees[v];
   return matrix;
+}
+
+/*
+ * This function computes the Ollivier-Ricci curvature (ORC) for every edge in a graph, producing a two-dimensional
+ * matrix of values. Ollivier-Ricci curvature is a discrete adaptation of traditional Riemannian geometry used to
+ * measure the local structural properties, robustness, and information flow within complex networks. It quantifies how
+ * much two adjacent neighborhoods overlap or "clump" together relative to the distance between their central nodes. A
+ * positive ORC value indicates a dense, highly clustered neighborhood (like a well-connected community or clique)
+ * where paths readily interconnect, while a negative value highlights a bottleneck or a bridge-like edge connecting
+ * distinct, non-overlapping groups. Calculating this metric is crucial for network science tasks such as community
+ * detection, identifying critical structural vulnerabilities, and modeling systemic risk in fields ranging from
+ * financial networks to brain connectivity.
+ *
+ * The function accomplishes this through several distinct phases. First, it performs memory management and safely
+ * allocates a 2D dynamic array (curvature) to store the final metrics. Second, it computes all-pairs shortest paths
+ * across the graph using the Floyd-Warshall algorithm, which establishes a baseline geodesic distance matrix
+ * (distances) between all node pairs. Third, it constructs local probability distributions (mu) for each node,
+ * defining a simple random walk neighborhood where probability mass is split uniformly among a node's outgoing
+ * neighbors. Fourth, it calculates the Wasserstein distance (also known as the Earth Mover’s Distance) between the
+ * probability distributions of every pairs of adjacent nodes using a greedy transportation heuristic. This step
+ * measures the minimal "work" or transport cost needed to move the probability mass from one node's neighborhood to
+ * its neighbor's neighborhood. Finally, the function evaluates the Ollivier-Ricci curvature for each valid edge using
+ * the structural formula κ(u,v) = 1 - W₁(μᵤ,μᵥ) / d(u,v), comparing the minimal transport cost directly to the
+ * shortest path distance.
+ */
+
+[[nodiscard]] double **calculateOllivierRicciCurvature(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double **curvature = malloc(g->size * sizeof(double *));
+  if (!curvature) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) {
+    curvature[u] = calloc(g->size, sizeof(double));
+    if (!curvature[u]) {
+      for (unsigned v = 0; v < u; v++) free(curvature[v]);
+      free(curvature);
+      return nullptr;
+    }
+  }
+  double distances[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      distances[u][v] = u == v ? 0 : INFINITY;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && e->weight < distances[u][e->destination])
+        distances[u][e->destination] = e->weight;
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (distances[u][w] + distances[w][v] < distances[u][v])
+          distances[u][v] = distances[u][w] + distances[w][v];
+  double degrees[g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        degrees[u]++;
+  double mu[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    if (degrees[u] > 0) {
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination < g->size)
+          mu[u][e->destination] = 1 / degrees[u];
+    } else {
+      mu[u][u] = 1;
+    }
+  double cost[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size) {
+        double supply[g->size], demand[g->size];
+        for (unsigned i = 0; i < g->size; i++) {
+          supply[i] = mu[u][i];
+          demand[i] = mu[e->destination][i];
+        }
+        for (unsigned i = 0; i < g->size; i++)
+          if (supply[i] > 0)
+            for (unsigned j = 0; j < g->size && supply[i] > 0; j++)
+              if (demand[j] > 0) {
+                double gain = supply[i] < demand[j] ? supply[i] : demand[j];
+                cost[u][e->destination] += gain * distances[i][j];
+                supply[i] -= gain;
+                demand[j] -= gain;
+              }
+      }
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && distances[u][e->destination] > 0 && !isinf(distances[u][e->destination]))
+        curvature[u][e->destination] = 1 - cost[u][e->destination] / distances[u][e->destination];
+  return curvature;
 }
 
 
