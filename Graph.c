@@ -6749,14 +6749,13 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
           demand[i] = mu[e->destination][i];
         }
         for (unsigned i = 0; i < g->size; i++)
-          if (supply[i] > 0)
-            for (unsigned j = 0; j < g->size && supply[i] > 0; j++)
-              if (demand[j] > 0) {
-                double gain = supply[i] < demand[j] ? supply[i] : demand[j];
-                cost[u][e->destination] += gain * distances[i][j];
-                supply[i] -= gain;
-                demand[j] -= gain;
-              }
+          for (unsigned j = 0; j < g->size && supply[i] > 0; j++)
+            if (demand[j] > 0) {
+              double gain = supply[i] < demand[j] ? supply[i] : demand[j];
+              cost[u][e->destination] += gain * distances[i][j];
+              supply[i] -= gain;
+              demand[j] -= gain;
+            }
       }
   for (unsigned u = 0; u < g->size; u++)
     for (Edge *e = g->edges[u]; e; e = e->next)
