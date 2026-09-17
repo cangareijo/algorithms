@@ -332,6 +332,7 @@ double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculateConductance(const Graph *g, const bool *set);
+double calculateNormalizedCut(const Graph *g, const bool *set);
 double calculateModularity(const Graph *g, const unsigned *partition);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
@@ -6117,7 +6118,7 @@ double calculateSubgraphDensity(const Graph *g, const bool *set) {
   return (double)edges / vertices / (vertices - 1);
 }
 
-/**
+/*
  * Calculates the conductance of a specific cut (subset of vertices) in a graph.
  * Conductance is a metric used to evaluate the quality of a graph cut or community
  * by comparing the total weight of edges crossing the cut (cut weight) to the total
@@ -6143,6 +6144,37 @@ double calculateConductance(const Graph *g, const bool *set) {
   double min_volume = volume_set <= volume_complement ? volume_set : volume_complement;
   if (min_volume == 0) return 0;
   return cut_weight / min_volume;
+}
+
+/*
+ * The calculateNormalizedCut function computes the Normalized Cut (NCut) metric for a given graph partition, which
+ * evaluates the quality of a graph cut by balancing the total weight of the edges separating two sub-graphs against
+ * the total volume of connections within each sub-graph. In fields like image segmentation, data clustering, and
+ * community detection in networks, a simple minimum cut algorithm often yields poor results because it tends to
+ * isolate small, outlier nodes or tiny clusters that naturally have few connections. To prevent this bias, the
+ * Normalized Cut normalizes the cost of the cut by dividing the cut weight by the total edge weight (volume) of each
+ * partitioned set, effectively penalizing cuts that isolate very small sets of nodes. By returning a value that scales
+ * inversely with the size and connectivity of the clusters, this function helps algorithms identify balanced, highly
+ * cohesive communities that are well-separated from the rest of the network.
+ */
+
+double calculateNormalizedCut(const Graph *g, const bool *set) {
+  if (!g || g->size == 0 || !g->edges || !set) return 0;
+  double volume_a = 0;
+  double volume_b = 0;
+  double cut_weight = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        if (set[v]) volume_a += e->weight;
+        else volume_b += e->weight;
+        if (set[e->destination]) volume_a += e->weight;
+        else volume_b += e->weight;
+        if (set[v] != set[e->destination]) cut_weight += e->weight;
+      }
+  double term_a = volume_a > 0 ? cut_weight / volume_a : 0;
+  double term_b = volume_b > 0 ? cut_weight / volume_b : 0;
+  return term_a + term_b;
 }
 
 double calculateModularity(const Graph *g, const unsigned *partition) {
@@ -6481,6 +6513,19 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 
+
+/*
+ *The calculateFloydWarshall function computes the shortest paths between all pairs of vertices in a directed,
+ *edge-weighted graph using the Floyd-Warshall algorithm. The primary purpose of this function is to solve the
+ *All-Pairs Shortest Path (APSP) problem, which is essential for applications like network routing, finding the
+ *transitive closure of a relation, or calculating closeness centrality in social network analysis. By returning a
+ *dynamically allocated 2D array representing a distance matrix, it allows a program to instantly query the shortest
+ *distance between any source vertex and destination vertex in O(1) time after the initial computation. Furthermore, it
+ *is designed to robustly handle graphs containing negative edge weights and explicitly identifies negative cycles.
+ *This is crucial because a negative cycle allows a path to infinitely decrease in weight, rendering conventional
+ *shortest paths meaningless; by recognizing this, the function appropriately updates affected path distances to
+ *negative infinity to signal that the paths are unboundedly decreasing.
+ */
 
 [[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
