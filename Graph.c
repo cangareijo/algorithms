@@ -350,6 +350,7 @@ double **calculateJaccardCoefficientMatrix(const Graph *g);
 double **calculateAdamicAdarIndex(const Graph *g);
 double **calculatePreferentialAttachment(const Graph *g);
 double **calculateOllivierRicciCurvature(const Graph *g);
+double **calculateFormanRicciCurvature(const Graph *g);
 
 int main();
 
@@ -6647,11 +6648,22 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 /*
- * Computes the Preferential Attachment score for all pairs of nodes in a network graph.
- * This metric is used in social network analysis and link prediction to estimate the
- * likelihood of a future connection between two nodes, based on the principle that
- * highly connected nodes ("rich-get-richer") are more likely to form new links. The
- * resulting square matrix stores the product of the degrees of each node pair (u, v).
+ * This function calculates the Preferential Attachment score for all pairs of nodes in a given network graph and
+ * returns these scores as a dynamically allocated 2D matrix. In network science, the preferential attachment mechanism
+ * asserts that the probability of a new connection forming between two nodes is proportional to the product of their
+ * current degrees (i.e., "the rich get richer" phenomenon). By generating this matrix, the function provides a
+ * predictive layout used in link prediction tasks, allowing algorithms to identify which nodes are most likely to form
+ * new edges or collaborate in the future based entirely on their existing connectedness. Additionally, the function is
+ * marked with the [[nodiscard]] attribute, which explicitly warns developers not to ignore the return value, thereby
+ * preventing severe memory leaks since the caller is strictly responsible for freeing the allocated matrix.
+ *
+ * The function achieves this by first validating the input graph pointer, ensuring it is not null, has a size greater
+ * than zero, and contains a valid edges array. It then dynamically allocates an adjacency-like \(N \times N\) matrix
+ * of doubles using malloc, incorporating careful error handling to free previously allocated rows and prevent memory
+ * leaks if any allocation fails. Once the memory is secured, it initializes an array to track node degrees and
+ * populates it by iterating through each node's linked list of edges. Finally, it uses a nested loop to compute the
+ * cross-product of the degrees of every node pair u and v, stores the result into matrix[u][v], and returns the fully
+ * populated pointer-to-pointer array to the caller.
  */
 
 [[nodiscard]] double **calculatePreferentialAttachment(const Graph *g) {
@@ -6761,6 +6773,52 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     for (Edge *e = g->edges[u]; e; e = e->next)
       if (e->destination < g->size && distances[u][e->destination] > 0 && !isinf(distances[u][e->destination]))
         curvature[u][e->destination] = 1 - cost[u][e->destination] / distances[u][e->destination];
+  return curvature;
+}
+
+/*
+ * The function calculateFormanRicciCurvature computes the Forman-Ricci curvature for every valid edge in a weighted
+ * graph, mapping the results onto a dynamically allocated two-dimensional array. In complex network analysis, this
+ * discrete geometric metric is used to evaluate the structural properties, local connectivity, and information routing
+ * efficiency of a network. Engineers and data scientists calculate this curvature because it acts as a powerful
+ * diagnostic tool for identifying network vulnerabilities and organizational topology; edges with highly negative
+ * curvature typically indicate critical bottlenecks or bridging pathways between distinct communities, whereas
+ * positive values signify highly redundant, robust clusters.
+ *
+ * The function achieves this by first performing safety checks on the graph structure and allocating a square matrix
+ * using memory allocation routines, incorporating an automatic rollback loop to free memory if a sub-allocation fails.
+ * It then executes a nested loop structure to process every vertex and its associated adjacency list of edges. For
+ * each active edge stretching from a source vertex to a valid destination vertex, the function establishes a baseline
+ * curvature value of two. It then adjusts this value by analyzing the local neighborhood: first, it loops through all
+ * other concurrent edges originating from the source vertex, and second, it loops through all edges originating from
+ * the destination vertex. For every neighboring edge found, it subtracts the square root of the ratio between the
+ * primary edge's weight and the neighbor's weight, ultimately returning the populated matrix of localized edge
+ * curvatures.
+ */
+
+[[nodiscard]] double **calculateFormanRicciCurvature(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double **curvature = malloc(g->size * sizeof(double *));
+  if (!curvature) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) {
+    curvature[u] = calloc(g->size, sizeof(double));
+    if (!curvature[u]) {
+      for (unsigned v = 0; v < u; v++) free(curvature[v]);
+      free(curvature);
+      return nullptr;
+    }
+  }
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e1 = g->edges[u]; e1; e1 = e1->next)
+      if (e1->destination < g->size) {
+        curvature[u][e1->destination] = 2;
+        for (Edge *e2 = g->edges[u]; e2; e2 = e2->next)
+          if (e2->destination < g->size && e2->destination != e1->destination)
+            curvature[u][e1->destination] -= sqrt(e1->weight / e2->weight);
+        for (Edge *e2 = g->edges[e1->destination]; e2; e2 = e2->next)
+          if (e2->destination < g->size && e2->destination != u)
+            curvature[u][e1->destination] -= sqrt(e1->weight / e2->weight);
+      }
   return curvature;
 }
 
