@@ -322,6 +322,7 @@ double calculateSecondZagrebIndex(const Graph *g);
 double calculateGraphEfficiency(const Graph *g);
 double calculateNaturalConnectivity(const Graph *g);
 double calculatePercolationThreshold(const Graph *g);
+double calculateCorePeripheralScore(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -5983,6 +5984,59 @@ double calculatePercolationThreshold(const Graph *g) {
   free(parent);
   free(comp_size);
   return threshold_reached ? threshold_weight : 0.0;
+}
+
+/*
+ * This function calculates a metric designed to evaluate the degree of core-peripheral structure within a network graph
+ * by measuring how closely the network aligns with an idealized core-periphery model. In network science, a
+ * core-periphery structure describes a network that can be partitioned into two distinct sets of nodes: a highly
+ * interconnected "core" and a sparsely connected "periphery" that typically links to the core but lacks connections
+ * among its own members. Identifying this structural pattern is crucial for understanding networks because it reveals
+ * central hubs that dominate information flow or resource distribution, while isolating marginal nodes that act as
+ * receivers or outliers. By providing a unified numerical score, this function allows researchers or developers to
+ * quantify this specific topological property, enabling direct structural comparisons between different graphs or
+ * tracking how a single network's core-periphery dynamics evolve over time.
+ *
+ * The function computes this score through a multi-step process that first establishes a dynamic baseline for node
+ * centrality before measuring structural deviations. It begins with a safety check to handle empty or invalid graphs,
+ * then traverses all valid graph edges to calculate the weighted degree of each vertex alongside the network's
+ * cumulative weight. This total weight is divided by the number of vertices to establish a network-wide average
+ * degree, which serves as a threshold: any node with a weighted degree exceeding this average is classified into
+ * the "core" (is_core is set to true), while the remaining nodes are classified into the "periphery." With the nodes
+ * partitioned, the function iterates through the edges a second time to compare the actual weight of each link against
+ * an expected "ideal" model weight. In this ideal mapping, an edge connecting two core nodes is expected to have a
+ * high weight of 1.0, an edge bridging a core node and a periphery node expects a moderate weight of 0.5, and an edge
+ * between two peripheral nodes expects a weight of 0.0. For every edge, the absolute difference between the actual
+ * edge weight and this idealized weight is subtracted from 1, and these individual alignment metrics are accumulated
+ * into a final score that represents the network's overall fit to the core-periphery ideal.
+ */
+
+double calculateCorePeripheralScore(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  double degrees[g->size] = {};
+  double total_weight = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        degrees[v] += e->weight;
+        total_weight += e->weight;
+      }
+  double average_degree = total_weight / g->size;
+  bool is_core[g->size];
+  for (unsigned v = 0; v < g->size; v++) is_core[v] = degrees[v] > average_degree;
+  double score = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        double ideal_weight = 0;
+        if (is_core[v] && is_core[e->destination]) {
+          ideal_weight = 1;
+        } else if (is_core[v] || is_core[e->destination]) {
+          ideal_weight = 0.5;
+        }
+        score += 1 - fabs(e->weight - ideal_weight);
+      }
+  return score;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
