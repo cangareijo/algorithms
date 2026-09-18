@@ -341,6 +341,7 @@ double *calculateClosenessCentrality(const Graph *g);
 double *calculateBetweennessCentrality(const Graph *g);
 double *calculateHarmonicCentrality(const Graph *g);
 double *calculateSubgraphCentrality(const Graph *g);
+double *calculateLoadCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
@@ -6437,6 +6438,77 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return result;
 }
 
+/*
+ * The calculateLoadCentrality function evaluates the structural importance of every node in a graph by determining how
+ * often each node sits on the shortest pathways connecting all pairs of vertices. In network analysis, load centrality
+ * serves as a vital proxy for identifying critical network components, potential bottlenecks, and highly influential
+ * nodes. If a single node lies on many shortest routes, a high volume of information, traffic, or resource flow will
+ * naturally pass through it. Consequently, removing or failing such a node could heavily disrupt communication or
+ * routing efficiency across the entire system. By identifying these high-traffic hubs, developers and engineers can
+ * pinpoint which parts of a infrastructure, social network, or routing system require the most optimization or
+ * redundancy.
+ *
+ * To achieve this, the function loops through every vertex in the graph as a source node and executes a variation of
+ * Dijkstra's shortest path algorithm combined with Brandes' algorithm for dependency accumulation. For each source
+ * node, it tracks the shortest path distance, a sigma array representing the count of shortest paths from the source
+ * to any given node, and a stack that records the order in which vertices are fully visited. In the first phase, it
+ * scans for unvisited nodes with the smallest current distance, marks them visited, pushes them onto the stack, and
+ * updates the distances and path counts of their neighbors. Once this traversal finishes, the function enters its
+ * second phase by popping elements off the stack in reverse topological order. It traces backward from destination
+ * nodes to their predecessors to calculate a delta array, which measures how dependent the shortest paths from the
+ * source are on a particular intermediate node. These dependency values are then dynamically accumulated into a
+ * dynamically allocated centrality array before moving on to the next source node, finally returning the total
+ * compiled centrality metrics.
+ */
+
+[[nodiscard]] double *calculateLoadCentrality(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *centrality = calloc(g->size, sizeof(double));
+  if (!centrality) return nullptr;
+  for (unsigned s = 0; s < g->size; s++) {
+    bool visited[g->size] = {};
+    double distance[g->size];
+    for (unsigned u = 0; u < g->size; u++) distance[u] = INFINITY;
+    distance[s] = 0;
+    double sigma[g->size] = {};
+    sigma[s] = 1;
+    unsigned stack[g->size], top = 0;
+    while (true) {
+      unsigned u = g->size;
+      double minimum_distance = INFINITY;
+      for (unsigned v = 0; v < g->size; v++)
+        if (!visited[v] && distance[v] < minimum_distance) {
+          minimum_distance = distance[v];
+          u = v;
+        }
+      if (u == g->size) break; 
+      visited[u] = true;
+      stack[top++] = u;
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination < g->size && e->weight > 0) {
+          if (distance[u] + e->weight < distance[e->destination]) {
+            distance[e->destination] = distance[u] + e->weight;
+            sigma[e->destination] = sigma[u];
+          } else if (distance[u] + e->weight == distance[e->destination]) {
+            sigma[e->destination] += sigma[u];
+          }
+        }
+    }
+    double delta[g->size] = {};
+    while (top > 0) {
+      unsigned u = stack[--top];
+      if (distance[u] < INFINITY)
+        for (unsigned v = 0; v < g->size; v++)
+          if (distance[v] < INFINITY)
+            for (Edge *e = g->edges[v]; e; e = e->next)
+              if (e->destination == u && e->weight > 0 && fabs((distance[v] + e->weight) - distance[u]) < 1e-9 && sigma[u] > 0)
+                delta[v] += (sigma[v] / sigma[u]) * (1 + delta[u]);
+      if (u != s) centrality[u] += delta[u];
+    }
+  }
+  return centrality;
+}
+
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   double *distance = malloc(g->size * sizeof(double));
@@ -6725,12 +6797,27 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 /*
- * This function calculates the Jaccard similarity coefficient matrix for all pairs of vertices in a given graph. It
- * dynamic allocates a 2D array of doubles where each cell `matrix[u][v]` represents the neighborhood similarity
- * between vertex `u` and vertex `v`. The similarity is computed as the size of the intersection of their neighbor sets
- * divided by the size of their union. If both vertices have no neighbors, their similarity is defined as 1. The
- * function properly handles empty graphs, invalid inputs, and performs clean memory rollbacks if any internal
- * allocation fails.
+ * This function computes a comprehensive pairwise similarity matrix for all nodes in a given network structure, which
+ * helps determine how closely connected any two vertices are based on their shared relationships. It achieves this by
+ * calculating the Jaccard similarity coefficient, a statistical metric used to gauge the overlap and diversity of
+ * sample sets, for the neighborhood of every node pair in the graph. In network analysis, understanding node
+ * similarity is vital for tasks like community detection, link prediction, recommendation systems, and clustering, as
+ * vertices that share a high percentage of mutual neighbors are often functionally related or part of the same
+ * tightly-knit group. The function returns a dynamically allocated two-dimensional matrix of floating-point values
+ * where each cell represents the similarity score between two nodes, while safeguarding against memory leaks and
+ * division-by-zero errors in case a node pair has completely isolated neighborhoods.
+ *
+ * The function operates through a structured three-step process involving data preparation, adjacency caching, and
+ * similarity computation. First, it performs rigorous safety checks to verify that the graph exists and contains data,
+ * then dynamically allocates a continuous row-and-column layout for a square matrix matching the graph's size,
+ * carefully freeing any partially allocated memory rows if an out-of-memory error occurs midway. Second, it
+ * initializes a temporary boolean adjacency matrix and flattens the graph's internal linked-list edge structure into
+ * this grid, allowing for rapid, constant-time lookups of whether an edge exists between any two vertices. Finally, it
+ * executes nested loops to evaluate every possible pairing of nodes; for each pair, it iterates through all potential
+ * neighbors in the network to count the absolute overlap (how many common neighbors they share) and the overall union
+ * (the total unique neighbors they have combined). The similarity score is derived by dividing the intersection count
+ * by the union count, with a fallback that sets the score to 1 if the union is zero, and the completed pointer matrix
+ * is returned to the caller.
  */
 
 [[nodiscard]] double **calculateJaccardCoefficientMatrix(const Graph *g) {
