@@ -340,6 +340,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 double *calculateClosenessCentrality(const Graph *g);
 double *calculateBetweennessCentrality(const Graph *g);
 double *calculateHarmonicCentrality(const Graph *g);
+double *calculateSubgraphCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
@@ -6379,6 +6380,63 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return centrality;
 }
 
+/*
+ * This function calculates the subgraph centrality for every vertex in a given network graph, providing a robust metric
+ * to determine the structural importance of individual nodes. Unlike simpler metrics like degree centrality (which only
+ * counts a node's immediate neighbors) or eigenvector centrality, subgraph centrality measures the participation of a
+ * node in all subgraphs of the network. It achieves this by counting the total number of closed walks that start and
+ * end at a specific node, weighting them such that shorter, tightly bound local loops (like triangles or squares)
+ * contribute more significantly to the score than longer, sprawling paths. This metric is incredibly valuable in
+ * network science and graph theory because it effectively captures both the local connectivity and the global
+ * embedding of a vertex, allowing researchers to identify critical hubs, bottlenecks, or highly collaborative clusters
+ * within complex biological, social, or technological infrastructure networks.
+ *
+ * To compute this metric, the function leverages matrix exponentiation and the Taylor series expansion of the matrix
+ * exponential eᴬ, utilizing a bounded loop to approximate the infinite sum up to the 20th degree. It begins by
+ * performing safety checks on the graph structure, dynamically allocating an array to hold the final centrality
+ * scores, and constructing an adjacency matrix A from the graph's edge list, where each entry represents the weight of
+ * the directed link between two vertices. The algorithm then initializes a tracking matrix Ak as the identity matrix
+ * (representing A⁰) and registers the base case where a walk of length zero contributes a value of 1 to each node's
+ * self-loop count. Moving into the main iterative loop from k = 1 to 20, the function updates a running factorial
+ * denominator and performs a standard O(V³) matrix multiplication—multiplying the accumulated matrix A^(k-1) by the
+ * base adjacency matrix A to generate Aᵏ, which represents the total walk weights of length k between all node pairs.
+ * Finally, it extracts the diagonal elements of this newly computed matrix A_{u,u}^k, divides them by the current
+ * step's factorial k!, adds this quotient to each node's running centrality tally in the result array, and swaps the
+ * matrix pointers to prepare for the next power expansion.
+ */
+
+[[nodiscard]] double *calculateSubgraphCentrality(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *result = calloc(g->size, sizeof(double));
+  if (!result) return nullptr;
+  double A[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        A[u][e->destination] += e->weight;
+  double Ak[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      Ak[u][v] = u == v ? 1 : 0;
+  for (unsigned v = 0; v < g->size; v++) result[v] += Ak[v][v];
+  double factorial = 1;
+  double next_Ak[g->size][g->size];
+  for (unsigned k = 1; k <= 20; k++) {
+    factorial *= k;
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++) {
+        double sum = 0;
+        for (unsigned w = 0; w < g->size; w++) sum += Ak[u][w] * A[w][v];
+        next_Ak[u][v] = sum;
+      }
+    for (unsigned u = 0; u < g->size; u++) {
+      for (unsigned v = 0; v < g->size; v++) Ak[u][v] = next_Ak[u][v];
+      result[u] += Ak[u][u] / factorial;
+    }
+  }
+  return result;
+}
+
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   double *distance = malloc(g->size * sizeof(double));
@@ -6760,12 +6818,12 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
  * preventing severe memory leaks since the caller is strictly responsible for freeing the allocated matrix.
  *
  * The function achieves this by first validating the input graph pointer, ensuring it is not null, has a size greater
- * than zero, and contains a valid edges array. It then dynamically allocates an adjacency-like \(N \times N\) matrix
- * of doubles using malloc, incorporating careful error handling to free previously allocated rows and prevent memory
- * leaks if any allocation fails. Once the memory is secured, it initializes an array to track node degrees and
- * populates it by iterating through each node's linked list of edges. Finally, it uses a nested loop to compute the
- * cross-product of the degrees of every node pair u and v, stores the result into matrix[u][v], and returns the fully
- * populated pointer-to-pointer array to the caller.
+ * than zero, and contains a valid edges array. It then dynamically allocates an adjacency-like N × N matrix of doubles
+ * using malloc, incorporating careful error handling to free previously allocated rows and prevent memory leaks if any
+ * allocation fails. Once the memory is secured, it initializes an array to track node degrees and populates it by
+ * iterating through each node's linked list of edges. Finally, it uses a nested loop to compute the cross-product of
+ * the degrees of every node pair u and v, stores the result into matrix[u][v], and returns the fully populated
+ * pointer-to-pointer array to the caller.
  */
 
 [[nodiscard]] double **calculatePreferentialAttachment(const Graph *g) {
