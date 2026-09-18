@@ -6766,15 +6766,27 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 /*
- * This function calculates the Adamic-Adar index for all pairs of nodes in a given graph.
- * The Adamic-Adar index is a link prediction metric used to measure the similarity or
- * connection strength between two nodes based on their shared neighbors. For every pair
- * of distinct nodes, the function identifies their mutual neighbors and sums the reciprocal
- * of the natural logarithm of each shared neighbor's degree. Common neighbors with smaller
- * degrees contribute more heavily to the final score, under the assumption that sharing a
- * rare connection is a stronger indicator of similarity than sharing a highly connected hub.
- * The function dynamically allocates and returns a 2D array of doubles containing these
- * similarity scores, safely handling memory allocation failures and invalid graph inputs.
+ * This function calculates the Adamic-Adar index for all pairs of nodes in a graph to predict potential links or
+ * measure similarity between them. The Adamic-Adar index is a popular metric in network analysis and social network
+ * research used to predict the likelihood of a future friendship, connection, or shared relationship between two
+ * entities. The core philosophy behind this metric is that shared neighbors with a small total number of connections
+ * (low degrees) are significantly more meaningful than shared neighbors that are highly connected (high degrees). For
+ * example, if two people share a rare, niche hobbyist friend, they are much more likely to be connected than if they
+ * merely share a massive celebrity account that millions of others follow. The function computes these relative scores
+ * and returns them as a dynamically allocated 2D matrix, allowing external systems to query the predictive strength of
+ * a connection between any two node identifiers.
+ *
+ * The function accomplishes this by first establishing the structural properties of the graph, allocating a score
+ * matrix, and then accumulating logarithmic inverse degrees across shared neighbors. It begins with strict safety
+ * checks to ensure the graph pointer, its size, and its edge list are valid, returning a null pointer if any check
+ * fails or if memory allocation for the 2D matrix encounters an issue. Once memory is safely allocated, it determines
+ * the degree (number of outgoing edges) for every node in the graph by traversing their respective edge linked lists.
+ * It then creates a boolean adjacency matrix to allow for rapid, constant-time lookups of connections between nodes.
+ * Finally, it uses a nested loop structure to iterate through every unique pair of nodes (u and v). For each pair, it
+ * looks for any mutual neighbor node (w) that both u and v are connected to. If a shared neighbor is found and its
+ * degree is greater than 1 to prevent division by zero, the function adds the inverse natural logarithm of that
+ * neighbor's degree to the running similarity score for the pair. Once all shared neighbors are evaluated, the
+ * populated 2D array of double-precision floats is returned.
  */
 
 [[nodiscard]] double **calculateAdamicAdarIndex(const Graph *g) {
