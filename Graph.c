@@ -339,6 +339,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 double *calculateClosenessCentrality(const Graph *g);
 double *calculateBetweennessCentrality(const Graph *g);
+double *calculateHarmonicCentrality(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
@@ -6341,6 +6342,43 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return c;
 }
 
+/*
+ * The calculateHarmonicCentrality function computes the harmonic centrality scores for all nodes in a given directed,
+ * weighted graph to measure how well-connected or central each vertex is within the network topology. In network
+ * analysis, centrality metrics identify the most influential or structurally important nodes, such as critical routers
+ * in the internet, key influencers in social networks, or high-traffic intersections in urban planning. While standard
+ * closeness centrality sums the shortest path distances from a node to all other nodes and takes the reciprocal, it
+ * completely breaks down when a graph is disconnected because the distance to an unreachable node is infinite, which
+ * forces the overall score to zero. Harmonic centrality solves this major limitation by summing the reciprocals of the
+ * shortest path distances instead. By placing the distance in the denominator, unreachable nodes naturally result in a
+ * value of zero 1 / ∞ = 0 rather than invalidating the entire calculation, allowing the algorithm to robustly and
+ * accurately rank node importance even across fractured or multi-component networks.
+ */
+
+[[nodiscard]] double *calculateHarmonicCentrality(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *centrality = calloc(g->size, sizeof(double));
+  if (!centrality) return nullptr;
+  double distance[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      distance[u][v] = u == v ? 0 : INFINITY;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && e->weight > 0 && e->weight < distance[u][e->destination])
+        distance[u][e->destination] = e->weight;
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (distance[u][w] + distance[w][v] < distance[u][v])
+          distance[u][v] = distance[u][w] + distance[w][v];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v)
+        centrality[u] += 1 / distance[u][v];
+  return centrality;
+}
+
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   double *distance = malloc(g->size * sizeof(double));
@@ -6493,6 +6531,18 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 
+/*
+ * This code implements the Fruchterman-Reingold algorithm, which is a classic force-directed graph layout technique.
+ * Its primary purpose is to automatically compute aesthetic 2D coordinate positions for every node in a network so
+ * that the resulting structure can be cleanly visualized by a human. Without an automated layout, nodes would overlap
+ * or cross paths arbitrarily, turning complex networks into unreadable "hairballs". To fix this, the function models
+ * the network as a virtual physical system where nodes act like identically charged atomic particles that push each
+ * other away, and edges act like elastic springs that pull connected nodes closer together. The function runs this
+ * simulation over a given number of iterations, gradually cooling down the system's kinetic energy until the nodes
+ * settle into a visually balanced, symmetrical configuration with minimal edge crossings and evenly distributed
+ * spacing.
+ */
+
 [[nodiscard]] double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2] {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   double (*displacement)[2] = malloc(g->size * sizeof(*displacement));
@@ -6617,13 +6667,11 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 /*
- * This function calculates the Jaccard similarity coefficient matrix for all pairs
- * of vertices in a given graph. It dynamic allocates a 2D array of doubles where
- * each cell `matrix[u][v]` represents the neighborhood similarity between vertex `u`
- * and vertex `v`. The similarity is computed as the size of the intersection of
- * their neighbor sets divided by the size of their union. If both vertices have
- * no neighbors, their similarity is defined as 1. The function properly handles
- * empty graphs, invalid inputs, and performs clean memory rollbacks if any internal
+ * This function calculates the Jaccard similarity coefficient matrix for all pairs of vertices in a given graph. It
+ * dynamic allocates a 2D array of doubles where each cell `matrix[u][v]` represents the neighborhood similarity
+ * between vertex `u` and vertex `v`. The similarity is computed as the size of the intersection of their neighbor sets
+ * divided by the size of their union. If both vertices have no neighbors, their similarity is defined as 1. The
+ * function properly handles empty graphs, invalid inputs, and performs clean memory rollbacks if any internal
  * allocation fails.
  */
 
