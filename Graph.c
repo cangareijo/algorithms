@@ -323,6 +323,7 @@ double calculateGraphEfficiency(const Graph *g);
 double calculateNaturalConnectivity(const Graph *g);
 double calculatePercolationThreshold(const Graph *g);
 double calculateCorePeripheralScore(const Graph *g);
+double calculateSymmetryRatio(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -6043,6 +6044,107 @@ double calculateCorePeripheralScore(const Graph *g) {
   return score;
 }
 
+/*
+ * The calculateSymmetryRatio function calculates a structural metric for a graph known as its symmetry ratio, which is
+ * the fraction of unique eigenvalues relative to the overall size of the graph. In network science and graph theory,
+ * the eigenvalues of a graph's adjacency matrix reveal deep properties about its connectivity patterns, paths, and
+ * topology. When a graph features a high level of structural symmetry—such as an unweighted ring or a complete
+ * graph—many nodes share identical roles, causing their structural equations to overlap and producing highly
+ * repetitive, duplicate eigenvalues. By determining the ratio of unique eigenvalues to total vertices, this function
+ * gives an indicator of structural uniformity; a very low ratio implies that the graph is highly symmetrical and
+ * redundant, whereas a ratio closer to 1.0 implies an asymmetric, irregular, or uniquely varied network structure.
+ *
+ * To compute this ratio, the function maps out a multi-step numerical workflow starting with data conversion and ending
+ * with unique count tracking. First, it extracts the graph data from an adjacency list format and flattens it into a
+ * square, dense two-dimensional adjacency matrix where each edge weight is explicitly mapped to its row and column
+ * coordinates. Next, it executes a basic QR algorithm over a fixed budget of 100 iterations to isolate the graph's
+ * eigenvalues. During each iteration, it performs a classical Gram-Schmidt orthogonalization process to break down the
+ * current matrix into an orthogonal matrix Q and an upper triangular matrix R, then multiplies them back together in
+ * reverse order as R times Q to form a new matrix. This iterative matrix shifting pushes the original matrix toward an
+ * upper-triangular or diagonal form, concentrating the eigenvalues directly along its main diagonal. Finally, the
+ * function copies these diagonal values into an array, loops through them using a small floating-point threshold of
+ * 1e-4 to group near-identical duplicates together, counts the absolute number of unique clusters found, and divides
+ * this count by the graph's size to return the final ratio.
+ */
+
+double calculateSymmetryRatio(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) {
+    return 0.0;
+  }
+  unsigned n = g->size;
+  double matrix[n][n] = {};
+  for (unsigned v = 0; v < n; v++) {
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      if (e->destination < n) {
+        matrix[v][e->destination] = e->weight;
+      }
+    }
+  }
+  double q[n][n];
+  double r[n][n];
+  for (unsigned iteration = 0; iteration < 100; iteration++) {
+    for (unsigned u = 0; u < n; u++) {
+      for (unsigned v = 0; v < n; v++) {
+        q[u][v] = 0.0;
+        r[u][v] = 0.0;
+      }
+    }
+    for (unsigned v = 0; v < n; v++) {
+      for (unsigned u = 0; u < n; u++) {
+        q[u][v] = matrix[u][v];
+      }
+      for (unsigned u = 0; u < v; u++) {
+        double dot = 0.0;
+        for (unsigned w = 0; w < n; w++) {
+          dot += matrix[w][v] * q[w][u];
+        }
+        r[u][v] = dot;
+        for (unsigned w = 0; w < n; w++) {
+          q[w][v] -= r[u][v] * q[w][u];
+        }
+      }
+      double norm = 0.0;
+      for (unsigned w = 0; w < n; w++) {
+        norm += q[w][v] * q[w][v];
+      }
+      norm = sqrt(norm);
+      r[v][v] = norm;
+      if (norm > 1e-9) {
+        for (unsigned w = 0; w < n; w++) {
+          q[w][v] /= norm;
+        }
+      }
+    }
+    for (unsigned u = 0; u < n; u++) {
+      for (unsigned v = 0; v < n; v++) {
+        double sum = 0.0;
+        for (unsigned w = 0; w < n; w++) {
+          sum += r[u][w] * q[w][v];
+        }
+        matrix[u][v] = sum;
+      }
+    }
+  }
+  double eigenvalues[n];
+  bool visited[n];
+  for (unsigned u = 0; u < n; u++) {
+    eigenvalues[u] = matrix[u][u];
+    visited[u] = false;
+  }
+  unsigned unique_count = 0;
+  for (unsigned u = 0; u < n; u++) {
+    if (!visited[u]) {
+      unique_count++;
+      for (unsigned j = u + 1; j < n; j++) {
+        if (fabs(eigenvalues[u] - eigenvalues[j]) < 1e-4) {
+          visited[j] = true;
+        }
+      }
+    }
+  }
+  return (double)unique_count / n;
+}
+
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
@@ -6482,7 +6584,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
           minimum_distance = distance[v];
           u = v;
         }
-      if (u == g->size) break; 
+      if (u == g->size) break;
       visited[u] = true;
       stack[top++] = u;
       for (Edge *e = g->edges[u]; e; e = e->next)
@@ -6520,7 +6622,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
  * clustering behavior or bipartiteness. Computing these eigenvalues is a foundational step in spectral graph theory,
  * which underpins advanced machine learning and network analysis techniques like spectral clustering, image
  * segmentation, and the design of graph convolutional networks.
- * 
+ *
  * The function accomplishes this through a multi-step numerical pipeline that begins with matrix construction,
  * transitions to iterative matrix factorization, and concludes with data extraction. First, it performs safety checks
  * to ensure the graph pointer, vertex count, and edge data are valid before allocating memory for the output array. It
@@ -6560,12 +6662,11 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     double shift = matrix[m - 1][m - 1];
     double Q[m][m];
     double R[m][m] = {};
-    for (unsigned u = 0; u < m; u++) {
+    for (unsigned u = 0; u < m; u++)
       for (unsigned v = 0; v < m; v++) {
         Q[u][v] = matrix[u][v];
         if (u == v) Q[u][v] -= shift;
       }
-    }
     for (unsigned w = 0; w < m; w++) {
       for (unsigned u = 0; u < m; u++) R[w][w] += Q[u][w] * Q[u][w];
       R[w][w] = sqrt(R[w][w]);
@@ -6577,13 +6678,12 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
         for (unsigned u = 0; u < m; u++) Q[u][v] -= R[w][v] * Q[u][w];
       }
     }
-    for (unsigned u = 0; u < m; u++) {
+    for (unsigned u = 0; u < m; u++)
       for (unsigned v = 0; v < m; v++) {
         double sum = 0;
         for (unsigned k = u; k < m; k++) sum += R[u][k] * Q[k][v];
         matrix[u][v] = sum + (u == v ? shift : 0);
       }
-    }
   }
   for (unsigned v = 0; v < g->size; v++) spectrum[v] = matrix[v][v];
   for (unsigned u = 0; u < g->size - 1; u++) {
@@ -6753,15 +6853,28 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 /*
- * This code implements the Fruchterman-Reingold algorithm, which is a classic force-directed graph layout technique.
- * Its primary purpose is to automatically compute aesthetic 2D coordinate positions for every node in a network so
- * that the resulting structure can be cleanly visualized by a human. Without an automated layout, nodes would overlap
- * or cross paths arbitrarily, turning complex networks into unreadable "hairballs". To fix this, the function models
- * the network as a virtual physical system where nodes act like identically charged atomic particles that push each
- * other away, and edges act like elastic springs that pull connected nodes closer together. The function runs this
- * simulation over a given number of iterations, gradually cooling down the system's kinetic energy until the nodes
- * settle into a visually balanced, symmetrical configuration with minimal edge crossings and evenly distributed
- * spacing.
+ * This function computes a two-dimensional visual layout for a network graph using a physical simulation technique
+ * known as a force-directed placement algorithm, specifically inspired by the Fruchterman-Reingold method. The purpose
+ * of this function is to assign Cartesian coordinates to every node in the graph so that when the graph is drawn, it
+ * is clean, balanced, and easy for a human to interpret. Without a layout algorithm, nodes might overlap or clump
+ * together arbitrarily, rendering the network unreadable. By modeling the graph as a system of physical objects where
+ * nodes repel each other like magnets and connected edges pull together like springs, the function achieves an
+ * aesthetically pleasing distribution. This process minimizes overlapping edges, spreads out dense clusters, maintains
+ * relatively uniform edge lengths, and uncovers the underlying structural symmetry of the data for data visualization
+ * software.
+ *
+ * The function achieves this layout by running an iterative physics simulation over a designated number of steps,
+ * gradually cooling down the system to lock the nodes into a stable configuration. It starts by allocating memory for
+ * coordinates and displacement vectors, and then places every node at a random position within a central box on a
+ * 1000-by-1000 pixel canvas. During each iteration, it performs three primary phases. First, it calculates a repulsive
+ * force between every unique pair of nodes in the graph, pushing them apart based on an inverse-squared distance
+ * formula to ensure they do not crowd each other. Second, it iterates through all connected edges and calculates an
+ * attractive force that pulls adjacent nodes closer together, with the strength of the pull scaling linearly with
+ * their distance. Third, it updates each node's position by moving it along its net displacement vector. This movement
+ * is strictly capped by a global temperature variable that starts high and decreases linearly with each iteration,
+ * simulating an annealing process that allows nodes to take large leaps early on to find their general placement and
+ * smaller, precise adjustments later. Finally, the function confines all coordinates within the canvas boundaries,
+ * frees the temporary displacement memory, and returns the final coordinates array.
  */
 
 [[nodiscard]] double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2] {
