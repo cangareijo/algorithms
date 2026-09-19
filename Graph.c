@@ -273,9 +273,10 @@ unsigned *getOutDegrees(const Graph *g);
 unsigned *getDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
-unsigned *findGreedyColoring(const Graph *g);
+unsigned *findGreedyVertexColoring(const Graph *g);
 unsigned *findOptimalColoring(const Graph *g);
 unsigned *findWelchPowellGraphColoring(const Graph *g);
+unsigned *findGreedyEdgeColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
@@ -4403,7 +4404,7 @@ unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
   return distribution;
 }
 
-[[nodiscard]] unsigned *findGreedyColoring(const Graph *g) {
+[[nodiscard]] unsigned *findGreedyVertexColoring(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   unsigned *colors = malloc(g->size * sizeof(unsigned));
   if (!colors) return nullptr;
@@ -4511,6 +4512,71 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   free(degrees);
   free(vertices);
   free(blocked_colors);
+  return colors;
+}
+
+/*
+ * The findGreedyEdgeColoring function computes a valid edge coloring of a graph using a greedy algorithm, meaning it
+ * assigns a color (represented as an integer) to every edge such that no two edges sharing a common vertex have the
+ * same color. The purpose of this function is to solve the edge coloring problem, a fundamental challenge in graph
+ * theory with extensive practical applications in scheduling, network routing, and resource allocation. For example,
+ * if vertices represent people and edges represent required meetings between them, a valid edge coloring determines
+ * the minimum number of time slots needed to complete all meetings without anyone being scheduled for two meetings at
+ * the same time. The function is marked with the [[nodiscard]] attribute to ensure that the caller does not
+ * accidentally leak memory, as it returns a dynamically allocated array containing the final color assignments that
+ * must be explicitly freed.
+ *
+ * To achieve this, the function first validates the input graph and performs a full pass over the adjacency list to
+ * count the total number of unique, undirected edges. It dynamically allocates an array named colors to store the
+ * color of each edge, initially populating it with a placeholder value equal to the edge count. The core logic then
+ * uses a nested loop structure to iterate through every unique edge in the graph sequentially. For each target edge,
+ * it scans every other edge in the graph to check for a collision—specifically looking at whether the two edges share
+ * a vertex (source or destination). If a neighboring edge has already been colored, its color is flagged as
+ * unavailable in a boolean tracking array named used_colors. After reviewing all potential conflicts, the function
+ * searches used_colors from zero upward to find the lowest available, unassigned color, assigns it to the current
+ * edge, and repeats this process until all edges have been processed and successfully colored.
+ */
+
+[[nodiscard]] unsigned *findGreedyEdgeColoring(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned edge_count = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    for (Edge *e = g->edges[u]; e; e = e->next) {
+      if (u < e->destination) {
+        edge_count++;
+      }
+    }
+  }
+  if (edge_count == 0) return nullptr;
+  unsigned *colors = malloc(edge_count * sizeof(unsigned));
+  for (unsigned i = 0; i < edge_count; i++) {
+    colors[i] = edge_count;
+  }
+  unsigned i = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    for (Edge *e1 = g->edges[u]; e1; e1 = e1->next) {
+      if (u >= e1->destination) continue;
+      bool used_colors[edge_count] = {};
+      unsigned j = 0;
+      for (unsigned v = 0; v < g->size; v++) {
+        for (Edge *e2 = g->edges[v]; e2; e2 = e2->next) {
+          if (v >= e2->destination) continue;
+          if (i != j && colors[j] != edge_count) {
+            if (u == v || u == e2->destination || e1->destination == v || e1->destination == e2->destination) {
+              used_colors[colors[j]] = true;
+            }
+          }
+          j++;
+        }
+      }
+      unsigned color = 0;
+      while (used_colors[color]) {
+        color++;
+      }
+      colors[i] = color;
+      i++;
+    }
+  }
   return colors;
 }
 
@@ -6788,65 +6854,77 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return scores;
 }
 
+/*
+ * This function calculates the PageRank scores for all vertices in a directed graph to measure their relative
+ * structural importance. PageRank operates on the principle that a vertex is important if it is linked to by other
+ * important vertices, acting like a democratic voting system where edges represent votes. It is widely used in search
+ * engine ranking, network analysis, and recommendation systems because it provides a global importance metric that
+ * goes beyond simple edge counting by factoring in the global structure of the network. The function includes
+ * parameters for a damping factor to simulate a "random surfer" who occasionally jumps to a completely random vertex,
+ * an iteration cap to prevent infinite loops, and a tolerance threshold to determine when the scores have stabilized.
+ * The [[nodiscard]] attribute ensures that the caller does not accidentally leak the dynamically allocated memory
+ * containing the final scores, and the function returns a null pointer if the graph is empty, if memory allocation
+ * fails, or if the algorithm fails to converge within the allowed number of iterations.
+ *
+ * The algorithm achieves this by iteratively updating an array of probability scores using the power iteration method
+ * until the values stabilize. It begins by validating the graph and allocating two arrays to hold the current and next
+ * iteration's scores, initializing every vertex with an equal probability of 1 divided by the total number of
+ * vertices. In each iteration, it first handles "sink nodes" (vertices with an out-degree of zero) by calculating
+ * their total score mass and distributing it equally across the entire graph; this prevents the probability mass from
+ * permanently trapped in dead ends. Next, it establishes a baseline score for every vertex using the damping factor,
+ * representing the random jump probability. It then iterates through all vertices with outward links, distributing
+ * their current score multiplied by the damping factor equally among their respective target destinations. After
+ * calculating the new scores, it determines the maximum absolute difference between the old and new ranks to check for
+ * convergence. If this maximum change falls below the specified tolerance threshold, the algorithm stops early, frees
+ * the auxiliary buffer, and returns the pointer to the stabilized scores; otherwise, it swaps the current and next
+ * score arrays and continues until it runs out of iterations.
+ */
+
 [[nodiscard]] double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance) {
   if (!g || g->size == 0) return nullptr;
-
   double *ranks = malloc(g->size * sizeof(double));
   double *nextRanks = malloc(g->size * sizeof(double));
-
   if (!ranks || !nextRanks) {
     free(ranks);
     free(nextRanks);
     return nullptr;
   }
-
   for (unsigned v = 0; v < g->size; v++)
     ranks[v] = 1.0 / g->size;
-
   bool converged = false;
-
   for (unsigned i = 0; i < iterations; i++) {
     double sinkMass = 0;
     for (unsigned v = 0; v < g->size; v++)
       if (getOutDegree(g, v) == 0)
         sinkMass += ranks[v];
-
     for (unsigned v = 0; v < g->size; v++)
       nextRanks[v] = (1 - damping) / g->size;
-
     if (sinkMass > 0)
       for (unsigned v = 0; v < g->size; v++)
         nextRanks[v] += damping * sinkMass / g->size;
-
     for (unsigned v = 0; v < g->size; v++)
       if (getOutDegree(g, v) > 0)
         for (Edge *e = g->edges[v]; e; e = e->next)
           if (e->destination < g->size)
             nextRanks[e->destination] += damping * ranks[v] / getOutDegree(g, v);
-
     double maxDelta = 0;
     for (unsigned v = 0; v < g->size; v++) {
       double delta = fabs(nextRanks[v] - ranks[v]);
       if (delta > maxDelta) maxDelta = delta;
     }
-
     double *swap = ranks;
     ranks = nextRanks;
     nextRanks = swap;
-
     if (maxDelta < tolerance) {
       converged = true;
       break;
     }
   }
-
   free(nextRanks);
-
   if (!converged) {
     free(ranks);
     return nullptr;
   }
-
   return ranks;
 }
 
