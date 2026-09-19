@@ -342,6 +342,7 @@ double *calculateBetweennessCentrality(const Graph *g);
 double *calculateHarmonicCentrality(const Graph *g);
 double *calculateSubgraphCentrality(const Graph *g);
 double *calculateLoadCentrality(const Graph *g);
+double *calculateGraphSpectrum(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
@@ -6509,6 +6510,96 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return centrality;
 }
 
+/*
+ * This function calculates the spectrum of the normalized Laplacian matrix of a given graph. In graph theory, the
+ * spectrum of a graph refers to the set of eigenvalues of one of its representative matrices. The normalized Laplacian
+ * matrix is particularly valuable because its eigenvalues are scale-invariant and bounded between 0 and 2 for
+ * undirected graphs, offering a standardized mathematical signature of the network's structure. By analyzing this
+ * spectrum, programmers and data scientists can gain deep insights into global structural properties of the network,
+ * such as its connectivity, the presence of bottlenecks, the number of connected components, and the graph's overall
+ * clustering behavior or bipartiteness. Computing these eigenvalues is a foundational step in spectral graph theory,
+ * which underpins advanced machine learning and network analysis techniques like spectral clustering, image
+ * segmentation, and the design of graph convolutional networks.
+ * 
+ * The function accomplishes this through a multi-step numerical pipeline that begins with matrix construction,
+ * transitions to iterative matrix factorization, and concludes with data extraction. First, it performs safety checks
+ * to ensure the graph pointer, vertex count, and edge data are valid before allocating memory for the output array. It
+ * then computes the weighted degree of each vertex and populates a square matrix to represent the normalized
+ * Laplacian, where the diagonal elements of active nodes are set to 1 and off-diagonal connections are scaled
+ * inversely by the square root of the product of the connected vertices' degrees. Next, the algorithm finds the
+ * eigenvalues by applying an iterative QR decomposition algorithm with shifts, specifically employing the Gram-Schmidt
+ * process to factor the matrix into an orthogonal matrix Q and an upper-triangular matrix R. This iterative process
+ * gradually drives the off-diagonal elements of the matrix toward zero, causing the eigenvalues to converge along the
+ * main diagonal. Finally, once convergence is achieved, the function copies these diagonal entries into the spectrum
+ * array, applies a basic selection sort to organize the eigenvalues in ascending order, and returns the pointer to the
+ * sorted array.
+ */
+
+[[nodiscard]] double *calculateGraphSpectrum(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *spectrum = malloc(g->size * sizeof(double));
+  if (!spectrum) return nullptr;
+  double matrix[g->size][g->size] = {};
+  double degrees[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      degrees[v] += e->weight;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degrees[v] > 0) {
+      matrix[v][v] = 1;
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && degrees[e->destination] > 0)
+          matrix[v][e->destination] = -e->weight / sqrt(degrees[v] * degrees[e->destination]);
+    }
+  unsigned m = g->size;
+  while (m > 1) {
+    if (fabs(matrix[m - 1][m - 2]) < 1e-9) {
+      m--;
+      continue;
+    }
+    double shift = matrix[m - 1][m - 1];
+    double Q[m][m];
+    double R[m][m] = {};
+    for (unsigned u = 0; u < m; u++) {
+      for (unsigned v = 0; v < m; v++) {
+        Q[u][v] = matrix[u][v];
+        if (u == v) Q[u][v] -= shift;
+      }
+    }
+    for (unsigned w = 0; w < m; w++) {
+      for (unsigned u = 0; u < m; u++) R[w][w] += Q[u][w] * Q[u][w];
+      R[w][w] = sqrt(R[w][w]);
+      if (R[w][w] > 1e-12)
+        for (unsigned u = 0; u < m; u++)
+          Q[u][w] /= R[w][w];
+      for (unsigned v = w + 1; v < m; v++) {
+        for (unsigned u = 0; u < m; u++) R[w][v] += Q[u][w] * Q[u][v];
+        for (unsigned u = 0; u < m; u++) Q[u][v] -= R[w][v] * Q[u][w];
+      }
+    }
+    for (unsigned u = 0; u < m; u++) {
+      for (unsigned v = 0; v < m; v++) {
+        double sum = 0;
+        for (unsigned k = u; k < m; k++) sum += R[u][k] * Q[k][v];
+        matrix[u][v] = sum + (u == v ? shift : 0);
+      }
+    }
+  }
+  for (unsigned v = 0; v < g->size; v++) spectrum[v] = matrix[v][v];
+  for (unsigned u = 0; u < g->size - 1; u++) {
+    unsigned minimum_v = u;
+    for (unsigned v = u + 1; v < g->size; v++)
+      if (spectrum[v] < spectrum[minimum_v])
+        minimum_v = v;
+    if (minimum_v != u) {
+      double temporary = spectrum[u];
+      spectrum[u] = spectrum[minimum_v];
+      spectrum[minimum_v] = temporary;
+    }
+  }
+  return spectrum;
+}
+
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   double *distance = malloc(g->size * sizeof(double));
@@ -6749,16 +6840,30 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 
 /*
- *The calculateFloydWarshall function computes the shortest paths between all pairs of vertices in a directed,
- *edge-weighted graph using the Floyd-Warshall algorithm. The primary purpose of this function is to solve the
- *All-Pairs Shortest Path (APSP) problem, which is essential for applications like network routing, finding the
- *transitive closure of a relation, or calculating closeness centrality in social network analysis. By returning a
- *dynamically allocated 2D array representing a distance matrix, it allows a program to instantly query the shortest
- *distance between any source vertex and destination vertex in O(1) time after the initial computation. Furthermore, it
- *is designed to robustly handle graphs containing negative edge weights and explicitly identifies negative cycles.
- *This is crucial because a negative cycle allows a path to infinitely decrease in weight, rendering conventional
- *shortest paths meaningless; by recognizing this, the function appropriately updates affected path distances to
- *negative infinity to signal that the paths are unboundedly decreasing.
+ * This function implements the Floyd-Warshall algorithm to compute the shortest paths between all pairs of vertices in
+ * a directed, weighted graph. It is designed to solve the all-pairs shortest path (APSP) problem, producing a
+ * comprehensive matrix where each entry represents the minimum total edge weight required to travel from a specific
+ * starting vertex to a specific destination vertex. This approach is highly valuable because it handles graphs with
+ * both positive and negative edge weights, unlike Dijkstra's algorithm, which fails in the presence of negative
+ * weights. Furthermore, the function explicitly checks for and handles negative weight cycles—scenarios where a path
+ * can loop infinitely to continuously reduce its total cost. By identifying these cycles, the function avoids infinite
+ * loops in routing logic and correctly marks paths affected by such cycles as having a distance of negative infinity.
+ * The [[nodiscard]] attribute enforces safe programming practices by requiring the caller to acknowledge and handle
+ * the dynamically allocated matrix, preventing memory leaks in the application.
+ *
+ * The function achieves this through a multi-stage process of memory management, matrix initialization, and
+ * triple-nested iterative relaxation. First, it performs safety checks on the graph structure and dynamically
+ * allocates a two-dimensional double matrix size n-by-n, carefully freeing previously allocated rows and returning
+ * nullptr if any system memory allocation fails. Next, it initializes the matrix by setting all diagonal elements
+ * (where a vertex connects to itself) to zero and all other pairs to positive infinity. It then populates the matrix
+ * with the graph's direct edge weights, taking care to choose the smallest weight if parallel edges exist between the
+ * same two vertices. The core optimization phase utilizes a triple-nested loop that systematically evaluates every
+ * vertex w as a potential intermediate stepping stone between a starting vertex u and an ending vertex v. If routing
+ * through w provides a shorter total path than the currently recorded distance from u to v, the matrix is updated with
+ * this cheaper cost. Finally, the function runs a separate pass to check the matrix diagonal; if any vertex has a
+ * distance to itself that drops below zero, it confirms the presence of a negative cycle, prompting a final set of
+ * loops to set all paths flowing through that cycle to negative infinity before returning the completed matrix pointer
+ * to the caller.
  */
 
 [[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
