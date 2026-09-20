@@ -4580,30 +4580,29 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   }
   return colors;
 }
-
 /*
- * This function finds the minimum number of colors needed to color the edges of a graph such that no two adjacent edges
- * share the same color, a property fundamentally governed by Vizing's Theorem. In graph theory, Vizing's Theorem
- * proves that any simple graph can have its edges optimally colored using either Δ colors (where Δ is the maximum
- * degree of any vertex in the graph) or Δ + 1 colors. The purpose of this code is to find this absolute minimum
- * coloring—known as the chromatic index—by first testing if a valid coloring exists using exactly Δ colors, and if
- * that fails, trying Δ + 1 colors. Finding an optimal edge coloring is highly useful in real-world computer science
- * problems like scheduling conflicts, network routing, and wavelength assignment in fiber-optic communications, where
- * shared connections (vertices) cannot execute multiple tasks (edges) at the exact same time without causing a
- * collision.
+ * The findOptimalEdgeColoring function finds the minimum number of colors needed to color the edges of a graph so that
+ * no two adjacent edges share the same color, returning an allocated array representing this assignment. This problem
+ * is known as optimal edge coloring or finding the chromatic index of a graph. According to Vizing's Theorem, the
+ * chromatic index of a simple graph is either equal to its maximum degree Δ or Δ + 1. The function exists to compute
+ * this exact optimal coloring because determining whether a graph requires Δ or Δ + 1 colors is an NP-hard problem. It
+ * utilizes the [[nodiscard]] attribute to ensure the caller does not leak the dynamically allocated memory returned by
+ * the function. By systematically finding the absolute minimum number of colors necessary, it provides a valid
+ * coloring scheme that minimizes resource usage in practical applications like network routing, frequency assignment,
+ * and scheduling.
  *
- * To achieve this, the function works by first calculating the total number of unique edges and finding the maximum
- * vertex degree (Δ) by traversing the graph's adjacency list, filtering out duplicate undirected edge checks by
- * enforcing that the source vertex index is less than the destination vertex index. Once these metrics are gathered,
- * it extracts all unique undirected edges into two flattened coordinate arrays, edge_u and edge_v, and allocates an
- * array to hold the final color values. The core algorithmic logic then executes an outer loop that restricts the
- * search space solely to Vizing's bounds, setting the target number of allowed colors first to Δ, and then to Δ + 1 if
- * needed. For each color bound, it runs a brute-force backtrack or exhaustive combinatorial search using a nested
- * state machine: it checks every pair of edges to ensure that if they share a vertex, they do not share the same
- * color, and if a collision is found, it increments the color indices sequentially like a base-N odometer system. If
- * the odometer successfully finds a sequence of colors where no adjacent edges conflict, the valid coloring array is
- * immediately returned; otherwise, if all color combinations are exhausted for both Δ and Δ + 1, the memory is safely
- * freed and a null pointer is returned.
+ * The function achieves this by first performing a validation check on the graph and counting both the total number of
+ * unique edges and the maximum degree among all vertices. It eliminates duplicate undirected edges by only recording
+ * them when the current vertex index is less than the destination vertex index, storing the endpoints in two parallel
+ * arrays, edge_u and edge_v. It then allocates an array called coloring initialized to zero and sets up an outer loop
+ * that attempts to find a valid coloring using exactly Δ colors, upgrading to Δ + 1 colors only if the first attempt
+ * fails. Inside this loop, it runs a backtracking algorithm over the edges, sequentially assigning a color to the
+ * current edge and checking it against all previously colored edges. If a conflict is detected—meaning a prior edge
+ * shares a color and shares at least one vertex endpoint—the color is incremented. If no valid color can be found for
+ * the current edge within the allowed limit, the algorithm backtracks by resetting the current edge's color to zero,
+ * moving back to the previous edge, and incrementing its color to try a different combination. If the edge index
+ * successfully reaches the total edge count, a valid optimal coloring has been found, and the function returns the
+ * pointer to the array.
  */
 
 [[nodiscard]] unsigned *findOptimalEdgeColoring(const Graph *g) {
@@ -4635,27 +4634,32 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   if (!coloring) return nullptr;
   for (unsigned number_colors = maximum_degree; number_colors <= maximum_degree + 1; number_colors++) {
     for (unsigned i = 0; i < total_edges; i++) coloring[i] = 0;
-    while (true) {
-      bool valid = true;
-      for (unsigned i = 0; i < total_edges && valid; i++) {
-        for (unsigned j = i + 1; j < total_edges && valid; j++) {
+    unsigned i = 0;
+    while (i < total_edges) {
+      bool safe = false;
+      while (coloring[i] < number_colors) {
+        safe = true;
+        for (unsigned j = 0; j < i; j++) {
           if (coloring[i] == coloring[j] &&
             (edge_u[i] == edge_u[j] || edge_u[i] == edge_v[j] || edge_v[i] == edge_u[j] || edge_v[i] == edge_v[j]))
           {
-            valid = false;
+            safe = false;
+            break;
           }
         }
-      }
-      if (valid) return coloring;
-      unsigned i = 0;
-      while (i < total_edges) {
+        if (safe) break;
         coloring[i]++;
-        if (coloring[i] < number_colors) break;
-        coloring[i] = 0;
-        i++;
       }
-      if (i == total_edges) break;
+      if (safe) {
+        i++;
+      } else {
+        coloring[i] = 0;
+        if (i == 0) break;
+        i--;
+        coloring[i]++;
+      }
     }
+    if (i == total_edges) return coloring;
   }
   free(coloring);
   return nullptr;
@@ -6865,6 +6869,26 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
           distance[e->destination] = -INFINITY;
   return distance;
 }
+
+/*
+ * The calculateWeightedDistances function computes the shortest paths from a single starting vertex to all other
+ * reachable vertices in a directed or undirected graph with non-negative edge weights. It returns a dynamically
+ * allocated array of doubles representing these minimum distances, utilizing the modern C23 [[nodiscard]] attribute to
+ * warn the compiler if the caller leaks memory by ignoring the returned pointer. If the input graph pointer is
+ * invalid, contains negative weights, or the starting vertex index is out of bounds, the function safely aborts and
+ * returns a null pointer. It also handles memory allocation failures gracefully, ensuring that any successfully
+ * allocated temporary arrays are freed before exiting to prevent memory leaks.
+ *
+ * The function implements Dijkstra’s algorithm using a simple loop-based approach to find the minimum distance vertex
+ * at each step. It begins by validating the inputs and allocating a boolean visited tracking array and a distances
+ * array, initializing all distances to infinity except for the source vertex, which is set to zero. In each iteration
+ * of the main loop, it marks the current vertex as visited and iterates through its adjacency list to relax its
+ * neighboring edges, updating adjacent distances if a shorter path is found. After checking all neighbors, it performs
+ * a linear scan over all graph vertices to locate the unvisited vertex with the smallest tentative distance. This
+ * vertex is chosen as the next source vertex for the loop, and the process repeats until all reachable vertices are
+ * visited or remaining unvisited vertices are unreachable (indicated by a minimum distance of infinity), at which
+ * point it cleans up the tracking array and returns the results.
+ */
 
 [[nodiscard]] double *calculateWeightedDistances(const Graph *g, unsigned v) {
   if (!isValid(g) || hasNegativeWeights(g) || v >= g->size) return nullptr;
