@@ -274,9 +274,10 @@ unsigned *getDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *findGreedyVertexColoring(const Graph *g);
-unsigned *findOptimalColoring(const Graph *g);
+unsigned *findOptimalVertexColoring(const Graph *g);
 unsigned *findWelchPowellGraphColoring(const Graph *g);
 unsigned *findGreedyEdgeColoring(const Graph *g);
+unsigned *findOptimalEdgeColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
@@ -3639,7 +3640,7 @@ unsigned countSpanningTrees(const Graph *g) {
 
 unsigned calculateChromaticNumber(const Graph *g) {
   if (!g) return 0;
-  unsigned *colors = findOptimalColoring(g);
+  unsigned *colors = findOptimalVertexColoring(g);
   if (!colors) return 0;
   unsigned chromatic = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -4446,7 +4447,7 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   return false;
 }
 
-[[nodiscard]] unsigned *findOptimalColoring(const Graph *g) {
+[[nodiscard]] unsigned *findOptimalVertexColoring(const Graph *g) {
   if (!g || !g->edges) return nullptr;
   unsigned *colors = malloc(g->size * sizeof(unsigned));
   if (!colors) return nullptr;
@@ -4578,6 +4579,86 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
     }
   }
   return colors;
+}
+
+/*
+ * This function finds the minimum number of colors needed to color the edges of a graph such that no two adjacent edges
+ * share the same color, a property fundamentally governed by Vizing's Theorem. In graph theory, Vizing's Theorem
+ * proves that any simple graph can have its edges optimally colored using either Δ colors (where Δ is the maximum
+ * degree of any vertex in the graph) or Δ + 1 colors. The purpose of this code is to find this absolute minimum
+ * coloring—known as the chromatic index—by first testing if a valid coloring exists using exactly Δ colors, and if
+ * that fails, trying Δ + 1 colors. Finding an optimal edge coloring is highly useful in real-world computer science
+ * problems like scheduling conflicts, network routing, and wavelength assignment in fiber-optic communications, where
+ * shared connections (vertices) cannot execute multiple tasks (edges) at the exact same time without causing a
+ * collision.
+ *
+ * To achieve this, the function works by first calculating the total number of unique edges and finding the maximum
+ * vertex degree (Δ) by traversing the graph's adjacency list, filtering out duplicate undirected edge checks by
+ * enforcing that the source vertex index is less than the destination vertex index. Once these metrics are gathered,
+ * it extracts all unique undirected edges into two flattened coordinate arrays, edge_u and edge_v, and allocates an
+ * array to hold the final color values. The core algorithmic logic then executes an outer loop that restricts the
+ * search space solely to Vizing's bounds, setting the target number of allowed colors first to Δ, and then to Δ + 1 if
+ * needed. For each color bound, it runs a brute-force backtrack or exhaustive combinatorial search using a nested
+ * state machine: it checks every pair of edges to ensure that if they share a vertex, they do not share the same
+ * color, and if a collision is found, it increments the color indices sequentially like a base-N odometer system. If
+ * the odometer successfully finds a sequence of colors where no adjacent edges conflict, the valid coloring array is
+ * immediately returned; otherwise, if all color combinations are exhausted for both Δ and Δ + 1, the memory is safely
+ * freed and a null pointer is returned.
+ */
+
+[[nodiscard]] unsigned *findOptimalEdgeColoring(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned total_edges = 0;
+  unsigned maximum_degree = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned degree = 0;
+    for (Edge *e = g->edges[u]; e; e = e->next) {
+      degree++;
+      if (u < e->destination) total_edges++;
+    }
+    if (degree > maximum_degree) maximum_degree = degree;
+  }
+  if (total_edges == 0) return nullptr;
+  unsigned edge_u[total_edges];
+  unsigned edge_v[total_edges];
+  unsigned i = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    for (Edge *e = g->edges[u]; e; e = e->next) {
+      if (u < e->destination) {
+        edge_u[i] = u;
+        edge_v[i] = e->destination;
+        i++;
+      }
+    }
+  }
+  unsigned *coloring = calloc(total_edges, sizeof(unsigned));
+  if (!coloring) return nullptr;
+  for (unsigned number_colors = maximum_degree; number_colors <= maximum_degree + 1; number_colors++) {
+    for (unsigned i = 0; i < total_edges; i++) coloring[i] = 0;
+    while (true) {
+      bool valid = true;
+      for (unsigned i = 0; i < total_edges && valid; i++) {
+        for (unsigned j = i + 1; j < total_edges && valid; j++) {
+          if (coloring[i] == coloring[j] &&
+            (edge_u[i] == edge_u[j] || edge_u[i] == edge_v[j] || edge_v[i] == edge_u[j] || edge_v[i] == edge_v[j]))
+          {
+            valid = false;
+          }
+        }
+      }
+      if (valid) return coloring;
+      unsigned i = 0;
+      while (i < total_edges) {
+        coloring[i]++;
+        if (coloring[i] < number_colors) break;
+        coloring[i] = 0;
+        i++;
+      }
+      if (i == total_edges) break;
+    }
+  }
+  free(coloring);
+  return nullptr;
 }
 
 [[nodiscard]] unsigned *getStronglyConnectedComponents(const Graph *g) {
@@ -6812,6 +6893,33 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   free(visited);
   return distances;
 }
+
+/*
+ * This function computes the eigenvector centrality scores for all vertices in a given network graph using the power
+ * iteration method, returning an allocated array of scores or nullptr if computation fails or does not converge.
+ * Eigenvector centrality is a crucial metric in network analysis used to measure the relative influence of nodes
+ * within a network. Unlike simpler metrics like degree centrality, which only count how many connections a node has,
+ * eigenvector centrality assigns relative scores to all nodes based on the principle that connections to high-scoring
+ * nodes contribute more to the score of the node in question than equal connections to low-scoring nodes. It is widely
+ * used in Google's PageRank algorithm, social network analysis to find key influencers, and biological systems to
+ * discover critical genes or proteins. The function utilizes the [[nodiscard]] attribute to warn developers that the
+ * returned memory block must not be ignored, ensuring that the dynamically allocated memory is properly captured and
+ * eventually freed to prevent resource leaks.
+ *
+ * The function achieves this by first validating the input graph structure and allocating two memory arrays (scores and
+ * next) to store the current and next-iteration centrality values. It initializes the scores vector by assigning an
+ * equal, normalized value of 1 divided by the square root of the graph size to every node. The algorithm then enters a
+ * main loop that runs for a user-defined maximum number of iterations. In each iteration, it clears the next array and
+ * distributes each node's current score across its outgoing edges, multiplying the node's score by the edge's weight
+ * and accumulating it at the destination node. To prevent the values from growing infinitely and to ensure
+ * mathematical convergence, the function calculates the Euclidean norm of the newly computed vector and divides every
+ * element by this norm. During this normalization step, it tracks the maximum absolute difference (delta) between the
+ * old score and the new score for any given node. If this maximum difference falls below the user-specified tolerance
+ * threshold, the algorithm sets a convergence flag and breaks early; otherwise, it swaps the scores and next pointers
+ * to prepare for the next round. Finally, it frees the auxiliary next buffer, checks if convergence was successfully
+ * reached, and either returns the final allocated scores array or frees it and returns nullptr if the algorithm timed
+ * out without converging.
+ */
 
 [[nodiscard]] double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance) {
   if (!g || !g->edges || g->size == 0) return nullptr;
