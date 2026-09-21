@@ -246,6 +246,7 @@ unsigned calculateEdgeFrustrationNumber(const Graph *g);
 unsigned calculateIndependenceNumber(const Graph *g);
 unsigned calculateDominatingNumber(const Graph *g);
 unsigned calculateVertexCoverNumber(const Graph *g);
+unsigned calculatePathwidth(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -497,20 +498,16 @@ bool isBalanced(const Graph *g) {
   if (!g) return false;
   if (g->size == 0) return true;
   if (!g->edges) return false;
-
   int balance[g->size] = {};
-
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size) {
         balance[v]++;
         balance[e->destination]--;
       }
-
   for (unsigned v = 0; v < g->size; v++)
     if (balance[v] != 0)
       return false;
-
   return true;
 }
 
@@ -3979,6 +3976,75 @@ unsigned calculateVertexCoverNumber(const Graph *g) {
   return g->size;
 }
 
+/*
+ * This C23 function calculates the exact vertex separation number of a given graph, which is structurally equivalent to
+ * finding the graph's pathwidth. Pathwidth is a vital metric in graph theory and computer science that quantifies how
+ * closely a graph's structure resembles a simple, linear path. In practical software engineering and algorithmic
+ * design, knowing the pathwidth is highly valuable because many complex, NP-hard problems (like graph coloring or the
+ * traveling salesperson problem) can be solved in linear time using dynamic programming if the graph has a bounded,
+ * small pathwidth. The code relies on C23 features—specifically, the standard integration of variable-length arrays
+ * (VLAs) and the support for the native bool type without needing an explicit macro header inclusion—to dynamically
+ * evaluate layout configurations. Ultimately, the purpose of this function is to determine the absolute minimum
+ * bandwidth or layout bottleneck possible across all linear arrangements of the graph's vertices, providing an upper
+ * bound for optimizing memory allocation, circuit layout layouts, or tree-decomposition algorithms.
+ *
+ * The function achieves this by executing a brute-force search over all possible linear permutations of the graph's
+ * vertices and tracking the layout that minimizes the maximum "vertex separation". It first validates the input graph
+ * and constructs a local, dynamically sized boolean adjacency matrix using C23 variable-length arrays to allow fast,
+ * constant-time edge lookups. Next, it initializes a permutation array representing a specific linear ordering of the
+ * vertices. The main loop systematically iterates through every single permutation using standard lexicographical
+ * generation (the Narayana Pandita algorithm). For each unique ordering, the code evaluates every possible split point
+ * along the vertex sequence; for a given split point, it counts how many vertices on the left side of the split have
+ * at least one neighbor on the right side of the split. The maximum number of these intersecting edges at any split
+ * point defines the separation width for that specific permutation. By tracking the minimum of these maximum values
+ * across every single permutation of the vertices, the function successfully guarantees finding the optimal pathwidth
+ * before returning the final integer value.
+ */
+
+unsigned calculatePathwidth(const Graph *g) {
+  if (!g || g->size <= 1 || !g->edges) return 0;
+  unsigned n = g->size;
+  unsigned min_width = n;
+  bool adj[n][n] = {};
+  for (unsigned v = 0; v < n; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < n)
+        adj[v][e->destination] = true;
+  unsigned p[n];
+  for (unsigned i = 0; i < n; i++) p[i] = i;
+  while (true) {
+    unsigned max_separation = 0;
+    for (unsigned k = 1; k < n; k++) {
+      unsigned crossing = 0;
+      for (unsigned i = 0; i < k; i++)
+        for (unsigned j = k; j < n; j++)
+          if (adj[p[i]][p[j]]) {
+            crossing++;
+            break;
+          }
+      if (crossing > max_separation) max_separation = crossing;
+    }
+    if (max_separation < min_width) min_width = max_separation;
+    unsigned i = n - 1;
+    while (i > 0 && p[i - 1] >= p[i]) i--;
+    if (i == 0) break;
+    unsigned j = n - 1;
+    while (p[i - 1] >= p[j]) j--;
+    unsigned temp = p[i - 1];
+    p[i - 1] = p[j];
+    p[j] = temp;
+    unsigned left = i, right = n - 1;
+    while (left < right) {
+      temp = p[left];
+      p[left] = p[right];
+      p[right] = temp;
+      left++;
+      right--;
+    }
+  }
+  return min_width;
+}
+
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
   return countMatchingEdges(g, v, v);
 }
@@ -6850,6 +6916,29 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   return spectrum;
 }
+
+/*
+ * This function calculates the shortest paths from a single starting vertex to all other vertices in a directed,
+ * weighted graph, and it returns a dynamically allocated array containing these minimum distance values. It leverages
+ * the Bellman-Ford algorithm, which is specifically chosen because it can handle graph edges with negative weights, a
+ * scenario where other algorithms like Dijkstra's fail. The function uses the C23 attribute [[nodiscard]] to
+ * explicitly warn the calling program that it must catch and manage the returned pointer, preventing a memory leak
+ * since the function allocates new memory on the heap. Furthermore, the routine protects against negative-weight
+ * cycles—loops where the total weight is less than zero—by detecting which vertices are trapped in an infinite
+ * downward spiral of cost and marking their distances as negative infinity. This ensures the output accurately
+ * reflects whether a true shortest path exists or if the cost can be minimized indefinitely.
+ *
+ * The function accomplishes this through a systematic sequence of validation, initialization, relaxation, and negative
+ * cycle propagation. First, it performs safety checks to ensure the graph pointer is valid, edge data exists, and the
+ * starting vertex falls within the graph's size bounds, returning nullptr if any check fails. It then allocates a
+ * block of memory for the distance array and initializes the starting vertex's distance to zero while setting all
+ * other vertices to positive infinity. Next, it performs the core relaxation phase by looping through every edge in
+ * the graph a total of graph size minus one times; during each iteration, it updates a destination vertex's distance
+ * if a shorter path is discovered through an origin vertex. Finally, it runs a second identical loop structure to
+ * check for negative-weight cycles. If an edge can still be relaxed after the main phase, it indicates that the
+ * destination vertex belongs to or is reachable from a negative cycle, prompting the function to change its distance
+ * value to negative infinity before returning the finalized pointer to the caller.
+ */
 
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
