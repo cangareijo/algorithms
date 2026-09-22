@@ -132,7 +132,7 @@ bool *findMaximalIndependentSet(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
 bool *findFeedbackVertexSet(const Graph *g);
 bool *findVertexCut(const Graph *g);
-bool *findMinimumDominatingSet(const Graph *g);
+bool *find_minimum_dominating_set(const Graph *g);
 bool *find_total_dominating_set(const Graph *g);
 bool *findCriticalNodesAttack(const Graph *g, unsigned k);
 bool *getInNeighbors(const Graph *g, unsigned v);
@@ -2121,84 +2121,93 @@ static void findFeedbackVertexSetBacktracking(
   return nullptr;
 }
 
-static void searchForMinimumDominatingSet(
-  const Graph *g, unsigned v, bool current[], unsigned current_size, bool minimum[], unsigned *minimum_size)
-{
-  if (current_size >= *minimum_size) return;
-  if (v == g->size) {
-    for (unsigned u = 0; u < g->size; u++) {
-      bool covered = current[u];
-      for (const Edge *e = g->edges[u]; e && !covered; e = e->next)
-        if (e->destination < g->size && current[e->destination])
-          covered = true;
-      if (!covered) return;
-    }
-    if (current_size < *minimum_size) {
-      *minimum_size = current_size;
-      for (unsigned u = 0; u < g->size; u++) minimum[u] = current[u];
-    }
-    return;
-  }
-  current[v] = false;
-  searchForMinimumDominatingSet(g, v + 1, current, current_size, minimum, minimum_size);
-  current[v] = true;
-  searchForMinimumDominatingSet(g, v + 1, current, current_size + 1, minimum, minimum_size);
-}
+[[nodiscard]] bool *find_minimum_dominating_set(const Graph *g) {
 
-[[nodiscard]] bool *findMinimumDominatingSet(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return nullptr;
-  bool *minimum = malloc(g->size * sizeof(bool));
-  if (!minimum) return nullptr;
-  bool current[g->size] = {};
-  unsigned minimum_size = g->size + 1;
-  searchForMinimumDominatingSet(g, 0, current, 0, minimum, &minimum_size);
-  return minimum;
-}
-
-[[nodiscard]] bool *find_total_dominating_set(const Graph *g) {
-
-  bool has_neighbor(const Graph *g, unsigned v, const bool subset[g->size]) {
-    for (Edge *e = g->edges[v]; e; e = e->next)
+  bool is_dominating_member_covered(const Graph *g, unsigned u, const bool subset[]) {
+    if (subset[u]) return true;
+    for (const Edge *e = g->edges[u]; e; e = e->next)
       if (e->destination < g->size && subset[e->destination])
         return true;
     return false;
   }
 
-  bool is_total_dominating(const Graph *g, const bool subset[g->size]) {
-    for (unsigned v = 0; v < g->size; v++)
-      if (!has_neighbor(g, v, subset))
+  bool is_dominating_set(const Graph *g, const bool subset[]) {
+    for (unsigned u = 0; u < g->size; u++)
+      if (!is_dominating_member_covered(g, u, subset))
         return false;
     return true;
   }
 
-  void search_subsets(
-    const Graph *g, unsigned index, bool current[g->size], unsigned current_count, bool best[g->size], unsigned *best_count)
-  {
+  void minimum_dominating_set_search(const Graph *g, unsigned v, bool current[], unsigned current_count, bool best[], unsigned *best_count) {
     if (current_count >= *best_count) return;
-    if (index == g->size) {
-      if (is_total_dominating(g, current)) {
+    if (v == g->size) {
+      if (is_dominating_set(g, current)) {
         *best_count = current_count;
-        for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+        for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
       }
       return;
     }
-    current[index] = true;
-    search_subsets(g, index + 1, current, current_count + 1, best, best_count);
-    current[index] = false;
-    search_subsets(g, index + 1, current, current_count, best, best_count);
+    current[v] = true;
+    minimum_dominating_set_search(g, v + 1, current, current_count + 1, best, best_count);
+    current[v] = false;
+    minimum_dominating_set_search(g, v + 1, current, current_count, best, best_count);
   }
 
   if (!g || g->size == 0 || !g->edges) return nullptr;
-  bool current[g->size];
-  bool best[g->size];
+  bool *best = malloc(g->size * sizeof(bool));
+  if (!best) return nullptr;
+  bool current[g->size] = {};
   unsigned best_count = g->size + 1;
-  search_subsets(g, 0, current, 0, best, &best_count);
-  if (best_count > g->size) return nullptr;
-  bool *result = malloc(g->size * sizeof(bool));
-  if (result)
-    for (unsigned v = 0; v < g->size; v++)
-      result[v] = best[v];
-  return result;
+  minimum_dominating_set_search(g, 0, current, 0, best, &best_count);
+  if (best_count > g->size) {
+    free(best);
+    return nullptr;
+  }
+  return best;
+}
+
+[[nodiscard]] bool *find_total_dominating_set(const Graph *g) {
+
+  bool is_total_dominating_member_covered(const Graph *g, unsigned u, const bool subset[]) {
+    for (const Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && subset[e->destination])
+        return true;
+    return false;
+  }
+
+  bool is_total_dominating_set(const Graph *g, const bool subset[]) {
+    for (unsigned u = 0; u < g->size; u++)
+      if (!is_total_dominating_member_covered(g, u, subset))
+        return false;
+    return true;
+  }
+
+  void total_dominating_set_search(const Graph *g, unsigned v, bool current[], unsigned current_count, bool best[], unsigned *best_count) {
+    if (current_count >= *best_count) return;
+    if (v == g->size) {
+      if (is_total_dominating_set(g, current)) {
+        *best_count = current_count;
+        for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
+      }
+      return;
+    }
+    current[v] = true;
+    total_dominating_set_search(g, v + 1, current, current_count + 1, best, best_count);
+    current[v] = false;
+    total_dominating_set_search(g, v + 1, current, current_count, best, best_count);
+  }
+
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  bool *best = malloc(g->size * sizeof(bool));
+  if (!best) return nullptr;
+  bool current[g->size] = {};
+  unsigned best_count = g->size + 1;
+  total_dominating_set_search(g, 0, current, 0, best, &best_count);
+  if (best_count > g->size) {
+    free(best);
+    return nullptr;
+  }
+  return best;
 }
 
 [[nodiscard]] bool *findCriticalNodesAttack(const Graph *g, unsigned k) {
