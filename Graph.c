@@ -362,6 +362,7 @@ double **calculateAdamicAdarIndex(const Graph *g);
 double **calculatePreferentialAttachment(const Graph *g);
 double **calculateOllivierRicciCurvature(const Graph *g);
 double **calculateFormanRicciCurvature(const Graph *g);
+double **calculateResourceAllocationIndex(const Graph *g);
 
 int main();
 
@@ -4095,8 +4096,8 @@ unsigned calculateCliqueWidth(const Graph *g) {
     while (more) {
       bool current[g->size][g->size] = {};
       unsigned label[g->size] = {};
-      bool stack_members[g->size][g->size] = {}; 
-      unsigned stack_top = 0; 
+      bool stack_members[g->size][g->size] = {};
+      unsigned stack_top = 0;
       unsigned vertices_used = 0;
       bool valid = true;
       for (unsigned s = 0; s < max_ops && valid; s++) {
@@ -4104,9 +4105,9 @@ unsigned calculateCliqueWidth(const Graph *g) {
           if (vertices_used >= g->size || stack_top >= g->size) { valid = false; break; }
           unsigned v = vertices_used++;
           stack_members[stack_top][v] = true;
-          label[v] = p1[s] % k; 
+          label[v] = p1[s] % k;
           stack_top++;
-        } 
+        }
         else if (op[s] == 1) {
           if (stack_top == 0 || p1[s] % k == p2[s] % k) { valid = false; break; }
           unsigned i = p1[s] % k, j = p2[s] % k;
@@ -4115,14 +4116,14 @@ unsigned calculateCliqueWidth(const Graph *g) {
               for (unsigned v = 0; v < g->size; v++)
                 if (stack_members[stack_top - 1][v] && label[v] == j)
                   current[u][v] = current[v][u] = true;
-        } 
+        }
         else if (op[s] == 2) {
           if (stack_top == 0 || p1[s] % k == p2[s] % k) { valid = false; break; }
           unsigned i = p1[s] % k, j = p2[s] % k;
           for (unsigned u = 0; u < g->size; u++)
             if (stack_members[stack_top - 1][u] && label[u] == i)
               label[u] = j;
-        } 
+        }
         else if (op[s] == 3) {
           if (stack_top < 2) { valid = false; break; }
           for (unsigned u = 0; u < g->size; u++) {
@@ -7709,6 +7710,35 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
             curvature[u][e1->destination] -= sqrt(e1->weight / e2->weight);
       }
   return curvature;
+}
+
+[[nodiscard]] double **calculateResourceAllocationIndex(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  double **matrix = malloc(g->size * sizeof(double *));
+  if (!matrix) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) {
+    matrix[u] = calloc(g->size, sizeof(double));
+    if (!matrix[u]) {
+      for (unsigned v = 0; v < u; v++) free(matrix[v]);
+      free(matrix);
+      return nullptr;
+    }
+  }
+  bool adjacent[g->size][g->size] = {};
+  unsigned degrees[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size) {
+        adjacent[v][e->destination] = true;
+        degrees[v]++;
+      }
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && !adjacent[u][v])
+        for (unsigned w = 0; w < g->size; w++)
+          if (adjacent[u][w] && adjacent[v][w] && degrees[w] > 0)
+            matrix[u][v] += 1.0 / degrees[w];
+  return matrix;
 }
 
 
