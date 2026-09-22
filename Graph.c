@@ -247,6 +247,7 @@ unsigned calculateIndependenceNumber(const Graph *g);
 unsigned calculateDominatingNumber(const Graph *g);
 unsigned calculateVertexCoverNumber(const Graph *g);
 unsigned calculatePathwidth(const Graph *g);
+unsigned calculateCliqueWidth(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned getOutDegree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -4043,6 +4044,105 @@ unsigned calculatePathwidth(const Graph *g) {
     }
   }
   return min_width;
+}
+
+/*
+ * This C23 function calculates the clique-width of a given graph by testing sequential label limits using a brute-force
+ * algebraic search. Modern C23 features are leveraged here, specifically initializing the variable-length array
+ * (VLA) target using empty braces ={} to zero-initialize the entire grid without relying on memset. The function
+ * begins with safety checks, instantly returning 0 for null pointers and returning the vertex count directly if it is
+ * 2 or fewer, since trivial graphs have a known bounded width. It then maps the adjacency structure into a boolean
+ * matrix target via an adjacency list traversal. To find the exact clique-width, it iteratively tests possible widths
+ * k starting from 2 up to the graph's size, checking if a sequence of algebraic operations can build the target graph.
+ * Inside this loop, it uses an array-backed odometer loop to exhaustively generate all valid sequences of four core
+ * operations: introducing a new vertex labeled i (op 0), connecting all vertices labeled i to all vertices labeled j
+ * (op 1), renaming label i to j (op 2), and taking the disjoint union of two subgraphs stored on its working vertex
+ * stack (op 3). For each permutation, the logic evaluates the steps inside a temporary simulation framework,
+ * maintaining dynamic labels and tracking stack members. If the operation sequence successfully processes all
+ * vertices, collapses down to a single active stack layer, and generates a boolean matrix current that perfectly
+ * matches the target matrix, the function successfully returns the minimum bounding width k. If no sequence matches
+ * for a given k, the nested loops increment the parameters, eventually falling back to returning the total graph size
+ * if no smaller structural width is found.
+ */
+
+unsigned calculateCliqueWidth(const Graph *g) {
+  if (!g || !g->edges) return 0;
+  if (g->size <= 2) return g->size;
+  bool target[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        target[v][e->destination] = true;
+  unsigned max_ops = 3 * g->size;
+  for (unsigned k = 2; k < g->size; k++) {
+    unsigned op[max_ops] = {};
+    unsigned p1[max_ops] = {};
+    unsigned p2[max_ops] = {};
+    bool more = true;
+    while (more) {
+      bool current[g->size][g->size] = {};
+      unsigned label[g->size] = {};
+      bool stack_members[g->size][g->size] = {}; 
+      unsigned stack_top = 0; 
+      unsigned vertices_used = 0;
+      bool valid = true;
+      for (unsigned s = 0; s < max_ops && valid; s++) {
+        if (op[s] == 0) {
+          if (vertices_used >= g->size || stack_top >= g->size) { valid = false; break; }
+          unsigned v = vertices_used++;
+          stack_members[stack_top][v] = true;
+          label[v] = p1[s] % k; 
+          stack_top++;
+        } 
+        else if (op[s] == 1) {
+          if (stack_top == 0 || p1[s] % k == p2[s] % k) { valid = false; break; }
+          unsigned i = p1[s] % k, j = p2[s] % k;
+          for (unsigned u = 0; u < g->size; u++)
+            if (stack_members[stack_top - 1][u] && label[u] == i)
+              for (unsigned v = 0; v < g->size; v++)
+                if (stack_members[stack_top - 1][v] && label[v] == j)
+                  current[u][v] = current[v][u] = true;
+        } 
+        else if (op[s] == 2) {
+          if (stack_top == 0 || p1[s] % k == p2[s] % k) { valid = false; break; }
+          unsigned i = p1[s] % k, j = p2[s] % k;
+          for (unsigned u = 0; u < g->size; u++)
+            if (stack_members[stack_top - 1][u] && label[u] == i)
+              label[u] = j;
+        } 
+        else if (op[s] == 3) {
+          if (stack_top < 2) { valid = false; break; }
+          for (unsigned u = 0; u < g->size; u++) {
+            if (stack_members[stack_top - 1][u]) {
+              stack_members[stack_top - 2][u] = true;
+              stack_members[stack_top - 1][u] = false;
+            }
+          }
+          stack_top--;
+        }
+      }
+      if (valid && vertices_used == g->size && stack_top == 1) {
+        bool match = true;
+        for (unsigned u = 0; u < g->size && match; u++)
+          for (unsigned v = 0; v < g->size && match; v++)
+            if (current[u][v] != target[u][v])
+              match = false;
+        if (match) return k;
+      }
+      unsigned s = 0;
+      while (s < max_ops) {
+        if (++p2[s] < k) break;
+        p2[s] = 0;
+        if (++p1[s] < (g->size > k ? g->size : k)) break;
+        p1[s] = 0;
+        if (++op[s] < 4) break;
+        op[s] = 0;
+        s++;
+      }
+      if (s == max_ops) more = false;
+    }
+  }
+  return g->size;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
