@@ -170,6 +170,7 @@ Graph *createCactusGraph(const Graph *g);
 Graph *createDualGraph(const Graph *g);
 Graph *createBipartiteDoubleCover(const Graph *g);
 Graph *createStronglyConnectedComponentsQuotient(const Graph *g);
+Graph *createDualHypergraphProjection(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -2851,6 +2852,18 @@ static void createStronglyConnectedComponentsQuotientBackward(
       if (e->destination < n && sccs[v] != sccs[e->destination])
         addWeightedDirectedEdge(q, sccs[v], sccs[e->destination], e->weight);
   return q;
+}
+
+[[nodiscard]] Graph *createDualHypergraphProjection(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  Graph *projection = createGraph(g->size);
+  if (!projection) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      for (unsigned w = 0; w < g->size; w++)
+        if (u != v && hasDirectedEdge(g, u, w) && hasDirectedEdge(g, w, v) && !hasDirectedEdge(projection, u, v))
+          addDirectedEdge(projection, u, v);
+  return projection;
 }
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
