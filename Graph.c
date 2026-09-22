@@ -133,6 +133,7 @@ bool *findMaximumIndependentSet(const Graph *g);
 bool *findFeedbackVertexSet(const Graph *g);
 bool *findVertexCut(const Graph *g);
 bool *findMinimumDominatingSet(const Graph *g);
+bool *find_total_dominating_set(const Graph *g);
 bool *findCriticalNodesAttack(const Graph *g, unsigned k);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
@@ -2152,6 +2153,52 @@ static void searchForMinimumDominatingSet(
   unsigned minimum_size = g->size + 1;
   searchForMinimumDominatingSet(g, 0, current, 0, minimum, &minimum_size);
   return minimum;
+}
+
+[[nodiscard]] bool *find_total_dominating_set(const Graph *g) {
+
+  bool has_neighbor(const Graph *g, unsigned v, const bool subset[g->size]) {
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && subset[e->destination])
+        return true;
+    return false;
+  }
+
+  bool is_total_dominating(const Graph *g, const bool subset[g->size]) {
+    for (unsigned v = 0; v < g->size; v++)
+      if (!has_neighbor(g, v, subset))
+        return false;
+    return true;
+  }
+
+  void search_subsets(
+    const Graph *g, unsigned index, bool current[g->size], unsigned current_count, bool best[g->size], unsigned *best_count)
+  {
+    if (current_count >= *best_count) return;
+    if (index == g->size) {
+      if (is_total_dominating(g, current)) {
+        *best_count = current_count;
+        for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+      }
+      return;
+    }
+    current[index] = true;
+    search_subsets(g, index + 1, current, current_count + 1, best, best_count);
+    current[index] = false;
+    search_subsets(g, index + 1, current, current_count, best, best_count);
+  }
+
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  bool current[g->size];
+  bool best[g->size];
+  unsigned best_count = g->size + 1;
+  search_subsets(g, 0, current, 0, best, &best_count);
+  if (best_count > g->size) return nullptr;
+  bool *result = malloc(g->size * sizeof(bool));
+  if (result)
+    for (unsigned v = 0; v < g->size; v++)
+      result[v] = best[v];
+  return result;
 }
 
 [[nodiscard]] bool *findCriticalNodesAttack(const Graph *g, unsigned k) {
