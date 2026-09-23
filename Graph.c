@@ -96,8 +96,13 @@ bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
 bool isClique(const Graph *g, const bool *set);
 bool isIndependentSet(const Graph *g, const bool *set);
 bool isVertexCover(const Graph *g, const bool *set);
+bool is_dominating_set(const Graph *g, const bool *set);
+bool is_total_dominating_set(const Graph *g, const bool *set);
+bool is_connected_subset(const Graph *g, const bool *set);
 bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set);
 bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set);
+bool is_dominated(const Graph *g, unsigned v, const bool *set);
+bool is_totally_dominated(const Graph *g, unsigned v, const bool *set);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
 bool isPerfectMatching(const Graph *g, const unsigned *matching);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
@@ -134,6 +139,7 @@ bool *findFeedbackVertexSet(const Graph *g);
 bool *findVertexCut(const Graph *g);
 bool *find_minimum_dominating_set(const Graph *g);
 bool *find_total_dominating_set(const Graph *g);
+bool *find_connected_dominating_set(const Graph *g);
 bool *findCriticalNodesAttack(const Graph *g, unsigned k);
 bool *getInNeighbors(const Graph *g, unsigned v);
 bool *getOutNeighbors(const Graph *g, unsigned v);
@@ -270,6 +276,8 @@ unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
+unsigned get_subset_size(const Graph *g, const bool *set);
+unsigned get_first_vertex_in_subset(const Graph *g, const bool *set);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
 unsigned *getInDegrees(const Graph *g);
@@ -1477,6 +1485,41 @@ bool isVertexCover(const Graph *g, const bool *set) {
   return true;
 }
 
+bool is_dominating_set(const Graph *g, const bool *set) {
+  if (!g || (g->size > 0 && (!g->edges || !set))) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!is_dominated(g, v, set))
+      return false;
+  return true;
+}
+
+bool is_total_dominating_set(const Graph *g, const bool *set) {
+  if (!g || (g->size > 0 && (!g->edges || !set))) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!is_totally_dominated(g, v, set))
+      return false;
+  return true;
+}
+
+static void is_connected_subset_dfs(const Graph *g, const bool *set, unsigned v, bool visited[g->size], unsigned *count) {
+  visited[v] = true;
+  (*count)++;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && set[e->destination] && !visited[e->destination])
+      is_connected_subset_dfs(g, set, e->destination, visited, count);
+}
+
+bool is_connected_subset(const Graph *g, const bool *set) {
+  if (!g || (g->size > 0 && (!g->edges || !set))) return false;
+  unsigned subset_size = get_subset_size(g, set);
+  if (subset_size == 0) return true;
+  unsigned start = get_first_vertex_in_subset(g, set);
+  bool visited[g->size] = {};
+  unsigned count = 0;
+  is_connected_subset_dfs(g, set, start, visited, &count);
+  return count == subset_size;
+}
+
 bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set) {
   if (!g || !g->edges || v >= g->size || !set) return false;
   unsigned total = 0;
@@ -1501,6 +1544,23 @@ bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set) {
     if (set[u] && !hasDirectedEdge(g, u, v))
       return false;
   return true;
+}
+
+bool is_dominated(const Graph *g, unsigned v, const bool *set) {
+  if (!g || !g->edges || v >= g->size || !set) return false;
+  if (set[v]) return true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (set[e->destination])
+      return true;
+  return false;
+}
+
+bool is_totally_dominated(const Graph *g, unsigned v, const bool *set) {
+  if (!g || !g->edges || v >= g->size || !set) return false;
+  for (const Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && set[e->destination])
+      return true;
+  return false;
 }
 
 bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
@@ -2121,42 +2181,28 @@ static void findFeedbackVertexSetBacktracking(
   return nullptr;
 }
 
-[[nodiscard]] bool *find_minimum_dominating_set(const Graph *g) {
-
-  bool is_dominating_member_covered(const Graph *g, unsigned u, const bool subset[]) {
-    if (subset[u]) return true;
-    for (const Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size && subset[e->destination])
-        return true;
-    return false;
-  }
-
-  bool is_dominating_set(const Graph *g, const bool subset[]) {
-    for (unsigned u = 0; u < g->size; u++)
-      if (!is_dominating_member_covered(g, u, subset))
-        return false;
-    return true;
-  }
-
-  void minimum_dominating_set_search(const Graph *g, unsigned v, bool current[], unsigned current_count, bool best[], unsigned *best_count) {
-    if (current_count >= *best_count) return;
-    if (v == g->size) {
-      if (is_dominating_set(g, current)) {
-        *best_count = current_count;
-        for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
-      }
-      return;
+static void minimum_dominating_set_search(
+  const Graph *g, unsigned v, bool current[], unsigned current_count, bool best[], unsigned *best_count)
+{
+  if (current_count >= *best_count) return;
+  if (v == g->size) {
+    if (is_dominating_set(g, current)) {
+      *best_count = current_count;
+      for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
     }
-    current[v] = true;
-    minimum_dominating_set_search(g, v + 1, current, current_count + 1, best, best_count);
-    current[v] = false;
-    minimum_dominating_set_search(g, v + 1, current, current_count, best, best_count);
+    return;
   }
+  current[v] = true;
+  minimum_dominating_set_search(g, v + 1, current, current_count + 1, best, best_count);
+  current[v] = false;
+  minimum_dominating_set_search(g, v + 1, current, current_count, best, best_count);
+}
 
+[[nodiscard]] bool *find_minimum_dominating_set(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   bool *best = malloc(g->size * sizeof(bool));
   if (!best) return nullptr;
-  bool current[g->size] = {};
+  bool current[g->size];
   unsigned best_count = g->size + 1;
   minimum_dominating_set_search(g, 0, current, 0, best, &best_count);
   if (best_count > g->size) {
@@ -2166,44 +2212,62 @@ static void findFeedbackVertexSetBacktracking(
   return best;
 }
 
-[[nodiscard]] bool *find_total_dominating_set(const Graph *g) {
-
-  bool is_total_dominating_member_covered(const Graph *g, unsigned u, const bool subset[]) {
-    for (const Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size && subset[e->destination])
-        return true;
-    return false;
-  }
-
-  bool is_total_dominating_set(const Graph *g, const bool subset[]) {
-    for (unsigned u = 0; u < g->size; u++)
-      if (!is_total_dominating_member_covered(g, u, subset))
-        return false;
-    return true;
-  }
-
-  void total_dominating_set_search(const Graph *g, unsigned v, bool current[], unsigned current_count, bool best[], unsigned *best_count) {
-    if (current_count >= *best_count) return;
-    if (v == g->size) {
-      if (is_total_dominating_set(g, current)) {
-        *best_count = current_count;
-        for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
-      }
-      return;
+static void find_total_dominating_set_search(
+  const Graph *g, unsigned v, bool current[], unsigned current_count, bool best[], unsigned *best_count)
+{
+  if (current_count >= *best_count) return;
+  if (v == g->size) {
+    if (is_total_dominating_set(g, current)) {
+      *best_count = current_count;
+      for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
     }
-    current[v] = true;
-    total_dominating_set_search(g, v + 1, current, current_count + 1, best, best_count);
-    current[v] = false;
-    total_dominating_set_search(g, v + 1, current, current_count, best, best_count);
+    return;
   }
+  current[v] = true;
+  find_total_dominating_set_search(g, v + 1, current, current_count + 1, best, best_count);
+  current[v] = false;
+  find_total_dominating_set_search(g, v + 1, current, current_count, best, best_count);
+}
 
+[[nodiscard]] bool *find_total_dominating_set(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   bool *best = malloc(g->size * sizeof(bool));
   if (!best) return nullptr;
-  bool current[g->size] = {};
+  bool current[g->size];
   unsigned best_count = g->size + 1;
-  total_dominating_set_search(g, 0, current, 0, best, &best_count);
+  find_total_dominating_set_search(g, 0, current, 0, best, &best_count);
   if (best_count > g->size) {
+    free(best);
+    return nullptr;
+  }
+  return best;
+}
+
+static void find_connected_dominating_set_search(
+  const Graph *g, unsigned v, bool current[g->size], unsigned current_size, bool *best, unsigned *best_size)
+{
+  if (current_size >= *best_size) return;
+  if (v == g->size) {
+    if (is_dominating_set(g, current) && is_connected_subset(g, current)) {
+      *best_size = current_size;
+      for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+    }
+    return;
+  }
+  current[v] = true;
+  find_connected_dominating_set_search(g, v + 1, current, current_size + 1, best, best_size);
+  current[v] = false;
+  find_connected_dominating_set_search(g, v + 1, current, current_size, best, best_size);
+}
+
+[[nodiscard]] bool *find_connected_dominating_set(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  bool *best = malloc(g->size * sizeof(bool));
+  if (!best) return nullptr;
+  bool current[g->size];
+  unsigned best_size = g->size + 1;
+  find_connected_dominating_set_search(g, 0, current, 0, best, &best_size);
+  if (best_size > g->size) {
     free(best);
     return nullptr;
   }
@@ -4559,6 +4623,23 @@ unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, doub
     if (e->destination == v && e->weight == weight)
       n++;
   return n;
+}
+
+unsigned get_subset_size(const Graph *g, const bool *set) {
+  if (!g || g->size == 0 || !g->edges || !set) return UINT_MAX;
+  unsigned size = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (set[v])
+      size++;
+  return size;
+}
+
+unsigned get_first_vertex_in_subset(const Graph *g, const bool *set) {
+  if (!g || g->size == 0 || !g->edges || !set) return UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (set[v])
+      return v;
+  return UINT_MAX;
 }
 
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
