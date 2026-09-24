@@ -19,6 +19,7 @@ void freeBooleanMatrix(bool **matrix, unsigned m);
 
 void freeMatrix(double **matrix, unsigned m);
 double calculateEuclideanNorm(double *a, unsigned n);
+double **allocate_zero_matrix(unsigned m, unsigned n);
 
 typedef struct Edge {
   unsigned destination;
@@ -84,7 +85,7 @@ bool canReachAll(const Graph *g, unsigned v);
 bool isArticulationVertex(const Graph *g, unsigned v);
 bool isSimplicial(const Graph *g, unsigned v);
 bool isCactus(const Graph *g);
-bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v);
+bool has_directed_edge(const Graph *g, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
 bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v);
@@ -257,7 +258,7 @@ unsigned calculateVertexCoverNumber(const Graph *g);
 unsigned calculatePathwidth(const Graph *g);
 unsigned calculateCliqueWidth(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
-unsigned getOutDegree(const Graph *g, unsigned v);
+unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
 unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v);
@@ -371,7 +372,7 @@ double **calculateAdamicAdarIndex(const Graph *g);
 double **calculatePreferentialAttachment(const Graph *g);
 double **calculateOllivierRicciCurvature(const Graph *g);
 double **calculateFormanRicciCurvature(const Graph *g);
-double **calculateResourceAllocationIndex(const Graph *g);
+double **calculate_resource_allocation_index(const Graph *g);
 
 int main();
 
@@ -422,13 +423,25 @@ void freeMatrix(double **matrix, unsigned m) {
   free(matrix);
 }
 
-
-
 double calculateEuclideanNorm(double *a, unsigned n) {
   if (!a) return 0;
   double norm = 0;
   for (unsigned i = 0; i < n; i++) norm += a[i] * a[i];
   return sqrt(norm);
+}
+
+[[nodiscard]] double **allocate_zero_matrix(unsigned m, unsigned n) {
+  double **matrix = malloc(m * sizeof(double *));
+  if (!matrix) return nullptr;
+  for (unsigned u = 0; u < m; u++) {
+    matrix[u] = calloc(n, sizeof(double));
+    if (!matrix[u]) {
+      for (unsigned v = 0; v < u; v++) free(matrix[v]);
+      free(matrix);
+      return nullptr;
+    }
+  }
+  return matrix;
 }
 
 
@@ -751,9 +764,9 @@ bool isPathGraph(const Graph *g) {
   unsigned endpoints = 0;
   unsigned internal = 0;
   for (unsigned v = 0; v < getSize(g); v++)
-    if (getInDegree(g, v) == 1 && getOutDegree(g, v) == 1)
+    if (getInDegree(g, v) == 1 && get_out_degree(g, v) == 1)
       endpoints++;
-    else if (getInDegree(g, v) == 2 && getOutDegree(g, v) == 2)
+    else if (getInDegree(g, v) == 2 && get_out_degree(g, v) == 2)
       internal++;
     else
       return false;
@@ -768,9 +781,9 @@ bool isStarGraph(const Graph *g) {
   if (!g || g->size < 2 || !isUndirected(g)) return false;
   unsigned count = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (getOutDegree(g, v) == g->size - 1)
+    if (get_out_degree(g, v) == g->size - 1)
       count++;
-    else if (getOutDegree(g, v) != 1)
+    else if (get_out_degree(g, v) != 1)
       return false;
   return (g->size == 2 && count == 2) || (g->size > 2 && count == 1);
 }
@@ -780,10 +793,10 @@ bool isWheelGraph(const Graph *g) {
   unsigned hub;
   unsigned hubCount = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (getOutDegree(g, v) == g->size - 1) {
+    if (get_out_degree(g, v) == g->size - 1) {
       hub = v;
       hubCount++;
-    } else if (getOutDegree(g, v) != 3) {
+    } else if (get_out_degree(g, v) != 3) {
       return false;
     }
   if ((g->size == 4 && hubCount != 4) || (g->size > 4 && hubCount != 1)) return false;
@@ -908,7 +921,7 @@ static bool isSelfComplementaryIsomorphism(const Graph *g, unsigned *p, unsigned
   if (i == g->size) {
     for (unsigned u = 0; u < g->size; u++)
       for (unsigned v = 0; v < g->size; v++)
-        if (u != v && hasDirectedEdge(g, u, v) == hasDirectedEdge(g, p[u], p[v]))
+        if (u != v && has_directed_edge(g, u, v) == has_directed_edge(g, p[u], p[v]))
           return false;
     return true;
   }
@@ -941,7 +954,7 @@ bool isChordal(const Graph *g) {
         for (Edge *e2 = e1->next; e2 && connected; e2 = e2->next) {
           unsigned w = e2->destination;
           if (u == w || v == w || removed[w]) continue;
-          if (!hasDirectedEdge(g, v, w) && !hasDirectedEdge(g, w, v)) connected = false;
+          if (!has_directed_edge(g, v, w) && !has_directed_edge(g, w, v)) connected = false;
         }
       }
       if (connected) simplicial = u;
@@ -962,7 +975,7 @@ static void computeCliqueNumberRecursive(
   if (active[v]) {
     bool addable = true;
     for (unsigned u = 0; u < v; u++)
-      if (current[u] && (!hasDirectedEdge(g, u, v) || !hasDirectedEdge(g, v, u)))
+      if (current[u] && (!has_directed_edge(g, u, v) || !has_directed_edge(g, v, u)))
         addable = false;
     if (addable) {
       current[v] = true;
@@ -988,7 +1001,7 @@ static bool canColor(const Graph *g, const bool *active, unsigned v, unsigned *c
   for (unsigned c = 0; c < numberColors; c++) {
     bool conflict = false;
     for (unsigned u = 0; u < v; u++)
-      if (active[u] && colors[u] == c && (hasDirectedEdge(g, u, v) || hasDirectedEdge(g, v, u)))
+      if (active[u] && colors[u] == c && (has_directed_edge(g, u, v) || has_directed_edge(g, v, u)))
         conflict = true;
     if (!conflict) {
       colors[v] = c;
@@ -1229,7 +1242,7 @@ bool hasHamiltonianPathSufficientCondition(const Graph *g) {
 bool isKRegular(const Graph *g, unsigned k) {
   if (!g) return true;
   for (unsigned v = 0; v < g->size; v++)
-    if (getInDegree(g, v) != k || getOutDegree(g, v) != k)
+    if (getInDegree(g, v) != k || get_out_degree(g, v) != k)
       return false;
   return true;
 }
@@ -1263,31 +1276,31 @@ bool isDense(const Graph *g, double threshold) {
 }
 
 bool isIsolated(const Graph *g, unsigned v) {
-  return getOutDegree(g, v) == 0 && getInDegree(g, v) == 0;
+  return get_out_degree(g, v) == 0 && getInDegree(g, v) == 0;
 }
 
 bool isSource(const Graph *g, unsigned v) {
-  return getInDegree(g, v) == 0 && getOutDegree(g, v) > 0;
+  return getInDegree(g, v) == 0 && get_out_degree(g, v) > 0;
 }
 
 bool isSink(const Graph *g, unsigned v) {
-  return getOutDegree(g, v) == 0 && getInDegree(g, v) > 0;
+  return get_out_degree(g, v) == 0 && getInDegree(g, v) > 0;
 }
 
 bool isUniversalSource(const Graph *g, unsigned v) {
-  return g && getInDegree(g, v) == 0 && getOutDegree(g, v) == g->size - 1;
+  return g && getInDegree(g, v) == 0 && get_out_degree(g, v) == g->size - 1;
 }
 
 bool isUniversalSink(const Graph *g, unsigned v) {
-  return g && getOutDegree(g, v) == 0 && getInDegree(g, v) == g->size - 1;
+  return g && get_out_degree(g, v) == 0 && getInDegree(g, v) == g->size - 1;
 }
 
 bool isDirectedLeaf(const Graph *g, unsigned v) {
-  return getOutDegree(g, v) + getInDegree(g, v) == 1;
+  return get_out_degree(g, v) + getInDegree(g, v) == 1;
 }
 
 bool isUndirectedLeaf(const Graph *g, unsigned v) {
-  return getOutDegree(g, v) == 1;
+  return get_out_degree(g, v) == 1;
 }
 
 bool canReachAll(const Graph *g, unsigned v) {
@@ -1312,7 +1325,7 @@ bool isSimplicial(const Graph *g, unsigned v) {
   for (const Edge *e1 = g->edges[v]; e1; e1 = e1->next)
     for (const Edge *e2 = e1->next; e2; e2 = e2->next) {
       unsigned v2 = e1->destination, v3 = e2->destination;
-      if (v != v2 && v != v3 && v2 != v3 && !hasDirectedEdge(g, v2, v3) && !hasDirectedEdge(g, v3, v2)) return false;
+      if (v != v2 && v != v3 && v2 != v3 && !has_directed_edge(g, v2, v3) && !has_directed_edge(g, v3, v2)) return false;
     }
   return true;
 }
@@ -1364,16 +1377,16 @@ bool isCactus(const Graph *g) {
   return true;
 }
 
-bool hasDirectedEdge(const Graph *g, unsigned u, unsigned v) {
+bool has_directed_edge(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size) return false;
-  for (const Edge *e = g->edges[u]; e; e = e->next)
+  for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v)
       return true;
   return false;
 }
 
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v) {
-  return hasDirectedEdge(g, u, v) && hasDirectedEdge(g, v, u);
+  return has_directed_edge(g, u, v) && has_directed_edge(g, v, u);
 }
 
 bool hasPath(const Graph *g, unsigned u, unsigned v) {
@@ -1450,7 +1463,7 @@ bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double we
 }
 
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w) {
-  return u != v && v != w && w != u && hasDirectedEdge(g, u, v) && hasDirectedEdge(g, v, w) && hasDirectedEdge(g, w, u);
+  return u != v && v != w && w != u && has_directed_edge(g, u, v) && has_directed_edge(g, v, w) && has_directed_edge(g, w, u);
 }
 
 bool isClique(const Graph *g, const bool *set) {
@@ -1460,7 +1473,7 @@ bool isClique(const Graph *g, const bool *set) {
     if (set[u])
       for (unsigned v = u + 1; v < g->size; v++)
         if (set[v])
-          if (!hasDirectedEdge(g, u, v) || !hasDirectedEdge(g, v, u))
+          if (!has_directed_edge(g, u, v) || !has_directed_edge(g, v, u))
             return false;
   return true;
 }
@@ -1541,7 +1554,7 @@ bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set) {
 bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set) {
   if (!g || !set || !hasDirectedEdges(g, v, set)) return false;
   for (unsigned u = 0; u < g->size; u++)
-    if (set[u] && !hasDirectedEdge(g, u, v))
+    if (set[u] && !has_directed_edge(g, u, v))
       return false;
   return true;
 }
@@ -1578,7 +1591,7 @@ bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
 bool isPerfectMatching(const Graph *g, const unsigned *matching) {
   if (!g || g->size % 2 != 0 || (g->size > 0 && (!g->edges || !matching))) return false;
   for (unsigned v = 0; v < g->size; v++)
-    if (matching[v] >= g->size || matching[v] == v || matching[matching[v]] != v || !hasDirectedEdge(g, v, matching[v]))
+    if (matching[v] >= g->size || matching[v] == v || matching[matching[v]] != v || !has_directed_edge(g, v, matching[v]))
       return false;
   return true;
 }
@@ -1586,7 +1599,7 @@ bool isPerfectMatching(const Graph *g, const unsigned *matching) {
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length) {
   bool b = sequence || length < 2;
   for (unsigned i = 1; i < length && b; i++)
-    b = b && hasDirectedEdge(g, sequence[i - 1], sequence[i]);
+    b = b && has_directed_edge(g, sequence[i - 1], sequence[i]);
   return b;
 }
 
@@ -1609,7 +1622,7 @@ bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) 
   Graph *g2 = copyGraph(g);
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
-    if (hasDirectedEdge(g2, sequence[i - 1], sequence[i]))
+    if (has_directed_edge(g2, sequence[i - 1], sequence[i]))
       deleteFirstDirectedEdge(g2, sequence[i - 1], sequence[i]);
     else
       valid = false;
@@ -1674,7 +1687,7 @@ bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) 
   if (!g || g->size == 0 || !sequence || length == 0) return false;
   bool valid = true;
   for (unsigned i = 0; i < length && valid; i++)
-    valid = valid && hasDirectedEdge(g, sequence[i], sequence[(i + 1) % length]);
+    valid = valid && has_directed_edge(g, sequence[i], sequence[(i + 1) % length]);
   return valid;
 }
 
@@ -1700,7 +1713,7 @@ bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length
   bool valid = true;
   Graph *copy = copyGraph(g);
   for (unsigned i = 0; i < length && valid; i++)
-    if (hasDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
+    if (has_directed_edge(copy, sequence[i], sequence[(i + 1) % length]))
       deleteFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
@@ -1868,7 +1881,7 @@ static void findMaximumCliqueRecursive(
   bool addable = true;
   for (unsigned u = 0; u < v; u++)
     if (current[u])
-      if (!hasDirectedEdge(g, v, u) || !hasDirectedEdge(g, u, v))
+      if (!has_directed_edge(g, v, u) || !has_directed_edge(g, u, v))
         addable = false;
   if (addable) {
     current[v] = true;
@@ -1936,7 +1949,7 @@ static void findMaximumCliqueRecursive(
     free(isolated);
     return nullptr;
   }
-  for (unsigned v = 0; v < g->size; v++) isolated[v] = in[v] == 0 && getOutDegree(g, v) == 0;
+  for (unsigned v = 0; v < g->size; v++) isolated[v] = in[v] == 0 && get_out_degree(g, v) == 0;
   free(in);
   return isolated;
 }
@@ -1950,7 +1963,7 @@ static void findMaximumCliqueRecursive(
     free(sources);
     return nullptr;
   }
-  for (unsigned v = 0; v < g->size; v++) sources[v] = in[v] == 0 && getOutDegree(g, v) > 0;
+  for (unsigned v = 0; v < g->size; v++) sources[v] = in[v] == 0 && get_out_degree(g, v) > 0;
   free(in);
   return sources;
 }
@@ -1964,7 +1977,7 @@ static void findMaximumCliqueRecursive(
     free(sinks);
     return nullptr;
   }
-  for (unsigned v = 0; v < g->size; v++) sinks[v] = in[v] > 0 && getOutDegree(g, v) == 0;
+  for (unsigned v = 0; v < g->size; v++) sinks[v] = in[v] > 0 && get_out_degree(g, v) == 0;
   free(in);
   return sinks;
 }
@@ -2174,7 +2187,7 @@ static void findFeedbackVertexSetBacktracking(
   if (global >= g->size - 1) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
-      if (u == v || hasDirectedEdge(g, u, v)) continue;
+      if (u == v || has_directed_edge(g, u, v)) continue;
       unsigned local = calculateLocalVertexConnectivity(g, u, v);
       if (local == global) return getLocalVertexCut(g, u, v);
     }
@@ -2416,7 +2429,7 @@ static void findReachableVertices(unsigned u, unsigned n, unsigned capacity[n][n
 }
 
 [[nodiscard]] bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size || u == v || hasDirectedEdge(g, u, v)) return nullptr;
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v || has_directed_edge(g, u, v)) return nullptr;
   unsigned capacity[2 * g->size][2 * g->size] = {};
   bool visited[2 * g->size] = {};
   for (unsigned w = 0; w < g->size; w++) capacity[2 * w][2 * w + 1] = 1;
@@ -2600,7 +2613,7 @@ static void findReachableVertices(unsigned u, unsigned n, unsigned capacity[n][n
   Graph *g2 = createGraph(g->size);
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
-      if (u != v && !hasDirectedEdge(g, u, v))
+      if (u != v && !has_directed_edge(g, u, v))
         addDirectedEdge(g2, u, v);
   return g2;
 }
@@ -2982,7 +2995,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       for (unsigned w = 0; w < g->size; w++)
-        if (u != v && hasDirectedEdge(g, u, w) && hasDirectedEdge(g, w, v) && !hasDirectedEdge(projection, u, v))
+        if (u != v && has_directed_edge(g, u, w) && has_directed_edge(g, w, v) && !has_directed_edge(projection, u, v))
           addDirectedEdge(projection, u, v);
   return projection;
 }
@@ -3026,11 +3039,11 @@ static void createStronglyConnectedComponentsQuotientBackward(
   Graph *g3 = createGraph(unsignedMaximum(g1->size, g2->size));
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
-      if (!hasDirectedEdge(g3, v, e->destination))
+      if (!has_directed_edge(g3, v, e->destination))
         addWeightedDirectedEdge(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
-      if (!hasDirectedEdge(g3, v, e->destination))
+      if (!has_directed_edge(g3, v, e->destination))
         addWeightedDirectedEdge(g3, v, e->destination, e->weight);
   return g3;
 }
@@ -3413,8 +3426,8 @@ unsigned getMinimumOutDegree(const Graph *g) {
   if (!g) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   for (unsigned v = 0; v < g->size; v++)
-    if (getOutDegree(g, v) < minimum)
-      minimum = getOutDegree(g, v);
+    if (get_out_degree(g, v) < minimum)
+      minimum = get_out_degree(g, v);
   return minimum;
 }
 
@@ -3422,8 +3435,8 @@ unsigned getMaximumOutDegree(const Graph *g) {
   if (!g) return 0;
   unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (getOutDegree(g, v) > maximum)
-      maximum = getOutDegree(g, v);
+    if (get_out_degree(g, v) > maximum)
+      maximum = get_out_degree(g, v);
   return maximum;
 }
 
@@ -3457,7 +3470,7 @@ unsigned countSourceLeaves(const Graph *g) {
   if (!in) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (in[v] == 0 && getOutDegree(g, v) == 1)
+    if (in[v] == 0 && get_out_degree(g, v) == 1)
       n++;
   free(in);
   return n;
@@ -3469,7 +3482,7 @@ unsigned countSinkLeaves(const Graph *g) {
   if (!in) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (in[v] == 1 && getOutDegree(g, v) == 0)
+    if (in[v] == 1 && get_out_degree(g, v) == 0)
       n++;
   free(in);
   return n;
@@ -3479,7 +3492,7 @@ unsigned countUndirectedLeaves(const Graph *g) {
   if (!g) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (getOutDegree(g, v) == 1)
+    if (get_out_degree(g, v) == 1)
       n++;
   return n;
 }
@@ -4283,10 +4296,10 @@ unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
   return countMatchingEdges(g, v, v);
 }
 
-unsigned getOutDegree(const Graph *g, unsigned v) {
+unsigned get_out_degree(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned n = 0;
-  for (const Edge *e = g->edges[v]; e; e = e->next) n++;
+  for (Edge *e = g->edges[v]; e; e = e->next) n++;
   return n;
 }
 
@@ -4298,7 +4311,7 @@ unsigned getInDegree(const Graph *g, unsigned v) {
 }
 
 unsigned getDegree(const Graph *g, unsigned v) {
-  return getInDegree(g, v) + getOutDegree(g, v) - countSelfLoopsAtVertex(g, v);
+  return getInDegree(g, v) + get_out_degree(g, v) - countSelfLoopsAtVertex(g, v);
 }
 
 unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v) {
@@ -4451,7 +4464,7 @@ unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
 
 unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v) {
   if (!g || u >= g->size || v >= g->size || u == v) return 0;
-  if (hasDirectedEdge(g, u, v)) return g->size - 1;
+  if (has_directed_edge(g, u, v)) return g->size - 1;
   bool *cut = getLocalVertexCut(g, u, v);
   if (!cut) return 0;
   unsigned connectivity = 0;
@@ -4606,7 +4619,7 @@ static unsigned countSimpleCyclesThroughEdgeDfs(const Graph *g, unsigned u, unsi
 }
 
 unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size || !hasDirectedEdge(g, u, v)) return 0;
+  if (!g || !g->edges || u >= g->size || v >= g->size || !has_directed_edge(g, u, v)) return 0;
   bool visited[g->size] = {};
   visited[v] = true;
   unsigned count = 0;
@@ -4679,7 +4692,7 @@ unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
   if (!g) return nullptr;
   unsigned *degrees = calloc(g->size, sizeof(unsigned));
   if (!degrees) return nullptr;
-  for (unsigned v = 0; v < g->size; v++) degrees[v] = getOutDegree(g, v);
+  for (unsigned v = 0; v < g->size; v++) degrees[v] = get_out_degree(g, v);
   return degrees;
 }
 
@@ -4717,8 +4730,8 @@ unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
   unsigned *distribution = calloc(g->size, sizeof(unsigned));
   if (!distribution) return nullptr;
   for (unsigned v = 0; v < g->size; v++)
-    if (getOutDegree(g, v) < g->size)
-      distribution[getOutDegree(g, v)]++;
+    if (get_out_degree(g, v) < g->size)
+      distribution[get_out_degree(g, v)]++;
   return distribution;
 }
 
@@ -6632,17 +6645,17 @@ double getNormalizedInDegree(const Graph *g, unsigned v) {
 
 double getNormalizedOutDegree(const Graph *g, unsigned v) {
   if (!g || g->size < 2) return 0;
-  return (double)getOutDegree(g, v) / (g->size - 1);
+  return (double)get_out_degree(g, v) / (g->size - 1);
 }
 
 double calculateLocalClusteringCoefficient(const Graph *g, unsigned v) {
-  if (!g || !g->edges || v >= g->size || getOutDegree(g, v) < 2) return 0;
+  if (!g || !g->edges || v >= g->size || get_out_degree(g, v) < 2) return 0;
   unsigned edges = 0;
   for (const Edge *e1 = g->edges[v]; e1; e1 = e1->next)
     for (const Edge *e2 = g->edges[v]; e2; e2 = e2->next)
-      if (hasDirectedEdge(g, e1->destination, e2->destination))
+      if (has_directed_edge(g, e1->destination, e2->destination))
         edges++;
-  return (double)edges / getOutDegree(g, v) / (getOutDegree(g, v) - 1);
+  return (double)edges / get_out_degree(g, v) / (get_out_degree(g, v) - 1);
 }
 
 double getOutWeight(const Graph *g, unsigned v) {
@@ -7367,7 +7380,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   for (unsigned i = 0; i < iterations; i++) {
     double sinkMass = 0;
     for (unsigned v = 0; v < g->size; v++)
-      if (getOutDegree(g, v) == 0)
+      if (get_out_degree(g, v) == 0)
         sinkMass += ranks[v];
     for (unsigned v = 0; v < g->size; v++)
       nextRanks[v] = (1 - damping) / g->size;
@@ -7375,10 +7388,10 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
       for (unsigned v = 0; v < g->size; v++)
         nextRanks[v] += damping * sinkMass / g->size;
     for (unsigned v = 0; v < g->size; v++)
-      if (getOutDegree(g, v) > 0)
+      if (get_out_degree(g, v) > 0)
         for (Edge *e = g->edges[v]; e; e = e->next)
           if (e->destination < g->size)
-            nextRanks[e->destination] += damping * ranks[v] / getOutDegree(g, v);
+            nextRanks[e->destination] += damping * ranks[v] / get_out_degree(g, v);
     double maxDelta = 0;
     for (unsigned v = 0; v < g->size; v++) {
       double delta = fabs(nextRanks[v] - ranks[v]);
@@ -7849,32 +7862,15 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return curvature;
 }
 
-[[nodiscard]] double **calculateResourceAllocationIndex(const Graph *g) {
+[[nodiscard]] double **calculate_resource_allocation_index(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  double **matrix = malloc(g->size * sizeof(double *));
-  if (!matrix) return nullptr;
-  for (unsigned u = 0; u < g->size; u++) {
-    matrix[u] = calloc(g->size, sizeof(double));
-    if (!matrix[u]) {
-      for (unsigned v = 0; v < u; v++) free(matrix[v]);
-      free(matrix);
-      return nullptr;
-    }
-  }
-  bool adjacent[g->size][g->size] = {};
-  unsigned degrees[g->size] = {};
-  for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size) {
-        adjacent[v][e->destination] = true;
-        degrees[v]++;
-      }
+  double **matrix = allocate_zero_matrix(g->size, g->size);
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
-      if (u != v && !adjacent[u][v])
+      if (u != v && !has_directed_edge(g, u, v))
         for (unsigned w = 0; w < g->size; w++)
-          if (adjacent[u][w] && adjacent[v][w] && degrees[w] > 0)
-            matrix[u][v] += 1.0 / degrees[w];
+          if (has_directed_edge(g, u, w) && has_directed_edge(g, w, v) && get_out_degree(g, w) > 0)
+            matrix[u][v] += 1.0 / get_out_degree(g, w);
   return matrix;
 }
 
