@@ -100,10 +100,10 @@ bool isVertexCover(const Graph *g, const bool *set);
 bool is_dominating_set(const Graph *g, const bool *set);
 bool is_total_dominating_set(const Graph *g, const bool *set);
 bool is_connected_subset(const Graph *g, const bool *set);
-bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set);
-bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set);
-bool is_dominated(const Graph *g, unsigned v, const bool *set);
-bool is_totally_dominated(const Graph *g, unsigned v, const bool *set);
+bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v);
+bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v);
+bool is_roman_dominating_set(const Graph *g, const char *set);
+bool is_roman_dominated_vertex(const Graph *g, const char *set, unsigned v);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
 bool isPerfectMatching(const Graph *g, const unsigned *matching);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
@@ -152,6 +152,8 @@ bool *getLocalVertexCut(const Graph *g, unsigned u, unsigned v);
 bool **createAdjacencyMatrix(const Graph *g);
 bool **findEdgeCut(const Graph *g);
 bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v);
+
+char *find_roman_dominating_set(const Graph *g);
 
 Graph *createGraph(unsigned n);
 Graph *createPath(unsigned n);
@@ -371,7 +373,7 @@ double **calculateJaccardCoefficientMatrix(const Graph *g);
 double **calculateAdamicAdarIndex(const Graph *g);
 double **calculatePreferentialAttachment(const Graph *g);
 double **calculateOllivierRicciCurvature(const Graph *g);
-double **calculateFormanRicciCurvature(const Graph *g);
+double **calculate_forman_ricci_curvature(const Graph *g);
 double **calculate_resource_allocation_index(const Graph *g);
 
 int main();
@@ -1501,7 +1503,7 @@ bool isVertexCover(const Graph *g, const bool *set) {
 bool is_dominating_set(const Graph *g, const bool *set) {
   if (!g || (g->size > 0 && (!g->edges || !set))) return false;
   for (unsigned v = 0; v < g->size; v++)
-    if (!is_dominated(g, v, set))
+    if (!is_dominated_vertex(g, set, v))
       return false;
   return true;
 }
@@ -1509,7 +1511,7 @@ bool is_dominating_set(const Graph *g, const bool *set) {
 bool is_total_dominating_set(const Graph *g, const bool *set) {
   if (!g || (g->size > 0 && (!g->edges || !set))) return false;
   for (unsigned v = 0; v < g->size; v++)
-    if (!is_totally_dominated(g, v, set))
+    if (!is_totally_dominated_vertex(g, set, v))
       return false;
   return true;
 }
@@ -1533,33 +1535,7 @@ bool is_connected_subset(const Graph *g, const bool *set) {
   return count == subset_size;
 }
 
-bool hasDirectedEdges(const Graph *g, unsigned v, const bool *set) {
-  if (!g || !g->edges || v >= g->size || !set) return false;
-  unsigned total = 0;
-  for (unsigned u = 0; u < g->size; u++)
-    if (set[u])
-      total++;
-  bool *visited = calloc(g->size, sizeof(bool));
-  if (!visited) return false;
-  unsigned found = 0;
-  for (Edge *e = g->edges[v]; e && found < total; e = e->next)
-    if (e->destination < g->size && set[e->destination] && !visited[e->destination]) {
-      visited[e->destination] = true;
-      found++;
-    }
-  free(visited);
-  return found == total;
-}
-
-bool hasUndirectedEdges(const Graph *g, unsigned v, const bool *set) {
-  if (!g || !set || !hasDirectedEdges(g, v, set)) return false;
-  for (unsigned u = 0; u < g->size; u++)
-    if (set[u] && !has_directed_edge(g, u, v))
-      return false;
-  return true;
-}
-
-bool is_dominated(const Graph *g, unsigned v, const bool *set) {
+bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v) {
   if (!g || !g->edges || v >= g->size || !set) return false;
   if (set[v]) return true;
   for (Edge *e = g->edges[v]; e; e = e->next)
@@ -1568,10 +1544,27 @@ bool is_dominated(const Graph *g, unsigned v, const bool *set) {
   return false;
 }
 
-bool is_totally_dominated(const Graph *g, unsigned v, const bool *set) {
+bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v) {
   if (!g || !g->edges || v >= g->size || !set) return false;
   for (const Edge *e = g->edges[v]; e; e = e->next)
     if (e->destination < g->size && set[e->destination])
+      return true;
+  return false;
+}
+
+bool is_roman_dominating_set(const Graph *g, const char *set) {
+  if (!g || (g->size > 0 && !set)) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (set[v] < 0 || set[v] > 2 || !is_roman_dominated_vertex(g, set, v))
+      return false;
+  return true;
+}
+
+bool is_roman_dominated_vertex(const Graph *g, const char *set, unsigned v) {
+  if (!g || !g->edges || !set || v >= g->size) return false;
+  if (set[v] == 1 || set[v] == 2) return true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size && set[e->destination] == 2)
       return true;
   return false;
 }
@@ -2507,6 +2500,37 @@ static void findReachableVertices(unsigned u, unsigned n, unsigned capacity[n][n
         if (e->destination < g->size && !reachable[e->destination])
           cut[w][e->destination] = true;
   return cut;
+}
+
+
+
+static void find_roman_dominating_set_search(
+  const Graph *g, unsigned v, char current[g->size], unsigned current_cost, char *best, unsigned *best_cost)
+{
+  if (current_cost >= *best_cost) return;
+  if (v == g->size) {
+    if (is_roman_dominating_set(g, current)) {
+      *best_cost = current_cost;
+      for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
+    }
+    return;
+  }
+  current[v] = 0;
+  find_roman_dominating_set_search(g, v + 1, current, current_cost, best, best_cost);
+  current[v] = 1;
+  find_roman_dominating_set_search(g, v + 1, current, current_cost + 1, best, best_cost);
+  current[v] = 2;
+  find_roman_dominating_set_search(g, v + 1, current, current_cost + 2, best, best_cost);
+}
+
+[[nodiscard]] char *find_roman_dominating_set(const Graph *g) {
+  if (!g) return nullptr;
+  char *best = calloc(g->size, sizeof(char));
+  if (!best) return nullptr;
+  char current[g->size] = {};
+  unsigned best_cost = 2 * g->size + 1;
+  find_roman_dominating_set_search(g, 0, current, 0, best, &best_cost);
+  return best;
 }
 
 
@@ -7816,61 +7840,34 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return curvature;
 }
 
-/*
- * The function calculateFormanRicciCurvature computes the Forman-Ricci curvature for every valid edge in a weighted
- * graph, mapping the results onto a dynamically allocated two-dimensional array. In complex network analysis, this
- * discrete geometric metric is used to evaluate the structural properties, local connectivity, and information routing
- * efficiency of a network. Engineers and data scientists calculate this curvature because it acts as a powerful
- * diagnostic tool for identifying network vulnerabilities and organizational topology; edges with highly negative
- * curvature typically indicate critical bottlenecks or bridging pathways between distinct communities, whereas
- * positive values signify highly redundant, robust clusters.
- *
- * The function achieves this by first performing safety checks on the graph structure and allocating a square matrix
- * using memory allocation routines, incorporating an automatic rollback loop to free memory if a sub-allocation fails.
- * It then executes a nested loop structure to process every vertex and its associated adjacency list of edges. For
- * each active edge stretching from a source vertex to a valid destination vertex, the function establishes a baseline
- * curvature value of two. It then adjusts this value by analyzing the local neighborhood: first, it loops through all
- * other concurrent edges originating from the source vertex, and second, it loops through all edges originating from
- * the destination vertex. For every neighboring edge found, it subtracts the square root of the ratio between the
- * primary edge's weight and the neighbor's weight, ultimately returning the populated matrix of localized edge
- * curvatures.
- */
-
-[[nodiscard]] double **calculateFormanRicciCurvature(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return nullptr;
-  double **curvature = malloc(g->size * sizeof(double *));
+[[nodiscard]] double **calculate_forman_ricci_curvature(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  double **curvature = allocate_zero_matrix(g->size, g->size);
   if (!curvature) return nullptr;
-  for (unsigned u = 0; u < g->size; u++) {
-    curvature[u] = calloc(g->size, sizeof(double));
-    if (!curvature[u]) {
-      for (unsigned v = 0; v < u; v++) free(curvature[v]);
-      free(curvature);
-      return nullptr;
-    }
-  }
-  for (unsigned u = 0; u < g->size; u++)
-    for (Edge *e1 = g->edges[u]; e1; e1 = e1->next)
-      if (e1->destination < g->size) {
-        curvature[u][e1->destination] = 2;
-        for (Edge *e2 = g->edges[u]; e2; e2 = e2->next)
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e1 = g->edges[v]; e1; e1 = e1->next)
+      if (e1->destination < g->size && e1->weight > 0) {
+        curvature[v][e1->destination] = 2;
+        for (Edge *e2 = g->edges[v]; e2; e2 = e2->next)
           if (e2->destination < g->size && e2->destination != e1->destination)
-            curvature[u][e1->destination] -= sqrt(e1->weight / e2->weight);
+            curvature[v][e1->destination] -= sqrt(e2->weight / e1->weight);
         for (Edge *e2 = g->edges[e1->destination]; e2; e2 = e2->next)
-          if (e2->destination < g->size && e2->destination != u)
-            curvature[u][e1->destination] -= sqrt(e1->weight / e2->weight);
+          if (e2->destination < g->size && e2->destination != v)
+            curvature[v][e1->destination] -= sqrt(e2->weight / e1->weight);
       }
   return curvature;
 }
 
 [[nodiscard]] double **calculate_resource_allocation_index(const Graph *g) {
-  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  if (!g) return nullptr;
   double **matrix = allocate_zero_matrix(g->size, g->size);
+  if (!matrix) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v && !has_directed_edge(g, u, v))
         for (unsigned w = 0; w < g->size; w++)
           if (has_directed_edge(g, u, w) && has_directed_edge(g, w, v) && get_out_degree(g, w) > 0)
-            matrix[u][v] += 1.0 / get_out_degree(g, w);
+            matrix[u][v] += 1 / (double)get_out_degree(g, w);
   return matrix;
 }
 
