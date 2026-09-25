@@ -349,7 +349,7 @@ double getNormalizedOutDegree(const Graph *g, unsigned v);
 double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
 double getOutWeight(const Graph *g, unsigned v);
 double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
-double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v);
+double calculate_weighted_distance(const Graph *g, unsigned u, unsigned v);
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculateConductance(const Graph *g, const bool *set);
@@ -6737,13 +6737,24 @@ double getEdgeWeight(const Graph *g, unsigned u, unsigned v) {
   return INFINITY;
 }
 
-double calculateWeightedDistance(const Graph *g, unsigned u, unsigned v) {
-  if (!g || v >= g->size) return INFINITY;
-  double *distances = calculateWeightedDistances(g, u);
-  if (!distances) return INFINITY;
-  double distance = distances[v];
-  free(distances);
-  return distance;
+double calculate_weighted_distance(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return INFINITY;
+  double distance[g->size];
+  for (unsigned w = 0; w < g->size; w++) distance[w] = INFINITY;
+  distance[u] = 0;
+  for (unsigned i = 0; i < g->size; i++)
+    for (unsigned w = 0; w < g->size; w++)
+      if (distance[w] < INFINITY)
+        for (Edge *e = g->edges[w]; e; e = e->next)
+          if (e->destination < g->size && distance[w] + e->weight < distance[e->destination])
+            distance[e->destination] = distance[w] + e->weight;
+  for (unsigned i = 0; i < g->size; i++)
+    for (unsigned w = 0; w < g->size; w++)
+      if (distance[w] < INFINITY)
+        for (Edge *e = g->edges[w]; e; e = e->next)
+          if (e->destination < g->size && distance[w] + e->weight < distance[e->destination])
+            distance[e->destination] = -INFINITY;
+  return distance[v];
 }
 
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v) {
@@ -7749,25 +7760,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
             scores[u][v] += 1 / log(degrees[w]);
   return scores;
 }
-
-/*
- * This function calculates the Preferential Attachment score for all pairs of nodes in a given network graph and
- * returns these scores as a dynamically allocated 2D matrix. In network science, the preferential attachment mechanism
- * asserts that the probability of a new connection forming between two nodes is proportional to the product of their
- * current degrees (i.e., "the rich get richer" phenomenon). By generating this matrix, the function provides a
- * predictive layout used in link prediction tasks, allowing algorithms to identify which nodes are most likely to form
- * new edges or collaborate in the future based entirely on their existing connectedness. Additionally, the function is
- * marked with the [[nodiscard]] attribute, which explicitly warns developers not to ignore the return value, thereby
- * preventing severe memory leaks since the caller is strictly responsible for freeing the allocated matrix.
- *
- * The function achieves this by first validating the input graph pointer, ensuring it is not null, has a size greater
- * than zero, and contains a valid edges array. It then dynamically allocates an adjacency-like N × N matrix of doubles
- * using malloc, incorporating careful error handling to free previously allocated rows and prevent memory leaks if any
- * allocation fails. Once the memory is secured, it initializes an array to track node degrees and populates it by
- * iterating through each node's linked list of edges. Finally, it uses a nested loop to compute the cross-product of
- * the degrees of every node pair u and v, stores the result into matrix[u][v], and returns the fully populated
- * pointer-to-pointer array to the caller.
- */
 
 [[nodiscard]] double **calculatePreferentialAttachment(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
