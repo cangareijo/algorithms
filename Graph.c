@@ -32,7 +32,7 @@ typedef struct {
   Edge **edges;
 } Graph;
 
-bool isValid(const Graph *g);
+bool is_valid(const Graph *g);
 bool isEmpty(const Graph *g);
 bool isTrivial(const Graph *g);
 bool isEdgeless(const Graph *g);
@@ -122,6 +122,7 @@ bool isSubGraph(const Graph *g1, const Graph *g2);
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
 bool isIsomorphic(const Graph *g1, const Graph *g2);
+bool is_isomorphic_mapping(const Graph *g1, const Graph *g2, const unsigned *mapping);
 
 bool *graphCenter(const Graph *g);
 bool *graphPeriphery(const Graph *g);
@@ -216,7 +217,7 @@ void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double we
 void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 
 unsigned getSize(const Graph *g);
-unsigned countDirectedEdges(const Graph *g);
+unsigned count_directed_edges(const Graph *g);
 unsigned countUndirectedEdges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *g);
@@ -278,7 +279,7 @@ unsigned countPaths(const Graph *g, unsigned u, unsigned v);
 unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v);
-unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight);
+unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned get_subset_size(const Graph *g, const bool *set);
 unsigned get_first_vertex_in_subset(const Graph *g, const bool *set);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
@@ -311,6 +312,7 @@ unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
 unsigned *findChinesePostmanTour(const Graph *g, unsigned *length);
 unsigned *findEulerianPathOrCircuit(const Graph *g, unsigned *length);
 unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length);
+unsigned *find_isomorphic_mapping(const Graph *g1, const Graph *g2);
 
 unsigned **getAllPairsUnweightedDistances(const Graph *g);
 unsigned **getBridges(const Graph *g);
@@ -448,7 +450,7 @@ double calculateEuclideanNorm(double *a, unsigned n) {
 
 
 
-bool isValid(const Graph *g) {
+bool is_valid(const Graph *g) {
   if (!g) return false;
   if (g->size == 0) return true;
   if (!g->edges) return false;
@@ -694,10 +696,10 @@ bool isUndirected(const Graph *g) {
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
       if (v == e->destination) {
-        if (countMatchingWeightedEdges(g, v, e->destination, e->weight) % 2 != 0)
+        if (count_matching_weighted_edges(g, v, e->destination, e->weight) % 2 != 0)
           return false;
       } else {
-        if (countMatchingWeightedEdges(g, v, e->destination, e->weight) != countMatchingWeightedEdges(g, e->destination, v, e->weight))
+        if (count_matching_weighted_edges(g, v, e->destination, e->weight) != count_matching_weighted_edges(g, e->destination, v, e->weight))
           return false;
       }
     }
@@ -791,7 +793,7 @@ bool isStarGraph(const Graph *g) {
 }
 
 bool isWheelGraph(const Graph *g) {
-  if (!isValid(g) || g->size < 4 || !isUndirected(g)) return false;
+  if (!is_valid(g) || g->size < 4 || !isUndirected(g)) return false;
   unsigned hub;
   unsigned hubCount = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -827,7 +829,7 @@ bool hasIsolatedVertices(const Graph *g) {
 }
 
 bool isTournament(const Graph *g) {
-  if (!isValid(g)) return false;
+  if (!is_valid(g)) return false;
   unsigned *m = malloc(g->size * g->size * sizeof(unsigned *));
   if (!m) return false;
   for (unsigned v = 0; v < g->size; v++)
@@ -875,7 +877,7 @@ static bool hasDirectedCycleDfs(const Graph *g, unsigned v, char visited[g->size
 }
 
 bool hasDirectedCycle(const Graph *g) {
-  if (!isValid(g)) return false;
+  if (!is_valid(g)) return false;
   char visited[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
     if (visited[v] == 0 && hasDirectedCycleDfs(g, v, visited))
@@ -905,7 +907,7 @@ bool hasUndirectedCycle(const Graph *g) {
 }
 
 bool hasNegativeCycle(const Graph *g) {
-  if (!isValid(g)) return false;
+  if (!is_valid(g)) return false;
   double distances[g->size] = {};
   for (unsigned i = 1; i < g->size; i++)
     for (unsigned v = 0; v < g->size; v++)
@@ -1274,7 +1276,7 @@ bool hasConstantWeights(const Graph *g, double weight) {
 }
 
 bool isDense(const Graph *g, double threshold) {
-  return !g || countDirectedEdges(g) >= threshold * g->size * (g->size - 1);
+  return !g || count_directed_edges(g) >= threshold * g->size * (g->size - 1);
 }
 
 bool isIsolated(const Graph *g, unsigned v) {
@@ -1570,7 +1572,7 @@ bool is_roman_dominated_vertex(const Graph *g, const char *set, unsigned v) {
 }
 
 bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
-  if (!isValid(g) || (g->size > 0 && !sequence)) return false;
+  if (!is_valid(g) || (g->size > 0 && !sequence)) return false;
   unsigned position[g->size];
   for (unsigned i = 0; i < g->size; i++)
     position[sequence[i]] = i;
@@ -1728,16 +1730,16 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
 }
 
 bool isSubGraph(const Graph *g1, const Graph *g2) {
-  if (!isValid(g1) || !isValid(g2) || g1->size > g2->size) return false;
+  if (!is_valid(g1) || !is_valid(g2) || g1->size > g2->size) return false;
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
-      if (countMatchingWeightedEdges(g1, v, e->destination, e->weight) > countMatchingWeightedEdges(g2, v, e->destination, e->weight))
+      if (count_matching_weighted_edges(g1, v, e->destination, e->weight) > count_matching_weighted_edges(g2, v, e->destination, e->weight))
         return false;
   return true;
 }
 
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countDirectedEdges(g1) == g1->size - 1 &&
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && count_directed_edges(g1) == g1->size - 1 &&
     isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
@@ -1750,8 +1752,8 @@ static bool isIsomorphicRecursive(const Graph *g1, const Graph *g2, unsigned v1,
   for (unsigned u = 0; u < v1; u++)
     for (const Edge *e = g1->edges[u]; e; e = e->next)
       if (e->destination < v1 && (u == v1 - 1 || e->destination == v1 - 1)) {
-        unsigned count1 = countMatchingWeightedEdges(g1, u, e->destination, e->weight);
-        unsigned count2 = countMatchingWeightedEdges(g2, mapping[u], mapping[e->destination], e->weight);
+        unsigned count1 = count_matching_weighted_edges(g1, u, e->destination, e->weight);
+        unsigned count2 = count_matching_weighted_edges(g2, mapping[u], mapping[e->destination], e->weight);
         if (count1 != count2) return false;
       }
   if (v1 == g1->size) return true;
@@ -1769,10 +1771,29 @@ bool isIsomorphic(const Graph *g1, const Graph *g2) {
   if (!g1 || !g2 || g1->size != g2->size) return false;
   if (g1->size == 0) return true;
   if (!g1->edges || !g2->edges) return false;
-  if (countDirectedEdges(g1) != countDirectedEdges(g2)) return false;
+  if (count_directed_edges(g1) != count_directed_edges(g2)) return false;
   unsigned mapping[g1->size] = {};
   bool used[g1->size] = {};
   return isIsomorphicRecursive(g1, g2, 0, mapping, used);
+}
+
+bool is_isomorphic_mapping(const Graph *g1, const Graph *g2, const unsigned *mapping) {
+  if (!is_valid(g1) || !is_valid(g2) || (g1->size > 0 && !mapping)) return false;
+  if (g1->size != g2->size) return false;
+  if (count_directed_edges(g1) != count_directed_edges(g2)) return false;
+  for (unsigned v = 0; v < g1->size; v++)
+    if (mapping[v] >= g1->size) return false;
+  for (unsigned u = 0; u < g1->size; u++)
+    for (unsigned v = 0; v < g1->size; v++)
+      if (u != v && mapping[u] == mapping[v])
+        return false;
+  for (unsigned v = 0; v < g1->size; v++)
+    for (Edge *e = g1->edges[v]; e; e = e->next) {
+      unsigned m = count_matching_weighted_edges(g1, v, e->destination, e->weight);
+      unsigned n = count_matching_weighted_edges(g2, mapping[v], mapping[e->destination], e->weight);
+      if (m != n) return false;
+    }
+  return true;
 }
 
 
@@ -1849,7 +1870,7 @@ static void findArticulationPointsDfs(
 }
 
 [[nodiscard]] bool *findArticulationPoints(const Graph *g) {
-  if (!isValid(g) || g->size == 0) return nullptr;
+  if (!is_valid(g) || g->size == 0) return nullptr;
   bool *articulations = calloc(g->size, sizeof(bool));
   if (!articulations) return nullptr;
   unsigned discovery[g->size] = {};
@@ -1976,7 +1997,7 @@ static void findMaximumCliqueRecursive(
 }
 
 [[nodiscard]] bool *findMinimumVertexCover(const Graph *g) {
-  if (!isValid(g) || g->size == 0) return nullptr;
+  if (!is_valid(g) || g->size == 0) return nullptr;
   bool *best = malloc(g->size * sizeof(bool));
   if (!best) return nullptr;
   bool current[g->size] = {};
@@ -2644,7 +2665,7 @@ static void find_roman_dominating_set_search(
 
 [[nodiscard]] Graph *createDirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(countDirectedEdges(g));
+  Graph *g2 = createGraph(count_directed_edges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++)
     for (Edge *d = g->edges[u]; d; d = d->next) {
@@ -2765,7 +2786,7 @@ static void find_roman_dominating_set_search(
 
 [[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size + countDirectedEdges(g));
+  Graph *g2 = createGraph(g->size + count_directed_edges(g));
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
@@ -3035,7 +3056,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
 }
 
 [[nodiscard]] Graph *createVertexSubgraph(const Graph *g, const bool *set) {
-  if (!isValid(g) || !set) return nullptr;
+  if (!is_valid(g) || !set) return nullptr;
   Graph *g2 = createGraph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     if (set[v])
@@ -3388,17 +3409,17 @@ unsigned getSize(const Graph *g) {
   return g->size;
 }
 
-unsigned countDirectedEdges(const Graph *g) {
+unsigned count_directed_edges(const Graph *g) {
   if (!g || !g->edges) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
-    for (const Edge *e = g->edges[v]; e; e = e->next)
+    for (Edge *e = g->edges[v]; e; e = e->next)
       n++;
   return n;
 }
 
 unsigned countUndirectedEdges(const Graph *g) {
-  return countDirectedEdges(g) / 2;
+  return count_directed_edges(g) / 2;
 }
 
 unsigned countSelfLoops(const Graph *g) {
@@ -3409,7 +3430,7 @@ unsigned countSelfLoops(const Graph *g) {
 }
 
 unsigned countTriangles(const Graph *g) {
-  if (!isValid(g)) return 0;
+  if (!is_valid(g)) return 0;
   unsigned n = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *d = g->edges[v]; d; d = d->next)
@@ -3570,7 +3591,7 @@ unsigned countSinks(const Graph *g) {
 }
 
 unsigned countParallelEdges(const Graph *g) {
-  if (!isValid(g)) return 0;
+  if (!is_valid(g)) return 0;
   bool *seen = calloc(g->size, sizeof(bool));
   if (!seen) return 0;
   unsigned count = 0;
@@ -3588,7 +3609,7 @@ unsigned countParallelEdges(const Graph *g) {
 }
 
 unsigned countComponents(const Graph *g) {
-  if (!isValid(g)) return 0;
+  if (!is_valid(g)) return 0;
   Graph *g2 = createUndirected(g);
   if (!g2) return 0;
   deleteInvalidEdges(g2);
@@ -4653,10 +4674,10 @@ unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v) {
   return count;
 }
 
-unsigned countMatchingWeightedEdges(const Graph *g, unsigned u, unsigned v, double weight) {
+unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, double weight) {
   if (!g || !g->edges || u >= g->size) return 0;
   unsigned n = 0;
-  for (const Edge *e = g->edges[u]; e; e = e->next)
+  for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v && e->weight == weight)
       n++;
   return n;
@@ -5070,7 +5091,7 @@ static void getTopologicalSortDfs(const Graph *g, unsigned v, unsigned *ordering
 }
 
 [[nodiscard]] unsigned *getTopologicalSort(const Graph *g) {
-  if (!isValid(g) || hasDirectedCycle(g)) return nullptr;
+  if (!is_valid(g) || hasDirectedCycle(g)) return nullptr;
   unsigned *ordering = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
   if (!ordering || !visited) {
@@ -5140,7 +5161,7 @@ static void searchMaximumUnweightedMatching(const Graph *g, unsigned u, Edge *e,
 }
 
 [[nodiscard]] unsigned *findMaximumUnweightedMatching(const Graph *g) {
-  if (!isValid(g) || g->size == 0) return nullptr;
+  if (!is_valid(g) || g->size == 0) return nullptr;
   unsigned *best = malloc(g->size * sizeof(unsigned));
   if (!best) return nullptr;
   unsigned current[g->size];
@@ -5174,7 +5195,7 @@ static void searchMaximumWeightedMatching(const Graph *g, unsigned u, Edge *e, u
 }
 
 [[nodiscard]] unsigned *findMaximumWeightedMatching(const Graph *g) {
-  if (!isValid(g) || g->size == 0) return nullptr;
+  if (!is_valid(g) || g->size == 0) return nullptr;
   unsigned *best = malloc(g->size * sizeof(unsigned));
   if (!best) return nullptr;
   unsigned current[g->size];
@@ -5425,7 +5446,7 @@ static void searchForMinimumEdgeCover(
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
-  if (!isValid(g) || v >= g->size) return nullptr;
+  if (!is_valid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
   unsigned *queue = malloc(g->size * sizeof(unsigned));
   if (!distances || !queue) {
@@ -5458,7 +5479,7 @@ static void getPreOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsign
 }
 
 [[nodiscard]] unsigned *getPreOrderSort(const Graph *g, unsigned v) {
-  if (!isValid(g) || v >= g->size) return nullptr;
+  if (!is_valid(g) || v >= g->size) return nullptr;
   unsigned *order = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
   if (!order || !visited) {
@@ -5484,7 +5505,7 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 }
 
 [[nodiscard]] unsigned *getPostOrderSort(const Graph *g, unsigned v) {
-  if (!isValid(g) || v >= g->size) return nullptr;
+  if (!is_valid(g) || v >= g->size) return nullptr;
   unsigned *order = malloc(g->size * sizeof(unsigned));
   bool *visited = calloc(g->size, sizeof(bool));
   if (!order || !visited) {
@@ -5502,7 +5523,7 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 }
 
 [[nodiscard]] unsigned *getBreadthFirstSort(const Graph *g, unsigned v) {
-  if (!isValid(g) || v >= g->size) return nullptr;
+  if (!is_valid(g) || v >= g->size) return nullptr;
   bool *visited = calloc(g->size, sizeof(bool));
   unsigned *result = malloc(g->size * sizeof(unsigned));
   if (!visited || !result) {
@@ -5673,7 +5694,7 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 
 [[nodiscard]] unsigned *getShortestPath(const Graph *g, unsigned u, unsigned v, unsigned *length) {
   if (length) *length = 0; else return nullptr;
-  if (!isValid(g) || u >= g->size || v >= g->size) return nullptr;
+  if (!is_valid(g) || u >= g->size || v >= g->size) return nullptr;
   double *distances = malloc(g->size * sizeof(double));
   unsigned *parent = malloc(g->size * sizeof(unsigned));
   bool *visited = malloc(g->size * sizeof(bool));
@@ -5728,6 +5749,24 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
   return path;
 }
 
+static bool find_isomorphic_mapping_recursive(const Graph *g1, const Graph *g2, unsigned *mapping, unsigned v) {
+  if (v >= g1->size) return is_isomorphic_mapping(g1, g2, mapping);
+  for (unsigned u = 0; u < g1->size; u++) {
+    mapping[v] = u;
+    if (find_isomorphic_mapping_recursive(g1, g2, mapping, v + 1)) return true;
+  }
+  return false;
+}
+
+[[nodiscard]] unsigned *find_isomorphic_mapping(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g2 || g1->size != g2->size) return nullptr;
+  unsigned *mapping = malloc(g1->size * sizeof(unsigned));
+  if (!mapping) return nullptr;
+  if (find_isomorphic_mapping_recursive(g1, g2, mapping, 0)) return mapping;
+  free(mapping);
+  return nullptr;
+}
+
 
 
 [[nodiscard]] unsigned **getAllPairsUnweightedDistances(const Graph *g) {
@@ -5773,7 +5812,7 @@ static void getBridgesDfs(
 }
 
 [[nodiscard]] unsigned **getBridges(const Graph *g) {
-  if (!isValid(g)) return nullptr;
+  if (!is_valid(g)) return nullptr;
   unsigned *discovery = calloc(g->size, sizeof(unsigned));
   unsigned *low = calloc(g->size, sizeof(unsigned));
   unsigned **bridges = calloc(g->size + 1, sizeof(unsigned *));
@@ -5853,7 +5892,7 @@ double calculateWeightedDiameter(const Graph *g) {
 
 double calculateDensity(const Graph *g) {
   if (!g || g->size < 2) return 0;
-  return (double)countDirectedEdges(g) / g->size / (g->size - 1);
+  return (double)count_directed_edges(g) / g->size / (g->size - 1);
 }
 
 double calculateAverageClusteringCoefficient(const Graph *g) {
@@ -5968,7 +6007,7 @@ static double searchFordFulkersonMinCut(unsigned u, unsigned t, double flow, uns
 }
 
 double calculateFordFulkersonMinCut(const Graph *g) {
-  if (!isValid(g) || g->size < 2) return 0;
+  if (!is_valid(g) || g->size < 2) return 0;
 
   double minCut = INFINITY;
 
@@ -5994,7 +6033,7 @@ double calculateFordFulkersonMinCut(const Graph *g) {
 }
 
 double calculateStoerWagnerMinCut(const Graph *g) {
-  if (!isValid(g) || g->size < 2) return 0;
+  if (!is_valid(g) || g->size < 2) return 0;
 
   unsigned n = g->size;
   double w[n][n] = {};
@@ -6083,7 +6122,7 @@ static double searchBruteForceMinCut(const Graph *g, bool side[g->size], unsigne
 }
 
 double calculateBruteForceMinCut(const Graph *g) {
-  if (!isValid(g) || g->size < 2) return 0;
+  if (!is_valid(g) || g->size < 2) return 0;
   bool side[g->size] = {};
   return searchBruteForceMinCut(g, side, 0);
 }
@@ -6916,7 +6955,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 [[nodiscard]] double *calculateBetweennessCentrality(const Graph *g) {
-  if (!isValid(g) || hasNegativeWeights(g)) return nullptr;
+  if (!is_valid(g) || hasNegativeWeights(g)) return nullptr;
   unsigned n = g->size;
   double *c = calloc(n, sizeof(double));
   if (!c || !n) return c;
@@ -7268,7 +7307,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
  */
 
 [[nodiscard]] double *calculateWeightedDistances(const Graph *g, unsigned v) {
-  if (!isValid(g) || hasNegativeWeights(g) || v >= g->size) return nullptr;
+  if (!is_valid(g) || hasNegativeWeights(g) || v >= g->size) return nullptr;
   bool *visited = calloc(g->size, sizeof(bool));
   double *distances = malloc(g->size * sizeof(double));
   if (!visited || !distances) {
@@ -7752,30 +7791,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return matrix;
 }
 
-/*
- * This function computes the Ollivier-Ricci curvature (ORC) for every edge in a graph, producing a two-dimensional
- * matrix of values. Ollivier-Ricci curvature is a discrete adaptation of traditional Riemannian geometry used to
- * measure the local structural properties, robustness, and information flow within complex networks. It quantifies how
- * much two adjacent neighborhoods overlap or "clump" together relative to the distance between their central nodes. A
- * positive ORC value indicates a dense, highly clustered neighborhood (like a well-connected community or clique)
- * where paths readily interconnect, while a negative value highlights a bottleneck or a bridge-like edge connecting
- * distinct, non-overlapping groups. Calculating this metric is crucial for network science tasks such as community
- * detection, identifying critical structural vulnerabilities, and modeling systemic risk in fields ranging from
- * financial networks to brain connectivity.
- *
- * The function accomplishes this through several distinct phases. First, it performs memory management and safely
- * allocates a 2D dynamic array (curvature) to store the final metrics. Second, it computes all-pairs shortest paths
- * across the graph using the Floyd-Warshall algorithm, which establishes a baseline geodesic distance matrix
- * (distances) between all node pairs. Third, it constructs local probability distributions (mu) for each node,
- * defining a simple random walk neighborhood where probability mass is split uniformly among a node's outgoing
- * neighbors. Fourth, it calculates the Wasserstein distance (also known as the Earth Mover’s Distance) between the
- * probability distributions of every pairs of adjacent nodes using a greedy transportation heuristic. This step
- * measures the minimal "work" or transport cost needed to move the probability mass from one node's neighborhood to
- * its neighbor's neighborhood. Finally, the function evaluates the Ollivier-Ricci curvature for each valid edge using
- * the structural formula κ(u,v) = 1 - W₁(μᵤ,μᵥ) / d(u,v), comparing the minimal transport cost directly to the
- * shortest path distance.
- */
-
 [[nodiscard]] double **calculateOllivierRicciCurvature(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   double **curvature = malloc(g->size * sizeof(double *));
@@ -7849,10 +7864,10 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
       if (e1->destination < g->size && e1->weight > 0) {
         curvature[v][e1->destination] = 2;
         for (Edge *e2 = g->edges[v]; e2; e2 = e2->next)
-          if (e2->destination < g->size && e2->destination != e1->destination)
+          if (e2->destination < g->size && e2->weight > 0 && e2->destination != e1->destination)
             curvature[v][e1->destination] -= sqrt(e2->weight / e1->weight);
         for (Edge *e2 = g->edges[e1->destination]; e2; e2 = e2->next)
-          if (e2->destination < g->size && e2->destination != v)
+          if (e2->destination < g->size && e2->weight > 0 && e2->destination != v)
             curvature[v][e1->destination] -= sqrt(e2->weight / e1->weight);
       }
   return curvature;
