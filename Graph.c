@@ -10,7 +10,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-void swapUnsigned(unsigned *a, unsigned *b);
+void swap_unsigned(unsigned *a, unsigned *b);
 unsigned unsignedMinimum(unsigned a, unsigned b);
 unsigned unsignedMaximum(unsigned a, unsigned b);
 
@@ -155,6 +155,8 @@ bool **findEdgeCut(const Graph *g);
 bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v);
 
 char *find_roman_dominating_set(const Graph *g);
+char *graph_to_canonical_string(const Graph *g);
+char *permutated_graph_to_string(const Graph *g, const unsigned *permutation);
 
 Graph *createGraph(unsigned n);
 Graph *createPath(unsigned n);
@@ -382,7 +384,7 @@ int main();
 
 
 
-void swapUnsigned(unsigned *a, unsigned *b) {
+void swap_unsigned(unsigned *a, unsigned *b) {
   if (!a || !b) return;
   unsigned t = *a;
   *a = *b;
@@ -930,9 +932,9 @@ static bool isSelfComplementaryIsomorphism(const Graph *g, unsigned *p, unsigned
     return true;
   }
   for (unsigned j = i; j < g->size; j++) {
-    swapUnsigned(&p[i], &p[j]);
+    swap_unsigned(&p[i], &p[j]);
     if (isSelfComplementaryIsomorphism(g, p, i + 1)) return true;
-    swapUnsigned(&p[i], &p[j]);
+    swap_unsigned(&p[i], &p[j]);
   }
   return false;
 }
@@ -2552,6 +2554,50 @@ static void find_roman_dominating_set_search(
   unsigned best_cost = 2 * g->size + 1;
   find_roman_dominating_set_search(g, 0, current, 0, best, &best_cost);
   return best;
+}
+
+static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permutation, unsigned v, char **best) {
+  if (v >= g->size) {
+    char *current = permutated_graph_to_string(g, permutation);
+    if (current && (!(*best) || strcmp(current, *best) < 0)) {
+      free(*best);
+      *best = current;
+    } else {
+      free(current);
+    }
+    return;
+  }
+  for (unsigned u = v; u < g->size; u++) {
+    swap_unsigned(&permutation[v], &permutation[u]);
+    graph_to_canonical_string_recursive(g, permutation, v + 1, best);
+    swap_unsigned(&permutation[v], &permutation[u]);
+  }
+}
+
+[[nodiscard]] char *graph_to_canonical_string(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned permutation[g->size + 1];
+  for (unsigned v = 0; v < g->size; v++) permutation[v] = v;
+  char *canonical = nullptr;
+  graph_to_canonical_string_recursive(g, permutation, 0, &canonical);
+  return canonical;
+}
+
+[[nodiscard]] char *permutated_graph_to_string(const Graph *g, const unsigned *permutation) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  char *result = malloc(g->size * g->size * 32 + 1);
+  if (!result) return nullptr;
+  result[0] = '\0';
+  double matrix[g->size + 1][g->size + 1] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        matrix[permutation[v]][permutation[e->destination]] = e->weight;
+  char *cursor = result;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      cursor += sprintf(cursor, "%.4f,", matrix[u][v]);
+  return result;
 }
 
 
@@ -7706,30 +7752,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     }
   return matrix;
 }
-
-/*
- * This function calculates the Adamic-Adar index for all pairs of nodes in a graph to predict potential links or
- * measure similarity between them. The Adamic-Adar index is a popular metric in network analysis and social network
- * research used to predict the likelihood of a future friendship, connection, or shared relationship between two
- * entities. The core philosophy behind this metric is that shared neighbors with a small total number of connections
- * (low degrees) are significantly more meaningful than shared neighbors that are highly connected (high degrees). For
- * example, if two people share a rare, niche hobbyist friend, they are much more likely to be connected than if they
- * merely share a massive celebrity account that millions of others follow. The function computes these relative scores
- * and returns them as a dynamically allocated 2D matrix, allowing external systems to query the predictive strength of
- * a connection between any two node identifiers.
- *
- * The function accomplishes this by first establishing the structural properties of the graph, allocating a score
- * matrix, and then accumulating logarithmic inverse degrees across shared neighbors. It begins with strict safety
- * checks to ensure the graph pointer, its size, and its edge list are valid, returning a null pointer if any check
- * fails or if memory allocation for the 2D matrix encounters an issue. Once memory is safely allocated, it determines
- * the degree (number of outgoing edges) for every node in the graph by traversing their respective edge linked lists.
- * It then creates a boolean adjacency matrix to allow for rapid, constant-time lookups of connections between nodes.
- * Finally, it uses a nested loop structure to iterate through every unique pair of nodes (u and v). For each pair, it
- * looks for any mutual neighbor node (w) that both u and v are connected to. If a shared neighbor is found and its
- * degree is greater than 1 to prevent division by zero, the function adds the inverse natural logarithm of that
- * neighbor's degree to the running similarity score for the pair. Once all shared neighbors are evaluated, the
- * populated 2D array of double-precision floats is returned.
- */
 
 [[nodiscard]] double **calculateAdamicAdarIndex(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
