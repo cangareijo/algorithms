@@ -155,6 +155,7 @@ bool **findEdgeCut(const Graph *g);
 bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v);
 
 char *find_roman_dominating_set(const Graph *g);
+char *graph_to_string(const Graph *g);
 char *graph_to_canonical_string(const Graph *g);
 char *permutated_graph_to_string(const Graph *g, const unsigned *permutation);
 
@@ -2554,6 +2555,54 @@ static void find_roman_dominating_set_search(
   unsigned best_cost = 2 * g->size + 1;
   find_roman_dominating_set_search(g, 0, current, 0, best, &best_cost);
   return best;
+}
+
+[[nodiscard]] char *graph_to_string(const Graph *g) {
+  typedef struct {
+    unsigned source;
+    const Edge *edge;
+  } FlatEdge;
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  unsigned total_edges = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      total_edges++;
+  FlatEdge edges[total_edges + 1];
+  unsigned i = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      edges[i++] = (FlatEdge){ .source = v, .edge = e };
+  for (unsigned j = 0; j < total_edges; j++)
+    for (unsigned k = j + 1; k < total_edges; k++) {
+      bool swap_needed = false;
+      if (edges[j].source != edges[k].source) {
+        swap_needed = edges[j].source > edges[k].source;
+      } else if (edges[j].edge->destination != edges[k].edge->destination) {
+        swap_needed = edges[j].edge->destination > edges[k].edge->destination;
+      } else {
+        swap_needed = edges[j].edge->weight > edges[k].edge->weight;
+      }
+      if (swap_needed) {
+        FlatEdge swap = edges[j];
+        edges[j] = edges[k];
+        edges[k] = swap;
+      }
+    }
+  size_t length = 3;
+  for (unsigned j = 0; j < total_edges; j++) {
+    const char *format = j == 0 ? "(%u, %u, %g)" : ", (%u, %u, %g)";
+    length += snprintf(nullptr, 0, format, edges[j].source, edges[j].edge->destination, edges[j].edge->weight);
+  }
+  char *string = malloc(length);
+  if (!string) return nullptr;
+  char *cursor = string;
+  cursor += sprintf(cursor, "{");
+  for (unsigned j = 0; j < total_edges; j++) {
+    const char *format = j == 0 ? "(%u, %u, %g)" : ", (%u, %u, %g)";
+    cursor += sprintf(cursor, format, edges[j].source, edges[j].edge->destination, edges[j].edge->weight);
+  }
+  sprintf(cursor, "}");
+  return string;
 }
 
 static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permutation, unsigned v, char **best) {
@@ -7696,30 +7745,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
             distance[u][v] = -INFINITY;
   return distance;
 }
-
-/*
- * This function computes a comprehensive pairwise similarity matrix for all nodes in a given network structure, which
- * helps determine how closely connected any two vertices are based on their shared relationships. It achieves this by
- * calculating the Jaccard similarity coefficient, a statistical metric used to gauge the overlap and diversity of
- * sample sets, for the neighborhood of every node pair in the graph. In network analysis, understanding node
- * similarity is vital for tasks like community detection, link prediction, recommendation systems, and clustering, as
- * vertices that share a high percentage of mutual neighbors are often functionally related or part of the same
- * tightly-knit group. The function returns a dynamically allocated two-dimensional matrix of floating-point values
- * where each cell represents the similarity score between two nodes, while safeguarding against memory leaks and
- * division-by-zero errors in case a node pair has completely isolated neighborhoods.
- *
- * The function operates through a structured three-step process involving data preparation, adjacency caching, and
- * similarity computation. First, it performs rigorous safety checks to verify that the graph exists and contains data,
- * then dynamically allocates a continuous row-and-column layout for a square matrix matching the graph's size,
- * carefully freeing any partially allocated memory rows if an out-of-memory error occurs midway. Second, it
- * initializes a temporary boolean adjacency matrix and flattens the graph's internal linked-list edge structure into
- * this grid, allowing for rapid, constant-time lookups of whether an edge exists between any two vertices. Finally, it
- * executes nested loops to evaluate every possible pairing of nodes; for each pair, it iterates through all potential
- * neighbors in the network to count the absolute overlap (how many common neighbors they share) and the overall union
- * (the total unique neighbors they have combined). The similarity score is derived by dividing the intersection count
- * by the union count, with a fallback that sets the score to 1 if the union is zero, and the completed pointer matrix
- * is returned to the caller.
- */
 
 [[nodiscard]] double **calculateJaccardCoefficientMatrix(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
