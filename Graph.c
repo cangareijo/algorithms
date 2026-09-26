@@ -157,7 +157,7 @@ bool **findLocalEdgeCut(const Graph *g, unsigned u, unsigned v);
 char *find_roman_dominating_set(const Graph *g);
 char *graph_to_string(const Graph *g);
 char *graph_to_canonical_string(const Graph *g);
-char *permutated_graph_to_string(const Graph *g, const unsigned *permutation);
+char *mapped_graph_to_string(const Graph *g, const unsigned *map);
 
 Graph *createGraph(unsigned n);
 Graph *createPath(unsigned n);
@@ -2607,7 +2607,7 @@ static void find_roman_dominating_set_search(
 
 static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permutation, unsigned v, char **best) {
   if (v >= g->size) {
-    char *current = permutated_graph_to_string(g, permutation);
+    char *current = mapped_graph_to_string(g, permutation);
     if (current && (!(*best) || strcmp(current, *best) < 0)) {
       free(*best);
       *best = current;
@@ -2631,22 +2631,59 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   graph_to_canonical_string_recursive(g, permutation, 0, &canonical);
   return canonical;
 }
-
-[[nodiscard]] char *permutated_graph_to_string(const Graph *g, const unsigned *permutation) {
-  if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  char *result = malloc(g->size * g->size * 32 + 1);
-  if (!result) return nullptr;
-  result[0] = '\0';
-  double matrix[g->size + 1][g->size + 1] = {};
+[[nodiscard]] char *mapped_graph_to_string(const Graph *g, const unsigned *map) {
+  typedef struct {
+    unsigned mapped_source;
+    unsigned mapped_dest;
+    double weight;
+  } MappedEdge;
+  if (!g || (g->size > 0 && !g->edges) || !map) return nullptr;
+  unsigned total_edges = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && map[v] < g->size && map[e->destination] < g->size)
+        total_edges++;
+  MappedEdge edges[total_edges + 1];
+  unsigned i = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size)
-        matrix[permutation[v]][permutation[e->destination]] = e->weight;
-  char *cursor = result;
-  for (unsigned u = 0; u < g->size; u++)
-    for (unsigned v = 0; v < g->size; v++)
-      cursor += sprintf(cursor, "%.4f,", matrix[u][v]);
-  return result;
+        edges[i++] = (MappedEdge){ 
+          .mapped_source = map[v], 
+          .mapped_dest = map[e->destination], 
+          .weight = e->weight 
+        };
+  for (unsigned j = 0; j < total_edges; j++)
+    for (unsigned k = j + 1; k < total_edges; k++) {
+      bool swap_needed = false;
+      if (edges[j].mapped_source != edges[k].mapped_source) {
+        swap_needed = edges[j].mapped_source > edges[k].mapped_source;
+      } else if (edges[j].mapped_dest != edges[k].mapped_dest) {
+        swap_needed = edges[j].mapped_dest > edges[k].mapped_dest;
+      } else {
+        swap_needed = edges[j].weight > edges[k].weight;
+      }
+      if (swap_needed) {
+        MappedEdge swap = edges[j];
+        edges[j] = edges[k];
+        edges[k] = swap;
+      }
+    }
+  size_t length = 3;
+  for (unsigned j = 0; j < total_edges; j++) {
+    const char *format = j == 0 ? "(%u, %u, %g)" : ", (%u, %u, %g)";
+    length += snprintf(nullptr, 0, format, edges[j].mapped_source, edges[j].mapped_dest, edges[j].weight);
+  }
+  char *string = malloc(length);
+  if (!string) return nullptr;
+  char *cursor = string;
+  cursor += sprintf(cursor, "{");
+  for (unsigned j = 0; j < total_edges; j++) {
+    const char *format = j == 0 ? "(%u, %u, %g)" : ", (%u, %u, %g)";
+    cursor += sprintf(cursor, format, edges[j].mapped_source, edges[j].mapped_dest, edges[j].weight);
+  }
+  sprintf(cursor, "}");
+  return string;
 }
 
 
@@ -7683,33 +7720,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 
-
-/*
- * This function implements the Floyd-Warshall algorithm to compute the shortest paths between all pairs of vertices in
- * a directed, weighted graph. It is designed to solve the all-pairs shortest path (APSP) problem, producing a
- * comprehensive matrix where each entry represents the minimum total edge weight required to travel from a specific
- * starting vertex to a specific destination vertex. This approach is highly valuable because it handles graphs with
- * both positive and negative edge weights, unlike Dijkstra's algorithm, which fails in the presence of negative
- * weights. Furthermore, the function explicitly checks for and handles negative weight cycles—scenarios where a path
- * can loop infinitely to continuously reduce its total cost. By identifying these cycles, the function avoids infinite
- * loops in routing logic and correctly marks paths affected by such cycles as having a distance of negative infinity.
- * The [[nodiscard]] attribute enforces safe programming practices by requiring the caller to acknowledge and handle
- * the dynamically allocated matrix, preventing memory leaks in the application.
- *
- * The function achieves this through a multi-stage process of memory management, matrix initialization, and
- * triple-nested iterative relaxation. First, it performs safety checks on the graph structure and dynamically
- * allocates a two-dimensional double matrix size n-by-n, carefully freeing previously allocated rows and returning
- * nullptr if any system memory allocation fails. Next, it initializes the matrix by setting all diagonal elements
- * (where a vertex connects to itself) to zero and all other pairs to positive infinity. It then populates the matrix
- * with the graph's direct edge weights, taking care to choose the smallest weight if parallel edges exist between the
- * same two vertices. The core optimization phase utilizes a triple-nested loop that systematically evaluates every
- * vertex w as a potential intermediate stepping stone between a starting vertex u and an ending vertex v. If routing
- * through w provides a shorter total path than the currently recorded distance from u to v, the matrix is updated with
- * this cheaper cost. Finally, the function runs a separate pass to check the matrix diagonal; if any vertex has a
- * distance to itself that drops below zero, it confirms the presence of a negative cycle, prompting a final set of
- * loops to set all paths flowing through that cycle to negative infinity before returning the completed matrix pointer
- * to the caller.
- */
 
 [[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
