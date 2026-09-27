@@ -159,7 +159,8 @@ char *graph_to_string(const Graph *g);
 char *graph_to_canonical_string(const Graph *g);
 char *mapped_graph_to_string(const Graph *g, const unsigned *map);
 
-Graph *createGraph(unsigned n);
+Graph *string_to_graph(const char *string);
+Graph *create_graph(unsigned n);
 Graph *createPath(unsigned n);
 Graph *createCycle(unsigned n);
 Graph *createStar(unsigned n);
@@ -214,7 +215,7 @@ void transferOutgoingEdges(Graph *g, unsigned u, unsigned v);
 void transferIncomingEdges(Graph *g, unsigned u, unsigned v);
 void contractVertices(Graph *g, unsigned u, unsigned v);
 void subdivideEdge(Graph *g, unsigned u, unsigned v);
-void addWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight);
 void addWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
@@ -2631,6 +2632,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   graph_to_canonical_string_recursive(g, permutation, 0, &canonical);
   return canonical;
 }
+
 [[nodiscard]] char *mapped_graph_to_string(const Graph *g, const unsigned *map) {
   typedef struct {
     unsigned mapped_source;
@@ -2648,10 +2650,10 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size)
-        edges[i++] = (MappedEdge){ 
-          .mapped_source = map[v], 
-          .mapped_dest = map[e->destination], 
-          .weight = e->weight 
+        edges[i++] = (MappedEdge){
+          .mapped_source = map[v],
+          .mapped_dest = map[e->destination],
+          .weight = e->weight
         };
   for (unsigned j = 0; j < total_edges; j++)
     for (unsigned k = j + 1; k < total_edges; k++) {
@@ -2688,7 +2690,54 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 
 
-[[nodiscard]] Graph *createGraph(unsigned n) {
+[[nodiscard]] Graph *string_to_graph(const char *string) {
+  if (!string) return nullptr;
+  const char *cursor1 = string;
+  int consumed = 0;
+  if (sscanf(cursor1, "{%n", &consumed) != 0 || consumed == 0) return nullptr;
+  cursor1 += consumed;
+  if (sscanf(cursor1, "}%n", &consumed) == 0 && consumed > 0) {
+    cursor1 += consumed;
+    if (*cursor1 != '\0') return nullptr;
+    return create_graph(0);
+  }
+  unsigned max_vertex = 0;
+  unsigned total_edges = 0;
+  const char *cursor2 = cursor1;
+  while (true) {
+    unsigned u, v;
+    double w;
+    consumed = 0;
+    const char *format = total_edges == 0 ? "(%u, %u, %lf)%n" : ", (%u, %u, %lf)%n";
+    if (sscanf(cursor2, format, &u, &v, &w, &consumed) != 3) return nullptr;
+    if (u > max_vertex) max_vertex = u;
+    if (v > max_vertex) max_vertex = v;
+    total_edges++;
+    cursor2 += consumed;
+    consumed = 0;
+    if (sscanf(cursor2, "}%n", &consumed) == 0 && consumed > 0) {
+      cursor2 += consumed;
+      if (*cursor2 != '\0') return nullptr;
+      break;
+    }
+  }
+  Graph *g = create_graph(max_vertex + 1);
+  if (!g) return nullptr;
+  unsigned edge_index = 0;
+  while (edge_index < total_edges) {
+    unsigned u, v;
+    double w;
+    consumed = 0;
+    const char *format = edge_index == 0 ? "(%u, %u, %lf)%n" : ", (%u, %u, %lf)%n";
+    sscanf(cursor1, format, &u, &v, &w, &consumed);
+    add_weighted_directed_edge(g, u, v, w);
+    cursor1 += consumed;
+    edge_index++;
+  }
+  return g;
+}
+
+[[nodiscard]] Graph *create_graph(unsigned n) {
   Graph *g = malloc(sizeof(Graph));
   Edge **edges = calloc(n, sizeof(Edge *));
   if (!g || (n > 0 && !edges)) {
@@ -2702,25 +2751,25 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 }
 
 [[nodiscard]] Graph *createPath(unsigned n) {
-  Graph *g = createGraph(n);
+  Graph *g = create_graph(n);
   for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, v - 1, v);
   return g;
 }
 
 [[nodiscard]] Graph *createCycle(unsigned n) {
-  Graph *g = createGraph(n);
+  Graph *g = create_graph(n);
   for (unsigned v = 0; v < n; v++) addUndirectedEdge(g, v, (v + 1) % n);
   return g;
 }
 
 [[nodiscard]] Graph *createStar(unsigned n) {
-  Graph *g = createGraph(n);
+  Graph *g = create_graph(n);
   for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v);
   return g;
 }
 
 [[nodiscard]] Graph *createWheel(unsigned n) {
-  Graph *g = createGraph(n);
+  Graph *g = create_graph(n);
   for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v);
   for (unsigned v = 2; v < n; v++) addUndirectedEdge(g, v - 1, v);
   addUndirectedEdge(g, n - 1, 1);
@@ -2728,7 +2777,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 }
 
 [[nodiscard]] Graph *createComplete(unsigned n) {
-  Graph *g = createGraph(n);
+  Graph *g = create_graph(n);
   for (unsigned u = 0; u < n; u++)
     for (unsigned v = 0; v < n; v++)
       if (u != v)
@@ -2738,38 +2787,38 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createRandom(unsigned n, double p, bool directed, bool weighted) {
   if (p < 0 || p > 1) return nullptr;
-  Graph *g = createGraph(n);
+  Graph *g = create_graph(n);
   for (unsigned u = 0; u < n; u++)
     for (unsigned v = directed ? 0 : u + 1; v < n; v++)
       if (u != v)
         if (rand() / ((double)RAND_MAX + 1) < p) {
           double weight = weighted ? 1 + (rand() / ((double)RAND_MAX + 1)) * 9 : 1;
-          if (directed) addWeightedDirectedEdge(g, u, v, weight); else addWeightedUndirectedEdge(g, u, v, weight);
+          if (directed) add_weighted_directed_edge(g, u, v, weight); else addWeightedUndirectedEdge(g, u, v, weight);
         }
   return g;
 }
 
 [[nodiscard]] Graph *copyGraph(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size);
+  Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      addWeightedDirectedEdge(g2, v, e->destination, e->weight);
+      add_weighted_directed_edge(g2, v, e->destination, e->weight);
   return g2;
 }
 
 [[nodiscard]] Graph *createTranspose(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *transpose = createGraph(g->size);
+  Graph *transpose = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      addWeightedDirectedEdge(transpose, e->destination, v, e->weight);
+      add_weighted_directed_edge(transpose, e->destination, v, e->weight);
   return transpose;
 }
 
 [[nodiscard]] Graph *createUnweighted(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size);
+  Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       addDirectedEdge(g2, v, e->destination);
@@ -2778,7 +2827,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createUndirected(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size);
+  Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       addWeightedUndirectedEdge(g2, v, e->destination, e->weight);
@@ -2787,7 +2836,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createComplement(const Graph *g) {
   if (!g) return nullptr;
-  Graph *g2 = createGraph(g->size);
+  Graph *g2 = create_graph(g->size);
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v && !has_directed_edge(g, u, v))
@@ -2797,7 +2846,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createDirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(count_directed_edges(g));
+  Graph *g2 = create_graph(count_directed_edges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++)
     for (Edge *d = g->edges[u]; d; d = d->next) {
@@ -2815,7 +2864,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createUndirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(countUndirectedEdges(g));
+  Graph *g2 = create_graph(countUndirectedEdges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++) {
     unsigned uSelf = 0;
@@ -2845,7 +2894,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createUnderlying(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size);
+  Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (v != e->destination && !hasUndirectedEdge(g2, v, e->destination))
@@ -2855,7 +2904,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createKruskal(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *mst = createGraph(g->size);
+  Graph *mst = create_graph(g->size);
   while (true) {
     unsigned u, v;
     double weight = INFINITY;
@@ -2874,7 +2923,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createPrim(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *mst = createGraph(g->size);
+  Graph *mst = create_graph(g->size);
   if (!mst || g->size < 2) return mst;
   bool *added = calloc(g->size, sizeof(bool));
   double *weights = malloc(g->size * sizeof(double));
@@ -2918,12 +2967,12 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size + count_directed_edges(g));
+  Graph *g2 = create_graph(g->size + count_directed_edges(g));
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
-      addWeightedDirectedEdge(g2, v, u, e->weight);
-      addWeightedDirectedEdge(g2, u, e->destination, e->weight);
+      add_weighted_directed_edge(g2, v, u, e->weight);
+      add_weighted_directed_edge(g2, u, e->destination, e->weight);
       u++;
     }
   return g2;
@@ -2931,7 +2980,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createUndirectedSubdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size + countUndirectedEdges(g));
+  Graph *g2 = create_graph(g->size + countUndirectedEdges(g));
   unsigned u = g->size;
   for (unsigned v = 0; v < g->size; v++) {
     unsigned self = 0;
@@ -2949,7 +2998,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createTransitiveClosure(const Graph *g) {
   if (!g) return nullptr;
-  Graph *closure = createGraph(g->size);
+  Graph *closure = create_graph(g->size);
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v && hasPath(g, u, v))
@@ -2962,7 +3011,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   double *weights = calloc(g->size, sizeof(double));
   unsigned *permutation = malloc(g->size * sizeof(unsigned));
   unsigned *position = malloc(g->size * sizeof(unsigned));
-  Graph *result = createGraph(g->size);
+  Graph *result = create_graph(g->size);
   if ((g->size > 0 && (!weights || !permutation || !position)) || !result) {
     free(weights);
     free(permutation);
@@ -2986,7 +3035,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size && position[v] >= position[e->destination])
-        addWeightedDirectedEdge(result, v, e->destination, e->weight);
+        add_weighted_directed_edge(result, v, e->destination, e->weight);
   free(weights);
   free(permutation);
   free(position);
@@ -3019,7 +3068,7 @@ static void createCactusGraphDfs(
 
 [[nodiscard]] Graph *createCactusGraph(const Graph *g) {
   if (!g) return nullptr;
-  Graph *cactus = createGraph(g->size);
+  Graph *cactus = create_graph(g->size);
   if (!cactus) return nullptr;
   if (g->size == 0) return cactus;
   if (!g->edges) return nullptr;
@@ -3045,13 +3094,13 @@ static void createCactusGraphDfs(
 
 [[nodiscard]] Graph *createDualGraph(const Graph *g) {
   if (!g) return nullptr;
-  if (g->size == 0) return createGraph(0);
+  if (g->size == 0) return create_graph(0);
   if (!g->edges) return nullptr;
   unsigned total = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       total++;
-  if (total == 0) return createGraph(1);
+  if (total == 0) return create_graph(1);
   unsigned sources[total];
   unsigned targets[total];
   double weights[total];
@@ -3091,7 +3140,7 @@ static void createCactusGraphDfs(
       }
       face++;
     }
-  Graph *dual = createGraph(face);
+  Graph *dual = create_graph(face);
   for (unsigned i = 0; i < total; i++) {
     unsigned reverse_occurrence = sources[i] == targets[i] ? occurrences[i] ^ 1 : occurrences[i];
     unsigned r = UINT_MAX;
@@ -3105,12 +3154,12 @@ static void createCactusGraphDfs(
 
 [[nodiscard]] Graph *createBipartiteDoubleCover(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = createGraph(g->size * 2);
+  Graph *g2 = create_graph(g->size * 2);
   if (!g2) return nullptr;
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next) {
-      addWeightedDirectedEdge(g2, v, e->destination + g->size, e->weight);
-      addWeightedDirectedEdge(g2, v + g->size, e->destination, e->weight);
+      add_weighted_directed_edge(g2, v, e->destination + g->size, e->weight);
+      add_weighted_directed_edge(g2, v + g->size, e->destination, e->weight);
     }
   return g2;
 }
@@ -3138,7 +3187,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
 [[nodiscard]] Graph *createStronglyConnectedComponentsQuotient(const Graph *g) {
   if (!g) return nullptr;
   unsigned n = g->size;
-  if (n == 0) return createGraph(0);
+  if (n == 0) return create_graph(0);
   if (!g->edges) return nullptr;
   bool visited[n] = {};
   unsigned stack[n], top = 0;
@@ -3156,18 +3205,18 @@ static void createStronglyConnectedComponentsQuotientBackward(
       count++;
     }
   destroyGraph(transpose);
-  Graph *q = createGraph(count);
+  Graph *q = create_graph(count);
   if (!q) return nullptr;
   for (unsigned v = 0; v < n; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < n && sccs[v] != sccs[e->destination])
-        addWeightedDirectedEdge(q, sccs[v], sccs[e->destination], e->weight);
+        add_weighted_directed_edge(q, sccs[v], sccs[e->destination], e->weight);
   return q;
 }
 
 [[nodiscard]] Graph *createDualHypergraphProjection(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *projection = createGraph(g->size);
+  Graph *projection = create_graph(g->size);
   if (!projection) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
@@ -3179,7 +3228,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
   if (!g) return nullptr;
-  Graph *power = createGraph(g->size);
+  Graph *power = create_graph(g->size);
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v && calculateUnweightedDistance(g, u, v) <= k)
@@ -3189,23 +3238,23 @@ static void createStronglyConnectedComponentsQuotientBackward(
 
 [[nodiscard]] Graph *createVertexSubgraph(const Graph *g, const bool *set) {
   if (!is_valid(g) || !set) return nullptr;
-  Graph *g2 = createGraph(g->size);
+  Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     if (set[v])
       for (Edge *e = g->edges[v]; e; e = e->next)
         if (set[e->destination])
-          addWeightedDirectedEdge(g2, v, e->destination, e->weight);
+          add_weighted_directed_edge(g2, v, e->destination, e->weight);
   return g2;
 }
 
 [[nodiscard]] Graph *createEdgeSubgraph(const Graph *g, const bool *set) {
   if (!g || (g->size > 0 && !g->edges) || !set) return nullptr;
-  Graph *g2 = createGraph(g->size);
+  Graph *g2 = create_graph(g->size);
   unsigned i = 0;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
       if (set[i])
-        addWeightedDirectedEdge(g2, v, e->destination, e->weight);
+        add_weighted_directed_edge(g2, v, e->destination, e->weight);
       i++;
     }
   return g2;
@@ -3213,82 +3262,82 @@ static void createStronglyConnectedComponentsQuotientBackward(
 
 [[nodiscard]] Graph *createUnion(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
-  Graph *g3 = createGraph(unsignedMaximum(g1->size, g2->size));
+  Graph *g3 = create_graph(unsignedMaximum(g1->size, g2->size));
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
       if (!has_directed_edge(g3, v, e->destination))
-        addWeightedDirectedEdge(g3, v, e->destination, e->weight);
+        add_weighted_directed_edge(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
       if (!has_directed_edge(g3, v, e->destination))
-        addWeightedDirectedEdge(g3, v, e->destination, e->weight);
+        add_weighted_directed_edge(g3, v, e->destination, e->weight);
   return g3;
 }
 
 [[nodiscard]] Graph *createDisjointUnion(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
-  Graph *g3 = createGraph(g1->size + g2->size);
+  Graph *g3 = create_graph(g1->size + g2->size);
   for (unsigned v = 0; v < g1->size; v++)
     for (Edge *e = g1->edges[v]; e; e = e->next)
-      addWeightedDirectedEdge(g3, v, e->destination, e->weight);
+      add_weighted_directed_edge(g3, v, e->destination, e->weight);
   for (unsigned v = 0; v < g2->size; v++)
     for (Edge *e = g2->edges[v]; e; e = e->next)
-      addWeightedDirectedEdge(g3, g1->size + v, g1->size + e->destination, e->weight);
+      add_weighted_directed_edge(g3, g1->size + v, g1->size + e->destination, e->weight);
   return g3;
 }
 
 [[nodiscard]] Graph *createCartesianProduct(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
-  Graph *g3 = createGraph(g1->size * g2->size);
+  Graph *g3 = create_graph(g1->size * g2->size);
   for (unsigned u = 0; u < g1->size; u++)
     for (unsigned v = 0; v < g2->size; v++) {
       for (Edge *e = g2->edges[v]; e; e = e->next)
-        addWeightedDirectedEdge(g3, u * g2->size + v, u * g2->size + e->destination, e->weight);
+        add_weighted_directed_edge(g3, u * g2->size + v, u * g2->size + e->destination, e->weight);
       for (Edge *e = g1->edges[u]; e; e = e->next)
-        addWeightedDirectedEdge(g3, u * g2->size + v, e->destination * g2->size + v, e->weight);
+        add_weighted_directed_edge(g3, u * g2->size + v, e->destination * g2->size + v, e->weight);
     }
   return g3;
 }
 
 [[nodiscard]] Graph *createTensorProduct(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
-  Graph *g3 = createGraph(g1->size * g2->size);
+  Graph *g3 = create_graph(g1->size * g2->size);
   for (unsigned u = 0; u < g1->size; u++)
     for (unsigned v = 0; v < g2->size; v++)
       for (Edge *e1 = g1->edges[u]; e1; e1 = e1->next)
         for (Edge *e2 = g2->edges[v]; e2; e2 = e2->next)
-          addWeightedDirectedEdge(g3, u * g2->size + v, e1->destination * g2->size + e2->destination, e1->weight * e2->weight);
+          add_weighted_directed_edge(g3, u * g2->size + v, e1->destination * g2->size + e2->destination, e1->weight * e2->weight);
   return g3;
 }
 
 [[nodiscard]] Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
-  Graph *g3 = createGraph(g1->size * g2->size);
+  Graph *g3 = create_graph(g1->size * g2->size);
   for (unsigned u = 0; u < g1->size; u++)
     for (unsigned v = 0; v < g2->size; v++)
       for (Edge *e = g2->edges[v]; e; e = e->next)
-        addWeightedDirectedEdge(g3, u * g2->size + v, u * g2->size + e->destination, e->weight);
+        add_weighted_directed_edge(g3, u * g2->size + v, u * g2->size + e->destination, e->weight);
   for (unsigned u = 0; u < g1->size; u++)
     for (Edge *e = g1->edges[u]; e; e = e->next)
       for (unsigned v = 0; v < g2->size; v++)
         for (unsigned w = 0; w < g2->size; w++)
-          addWeightedDirectedEdge(g3, u * g2->size + v, e->destination * g2->size + w, e->weight);
+          add_weighted_directed_edge(g3, u * g2->size + v, e->destination * g2->size + w, e->weight);
   return g3;
 }
 
 [[nodiscard]] Graph *createStrongProduct(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
-  Graph *product = createGraph(g1->size * g2->size);
+  Graph *product = create_graph(g1->size * g2->size);
   if (!product) return nullptr;
   for (unsigned u = 0; u < g1->size; u++)
     for (unsigned v = 0; v < g2->size; v++) {
       for (Edge *e2 = g2->edges[v]; e2; e2 = e2->next)
-        addWeightedDirectedEdge(product, u * g2->size + v, u * g2->size + e2->destination, e2->weight);
+        add_weighted_directed_edge(product, u * g2->size + v, u * g2->size + e2->destination, e2->weight);
       for (Edge *e1 = g1->edges[u]; e1; e1 = e1->next)
-        addWeightedDirectedEdge(product, u * g2->size + v, e1->destination * g2->size + v, e1->weight);
+        add_weighted_directed_edge(product, u * g2->size + v, e1->destination * g2->size + v, e1->weight);
       for (Edge *e1 = g1->edges[u]; e1; e1 = e1->next)
         for (Edge *e2 = g2->edges[v]; e2; e2 = e2->next)
-          addWeightedDirectedEdge(product, u * g2->size + v, e1->destination * g2->size + e2->destination, e1->weight * e2->weight);
+          add_weighted_directed_edge(product, u * g2->size + v, e1->destination * g2->size + e2->destination, e1->weight * e2->weight);
     }
   return product;
 }
@@ -3297,17 +3346,17 @@ static void createStronglyConnectedComponentsQuotientBackward(
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
   unsigned n = g1->size;
   if (g2->size > 1) n += g1->size * (g2->size - 1);
-  Graph *result = createGraph(n);
+  Graph *result = create_graph(n);
   if (!result) return nullptr;
   for (unsigned u = 0; u < g1->size; u++)
     for (const Edge *e = g1->edges[u]; e; e = e->next)
-      addWeightedDirectedEdge(result, u, e->destination, e->weight);
+      add_weighted_directed_edge(result, u, e->destination, e->weight);
   for (unsigned u = 0; u < g1->size; u++)
     for (unsigned v = 0; v < g2->size; v++) {
       unsigned mapped_source = (v == 0) ? u : g1->size + u * (g2->size - 1) + (v - 1);
       for (const Edge *e = g2->edges[v]; e; e = e->next) {
         unsigned mapped_destination = (e->destination == 0) ? u : g1->size + u * (g2->size - 1) + (e->destination - 1);
-        addWeightedDirectedEdge(result, mapped_source, mapped_destination, e->weight);
+        add_weighted_directed_edge(result, mapped_source, mapped_destination, e->weight);
       }
     }
   return result;
@@ -3418,7 +3467,7 @@ void deleteVertex(Graph *g, unsigned v) {
 }
 
 void addDirectedEdge(Graph *g, unsigned u, unsigned v) {
-  addWeightedDirectedEdge(g, u, v, 1);
+  add_weighted_directed_edge(g, u, v, 1);
 }
 
 void addUndirectedEdge(Graph *g, unsigned u, unsigned v) {
@@ -3496,11 +3545,11 @@ void subdivideEdge(Graph *g, unsigned u, unsigned v) {
   double weight = getEdgeWeight(g, u, v);
   deleteFirstWeightedDirectedEdge(g, u, v, weight);
   addVertex(g);
-  addWeightedDirectedEdge(g, u, g->size - 1, weight / 2);
-  addWeightedDirectedEdge(g, g->size - 1, v, weight / 2);
+  add_weighted_directed_edge(g, u, g->size - 1, weight / 2);
+  add_weighted_directed_edge(g, g->size - 1, v, weight / 2);
 }
 
-void addWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
+void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight) {
   if (!g || !g->edges || u >= g->size) return;
   Edge *e = malloc(sizeof(Edge));
   if (!e) return;
@@ -3511,8 +3560,8 @@ void addWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
 }
 
 void addWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
-  addWeightedDirectedEdge(g, u, v, weight);
-  addWeightedDirectedEdge(g, v, u, weight);
+  add_weighted_directed_edge(g, u, v, weight);
+  add_weighted_directed_edge(g, v, u, weight);
 }
 
 void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
@@ -3898,17 +3947,17 @@ unsigned calculateUnweightedDiameter(const Graph *g) {
 unsigned calculateMinimumVertexCut(const Graph *g) {
   if (!g || g->size < 2) return 0;
   bool **adjacent = createAdjacencyMatrix(g);
-  Graph *net = createGraph(2 * g->size);
+  Graph *net = create_graph(2 * g->size);
   if (!adjacent || !net) {
     freeBooleanMatrix(adjacent, g->size);
     destroyGraph(net);
     return 0;
   }
-  for (unsigned v = 0; v < g->size; v++) addWeightedDirectedEdge(net, v, v + g->size, 1);
+  for (unsigned v = 0; v < g->size; v++) add_weighted_directed_edge(net, v, v + g->size, 1);
   for (unsigned v = 0; v < g->size; v++)
     for (const Edge *e = g->edges[v]; e; e = e->next)
       if (v != e->destination)
-        addWeightedDirectedEdge(net, v + g->size, e->destination, INFINITY);
+        add_weighted_directed_edge(net, v + g->size, e->destination, INFINITY);
   double minimum = g->size - 1;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
@@ -6719,29 +6768,6 @@ double calculateCorePeripheralScore(const Graph *g) {
       }
   return score;
 }
-
-/*
- * The calculateSymmetryRatio function calculates a structural metric for a graph known as its symmetry ratio, which is
- * the fraction of unique eigenvalues relative to the overall size of the graph. In network science and graph theory,
- * the eigenvalues of a graph's adjacency matrix reveal deep properties about its connectivity patterns, paths, and
- * topology. When a graph features a high level of structural symmetry—such as an unweighted ring or a complete
- * graph—many nodes share identical roles, causing their structural equations to overlap and producing highly
- * repetitive, duplicate eigenvalues. By determining the ratio of unique eigenvalues to total vertices, this function
- * gives an indicator of structural uniformity; a very low ratio implies that the graph is highly symmetrical and
- * redundant, whereas a ratio closer to 1.0 implies an asymmetric, irregular, or uniquely varied network structure.
- *
- * To compute this ratio, the function maps out a multi-step numerical workflow starting with data conversion and ending
- * with unique count tracking. First, it extracts the graph data from an adjacency list format and flattens it into a
- * square, dense two-dimensional adjacency matrix where each edge weight is explicitly mapped to its row and column
- * coordinates. Next, it executes a basic QR algorithm over a fixed budget of 100 iterations to isolate the graph's
- * eigenvalues. During each iteration, it performs a classical Gram-Schmidt orthogonalization process to break down the
- * current matrix into an orthogonal matrix Q and an upper triangular matrix R, then multiplies them back together in
- * reverse order as R times Q to form a new matrix. This iterative matrix shifting pushes the original matrix toward an
- * upper-triangular or diagonal form, concentrating the eigenvalues directly along its main diagonal. Finally, the
- * function copies these diagonal values into an array, loops through them using a small floating-point threshold of
- * 1e-4 to group near-identical duplicates together, counts the absolute number of unique clusters found, and divides
- * this count by the graph's size to return the final ratio.
- */
 
 double calculateSymmetryRatio(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) {
