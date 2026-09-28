@@ -91,7 +91,7 @@ bool hasPath(const Graph *g, unsigned u, unsigned v);
 bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
-bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double weight);
+bool has_weighted_directed_edge(const Graph *g, unsigned u, unsigned v, double weight);
 bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double weight);
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
 bool isClique(const Graph *g, const bool *set);
@@ -106,6 +106,7 @@ bool is_roman_dominating_set(const Graph *g, const char *set);
 bool is_roman_dominated_vertex(const Graph *g, const char *set, unsigned v);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
 bool isPerfectMatching(const Graph *g, const unsigned *matching);
+bool is_automorphism(const Graph *g, const unsigned *mapping);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length);
@@ -122,7 +123,7 @@ bool isSubGraph(const Graph *g1, const Graph *g2);
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
 bool isIsomorphic(const Graph *g1, const Graph *g2);
-bool is_isomorphic_mapping(const Graph *g1, const Graph *g2, const unsigned *mapping);
+bool is_isomorphism(const Graph *g1, const Graph *g2, const unsigned *mapping);
 
 bool *graphCenter(const Graph *g);
 bool *graphPeriphery(const Graph *g);
@@ -320,13 +321,14 @@ unsigned *find_isomorphic_mapping(const Graph *g1, const Graph *g2);
 
 unsigned **getAllPairsUnweightedDistances(const Graph *g);
 unsigned **getBridges(const Graph *g);
+unsigned **get_automorphism_group_generators(const Graph *g, unsigned *count);
 
 double getMinimumWeight(const Graph *g);
 double getMaximumWeight(const Graph *g);
 double sumWeights(const Graph *g);
 double calculateWeightedRadius(const Graph *g);
 double calculateWeightedDiameter(const Graph *g);
-double calculateDensity(const Graph *g);
+double calculate_density(const Graph *g);
 double calculateAverageClusteringCoefficient(const Graph *g);
 double calculateDirectedWeightedGirth(const Graph *g);
 double calculateUndirectedWeightedGirth(const Graph *g);
@@ -1458,16 +1460,16 @@ bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
   return n > countComponents(g);
 }
 
-bool hasWeightedDirectedEdge(const Graph *g, unsigned u, unsigned v, double weight) {
+bool has_weighted_directed_edge(const Graph *g, unsigned u, unsigned v, double weight) {
   if (!g || !g->edges || u >= g->size) return false;
-  for (const Edge *e = g->edges[u]; e; e = e->next)
+  for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v && e->weight == weight)
       return true;
   return false;
 }
 
 bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double weight) {
-  return hasWeightedDirectedEdge(g, u, v, weight) && hasWeightedDirectedEdge(g, v, u, weight);
+  return has_weighted_directed_edge(g, u, v, weight) && has_weighted_directed_edge(g, v, u, weight);
 }
 
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w) {
@@ -1592,6 +1594,28 @@ bool isPerfectMatching(const Graph *g, const unsigned *matching) {
   for (unsigned v = 0; v < g->size; v++)
     if (matching[v] >= g->size || matching[v] == v || matching[matching[v]] != v || !has_directed_edge(g, v, matching[v]))
       return false;
+  return true;
+}
+
+bool is_automorphism(const Graph *g, const unsigned *mapping) {
+  if (!g || (g->size > 0 && (!g->edges || !mapping))) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (mapping[v] >= g->size)
+      return false;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && mapping[u] == mapping[v])
+        return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      unsigned m = count_matching_weighted_edges(g, v, e->destination, e->weight);
+      unsigned n = count_matching_weighted_edges(g, mapping[v], mapping[e->destination], e->weight);
+      if (m != n) return false;
+    }
   return true;
 }
 
@@ -1781,7 +1805,7 @@ bool isIsomorphic(const Graph *g1, const Graph *g2) {
   return isIsomorphicRecursive(g1, g2, 0, mapping, used);
 }
 
-bool is_isomorphic_mapping(const Graph *g1, const Graph *g2, const unsigned *mapping) {
+bool is_isomorphism(const Graph *g1, const Graph *g2, const unsigned *mapping) {
   if (!is_valid(g1) || !is_valid(g2) || (g1->size > 0 && !mapping)) return false;
   if (g1->size != g2->size) return false;
   if (count_directed_edges(g1) != count_directed_edges(g2)) return false;
@@ -4350,31 +4374,6 @@ unsigned calculateVertexCoverNumber(const Graph *g) {
   return g->size;
 }
 
-/*
- * This C23 function calculates the exact vertex separation number of a given graph, which is structurally equivalent to
- * finding the graph's pathwidth. Pathwidth is a vital metric in graph theory and computer science that quantifies how
- * closely a graph's structure resembles a simple, linear path. In practical software engineering and algorithmic
- * design, knowing the pathwidth is highly valuable because many complex, NP-hard problems (like graph coloring or the
- * traveling salesperson problem) can be solved in linear time using dynamic programming if the graph has a bounded,
- * small pathwidth. The code relies on C23 features—specifically, the standard integration of variable-length arrays
- * (VLAs) and the support for the native bool type without needing an explicit macro header inclusion—to dynamically
- * evaluate layout configurations. Ultimately, the purpose of this function is to determine the absolute minimum
- * bandwidth or layout bottleneck possible across all linear arrangements of the graph's vertices, providing an upper
- * bound for optimizing memory allocation, circuit layout layouts, or tree-decomposition algorithms.
- *
- * The function achieves this by executing a brute-force search over all possible linear permutations of the graph's
- * vertices and tracking the layout that minimizes the maximum "vertex separation". It first validates the input graph
- * and constructs a local, dynamically sized boolean adjacency matrix using C23 variable-length arrays to allow fast,
- * constant-time edge lookups. Next, it initializes a permutation array representing a specific linear ordering of the
- * vertices. The main loop systematically iterates through every single permutation using standard lexicographical
- * generation (the Narayana Pandita algorithm). For each unique ordering, the code evaluates every possible split point
- * along the vertex sequence; for a given split point, it counts how many vertices on the left side of the split have
- * at least one neighbor on the right side of the split. The maximum number of these intersecting edges at any split
- * point defines the separation width for that specific permutation. By tracking the minimum of these maximum values
- * across every single permutation of the vertices, the function successfully guarantees finding the optimal pathwidth
- * before returning the final integer value.
- */
-
 unsigned calculatePathwidth(const Graph *g) {
   if (!g || g->size <= 1 || !g->edges) return 0;
   unsigned n = g->size;
@@ -5931,7 +5930,7 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
 }
 
 static bool find_isomorphic_mapping_recursive(const Graph *g1, const Graph *g2, unsigned *mapping, unsigned v) {
-  if (v >= g1->size) return is_isomorphic_mapping(g1, g2, mapping);
+  if (v >= g1->size) return is_isomorphism(g1, g2, mapping);
   for (unsigned u = 0; u < g1->size; u++) {
     mapping[v] = u;
     if (find_isomorphic_mapping_recursive(g1, g2, mapping, v + 1)) return true;
@@ -6013,6 +6012,82 @@ static void getBridgesDfs(
   return bridges;
 }
 
+static void collect_automorphisms(
+  const Graph *g, unsigned *permutation, bool *chosen, unsigned u, unsigned ***automorphisms, unsigned *count)
+{
+  if (u >= g->size) {
+    if (is_automorphism(g, permutation)) {
+      unsigned **reallocated = realloc(*automorphisms, (*count + 1) * sizeof(unsigned *));
+      if (!reallocated) return;
+      *automorphisms = reallocated;
+      (*automorphisms)[*count] = malloc(g->size * sizeof(unsigned));
+      if (!(*automorphisms)[*count]) return;
+      for (unsigned v = 0; v < g->size; v++) (*automorphisms)[*count][v] = permutation[v];
+      (*count)++;
+    }
+    return;
+  }
+  for (unsigned v = 0; v < g->size; v++)
+    if (!chosen[v]) {
+      chosen[v] = true;
+      permutation[u] = v;
+      collect_automorphisms(g, permutation, chosen, u + 1, automorphisms, count);
+      chosen[v] = false;
+    }
+}
+
+[[nodiscard]] unsigned **get_automorphism_group_generators(const Graph *g, unsigned *count) {
+  if (count) *count = 0;
+  if (!g || g->size == 0 || !count) return nullptr;
+  unsigned permutation[g->size], total_automorphisms = 0, **automorphisms = nullptr;
+  bool chosen[g->size] = {};
+  collect_automorphisms(g, permutation, chosen, 0, &automorphisms, &total_automorphisms);
+  if (total_automorphisms == 0) return nullptr;
+  bool closure[total_automorphisms] = {}, is_generator[total_automorphisms] = {};
+  closure[0] = true;
+  for (unsigned i = 1; i < total_automorphisms; i++) {
+    if (closure[i]) continue;
+    is_generator[i] = closure[i] = true;
+    bool progress = true;
+    while (progress) {
+      progress = false;
+      for (unsigned x = 0; x < total_automorphisms; x++) {
+        if (!closure[x]) continue;
+        for (unsigned y = 0; y < total_automorphisms; y++) {
+          if (!closure[y]) continue;
+          for (unsigned z = 0; z < total_automorphisms; z++) {
+            if (closure[z]) continue;
+            bool match = true;
+            for (unsigned v = 0; v < g->size; v++)
+              if (automorphisms[z][v] != automorphisms[x][automorphisms[y][v]]) {
+                match = false;
+                break;
+              }
+            if (match) {
+              closure[z] = true;
+              progress = true;
+            }
+          }
+        }
+      }
+    }
+  }
+  unsigned **generators = nullptr;
+  for (unsigned i = 0; i < total_automorphisms; i++) {
+    if (is_generator[i]) {
+      unsigned **reallocated = realloc(generators, (*count + 1) * sizeof(unsigned *));
+      if (!reallocated) continue;
+      generators = reallocated;
+      generators[*count] = automorphisms[i];
+      (*count)++;
+    } else {
+      free(automorphisms[i]);
+    }
+  }
+  free(automorphisms);
+  return generators;
+}
+
 
 
 double getMinimumWeight(const Graph *g) {
@@ -6071,7 +6146,7 @@ double calculateWeightedDiameter(const Graph *g) {
   return diameter;
 }
 
-double calculateDensity(const Graph *g) {
+double calculate_density(const Graph *g) {
   if (!g || g->size < 2) return 0;
   return (double)count_directed_edges(g) / g->size / (g->size - 1);
 }
