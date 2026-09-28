@@ -88,7 +88,7 @@ bool isCactus(const Graph *g);
 bool has_directed_edge(const Graph *g, unsigned u, unsigned v);
 bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
-bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v);
+bool have_common_neighbors(const Graph *g, unsigned u, unsigned v);
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool has_weighted_directed_edge(const Graph *g, unsigned u, unsigned v, double weight);
@@ -1429,7 +1429,8 @@ bool hasPath(const Graph *g, unsigned u, unsigned v) {
   return found;
 }
 
-bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
+/*
+bool have_common_neighbors(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size || v >= g->size) return false;
   bool *neighbors = calloc(g->size, sizeof(bool));
   if (!neighbors) return false;
@@ -1442,6 +1443,16 @@ bool haveCommonNeighbors(const Graph *g, unsigned u, unsigned v) {
       b = b || neighbors[e->destination];
   free(neighbors);
   return b;
+}
+*/
+
+bool have_common_neighbors(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return false;
+  for (Edge *e1 = g->edges[u]; e1; e1 = e1->next)
+    for (Edge *e2 = g->edges[v]; e2; e2 = e2->next)
+      if (u != e1->destination && v != e2->destination && e1->destination == e2->destination)
+        return true;
+  return false;
 }
 
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
@@ -4417,25 +4428,6 @@ unsigned calculatePathwidth(const Graph *g) {
   }
   return min_width;
 }
-
-/*
- * This C23 function calculates the clique-width of a given graph by testing sequential label limits using a brute-force
- * algebraic search. Modern C23 features are leveraged here, specifically initializing the variable-length array
- * (VLA) target using empty braces ={} to zero-initialize the entire grid without relying on memset. The function
- * begins with safety checks, instantly returning 0 for null pointers and returning the vertex count directly if it is
- * 2 or fewer, since trivial graphs have a known bounded width. It then maps the adjacency structure into a boolean
- * matrix target via an adjacency list traversal. To find the exact clique-width, it iteratively tests possible widths
- * k starting from 2 up to the graph's size, checking if a sequence of algebraic operations can build the target graph.
- * Inside this loop, it uses an array-backed odometer loop to exhaustively generate all valid sequences of four core
- * operations: introducing a new vertex labeled i (op 0), connecting all vertices labeled i to all vertices labeled j
- * (op 1), renaming label i to j (op 2), and taking the disjoint union of two subgraphs stored on its working vertex
- * stack (op 3). For each permutation, the logic evaluates the steps inside a temporary simulation framework,
- * maintaining dynamic labels and tracking stack members. If the operation sequence successfully processes all
- * vertices, collapses down to a single active stack layer, and generates a boolean matrix current that perfectly
- * matches the target matrix, the function successfully returns the minimum bounding width k. If no sequence matches
- * for a given k, the nested loops increment the parameters, eventually falling back to returning the total graph size
- * if no smaller structural width is found.
- */
 
 unsigned calculateCliqueWidth(const Graph *g) {
   if (!g || !g->edges) return 0;
