@@ -265,6 +265,7 @@ unsigned calculateDominatingNumber(const Graph *g);
 unsigned calculateVertexCoverNumber(const Graph *g);
 unsigned calculatePathwidth(const Graph *g);
 unsigned calculateCliqueWidth(const Graph *g);
+unsigned calculate_carving_width(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -287,6 +288,7 @@ unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v);
 unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, double weight);
 unsigned get_subset_size(const Graph *g, const bool *set);
 unsigned get_first_vertex_in_subset(const Graph *g, const bool *set);
+unsigned calculate_cut_size(const Graph *g, const bool *set);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
 unsigned *getInDegrees(const Graph *g);
@@ -1428,23 +1430,6 @@ bool hasPath(const Graph *g, unsigned u, unsigned v) {
   free(visited);
   return found;
 }
-
-/*
-bool have_common_neighbors(const Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size) return false;
-  bool *neighbors = calloc(g->size, sizeof(bool));
-  if (!neighbors) return false;
-  for (Edge *e = g->edges[u]; e; e = e->next)
-    if (e->destination < g->size)
-      neighbors[e->destination] = true;
-  bool b = false;
-  for (Edge *e = g->edges[v]; e && !b; e = e->next)
-    if (e->destination < g->size)
-      b = b || neighbors[e->destination];
-  free(neighbors);
-  return b;
-}
-*/
 
 bool have_common_neighbors(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return false;
@@ -4509,6 +4494,39 @@ unsigned calculateCliqueWidth(const Graph *g) {
   return g->size;
 }
 
+static unsigned calculate_carving_width_recursive(
+  const Graph *g, unsigned v, const bool s1[g->size], bool s2[g->size], bool s3[g->size], unsigned c1, unsigned c2, unsigned c3)
+{
+  if (c1 < 2) return 0;
+  if (v >= g->size) {
+    if (c2 == 0 || c3 == 0) return -1U;
+    bool s4[g->size] = {}, s5[g->size] = {};
+    unsigned w1 = calculate_carving_width_recursive(g, 0, s2, s4, s5, c2, 0, 0);
+    unsigned w2 = calculate_carving_width_recursive(g, 0, s3, s4, s5, c3, 0, 0);
+    unsigned w3 = calculate_cut_size(g, s2);
+    unsigned w4 = calculate_cut_size(g, s3);
+    unsigned max = w1 > w2 ? w1 : w2;
+    if (w3 > max) max = w3;
+    if (w4 > max) max = w4;
+    return max;
+  }
+  if (!s1[v]) return calculate_carving_width_recursive(g, v + 1, s1, s2, s3, c1, c2, c3);
+  s2[v] = true;
+  unsigned w1 = calculate_carving_width_recursive(g, v + 1, s1, s2, s3, c1, c2 + 1, c3);
+  s2[v] = false;
+  s3[v] = true;
+  unsigned w2 = calculate_carving_width_recursive(g, v + 1, s1, s2, s3, c1, c2, c3 + 1);
+  s3[v] = false;
+  return w1 < w2 ? w1 : w2;
+}
+
+unsigned calculate_carving_width(const Graph *g) {
+  if (!g || g->size < 2) return 0;
+  bool s1[g->size], s2[g->size] = {}, s3[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++) s1[v] = true;
+  return calculate_carving_width_recursive(g, 0, s1, s2, s3, g->size, 0, 0);
+}
+
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
   return countMatchingEdges(g, v, v);
 }
@@ -4872,6 +4890,20 @@ unsigned get_first_vertex_in_subset(const Graph *g, const bool *set) {
   return UINT_MAX;
 }
 
+unsigned calculate_cut_size(const Graph *g, const bool *set) {
+  unsigned cut = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    if (set[v]) {
+      for (Edge *e = g->edges[v]; e; e = e->next) {
+        if (e->destination < g->size && !set[e->destination]) {
+          cut++;
+        }
+      }
+    }
+  }
+  return cut;
+}
+
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
   if (!g || !ordering) return 0;
   unsigned *position = malloc(g->size * sizeof(unsigned));
@@ -5062,28 +5094,6 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   free(blocked_colors);
   return colors;
 }
-
-/*
- * The findGreedyEdgeColoring function computes a valid edge coloring of a graph using a greedy algorithm, meaning it
- * assigns a color (represented as an integer) to every edge such that no two edges sharing a common vertex have the
- * same color. The purpose of this function is to solve the edge coloring problem, a fundamental challenge in graph
- * theory with extensive practical applications in scheduling, network routing, and resource allocation. For example,
- * if vertices represent people and edges represent required meetings between them, a valid edge coloring determines
- * the minimum number of time slots needed to complete all meetings without anyone being scheduled for two meetings at
- * the same time. The function is marked with the [[nodiscard]] attribute to ensure that the caller does not
- * accidentally leak memory, as it returns a dynamically allocated array containing the final color assignments that
- * must be explicitly freed.
- *
- * To achieve this, the function first validates the input graph and performs a full pass over the adjacency list to
- * count the total number of unique, undirected edges. It dynamically allocates an array named colors to store the
- * color of each edge, initially populating it with a placeholder value equal to the edge count. The core logic then
- * uses a nested loop structure to iterate through every unique edge in the graph sequentially. For each target edge,
- * it scans every other edge in the graph to check for a collision—specifically looking at whether the two edges share
- * a vertex (source or destination). If a neighboring edge has already been colored, its color is flagged as
- * unavailable in a boolean tracking array named used_colors. After reviewing all potential conflicts, the function
- * searches used_colors from zero upward to find the lowest available, unassigned color, assigns it to the current
- * edge, and repeats this process until all edges have been processed and successfully colored.
- */
 
 [[nodiscard]] unsigned *findGreedyEdgeColoring(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
