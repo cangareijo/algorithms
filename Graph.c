@@ -100,7 +100,7 @@ bool isVertexCover(const Graph *g, const bool *set);
 bool is_dominating_set(const Graph *g, const bool *set);
 bool is_total_dominating_set(const Graph *g, const bool *set);
 bool is_connected_subset(const Graph *g, const bool *set);
-bool subset_has_cycle(const Graph *g, const bool *set);
+bool is_subgraph_cyclic(const Graph *g, const bool *set);
 bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_roman_dominating_set(const Graph *g, const char *set);
@@ -139,7 +139,7 @@ bool *findApproximatedMinimumVertexCover(const Graph *g);
 bool *getSelfLoops(const Graph *g);
 bool *findMaximalIndependentSet(const Graph *g);
 bool *findMaximumIndependentSet(const Graph *g);
-bool *findFeedbackVertexSet(const Graph *g);
+bool *find_feedback_vertex_set(const Graph *g);
 bool *findVertexCut(const Graph *g);
 bool *find_minimum_dominating_set(const Graph *g);
 bool *find_total_dominating_set(const Graph *g);
@@ -1542,22 +1542,22 @@ bool is_connected_subset(const Graph *g, const bool *set) {
   return count == subset_size;
 }
 
-static bool subset_has_cycle_recursive(const Graph *g, const bool *set, unsigned v, char *state) {
+static bool is_subgraph_cyclic_recursive(const Graph *g, const bool *set, unsigned v, char *state) {
   if (v >= g->size || !set[v] || state[v] == 2) return false;
   if (state[v] == 1) return true;
   state[v] = 1;
   for (Edge *e = g->edges[v]; e; e = e->next)
-    if (subset_has_cycle_recursive(g, set, e->destination, state))
+    if (is_subgraph_cyclic_recursive(g, set, e->destination, state))
       return true;
   state[v] = 2;
   return false;
 }
 
-bool subset_has_cycle(const Graph *g, const bool *set) {
-  if (!g || g->size == 0 || !g->edges || !set) return true;
+bool is_subgraph_cyclic(const Graph *g, const bool *set) {
+  if (!g || g->size == 0 || !g->edges || !set) return false;
   char state[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
-    if (subset_has_cycle_recursive(g, set, v, state))
+    if (is_subgraph_cyclic_recursive(g, set, v, state))
       return true;
   return false;
 }
@@ -2187,58 +2187,29 @@ static void searchForMaximumIndependentSet(
   return maximum;
 }
 
-static bool findFeedbackVertexSet_hasCycleDfs(const Graph *g, const bool *removed, unsigned v, char *visited) {
-  visited[v] = 1;
-  for (Edge *e = g->edges[v]; e; e = e->next) {
-    if (e->destination >= g->size || removed[e->destination]) continue;
-    if (visited[e->destination] == 1) return true;
-    if (visited[e->destination] == 0 && findFeedbackVertexSet_hasCycleDfs(g, removed, e->destination, visited)) return true;
-  }
-  visited[v] = 2;
-  return false;
-}
-
-static bool findFeedbackVertexSet_hasCycle(const Graph *g, const bool *removed) {
-  char *visited = calloc(g->size, sizeof(char));
-  if (!visited) return false;
-  for (unsigned v = 0; v < g->size; v++)
-    if (visited[v] == 0 && !removed[v] && findFeedbackVertexSet_hasCycleDfs(g, removed, v, visited)) {
-      free(visited);
-      return true;
-    }
-  free(visited);
-  return false;
-}
-
-static void findFeedbackVertexSetBacktracking(
-  const Graph *g, unsigned v, bool *current, unsigned currentSize, bool *best, unsigned *bestSize)
+static void find_feedback_vertex_set_recursive(const Graph *g, unsigned v, bool *kept, unsigned size, bool *best, unsigned *bound)
 {
-  if (currentSize >= *bestSize) return;
-  if (v == g->size) {
-    if (!findFeedbackVertexSet_hasCycle(g, current)) {
-      for (unsigned u = 0; u < g->size; u++) best[u] = current[u];
-      *bestSize = currentSize;
+  if (size >= *bound) return;
+  if (v >= g->size) {
+    if (!is_subgraph_cyclic(g, kept)) {
+      for (unsigned u = 0; u < g->size; u++) best[u] = !kept[u];
+      *bound = size;
     }
     return;
   }
-  current[v] = false;
-  findFeedbackVertexSetBacktracking(g, v + 1, current, currentSize, best, bestSize);
-  current[v] = true;
-  findFeedbackVertexSetBacktracking(g, v + 1, current, currentSize + 1, best, bestSize);
+  kept[v] = true;
+  find_feedback_vertex_set_recursive(g, v + 1, kept, size, best, bound);
+  kept[v] = false;
+  find_feedback_vertex_set_recursive(g, v + 1, kept, size + 1, best, bound);
 }
 
-[[nodiscard]] bool *findFeedbackVertexSet(const Graph *g) {
+bool *find_feedback_vertex_set(const Graph *g) {
   if (!g || g->size == 0) return nullptr;
-  bool *current = calloc(g->size, sizeof(bool));
   bool *best = calloc(g->size, sizeof(bool));
-  if (!current || !best) {
-    free(current);
-    free(best);
-    return nullptr;
-  }
-  unsigned bestSize = UINT_MAX;
-  findFeedbackVertexSetBacktracking(g, 0, current, 0, best, &bestSize);
-  free(current);
+  if (!best) return nullptr;
+  bool kept[g->size] = {};
+  unsigned bound = -1;
+  find_feedback_vertex_set_recursive(g, 0, kept, 0, best, &bound);
   return best;
 }
 
@@ -4574,7 +4545,7 @@ unsigned calculate_cutwidth(const Graph *g) {
 }
 
 static unsigned calculate_feedback_vertex_set_number_recursive(const Graph *g, unsigned v, bool *kept, unsigned retained) {
-  if (v >= g->size) return subset_has_cycle(g, kept) ? g->size : g->size - retained;
+  if (v >= g->size) return is_subgraph_cyclic(g, kept) ? g->size : g->size - retained;
   kept[v] = true;
   unsigned inclusion = calculate_feedback_vertex_set_number_recursive(g, v + 1, kept, retained + 1);
   kept[v] = false;
