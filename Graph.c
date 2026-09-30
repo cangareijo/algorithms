@@ -100,6 +100,7 @@ bool isVertexCover(const Graph *g, const bool *set);
 bool is_dominating_set(const Graph *g, const bool *set);
 bool is_total_dominating_set(const Graph *g, const bool *set);
 bool is_connected_subset(const Graph *g, const bool *set);
+bool subset_has_cycle(const Graph *g, const bool *set);
 bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_roman_dominating_set(const Graph *g, const char *set);
@@ -219,7 +220,7 @@ void subdivideEdge(Graph *g, unsigned u, unsigned v);
 void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight);
 void addWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
-void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void delete_first_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight);
 
 unsigned getSize(const Graph *g);
 unsigned count_directed_edges(const Graph *g);
@@ -267,6 +268,7 @@ unsigned calculatePathwidth(const Graph *g);
 unsigned calculateCliqueWidth(const Graph *g);
 unsigned calculate_carving_width(const Graph *g);
 unsigned calculate_cutwidth(const Graph *g);
+unsigned calculate_feedback_vertex_set_number(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -1538,6 +1540,26 @@ bool is_connected_subset(const Graph *g, const bool *set) {
   unsigned count = 0;
   is_connected_subset_dfs(g, set, start, visited, &count);
   return count == subset_size;
+}
+
+static bool subset_has_cycle_recursive(const Graph *g, const bool *set, unsigned v, char *state) {
+  if (v >= g->size || !set[v] || state[v] == 2) return false;
+  if (state[v] == 1) return true;
+  state[v] = 1;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (subset_has_cycle_recursive(g, set, e->destination, state))
+      return true;
+  state[v] = 2;
+  return false;
+}
+
+bool subset_has_cycle(const Graph *g, const bool *set) {
+  if (!g || g->size == 0 || !g->edges || !set) return true;
+  char state[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    if (subset_has_cycle_recursive(g, set, v, state))
+      return true;
+  return false;
 }
 
 bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v) {
@@ -3599,7 +3621,7 @@ void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double we
     }
 }
 
-void deleteFirstWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
+void delete_first_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight) {
   deleteFirstWeightedDirectedEdge(g, u, v, weight);
   deleteFirstWeightedDirectedEdge(g, v, u, weight);
 }
@@ -4528,7 +4550,7 @@ unsigned calculate_carving_width(const Graph *g) {
   return calculate_carving_width_recursive(g, 0, s1, s2, s3, g->size, 0, 0);
 }
 
-unsigned calculate_cutwidth_recursive(const Graph *g, unsigned count, bool *placed, unsigned maximum) {
+static unsigned calculate_cutwidth_recursive(const Graph *g, unsigned count, bool *placed, unsigned maximum) {
   if (count >= g->size) return maximum;
   unsigned minimum = -1;
   for (unsigned vertex = 0; vertex < g->size; vertex++)
@@ -4549,6 +4571,21 @@ unsigned calculate_cutwidth(const Graph *g) {
   if (!g || g->size < 2 || !g->edges) return 0;
   bool placed[g->size] = {};
   return calculate_cutwidth_recursive(g, 0, placed, 0);
+}
+
+static unsigned calculate_feedback_vertex_set_number_recursive(const Graph *g, unsigned v, bool *kept, unsigned retained) {
+  if (v >= g->size) return subset_has_cycle(g, kept) ? g->size : g->size - retained;
+  kept[v] = true;
+  unsigned inclusion = calculate_feedback_vertex_set_number_recursive(g, v + 1, kept, retained + 1);
+  kept[v] = false;
+  unsigned exclusion = calculate_feedback_vertex_set_number_recursive(g, v + 1, kept, retained);
+  return inclusion < exclusion ? inclusion : exclusion;
+}
+
+unsigned calculate_feedback_vertex_set_number(const Graph *g) {
+  if (!g) return 0;
+  bool kept[g->size] = {};
+  return calculate_feedback_vertex_set_number_recursive(g, 0, kept, 0);
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
@@ -7014,16 +7051,6 @@ double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v) {
   return maxFlow;
 }
 
-/*
- * This function calculates the density of a subgraph defined by a specific subset of vertices.
- * It iterates through the graph to count the number of active vertices included in the 'set'
- * and the number of directed edges connecting these vertices. If the subgraph contains at
- * least two vertices, it returns the actual density as the ratio of existing directed edges
- * to the maximum possible number of directed edges V × (V - 1) for a graph of that size. If
- * the graph pointer is invalid, the set is null, or fewer than two vertices are selected, the
- * function returns 0.
- */
-
 double calculateSubgraphDensity(const Graph *g, const bool *set) {
   if (!g || !g->edges || !set) return 0;
   unsigned vertices = 0;
@@ -7038,17 +7065,6 @@ double calculateSubgraphDensity(const Graph *g, const bool *set) {
   if (vertices < 2) return 0;
   return (double)edges / vertices / (vertices - 1);
 }
-
-/*
- * Calculates the conductance of a specific cut (subset of vertices) in a graph.
- * Conductance is a metric used to evaluate the quality of a graph cut or community
- * by comparing the total weight of edges crossing the cut (cut weight) to the total
- * edge weight connected to the smaller side of the cut (minimum volume between the
- * set and its complement). This function iterates through all edges, computes the
- * volumes and the crossing weights based on the boolean membership array, and
- * returns the ratio of the cut weight to the minimum volume, or 0 if the graph is
- * invalid or a partition has zero volume.
- */
 
 double calculateConductance(const Graph *g, const bool *set) {
   if (!g || g->size == 0 || !g->edges || !set) return 0;
@@ -7066,18 +7082,6 @@ double calculateConductance(const Graph *g, const bool *set) {
   if (min_volume == 0) return 0;
   return cut_weight / min_volume;
 }
-
-/*
- * The calculateNormalizedCut function computes the Normalized Cut (NCut) metric for a given graph partition, which
- * evaluates the quality of a graph cut by balancing the total weight of the edges separating two sub-graphs against
- * the total volume of connections within each sub-graph. In fields like image segmentation, data clustering, and
- * community detection in networks, a simple minimum cut algorithm often yields poor results because it tends to
- * isolate small, outlier nodes or tiny clusters that naturally have few connections. To prevent this bias, the
- * Normalized Cut normalizes the cost of the cut by dividing the cut weight by the total edge weight (volume) of each
- * partitioned set, effectively penalizing cuts that isolate very small sets of nodes. By returning a value that scales
- * inversely with the size and connectivity of the clusters, this function helps algorithms identify balanced, highly
- * cohesive communities that are well-separated from the rest of the network.
- */
 
 double calculateNormalizedCut(const Graph *g, const bool *set) {
   if (!g || g->size == 0 || !g->edges || !set) return 0;
@@ -7208,19 +7212,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return c;
 }
 
-/*
- * The calculateHarmonicCentrality function computes the harmonic centrality scores for all nodes in a given directed,
- * weighted graph to measure how well-connected or central each vertex is within the network topology. In network
- * analysis, centrality metrics identify the most influential or structurally important nodes, such as critical routers
- * in the internet, key influencers in social networks, or high-traffic intersections in urban planning. While standard
- * closeness centrality sums the shortest path distances from a node to all other nodes and takes the reciprocal, it
- * completely breaks down when a graph is disconnected because the distance to an unreachable node is infinite, which
- * forces the overall score to zero. Harmonic centrality solves this major limitation by summing the reciprocals of the
- * shortest path distances instead. By placing the distance in the denominator, unreachable nodes naturally result in a
- * value of zero 1 / ∞ = 0 rather than invalidating the entire calculation, allowing the algorithm to robustly and
- * accurately rank node importance even across fractured or multi-component networks.
- */
-
 [[nodiscard]] double *calculateHarmonicCentrality(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   double *centrality = calloc(g->size, sizeof(double));
@@ -7244,31 +7235,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
         centrality[u] += 1 / distance[u][v];
   return centrality;
 }
-
-/*
- * This function calculates the subgraph centrality for every vertex in a given network graph, providing a robust metric
- * to determine the structural importance of individual nodes. Unlike simpler metrics like degree centrality (which only
- * counts a node's immediate neighbors) or eigenvector centrality, subgraph centrality measures the participation of a
- * node in all subgraphs of the network. It achieves this by counting the total number of closed walks that start and
- * end at a specific node, weighting them such that shorter, tightly bound local loops (like triangles or squares)
- * contribute more significantly to the score than longer, sprawling paths. This metric is incredibly valuable in
- * network science and graph theory because it effectively captures both the local connectivity and the global
- * embedding of a vertex, allowing researchers to identify critical hubs, bottlenecks, or highly collaborative clusters
- * within complex biological, social, or technological infrastructure networks.
- *
- * To compute this metric, the function leverages matrix exponentiation and the Taylor series expansion of the matrix
- * exponential eᴬ, utilizing a bounded loop to approximate the infinite sum up to the 20th degree. It begins by
- * performing safety checks on the graph structure, dynamically allocating an array to hold the final centrality
- * scores, and constructing an adjacency matrix A from the graph's edge list, where each entry represents the weight of
- * the directed link between two vertices. The algorithm then initializes a tracking matrix Ak as the identity matrix
- * (representing A⁰) and registers the base case where a walk of length zero contributes a value of 1 to each node's
- * self-loop count. Moving into the main iterative loop from k = 1 to 20, the function updates a running factorial
- * denominator and performs a standard O(V³) matrix multiplication—multiplying the accumulated matrix A^(k-1) by the
- * base adjacency matrix A to generate Aᵏ, which represents the total walk weights of length k between all node pairs.
- * Finally, it extracts the diagonal elements of this newly computed matrix A_{u,u}^k, divides them by the current
- * step's factorial k!, adds this quotient to each node's running centrality tally in the result array, and swaps the
- * matrix pointers to prepare for the next power expansion.
- */
 
 [[nodiscard]] double *calculateSubgraphCentrality(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
@@ -7301,29 +7267,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   return result;
 }
-
-/*
- * The calculateLoadCentrality function evaluates the structural importance of every node in a graph by determining how
- * often each node sits on the shortest pathways connecting all pairs of vertices. In network analysis, load centrality
- * serves as a vital proxy for identifying critical network components, potential bottlenecks, and highly influential
- * nodes. If a single node lies on many shortest routes, a high volume of information, traffic, or resource flow will
- * naturally pass through it. Consequently, removing or failing such a node could heavily disrupt communication or
- * routing efficiency across the entire system. By identifying these high-traffic hubs, developers and engineers can
- * pinpoint which parts of a infrastructure, social network, or routing system require the most optimization or
- * redundancy.
- *
- * To achieve this, the function loops through every vertex in the graph as a source node and executes a variation of
- * Dijkstra's shortest path algorithm combined with Brandes' algorithm for dependency accumulation. For each source
- * node, it tracks the shortest path distance, a sigma array representing the count of shortest paths from the source
- * to any given node, and a stack that records the order in which vertices are fully visited. In the first phase, it
- * scans for unvisited nodes with the smallest current distance, marks them visited, pushes them onto the stack, and
- * updates the distances and path counts of their neighbors. Once this traversal finishes, the function enters its
- * second phase by popping elements off the stack in reverse topological order. It traces backward from destination
- * nodes to their predecessors to calculate a delta array, which measures how dependent the shortest paths from the
- * source are on a particular intermediate node. These dependency values are then dynamically accumulated into a
- * dynamically allocated centrality array before moving on to the next source node, finally returning the total
- * compiled centrality metrics.
- */
 
 [[nodiscard]] double *calculateLoadCentrality(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
@@ -7372,31 +7315,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   return centrality;
 }
-
-/*
- * This function calculates the spectrum of the normalized Laplacian matrix of a given graph. In graph theory, the
- * spectrum of a graph refers to the set of eigenvalues of one of its representative matrices. The normalized Laplacian
- * matrix is particularly valuable because its eigenvalues are scale-invariant and bounded between 0 and 2 for
- * undirected graphs, offering a standardized mathematical signature of the network's structure. By analyzing this
- * spectrum, programmers and data scientists can gain deep insights into global structural properties of the network,
- * such as its connectivity, the presence of bottlenecks, the number of connected components, and the graph's overall
- * clustering behavior or bipartiteness. Computing these eigenvalues is a foundational step in spectral graph theory,
- * which underpins advanced machine learning and network analysis techniques like spectral clustering, image
- * segmentation, and the design of graph convolutional networks.
- *
- * The function accomplishes this through a multi-step numerical pipeline that begins with matrix construction,
- * transitions to iterative matrix factorization, and concludes with data extraction. First, it performs safety checks
- * to ensure the graph pointer, vertex count, and edge data are valid before allocating memory for the output array. It
- * then computes the weighted degree of each vertex and populates a square matrix to represent the normalized
- * Laplacian, where the diagonal elements of active nodes are set to 1 and off-diagonal connections are scaled
- * inversely by the square root of the product of the connected vertices' degrees. Next, the algorithm finds the
- * eigenvalues by applying an iterative QR decomposition algorithm with shifts, specifically employing the Gram-Schmidt
- * process to factor the matrix into an orthogonal matrix Q and an upper-triangular matrix R. This iterative process
- * gradually drives the off-diagonal elements of the matrix toward zero, causing the eigenvalues to converge along the
- * main diagonal. Finally, once convergence is achieved, the function copies these diagonal entries into the spectrum
- * array, applies a basic selection sort to organize the eigenvalues in ascending order, and returns the pointer to the
- * sorted array.
- */
 
 [[nodiscard]] double *calculateGraphSpectrum(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
@@ -7461,29 +7379,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return spectrum;
 }
 
-/*
- * This function calculates the shortest paths from a single starting vertex to all other vertices in a directed,
- * weighted graph, and it returns a dynamically allocated array containing these minimum distance values. It leverages
- * the Bellman-Ford algorithm, which is specifically chosen because it can handle graph edges with negative weights, a
- * scenario where other algorithms like Dijkstra's fail. The function uses the C23 attribute [[nodiscard]] to
- * explicitly warn the calling program that it must catch and manage the returned pointer, preventing a memory leak
- * since the function allocates new memory on the heap. Furthermore, the routine protects against negative-weight
- * cycles—loops where the total weight is less than zero—by detecting which vertices are trapped in an infinite
- * downward spiral of cost and marking their distances as negative infinity. This ensures the output accurately
- * reflects whether a true shortest path exists or if the cost can be minimized indefinitely.
- *
- * The function accomplishes this through a systematic sequence of validation, initialization, relaxation, and negative
- * cycle propagation. First, it performs safety checks to ensure the graph pointer is valid, edge data exists, and the
- * starting vertex falls within the graph's size bounds, returning nullptr if any check fails. It then allocates a
- * block of memory for the distance array and initializes the starting vertex's distance to zero while setting all
- * other vertices to positive infinity. Next, it performs the core relaxation phase by looping through every edge in
- * the graph a total of graph size minus one times; during each iteration, it updates a destination vertex's distance
- * if a shorter path is discovered through an origin vertex. Finally, it runs a second identical loop structure to
- * check for negative-weight cycles. If an edge can still be relaxed after the main phase, it indicates that the
- * destination vertex belongs to or is reachable from a negative cycle, prompting the function to change its distance
- * value to negative infinity before returning the finalized pointer to the caller.
- */
-
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   double *distance = malloc(g->size * sizeof(double));
@@ -7502,26 +7397,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
           distance[e->destination] = -INFINITY;
   return distance;
 }
-
-/*
- * The calculateWeightedDistances function computes the shortest paths from a single starting vertex to all other
- * reachable vertices in a directed or undirected graph with non-negative edge weights. It returns a dynamically
- * allocated array of doubles representing these minimum distances, utilizing the modern C23 [[nodiscard]] attribute to
- * warn the compiler if the caller leaks memory by ignoring the returned pointer. If the input graph pointer is
- * invalid, contains negative weights, or the starting vertex index is out of bounds, the function safely aborts and
- * returns a null pointer. It also handles memory allocation failures gracefully, ensuring that any successfully
- * allocated temporary arrays are freed before exiting to prevent memory leaks.
- *
- * The function implements Dijkstra’s algorithm using a simple loop-based approach to find the minimum distance vertex
- * at each step. It begins by validating the inputs and allocating a boolean visited tracking array and a distances
- * array, initializing all distances to infinity except for the source vertex, which is set to zero. In each iteration
- * of the main loop, it marks the current vertex as visited and iterates through its adjacency list to relax its
- * neighboring edges, updating adjacent distances if a shorter path is found. After checking all neighbors, it performs
- * a linear scan over all graph vertices to locate the unvisited vertex with the smallest tentative distance. This
- * vertex is chosen as the next source vertex for the loop, and the process repeats until all reachable vertices are
- * visited or remaining unvisited vertices are unreachable (indicated by a minimum distance of infinity), at which
- * point it cleans up the tracking array and returns the results.
- */
 
 [[nodiscard]] double *calculateWeightedDistances(const Graph *g, unsigned v) {
   if (!is_valid(g) || hasNegativeWeights(g) || v >= g->size) return nullptr;
@@ -7550,33 +7425,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   free(visited);
   return distances;
 }
-
-/*
- * This function computes the eigenvector centrality scores for all vertices in a given network graph using the power
- * iteration method, returning an allocated array of scores or nullptr if computation fails or does not converge.
- * Eigenvector centrality is a crucial metric in network analysis used to measure the relative influence of nodes
- * within a network. Unlike simpler metrics like degree centrality, which only count how many connections a node has,
- * eigenvector centrality assigns relative scores to all nodes based on the principle that connections to high-scoring
- * nodes contribute more to the score of the node in question than equal connections to low-scoring nodes. It is widely
- * used in Google's PageRank algorithm, social network analysis to find key influencers, and biological systems to
- * discover critical genes or proteins. The function utilizes the [[nodiscard]] attribute to warn developers that the
- * returned memory block must not be ignored, ensuring that the dynamically allocated memory is properly captured and
- * eventually freed to prevent resource leaks.
- *
- * The function achieves this by first validating the input graph structure and allocating two memory arrays (scores and
- * next) to store the current and next-iteration centrality values. It initializes the scores vector by assigning an
- * equal, normalized value of 1 divided by the square root of the graph size to every node. The algorithm then enters a
- * main loop that runs for a user-defined maximum number of iterations. In each iteration, it clears the next array and
- * distributes each node's current score across its outgoing edges, multiplying the node's score by the edge's weight
- * and accumulating it at the destination node. To prevent the values from growing infinitely and to ensure
- * mathematical convergence, the function calculates the Euclidean norm of the newly computed vector and divides every
- * element by this norm. During this normalization step, it tracks the maximum absolute difference (delta) between the
- * old score and the new score for any given node. If this maximum difference falls below the user-specified tolerance
- * threshold, the algorithm sets a convergence flag and breaks early; otherwise, it swaps the scores and next pointers
- * to prepare for the next round. Finally, it frees the auxiliary next buffer, checks if convergence was successfully
- * reached, and either returns the final allocated scores array or frees it and returns nullptr if the algorithm timed
- * out without converging.
- */
 
 [[nodiscard]] double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance) {
   if (!g || !g->edges || g->size == 0) return nullptr;
@@ -7618,32 +7466,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   return scores;
 }
-
-/*
- * This function calculates the PageRank scores for all vertices in a directed graph to measure their relative
- * structural importance. PageRank operates on the principle that a vertex is important if it is linked to by other
- * important vertices, acting like a democratic voting system where edges represent votes. It is widely used in search
- * engine ranking, network analysis, and recommendation systems because it provides a global importance metric that
- * goes beyond simple edge counting by factoring in the global structure of the network. The function includes
- * parameters for a damping factor to simulate a "random surfer" who occasionally jumps to a completely random vertex,
- * an iteration cap to prevent infinite loops, and a tolerance threshold to determine when the scores have stabilized.
- * The [[nodiscard]] attribute ensures that the caller does not accidentally leak the dynamically allocated memory
- * containing the final scores, and the function returns a null pointer if the graph is empty, if memory allocation
- * fails, or if the algorithm fails to converge within the allowed number of iterations.
- *
- * The algorithm achieves this by iteratively updating an array of probability scores using the power iteration method
- * until the values stabilize. It begins by validating the graph and allocating two arrays to hold the current and next
- * iteration's scores, initializing every vertex with an equal probability of 1 divided by the total number of
- * vertices. In each iteration, it first handles "sink nodes" (vertices with an out-degree of zero) by calculating
- * their total score mass and distributing it equally across the entire graph; this prevents the probability mass from
- * permanently trapped in dead ends. Next, it establishes a baseline score for every vertex using the damping factor,
- * representing the random jump probability. It then iterates through all vertices with outward links, distributing
- * their current score multiplied by the damping factor equally among their respective target destinations. After
- * calculating the new scores, it determines the maximum absolute difference between the old and new ranks to check for
- * convergence. If this maximum change falls below the specified tolerance threshold, the algorithm stops early, frees
- * the auxiliary buffer, and returns the pointer to the stabilized scores; otherwise, it swaps the current and next
- * score arrays and continues until it runs out of iterations.
- */
 
 [[nodiscard]] double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance) {
   if (!g || g->size == 0) return nullptr;
@@ -7694,31 +7516,6 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 
-
-/*
- * This function computes a two-dimensional visual layout for a network graph using a physical simulation technique
- * known as a force-directed placement algorithm, specifically inspired by the Fruchterman-Reingold method. The purpose
- * of this function is to assign Cartesian coordinates to every node in the graph so that when the graph is drawn, it
- * is clean, balanced, and easy for a human to interpret. Without a layout algorithm, nodes might overlap or clump
- * together arbitrarily, rendering the network unreadable. By modeling the graph as a system of physical objects where
- * nodes repel each other like magnets and connected edges pull together like springs, the function achieves an
- * aesthetically pleasing distribution. This process minimizes overlapping edges, spreads out dense clusters, maintains
- * relatively uniform edge lengths, and uncovers the underlying structural symmetry of the data for data visualization
- * software.
- *
- * The function achieves this layout by running an iterative physics simulation over a designated number of steps,
- * gradually cooling down the system to lock the nodes into a stable configuration. It starts by allocating memory for
- * coordinates and displacement vectors, and then places every node at a random position within a central box on a
- * 1000-by-1000 pixel canvas. During each iteration, it performs three primary phases. First, it calculates a repulsive
- * force between every unique pair of nodes in the graph, pushing them apart based on an inverse-squared distance
- * formula to ensure they do not crowd each other. Second, it iterates through all connected edges and calculates an
- * attractive force that pulls adjacent nodes closer together, with the strength of the pull scaling linearly with
- * their distance. Third, it updates each node's position by moving it along its net displacement vector. This movement
- * is strictly capped by a global temperature variable that starts high and decreases linearly with each iteration,
- * simulating an annealing process that allows nodes to take large leaps early on to find their general placement and
- * smaller, precise adjustments later. Finally, the function confines all coordinates within the canvas boundaries,
- * frees the temporary displacement memory, and returns the final coordinates array.
- */
 
 [[nodiscard]] double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2] {
   if (!g || g->size == 0 || !g->edges) return nullptr;
