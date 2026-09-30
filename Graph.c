@@ -105,7 +105,7 @@ bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_roman_dominating_set(const Graph *g, const char *set);
 bool is_roman_dominated_vertex(const Graph *g, const char *set, unsigned v);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
-bool isPerfectMatching(const Graph *g, const unsigned *matching);
+bool is_perfect_matching(const Graph *g, const unsigned *matching);
 bool is_automorphism(const Graph *g, const unsigned *mapping);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
@@ -266,6 +266,7 @@ unsigned calculateVertexCoverNumber(const Graph *g);
 unsigned calculatePathwidth(const Graph *g);
 unsigned calculateCliqueWidth(const Graph *g);
 unsigned calculate_carving_width(const Graph *g);
+unsigned calculate_cutwidth(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -1585,7 +1586,7 @@ bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
   return true;
 }
 
-bool isPerfectMatching(const Graph *g, const unsigned *matching) {
+bool is_perfect_matching(const Graph *g, const unsigned *matching) {
   if (!g || g->size % 2 != 0 || (g->size > 0 && (!g->edges || !matching))) return false;
   for (unsigned v = 0; v < g->size; v++)
     if (matching[v] >= g->size || matching[v] == v || matching[matching[v]] != v || !has_directed_edge(g, v, matching[v]))
@@ -4495,7 +4496,7 @@ unsigned calculateCliqueWidth(const Graph *g) {
 }
 
 static unsigned calculate_carving_width_recursive(
-  const Graph *g, unsigned v, const bool s1[g->size], bool s2[g->size], bool s3[g->size], unsigned c1, unsigned c2, unsigned c3)
+  const Graph *g, unsigned v, const bool *s1, bool *s2, bool *s3, unsigned c1, unsigned c2, unsigned c3)
 {
   if (c1 < 2) return 0;
   if (v >= g->size) {
@@ -4525,6 +4526,29 @@ unsigned calculate_carving_width(const Graph *g) {
   bool s1[g->size], s2[g->size] = {}, s3[g->size] = {};
   for (unsigned v = 0; v < g->size; v++) s1[v] = true;
   return calculate_carving_width_recursive(g, 0, s1, s2, s3, g->size, 0, 0);
+}
+
+unsigned calculate_cutwidth_recursive(const Graph *g, unsigned count, bool *placed, unsigned maximum) {
+  if (count >= g->size) return maximum;
+  unsigned minimum = -1;
+  for (unsigned vertex = 0; vertex < g->size; vertex++)
+    if (!placed[vertex]) {
+      placed[vertex] = true;
+      unsigned current = calculate_cut_size(g, placed);
+      if (maximum > current) current = maximum;
+      if (current < minimum) {
+        unsigned result = calculate_cutwidth_recursive(g, count + 1, placed, current);
+        if (result < minimum) minimum = result;
+      }
+      placed[vertex] = false;
+    }
+  return minimum;
+}
+
+unsigned calculate_cutwidth(const Graph *g) {
+  if (!g || g->size < 2 || !g->edges) return 0;
+  bool placed[g->size] = {};
+  return calculate_cutwidth_recursive(g, 0, placed, 0);
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
@@ -4891,17 +4915,13 @@ unsigned get_first_vertex_in_subset(const Graph *g, const bool *set) {
 }
 
 unsigned calculate_cut_size(const Graph *g, const bool *set) {
-  unsigned cut = 0;
-  for (unsigned v = 0; v < g->size; v++) {
-    if (set[v]) {
-      for (Edge *e = g->edges[v]; e; e = e->next) {
-        if (e->destination < g->size && !set[e->destination]) {
-          cut++;
-        }
-      }
-    }
-  }
-  return cut;
+  if (!g || !g->edges || !set) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && set[v] && !set[e->destination])
+        n++;
+  return n;
 }
 
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
@@ -5137,30 +5157,6 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   }
   return colors;
 }
-/*
- * The findOptimalEdgeColoring function finds the minimum number of colors needed to color the edges of a graph so that
- * no two adjacent edges share the same color, returning an allocated array representing this assignment. This problem
- * is known as optimal edge coloring or finding the chromatic index of a graph. According to Vizing's Theorem, the
- * chromatic index of a simple graph is either equal to its maximum degree Δ or Δ + 1. The function exists to compute
- * this exact optimal coloring because determining whether a graph requires Δ or Δ + 1 colors is an NP-hard problem. It
- * utilizes the [[nodiscard]] attribute to ensure the caller does not leak the dynamically allocated memory returned by
- * the function. By systematically finding the absolute minimum number of colors necessary, it provides a valid
- * coloring scheme that minimizes resource usage in practical applications like network routing, frequency assignment,
- * and scheduling.
- *
- * The function achieves this by first performing a validation check on the graph and counting both the total number of
- * unique edges and the maximum degree among all vertices. It eliminates duplicate undirected edges by only recording
- * them when the current vertex index is less than the destination vertex index, storing the endpoints in two parallel
- * arrays, edge_u and edge_v. It then allocates an array called coloring initialized to zero and sets up an outer loop
- * that attempts to find a valid coloring using exactly Δ colors, upgrading to Δ + 1 colors only if the first attempt
- * fails. Inside this loop, it runs a backtracking algorithm over the edges, sequentially assigning a color to the
- * current edge and checking it against all previously colored edges. If a conflict is detected—meaning a prior edge
- * shares a color and shares at least one vertex endpoint—the color is incremented. If no valid color can be found for
- * the current edge within the allowed limit, the algorithm backtracks by resetting the current edge's color to zero,
- * moving back to the previous edge, and incrementing its color to try a different combination. If the edge index
- * successfully reaches the total edge count, a valid optimal coloring has been found, and the function returns the
- * pointer to the array.
- */
 
 [[nodiscard]] unsigned *findOptimalEdgeColoring(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
@@ -6790,33 +6786,8 @@ double calculatePercolationThreshold(const Graph *g) {
   free(weights);
   free(parent);
   free(comp_size);
-  return threshold_reached ? threshold_weight : 0.0;
+  return threshold_reached ? threshold_weight : 0;
 }
-
-/*
- * This function calculates a metric designed to evaluate the degree of core-peripheral structure within a network graph
- * by measuring how closely the network aligns with an idealized core-periphery model. In network science, a
- * core-periphery structure describes a network that can be partitioned into two distinct sets of nodes: a highly
- * interconnected "core" and a sparsely connected "periphery" that typically links to the core but lacks connections
- * among its own members. Identifying this structural pattern is crucial for understanding networks because it reveals
- * central hubs that dominate information flow or resource distribution, while isolating marginal nodes that act as
- * receivers or outliers. By providing a unified numerical score, this function allows researchers or developers to
- * quantify this specific topological property, enabling direct structural comparisons between different graphs or
- * tracking how a single network's core-periphery dynamics evolve over time.
- *
- * The function computes this score through a multi-step process that first establishes a dynamic baseline for node
- * centrality before measuring structural deviations. It begins with a safety check to handle empty or invalid graphs,
- * then traverses all valid graph edges to calculate the weighted degree of each vertex alongside the network's
- * cumulative weight. This total weight is divided by the number of vertices to establish a network-wide average
- * degree, which serves as a threshold: any node with a weighted degree exceeding this average is classified into
- * the "core" (is_core is set to true), while the remaining nodes are classified into the "periphery." With the nodes
- * partitioned, the function iterates through the edges a second time to compare the actual weight of each link against
- * an expected "ideal" model weight. In this ideal mapping, an edge connecting two core nodes is expected to have a
- * high weight of 1.0, an edge bridging a core node and a periphery node expects a moderate weight of 0.5, and an edge
- * between two peripheral nodes expects a weight of 0.0. For every edge, the absolute difference between the actual
- * edge weight and this idealized weight is subtracted from 1, and these individual alignment metrics are accumulated
- * into a final score that represents the network's overall fit to the core-periphery ideal.
- */
 
 double calculateCorePeripheralScore(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
