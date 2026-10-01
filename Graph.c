@@ -70,6 +70,7 @@ bool isOuterplanar(const Graph *g);
 bool isSelfCentered(const Graph *g);
 bool isDistanceRegular(const Graph *g);
 bool hasHamiltonianPathSufficientCondition(const Graph *g);
+bool is_permutation_graph(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -1252,6 +1253,29 @@ bool hasHamiltonianPathSufficientCondition(const Graph *g) {
     for (unsigned v = u + 1; v < n; v++)
       if (!adjacent[u][v] && degree[u] + degree[v] < n - 1)
         return false;
+  return true;
+}
+
+bool is_permutation_graph(const Graph *g) {
+  if (!g || g->size < 4) return true;
+  bool grid[g->size][g->size];
+  for (unsigned phase = 0; phase < 2; phase++) {
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        grid[u][v] = u != v && has_directed_edge(g, u, v) ^ phase;
+    for (bool dirty = true; dirty; ) {
+      dirty = false;
+      for (unsigned u = 0; u < g->size; u++)
+        for (unsigned v = 0; v < g->size; v++)
+          if (grid[u][v])
+            for (unsigned w = 0; w < g->size; w++)
+              if (u != w && v != w && grid[v][w] && !grid[u][w]) {
+                if (grid[w][u]) return false;
+                grid[u][w] = dirty = true;
+                grid[w][v] = grid[v][u] = false;
+              }
+    }
+  }
   return true;
 }
 
