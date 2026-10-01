@@ -200,7 +200,7 @@ Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2);
 Graph *createStrongProduct(const Graph *g1, const Graph *g2);
 Graph *createRootedProduct(const Graph *g1, const Graph *g2);
 
-void destroyGraph(Graph *g);
+void destroy_graph(Graph *g);
 void addVertex(Graph *g);
 void deleteSelfLoops(Graph *g);
 void deleteInvalidEdges(Graph *g);
@@ -209,8 +209,8 @@ void deleteDirectedEdgeByIndex(Graph *g, unsigned i);
 void deleteOutgoingEdges(Graph *g, unsigned v);
 void deleteIncomingEdges(Graph *g, unsigned v);
 void deleteVertex(Graph *g, unsigned v);
-void addDirectedEdge(Graph *g, unsigned u, unsigned v);
-void addUndirectedEdge(Graph *g, unsigned u, unsigned v);
+void add_directed_edge(Graph *g, unsigned u, unsigned v);
+void add_undirected_edge(Graph *g, unsigned u, unsigned v);
 void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v);
 void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v);
 void deleteMatchingEdges(Graph *g, unsigned u, unsigned v);
@@ -219,7 +219,7 @@ void transferIncomingEdges(Graph *g, unsigned u, unsigned v);
 void contractVertices(Graph *g, unsigned u, unsigned v);
 void subdivideEdge(Graph *g, unsigned u, unsigned v);
 void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight);
-void addWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void add_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight);
 void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
 void delete_first_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight);
 
@@ -1356,7 +1356,7 @@ bool isArticulationVertex(const Graph *g, unsigned v) {
   Graph *g2 = copyGraph(g);
   deleteVertex(g2, v);
   unsigned n = countComponents(g2);
-  destroyGraph(g2);
+  destroy_graph(g2);
   return n > countComponents(g);
 }
 
@@ -1472,7 +1472,7 @@ bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
   Graph *g2 = copyGraph(g);
   deleteFirstDirectedEdge(g2, u, v);
   unsigned n = countComponents(g2);
-  destroyGraph(g2);
+  destroy_graph(g2);
   return n > countComponents(g);
 }
 
@@ -1480,7 +1480,7 @@ bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
   Graph *g2 = copyGraph(g);
   deleteFirstUndirectedEdge(g2, u, v);
   unsigned n = countComponents(g2);
-  destroyGraph(g2);
+  destroy_graph(g2);
   return n > countComponents(g);
 }
 
@@ -1693,7 +1693,7 @@ bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) 
       deleteFirstDirectedEdge(g2, sequence[i - 1], sequence[i]);
     else
       valid = false;
-  destroyGraph(g2);
+  destroy_graph(g2);
   return valid;
 }
 
@@ -1705,7 +1705,7 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
       deleteFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
-  destroyGraph(copy);
+  destroy_graph(copy);
   return valid;
 }
 
@@ -1784,7 +1784,7 @@ bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length
       deleteFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
-  destroyGraph(copy);
+  destroy_graph(copy);
   return valid;
 }
 
@@ -1797,7 +1797,7 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
       deleteFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
-  destroyGraph(copy);
+  destroy_graph(copy);
   return valid;
 }
 
@@ -2791,27 +2791,27 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createPath(unsigned n) {
   Graph *g = create_graph(n);
-  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, v - 1, v);
+  for (unsigned v = 1; v < n; v++) add_undirected_edge(g, v - 1, v);
   return g;
 }
 
 [[nodiscard]] Graph *createCycle(unsigned n) {
   Graph *g = create_graph(n);
-  for (unsigned v = 0; v < n; v++) addUndirectedEdge(g, v, (v + 1) % n);
+  for (unsigned v = 0; v < n; v++) add_undirected_edge(g, v, (v + 1) % n);
   return g;
 }
 
 [[nodiscard]] Graph *createStar(unsigned n) {
   Graph *g = create_graph(n);
-  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v);
+  for (unsigned v = 1; v < n; v++) add_undirected_edge(g, 0, v);
   return g;
 }
 
 [[nodiscard]] Graph *createWheel(unsigned n) {
   Graph *g = create_graph(n);
-  for (unsigned v = 1; v < n; v++) addUndirectedEdge(g, 0, v);
-  for (unsigned v = 2; v < n; v++) addUndirectedEdge(g, v - 1, v);
-  addUndirectedEdge(g, n - 1, 1);
+  for (unsigned v = 1; v < n; v++) add_undirected_edge(g, 0, v);
+  for (unsigned v = 2; v < n; v++) add_undirected_edge(g, v - 1, v);
+  add_undirected_edge(g, n - 1, 1);
   return g;
 }
 
@@ -2820,7 +2820,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   for (unsigned u = 0; u < n; u++)
     for (unsigned v = 0; v < n; v++)
       if (u != v)
-        addDirectedEdge(g, u, v);
+        add_directed_edge(g, u, v);
   return g;
 }
 
@@ -2832,7 +2832,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
       if (u != v)
         if (rand() / ((double)RAND_MAX + 1) < p) {
           double weight = weighted ? 1 + (rand() / ((double)RAND_MAX + 1)) * 9 : 1;
-          if (directed) add_weighted_directed_edge(g, u, v, weight); else addWeightedUndirectedEdge(g, u, v, weight);
+          if (directed) add_weighted_directed_edge(g, u, v, weight); else add_weighted_undirected_edge(g, u, v, weight);
         }
   return g;
 }
@@ -2860,7 +2860,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      addDirectedEdge(g2, v, e->destination);
+      add_directed_edge(g2, v, e->destination);
   return g2;
 }
 
@@ -2869,7 +2869,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      addWeightedUndirectedEdge(g2, v, e->destination, e->weight);
+      add_weighted_undirected_edge(g2, v, e->destination, e->weight);
   return g2;
 }
 
@@ -2879,7 +2879,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v && !has_directed_edge(g, u, v))
-        addDirectedEdge(g2, u, v);
+        add_directed_edge(g2, u, v);
   return g2;
 }
 
@@ -2893,7 +2893,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
       for (unsigned v = 0; v < g->size; v++)
         for (Edge *e = g->edges[v]; e; e = e->next) {
           if (d->destination == v)
-            addDirectedEdge(g2, i, j);
+            add_directed_edge(g2, i, j);
           j++;
         }
       i++;
@@ -2915,9 +2915,9 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
           for (Edge *e = g->edges[v]; e; e = e->next) {
             if (v < e->destination || (v == e->destination && vSelf % 2 == 0)) {
               if (i < j && (u == v || u == e->destination || d->destination == v || d->destination == e->destination))
-                addUndirectedEdge(g2, i, j);
+                add_undirected_edge(g2, i, j);
               if (i == j && (u == e->destination || d->destination == v))
-                addUndirectedEdge(g2, i, j);
+                add_undirected_edge(g2, i, j);
               j++;
             }
             if (v == e->destination) vSelf++;
@@ -2937,7 +2937,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (v != e->destination && !hasUndirectedEdge(g2, v, e->destination))
-        addUndirectedEdge(g2, v, e->destination);
+        add_undirected_edge(g2, v, e->destination);
   return g2;
 }
 
@@ -2955,7 +2955,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
           weight = e->weight;
         }
     if (weight == INFINITY) break;
-    addWeightedUndirectedEdge(mst, u, v, weight);
+    add_weighted_undirected_edge(mst, u, v, weight);
   }
   return mst;
 }
@@ -2971,7 +2971,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
     free(added);
     free(weights);
     free(parents);
-    destroyGraph(mst);
+    destroy_graph(mst);
     return nullptr;
   }
   for (unsigned v = 0; v < g->size; v++) {
@@ -2997,7 +2997,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   } while (u != UINT_MAX);
   for (unsigned v = 1; v < g->size; ++v)
     if (parents[v] != UINT_MAX)
-      addWeightedUndirectedEdge(mst, parents[v], v, weights[v]);
+      add_weighted_undirected_edge(mst, parents[v], v, weights[v]);
   free(added);
   free(weights);
   free(parents);
@@ -3025,8 +3025,8 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
     unsigned self = 0;
     for (Edge *e = g->edges[v]; e; e = e->next) {
       if (v < e->destination || (v == e->destination && self % 2 == 0)) {
-        addWeightedUndirectedEdge(g2, v, u, e->weight);
-        addWeightedUndirectedEdge(g2, u, e->destination, e->weight);
+        add_weighted_undirected_edge(g2, v, u, e->weight);
+        add_weighted_undirected_edge(g2, u, e->destination, e->weight);
         u++;
       }
       if (v == e->destination) self++;
@@ -3041,7 +3041,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v && hasPath(g, u, v))
-        addDirectedEdge(closure, u, v);
+        add_directed_edge(closure, u, v);
   return closure;
 }
 
@@ -3055,7 +3055,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
     free(weights);
     free(permutation);
     free(position);
-    destroyGraph(result);
+    destroy_graph(result);
     return nullptr;
   }
   for (unsigned v = 0; v < g->size; v++)
@@ -3118,13 +3118,13 @@ static void createCactusGraphDfs(
     if (!discovery[v])
       createCactusGraphDfs(g, v, discovery, parent, taken, &timer);
   for (unsigned u = 0; u < g->size; u++) {
-    if (parent[u] != g->size) addUndirectedEdge(cactus, u, parent[u]);
+    if (parent[u] != g->size) add_undirected_edge(cactus, u, parent[u]);
     for (const Edge *e = g->edges[u]; e; e = e->next)
       if (
         e->destination < g->size && u < e->destination &&
         parent[u] != e->destination && parent[e->destination] != u && taken[u][e->destination]
       ) {
-        addUndirectedEdge(cactus, u, e->destination);
+        add_undirected_edge(cactus, u, e->destination);
         taken[u][e->destination] = false;
       }
   }
@@ -3186,7 +3186,7 @@ static void createCactusGraphDfs(
     for (unsigned j = 0; j < total && r == UINT_MAX; j++)
       if (sources[j] == targets[i] && targets[j] == sources[i] && weights[j] == weights[i] && occurrences[j] == reverse_occurrence)
         r = j;
-    if (r != UINT_MAX && i < r) addWeightedUndirectedEdge(dual, faces[i], faces[r], weights[i]);
+    if (r != UINT_MAX && i < r) add_weighted_undirected_edge(dual, faces[i], faces[r], weights[i]);
   }
   return dual;
 }
@@ -3243,7 +3243,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
       createStronglyConnectedComponentsQuotientBackward(transpose, stack[i - 1], visited, count, sccs);
       count++;
     }
-  destroyGraph(transpose);
+  destroy_graph(transpose);
   Graph *q = create_graph(count);
   if (!q) return nullptr;
   for (unsigned v = 0; v < n; v++)
@@ -3261,7 +3261,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
     for (unsigned v = 0; v < g->size; v++)
       for (unsigned w = 0; w < g->size; w++)
         if (u != v && has_directed_edge(g, u, w) && has_directed_edge(g, w, v) && !has_directed_edge(projection, u, v))
-          addDirectedEdge(projection, u, v);
+          add_directed_edge(projection, u, v);
   return projection;
 }
 
@@ -3271,7 +3271,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
       if (u != v && calculateUnweightedDistance(g, u, v) <= k)
-        addDirectedEdge(power, u, v);
+        add_directed_edge(power, u, v);
   return power;
 }
 
@@ -3403,7 +3403,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
 
 
 
-void destroyGraph(Graph *g) {
+void destroy_graph(Graph *g) {
   if (!g) return;
   if (g->edges)
     for (unsigned v = 0; v < g->size; v++) {
@@ -3505,12 +3505,12 @@ void deleteVertex(Graph *g, unsigned v) {
   g->size--;
 }
 
-void addDirectedEdge(Graph *g, unsigned u, unsigned v) {
+void add_directed_edge(Graph *g, unsigned u, unsigned v) {
   add_weighted_directed_edge(g, u, v, 1);
 }
 
-void addUndirectedEdge(Graph *g, unsigned u, unsigned v) {
-  addWeightedUndirectedEdge(g, u, v, 1);
+void add_undirected_edge(Graph *g, unsigned u, unsigned v) {
+  add_weighted_undirected_edge(g, u, v, 1);
 }
 
 void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
@@ -3598,7 +3598,7 @@ void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight)
   g->edges[u] = e;
 }
 
-void addWeightedUndirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
+void add_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight) {
   add_weighted_directed_edge(g, u, v, weight);
   add_weighted_directed_edge(g, v, u, weight);
 }
@@ -3850,7 +3850,7 @@ unsigned countComponents(const Graph *g) {
               stack[size++] = e->destination;
             }
       }
-  destroyGraph(g2);
+  destroy_graph(g2);
   free(visited);
   free(stack);
   return n;
@@ -3989,7 +3989,7 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
   Graph *net = create_graph(2 * g->size);
   if (!adjacent || !net) {
     freeBooleanMatrix(adjacent, g->size);
-    destroyGraph(net);
+    destroy_graph(net);
     return 0;
   }
   for (unsigned v = 0; v < g->size; v++) add_weighted_directed_edge(net, v, v + g->size, 1);
@@ -4005,7 +4005,7 @@ unsigned calculateMinimumVertexCut(const Graph *g) {
       if (flow < minimum) minimum = flow;
     }
   freeBooleanMatrix(adjacent, g->size);
-  destroyGraph(net);
+  destroy_graph(net);
   return round(minimum);
 }
 
@@ -4133,7 +4133,7 @@ static void calculateDirectedEdgeConnectivityRecursive(
   calculateDirectedEdgeConnectivityRecursive(g, copy, v, e->next, current, minimum);
   deleteFirstDirectedEdge(copy, v, e->destination);
   calculateDirectedEdgeConnectivityRecursive(g, copy, v, e->next, current + 1, minimum);
-  addDirectedEdge(copy, v, e->destination);
+  add_directed_edge(copy, v, e->destination);
 }
 
 unsigned calculateDirectedEdgeConnectivity(const Graph *g) {
@@ -4142,7 +4142,7 @@ unsigned calculateDirectedEdgeConnectivity(const Graph *g) {
   if (!copy) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   calculateDirectedEdgeConnectivityRecursive(g, copy, 0, g->edges[0], 0, &minimum);
-  destroyGraph(copy);
+  destroy_graph(copy);
   return minimum;
 }
 
@@ -5283,7 +5283,7 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   if (!queue || !visited || !transpose || !components) {
     free(queue);
     free(visited);
-    destroyGraph(transpose);
+    destroy_graph(transpose);
     free(components);
     return nullptr;
   }
@@ -5312,7 +5312,7 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   }
   free(queue);
   free(visited);
-  destroyGraph(transpose);
+  destroy_graph(transpose);
   return components;
 }
 
