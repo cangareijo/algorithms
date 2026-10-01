@@ -179,7 +179,7 @@ Graph *createDirectedLine(const Graph *g);
 Graph *createUndirectedLine(const Graph *g);
 Graph *createUnderlying(const Graph *g);
 Graph *createKruskal(const Graph *g);
-Graph *createPrim(const Graph *g);
+Graph *get_minimum_spanning_tree(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
@@ -2960,48 +2960,28 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   return mst;
 }
 
-[[nodiscard]] Graph *createPrim(const Graph *g) {
+[[nodiscard]] Graph *get_minimum_spanning_tree(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *mst = create_graph(g->size);
-  if (!mst || g->size < 2) return mst;
-  bool *added = calloc(g->size, sizeof(bool));
-  double *weights = malloc(g->size * sizeof(double));
-  unsigned *parents = malloc(g->size * sizeof(unsigned));
-  if (!added || !weights || !parents) {
-    free(added);
-    free(weights);
-    free(parents);
-    destroy_graph(mst);
-    return nullptr;
-  }
-  for (unsigned v = 0; v < g->size; v++) {
-    weights[v] = INFINITY;
-    parents[v] = UINT_MAX;
-  }
-  unsigned u = 0;
-  weights[0] = 0;
-  do {
-    added[u] = true;
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size && !added[e->destination] && e->weight < weights[e->destination]) {
-        weights[e->destination] = e->weight;
-        parents[e->destination] = u;
-      }
-    double weight = INFINITY;
-    u = UINT_MAX;
+  Graph *tree = create_graph(g->size);
+  if (!tree || g->size == 0) return tree;
+  bool visited[g->size] = {};
+  visited[0] = true;
+  while (true) {
+    unsigned source = 0, target = 0;
+    double minimum = INFINITY;
     for (unsigned v = 0; v < g->size; v++)
-      if (!added[v] && weights[v] < weight) {
-        weight = weights[v];
-        u = v;
-      }
-  } while (u != UINT_MAX);
-  for (unsigned v = 1; v < g->size; ++v)
-    if (parents[v] != UINT_MAX)
-      add_weighted_undirected_edge(mst, parents[v], v, weights[v]);
-  free(added);
-  free(weights);
-  free(parents);
-  return mst;
+      if (visited[v])
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination < g->size && !visited[e->destination] && e->weight < minimum) {
+            source = v;
+            target = e->destination;
+            minimum = e->weight;
+          }
+    if (minimum == INFINITY) break;
+    visited[target] = true;
+    add_weighted_undirected_edge(tree, source, target, minimum);
+  }
+  return tree;
 }
 
 [[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
