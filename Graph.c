@@ -269,6 +269,7 @@ unsigned calculateCliqueWidth(const Graph *g);
 unsigned calculate_carving_width(const Graph *g);
 unsigned calculate_cutwidth(const Graph *g);
 unsigned calculate_feedback_vertex_set_number(const Graph *g);
+unsigned calculate_feedback_arc_set_number(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -4557,6 +4558,29 @@ unsigned calculate_feedback_vertex_set_number(const Graph *g) {
   if (!g) return 0;
   bool kept[g->size] = {};
   return calculate_feedback_vertex_set_number_recursive(g, 0, kept, 0);
+}
+
+static unsigned calculate_feedback_arc_set_number_recursive(const Graph *g, bool *placed, unsigned depth, unsigned cost) {
+  if (depth >= g->size) return cost;
+  unsigned best = -1;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!placed[v]) {
+      placed[v] = true;
+      unsigned penalty = 0;
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && placed[e->destination])
+          penalty++;
+      unsigned result = calculate_feedback_arc_set_number_recursive(g, placed, depth + 1, cost + penalty);
+      if (result < best) best = result;
+      placed[v] = false;
+    }
+  return best;
+}
+
+unsigned calculate_feedback_arc_set_number(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  bool placed[g->size] = {};
+  return calculate_feedback_arc_set_number_recursive(g, placed, 0, 0);
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
