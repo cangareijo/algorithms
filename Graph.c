@@ -178,8 +178,8 @@ Graph *createComplement(const Graph *g);
 Graph *createDirectedLine(const Graph *g);
 Graph *createUndirectedLine(const Graph *g);
 Graph *createUnderlying(const Graph *g);
-Graph *createKruskal(const Graph *g);
-Graph *get_minimum_spanning_tree(const Graph *g);
+Graph *get_minimum_spanning_tree_by_kruskal(const Graph *g);
+Graph *get_minimum_spanning_tree_by_prim(const Graph *g);
 Graph *createDirectedSubdivision(const Graph *g);
 Graph *createUndirectedSubdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
@@ -2941,26 +2941,40 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   return g2;
 }
 
-[[nodiscard]] Graph *createKruskal(const Graph *g) {
+[[nodiscard]] Graph *get_minimum_spanning_tree_by_kruskal(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *mst = create_graph(g->size);
+  Graph *tree = create_graph(g->size);
+  if (!tree || g->size == 0) return tree;
+  unsigned parents[g->size];
+  for (unsigned v = 0; v < g->size; v++) parents[v] = v;
   while (true) {
-    unsigned u, v;
-    double weight = INFINITY;
-    for (unsigned w = 0; w < g->size; w++)
-      for (Edge *e = g->edges[w]; e; e = e->next)
-        if (e->weight < weight && !hasPath(mst, w, e->destination)) {
-          u = w;
-          v = e->destination;
-          weight = e->weight;
+    unsigned source = 0, target = 0;
+    double minimum = INFINITY;
+    for (unsigned v = 0; v < g->size; v++)
+      for (Edge *e = g->edges[v]; e; e = e->next) {
+        if (e->destination >= g->size) continue;
+        unsigned root = v;
+        while (root != parents[root]) root = parents[root];
+        unsigned head = e->destination;
+        while (head != parents[head]) head = parents[head];
+        if (root != head && e->weight < minimum) {
+          source = v;
+          target = e->destination;
+          minimum = e->weight;
         }
-    if (weight == INFINITY) break;
-    add_weighted_undirected_edge(mst, u, v, weight);
+      }
+    if (minimum == INFINITY) break;
+    unsigned root = source;
+    while (root != parents[root]) root = parents[root];
+    unsigned head = target;
+    while (head != parents[head]) head = parents[head];
+    parents[root] = head;
+    add_weighted_undirected_edge(tree, source, target, minimum);
   }
-  return mst;
+  return tree;
 }
 
-[[nodiscard]] Graph *get_minimum_spanning_tree(const Graph *g) {
+[[nodiscard]] Graph *get_minimum_spanning_tree_by_prim(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *tree = create_graph(g->size);
   if (!tree || g->size == 0) return tree;
