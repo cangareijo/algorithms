@@ -166,7 +166,8 @@ char *mapped_graph_to_string(const Graph *g, const unsigned *map);
 
 Graph *string_to_graph(const char *string);
 Graph *create_graph(unsigned n);
-Graph *createPath(unsigned n);
+Graph *create_directed_path(unsigned n);
+Graph *create_undirected_path(unsigned n);
 Graph *createCycle(unsigned n);
 Graph *createStar(unsigned n);
 Graph *createWheel(unsigned n);
@@ -2861,7 +2862,13 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   return g;
 }
 
-[[nodiscard]] Graph *createPath(unsigned n) {
+[[nodiscard]] Graph *create_directed_path(unsigned n) {
+  Graph *g = create_graph(n);
+  for (unsigned v = 1; v < n; v++) add_directed_edge(g, v - 1, v);
+  return g;
+}
+
+[[nodiscard]] Graph *create_undirected_path(unsigned n) {
   Graph *g = create_graph(n);
   for (unsigned v = 1; v < n; v++) add_undirected_edge(g, v - 1, v);
   return g;
