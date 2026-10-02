@@ -71,6 +71,7 @@ bool isSelfCentered(const Graph *g);
 bool isDistanceRegular(const Graph *g);
 bool hasHamiltonianPathSufficientCondition(const Graph *g);
 bool is_permutation_graph(const Graph *g);
+bool is_interval_graph(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -1277,6 +1278,35 @@ bool is_permutation_graph(const Graph *g) {
     }
   }
   return true;
+}
+
+static bool is_interval_graph_recursive(const Graph *g, unsigned *list, unsigned depth) {
+  if (depth >= g->size) {
+    for (unsigned first = 0; first < depth; first++)
+      for (unsigned second = first + 1; second < depth; second++)
+        for (unsigned third = second + 1; third < depth; third++) {
+          bool left = false, right = false;
+          for (Edge *e = g->edges[list[first]]; e; e = e->next) {
+            if (e->destination == list[second]) left = true;
+            if (e->destination == list[third]) right = true;
+          }
+          if (right && !left) return false;
+        }
+    return true;
+  }
+  for (unsigned v = depth; v < g->size; v++) {
+    unsigned swap = list[depth]; list[depth] = list[v]; list[v] = swap;
+    if (is_interval_graph_recursive(g, list, depth + 1)) return true;
+    list[v] = list[depth]; list[depth] = swap;
+  }
+  return false;
+}
+
+bool is_interval_graph(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return true;
+  unsigned list[g->size];
+  for (unsigned v = 0; v < g->size; v++) list[v] = v;
+  return is_interval_graph_recursive(g, list, 0);
 }
 
 bool isKRegular(const Graph *g, unsigned k) {
