@@ -51,7 +51,7 @@ bool isDirectedForest(const Graph *g);
 bool isUndirectedForest(const Graph *g);
 bool isDirectedTree(const Graph *g);
 bool isUndirectedTree(const Graph *g);
-bool isPathGraph(const Graph *g);
+bool is_path_graph(const Graph *g);
 bool isCycleGraph(const Graph *g);
 bool isStarGraph(const Graph *g);
 bool isWheelGraph(const Graph *g);
@@ -773,22 +773,28 @@ bool isUndirectedTree(const Graph *g) {
   return isUndirected(g) && !hasUndirectedCycle(g) && isWeaklyConnected(g);
 }
 
-bool isPathGraph(const Graph *g) {
-  if (getSize(g) == 0) return false;
-  if (getSize(g) == 1) return isEdgeless(g);
-  if (hasSelfLoops(g)) return false;
-  if (hasParallelEdges(g)) return false;
-  if (!isWeaklyConnected(g)) return false;
-  unsigned endpoints = 0;
-  unsigned internal = 0;
-  for (unsigned v = 0; v < getSize(g); v++)
-    if (getInDegree(g, v) == 1 && get_out_degree(g, v) == 1)
-      endpoints++;
-    else if (getInDegree(g, v) == 2 && get_out_degree(g, v) == 2)
-      internal++;
-    else
-      return false;
-  return endpoints == 2 && internal == getSize(g) - 2;
+bool is_path_graph(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return true;
+  unsigned start = g->size;
+  for (unsigned v = 0; v < g->size; v++) {
+    unsigned degree = 0;
+    for (Edge *e = g->edges[v]; e; e = e->next) degree++;
+    if (degree > 2) return false;
+    if (degree <= 1) start = v;
+  }
+  if (start == g->size) return false;
+  unsigned current = start, previous = g->size, count = 0;
+  while (current != g->size) {
+    count++;
+    unsigned next = g->size;
+    for (Edge *e = g->edges[current]; e; e = e->next) {
+      if (e->destination >= g->size) return false;
+      if (e->destination != previous) next = e->destination;
+    }
+    previous = current;
+    current = next;
+  }
+  return count == g->size;
 }
 
 bool isCycleGraph(const Graph *g) {
