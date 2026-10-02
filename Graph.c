@@ -51,7 +51,8 @@ bool isDirectedForest(const Graph *g);
 bool isUndirectedForest(const Graph *g);
 bool isDirectedTree(const Graph *g);
 bool isUndirectedTree(const Graph *g);
-bool is_path_graph(const Graph *g);
+bool is_directed_path_graph(const Graph *g);
+bool is_undirected_path_graph(const Graph *g);
 bool isCycleGraph(const Graph *g);
 bool isStarGraph(const Graph *g);
 bool isWheelGraph(const Graph *g);
@@ -773,24 +774,55 @@ bool isUndirectedTree(const Graph *g) {
   return isUndirected(g) && !hasUndirectedCycle(g) && isWeaklyConnected(g);
 }
 
-bool is_path_graph(const Graph *g) {
+bool is_directed_path_graph(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return true;
-  unsigned start = g->size;
+  unsigned start = g->size, zero = 0, in[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++) {
+    unsigned out = 0;
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      if (e->destination >= g->size) return false;
+      in[e->destination]++;
+      out++;
+    }
+    if (out > 1) return false;
+    if (out == 0) zero++;
+  }
+  for (unsigned v = 0; v < g->size; v++) {
+    if (in[v] > 1) return false;
+    if (in[v] == 0) start = v;
+  }
+  if (start == g->size || zero != 1) return false;
+  unsigned current = start, count = 0;
+  while (current != g->size) {
+    count++;
+    unsigned next = g->size;
+    for (Edge *e = g->edges[current]; e; e = e->next) next = e->destination;
+    current = next;
+  }
+  return count == g->size;
+}
+
+bool is_undirected_path_graph(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return true;
+  unsigned start = g->size, total = 0;
   for (unsigned v = 0; v < g->size; v++) {
     unsigned degree = 0;
-    for (Edge *e = g->edges[v]; e; e = e->next) degree++;
+    for (Edge *e = g->edges[v]; e; e = e->next) {
+      if (e->destination >= g->size) return false;
+      degree++;
+    }
     if (degree > 2) return false;
     if (degree <= 1) start = v;
+    total += degree;
   }
-  if (start == g->size) return false;
+  if (start == g->size || total != 2 * (g->size - 1)) return false;
   unsigned current = start, previous = g->size, count = 0;
   while (current != g->size) {
     count++;
     unsigned next = g->size;
-    for (Edge *e = g->edges[current]; e; e = e->next) {
-      if (e->destination >= g->size) return false;
-      if (e->destination != previous) next = e->destination;
-    }
+    for (Edge *e = g->edges[current]; e; e = e->next)
+      if (e->destination != previous)
+        next = e->destination;
     previous = current;
     current = next;
   }
