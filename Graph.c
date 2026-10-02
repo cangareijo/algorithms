@@ -1290,6 +1290,10 @@ static bool is_interval_graph_recursive(const Graph *g, unsigned *list, unsigned
             if (e->destination == list[second]) left = true;
             if (e->destination == list[third]) right = true;
           }
+          for (Edge *e = g->edges[list[third]]; e; e = e->next)
+            if (e->destination == list[first]) right = true;
+          for (Edge *e = g->edges[list[second]]; e; e = e->next)
+            if (e->destination == list[first]) left = true;
           if (right && !left) return false;
         }
     return true;
