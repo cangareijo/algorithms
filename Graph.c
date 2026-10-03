@@ -380,7 +380,8 @@ double *calculateHarmonicCentrality(const Graph *g);
 double *calculateSubgraphCentrality(const Graph *g);
 double *calculateLoadCentrality(const Graph *g);
 double *calculateGraphSpectrum(const Graph *g);
-double *find_minimum_fractional_vertex_cover(const Graph *g);
+double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
+double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
@@ -7502,13 +7503,59 @@ static void find_minimum_fractional_vertex_cover_recursive(
   }
 }
 
-[[nodiscard]] double *find_minimum_fractional_vertex_cover(const Graph *g) {
+[[nodiscard]] double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g) {
   if (!g || g->size == 0) return nullptr;
   double *result = calloc(g->size, sizeof(double));
   if (!result) return nullptr;
   double local[g->size];
   double bound = g->size + 1;
   find_minimum_fractional_vertex_cover_recursive(g, 0, local, 0, result, &bound);
+  return result;
+}
+
+[[nodiscard]] double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *result = calloc(g->size, sizeof(double));
+  if (!result) return nullptr;
+  unsigned total = g->size * 2 + 2, source = total - 2, sink = total - 1;
+  int capacity[total][total] = {}, flow[total][total] = {};
+  unsigned parent[total], queue[total];
+  for (unsigned v = 0; v < g->size; v++) {
+    capacity[source][v] = 1;
+    capacity[v + g->size][sink] = 1;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        capacity[v][e->destination + g->size] = total;
+  }
+  while (true) {
+    for (unsigned index = 0; index < total; index++) parent[index] = total;
+    unsigned head = 0, tail = 0;
+    queue[tail++] = source;
+    parent[source] = source;
+    while (head < tail) {
+      unsigned current = queue[head++];
+      for (unsigned neighbor = 0; neighbor < total; neighbor++)
+        if (parent[neighbor] == total && capacity[current][neighbor] > flow[current][neighbor]) {
+          parent[neighbor] = current;
+          queue[tail++] = neighbor;
+        }
+    }
+    if (parent[sink] == total) break;
+    unsigned increment = total;
+    for (unsigned vertex = sink; vertex != source; vertex = parent[vertex]) {
+      unsigned residual = capacity[parent[vertex]][vertex] - flow[parent[vertex]][vertex];
+      if (residual < increment) increment = residual;
+    }
+    for (unsigned vertex = sink; vertex != source; vertex = parent[vertex]) {
+      flow[parent[vertex]][vertex] += increment;
+      flow[vertex][parent[vertex]] -= increment;
+    }
+  }
+  for (unsigned vertex = 0; vertex < g->size; vertex++) {
+    double left = parent[vertex] == total ? 0.5 : 0.0;
+    double right = parent[vertex + g->size] != total ? 0.5 : 0.0;
+    result[vertex] = left + right;
+  }
   return result;
 }
 
