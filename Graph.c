@@ -104,6 +104,7 @@ bool is_dominating_set(const Graph *g, const bool *set);
 bool is_total_dominating_set(const Graph *g, const bool *set);
 bool is_connected_subset(const Graph *g, const bool *set);
 bool is_subgraph_cyclic(const Graph *g, const bool *set);
+bool is_fractional_vertex_cover(const Graph *g, double *cover);
 bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_roman_dominating_set(const Graph *g, const char *set);
@@ -379,6 +380,7 @@ double *calculateHarmonicCentrality(const Graph *g);
 double *calculateSubgraphCentrality(const Graph *g);
 double *calculateLoadCentrality(const Graph *g);
 double *calculateGraphSpectrum(const Graph *g);
+double *find_minimum_fractional_vertex_cover(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
@@ -1658,6 +1660,17 @@ bool is_subgraph_cyclic(const Graph *g, const bool *set) {
     if (is_subgraph_cyclic_recursive(g, set, v, state))
       return true;
   return false;
+}
+
+bool is_fractional_vertex_cover(const Graph *g, double *cover) {
+  if (!g || g->size == 0 || !g->edges) return true;
+  for (unsigned v = 0; v < g->size; v++) {
+    if (cover[v] < -0.001 || cover[v] > 1.001) return false;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && cover[v] + cover[e->destination] < 0.999)
+        return false;
+  }
+  return true;
 }
 
 bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v) {
@@ -7469,6 +7482,34 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     }
   }
   return spectrum;
+}
+
+static void find_minimum_fractional_vertex_cover_recursive(
+  const Graph *g, unsigned u, double *current, double sum, double *best, double *limit)
+{
+  if (sum >= *limit) return;
+  if (u >= g->size) {
+    if (is_fractional_vertex_cover(g, current)) {
+      *limit = sum;
+      for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+    }
+    return;
+  }
+  double choices[] = {0.0, 0.5, 1.0};
+  for (int v = 0; v < 3; v++) {
+    current[u] = choices[v];
+    find_minimum_fractional_vertex_cover_recursive(g, u + 1, current, sum + choices[v], best, limit);
+  }
+}
+
+[[nodiscard]] double *find_minimum_fractional_vertex_cover(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  double *result = calloc(g->size, sizeof(double));
+  if (!result) return nullptr;
+  double local[g->size];
+  double bound = g->size + 1;
+  find_minimum_fractional_vertex_cover_recursive(g, 0, local, 0, result, &bound);
+  return result;
 }
 
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
