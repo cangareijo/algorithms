@@ -285,7 +285,7 @@ unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
-unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v);
+unsigned calculate_unweighted_distance(const Graph *g, unsigned u, unsigned v);
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
 unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v);
@@ -3357,7 +3357,7 @@ static void createStronglyConnectedComponentsQuotientBackward(
   Graph *power = create_graph(g->size);
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
-      if (u != v && calculateUnweightedDistance(g, u, v) <= k)
+      if (u != v && calculate_unweighted_distance(g, u, v) <= k)
         add_directed_edge(power, u, v);
   return power;
 }
@@ -4846,13 +4846,21 @@ unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v) {
   return n;
 }
 
-unsigned calculateUnweightedDistance(const Graph *g, unsigned u, unsigned v) {
-  if (!g || u >= g->size || v >= g->size) return UINT_MAX;
-  unsigned *distances = calculateUnweightedDistances(g, u);
-  if (!distances) return UINT_MAX;
-  unsigned distance = distances[v];
-  free(distances);
-  return distance;
+unsigned calculate_unweighted_distance(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return UINT_MAX;
+  unsigned distance[g->size], queue[g->size], head = 0, tail = 0;
+  for (unsigned vertex = 0; vertex < g->size; vertex++) distance[vertex] = UINT_MAX;
+  distance[u] = 0;
+  queue[tail++] = u;
+  while (head < tail) {
+    unsigned current = queue[head++];
+    for (Edge *e = g->edges[current]; e; e = e->next)
+      if (e->destination < g->size && distance[e->destination] == UINT_MAX) {
+        distance[e->destination] = distance[current] + 1;
+        queue[tail++] = e->destination;
+      }
+  }
+  return distance[v];
 }
 
 unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
