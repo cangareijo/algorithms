@@ -380,12 +380,12 @@ double *calculateHarmonicCentrality(const Graph *g);
 double *calculateSubgraphCentrality(const Graph *g);
 double *calculateLoadCentrality(const Graph *g);
 double *calculate_information_centrality(const Graph *g);
+double *calculate_eigenvector_centrality(const Graph *g);
 double *calculateGraphSpectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
-double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance);
 double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance);
 
 double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
@@ -7464,9 +7464,45 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     double row = 0;
     for (unsigned v = 0; v < g->size; v++) row += matrix[u][v];
     double denominator = matrix[u][u] * g->size + trace - 2 * row;
-    centrality[u] = denominator > 1e-9 ? g->size / denominator : 0;
+    if (denominator < 1e-9) {
+      free(centrality);
+      return nullptr;
+    }
+    centrality[u] = g->size / denominator;
   }
   return centrality;
+}
+
+[[nodiscard]] double *calculate_eigenvector_centrality(const Graph *graph) {
+  if (!graph || graph->size == 0 || !graph->edges) return nullptr;
+  double *vector = malloc(graph->size * sizeof(double));
+  if (!vector) return nullptr;
+  for (unsigned index = 0; index < graph->size; index++)
+    vector[index] = 1;
+  double tolerance = 1e-6;
+  double error = 1;
+  unsigned iteration = 0;
+  while (error > tolerance && iteration++ < 1000) {
+    double norm = 0;
+    double temporary[graph->size] = {};
+    for (unsigned source = 0; source < graph->size; source++)
+      for (Edge *edge = graph->edges[source]; edge; edge = edge->next)
+        if (edge->destination < graph->size && edge->weight > 0)
+          temporary[edge->destination] += vector[source] * edge->weight;
+    for (unsigned source = 0; source < graph->size; source++) {
+      temporary[source] = (temporary[source] + vector[source]) / 2;
+      norm += temporary[source] * temporary[source];
+    }
+    norm = sqrt(norm);
+    error = 0;
+    for (unsigned source = 0; source < graph->size; source++) {
+      double next = temporary[source] / norm;
+      double difference = fabs(next - vector[source]);
+      if (difference > error) error = difference;
+      vector[source] = next;
+    }
+  }
+  return vector;
 }
 
 [[nodiscard]] double *calculateGraphSpectrum(const Graph *g) {
@@ -7651,47 +7687,6 @@ static void find_minimum_fractional_vertex_cover_recursive(
   }
   free(visited);
   return distances;
-}
-
-[[nodiscard]] double *calculateEigenvectorCentrality(const Graph *g, unsigned iterations, double tolerance) {
-  if (!g || !g->edges || g->size == 0) return nullptr;
-  double *scores = malloc(g->size * sizeof(double));
-  double *next = malloc(g->size * sizeof(double));
-  if (!scores || !next) {
-    free(scores);
-    free(next);
-    return nullptr;
-  }
-  for (unsigned v = 0; v < g->size; v++) scores[v] = 1 / sqrt(g->size);
-  bool converged = false;
-  for (unsigned i = 0; i < iterations; i++) {
-    for (unsigned v = 0; v < g->size; v++) next[v] = 0;
-    for (unsigned v = 0; v < g->size; v++)
-      for (Edge *e = g->edges[v]; e; e = e->next)
-        if (e->destination < g->size)
-          next[e->destination] += e->weight * scores[v];
-    double norm = calculateEuclideanNorm(next, g->size);
-    if (norm < DBL_EPSILON) break;
-    double max = 0;
-    for (unsigned v = 0; v < g->size; v++) {
-      next[v] /= norm;
-      double delta = fabs(next[v] - scores[v]);
-      if (delta > max) max = delta;
-    }
-    double *swap = scores;
-    scores = next;
-    next = swap;
-    if (max < tolerance) {
-      converged = true;
-      break;
-    }
-  }
-  free(next);
-  if (!converged) {
-    free(scores);
-    return nullptr;
-  }
-  return scores;
 }
 
 [[nodiscard]] double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance) {
