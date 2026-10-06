@@ -379,6 +379,7 @@ double *calculateBetweennessCentrality(const Graph *g);
 double *calculateHarmonicCentrality(const Graph *g);
 double *calculateSubgraphCentrality(const Graph *g);
 double *calculateLoadCentrality(const Graph *g);
+double *calculate_information_centrality(const Graph *g);
 double *calculateGraphSpectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
@@ -7426,6 +7427,44 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
                 delta[v] += (sigma[v] / sigma[u]) * (1 + delta[u]);
       if (u != s) centrality[u] += delta[u];
     }
+  }
+  return centrality;
+}
+
+[[nodiscard]] double *calculate_information_centrality(const Graph *g) {
+  if (!g || g->size < 2 || !g->edges) return nullptr;
+  double matrix[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++) matrix[u][v] = 1;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (u != e->destination && e->destination < g->size && e->weight > 0) {
+        matrix[u][e->destination] -= 1 / e->weight;
+        matrix[u][u] += 1 / e->weight;
+      }
+  }
+  for (unsigned w = 0; w < g->size; w++) {
+    double pivot = matrix[w][w];
+    if (fabs(pivot) < 1e-9) return nullptr;
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (u != w && v != w)
+          matrix[u][v] -= matrix[u][w] * matrix[w][v] / pivot;
+    for (unsigned u = 0; u < g->size; u++)
+      if (u != w) {
+        matrix[u][w] /= -pivot;
+        matrix[w][u] /= pivot;
+      }
+    matrix[w][w] = 1 / pivot;
+  }
+  double trace = 0;
+  for (unsigned u = 0; u < g->size; u++) trace += matrix[u][u];
+  double *centrality = calloc(g->size, sizeof(double));
+  if (!centrality) return nullptr;
+  for (unsigned u = 0; u < g->size; u++) {
+    double row = 0;
+    for (unsigned v = 0; v < g->size; v++) row += matrix[u][v];
+    double denominator = matrix[u][u] * g->size + trace - 2 * row;
+    centrality[u] = denominator > 1e-9 ? g->size / denominator : 0;
   }
   return centrality;
 }
