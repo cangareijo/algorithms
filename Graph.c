@@ -110,6 +110,7 @@ bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_roman_dominating_set(const Graph *g, const char *set);
 bool is_roman_dominated_vertex(const Graph *g, const char *set, unsigned v);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
+bool is_maximal_matching(const Graph *g, const unsigned *matching);
 bool is_perfect_matching(const Graph *g, const unsigned *matching);
 bool is_automorphism(const Graph *g, const unsigned *mapping);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
@@ -1721,8 +1722,27 @@ bool isTopologicalSort(const Graph *g, const unsigned *sequence) {
   return true;
 }
 
+bool is_maximal_matching(const Graph *graph, const unsigned *matching) {
+  if (!graph || (graph->size > 0 && (!graph->edges || !matching))) return false;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++) {
+    bool found = false;
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
+      if (edge->destination >= graph->size) return false;
+      if (matching[vertex] >= graph->size && matching[edge->destination] >= graph->size && vertex != edge->destination) return false;
+      if (matching[vertex] == edge->destination) found = true;
+    }
+    if (matching[vertex] == vertex) return false;
+    if (matching[vertex] < graph->size) {
+      if (matching[matching[vertex]] != vertex) return false;
+      if (!found) return false;
+    }
+  }
+  return true;
+}
+
 bool is_perfect_matching(const Graph *g, const unsigned *matching) {
-  if (!g || g->size % 2 != 0 || (g->size > 0 && (!g->edges || !matching))) return false;
+  if (!g || (g->size > 0 && (!g->edges || !matching))) return false;
+  if (g->size % 2 != 0) return false;
   for (unsigned v = 0; v < g->size; v++)
     if (matching[v] >= g->size || matching[v] == v || matching[matching[v]] != v || !has_directed_edge(g, v, matching[v]))
       return false;

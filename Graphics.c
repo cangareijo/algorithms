@@ -31,7 +31,7 @@ void draw_line(Color *grid, int32_t width, int32_t height, int32_t x0, int32_t y
 bool save_grid_to_bmp(const char *filename, const Color *grid, int32_t width, int32_t height)
 {
   if (!filename || !grid || width <= 0 || height <= 0) return false;
-  FILE *file = fopen(filename, "wb");
+  FILE *file = fopen(filename, "xb");
   if (!file) return false;
   const int32_t bytes_per_pixel = 3;
   const int32_t row_stride = width * bytes_per_pixel;
