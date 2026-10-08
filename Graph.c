@@ -375,6 +375,7 @@ double calculateNormalizedCut(const Graph *g, const bool *set);
 double calculateModularity(const Graph *g, const unsigned *partition);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
+double *calculate_degree_centrality(const Graph *g);
 double *calculateClosenessCentrality(const Graph *g);
 double *calculateBetweennessCentrality(const Graph *g);
 double *calculateHarmonicCentrality(const Graph *g);
@@ -7283,6 +7284,16 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 }
 
 
+
+[[nodiscard]] double *calculate_degree_centrality(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  double *centrality = calloc(g->size, sizeof(double));
+  if (!centrality) return nullptr;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      centrality[v] += e->weight;
+  return centrality;
+}
 
 [[nodiscard]] double *calculateClosenessCentrality(const Graph *g) {
   if (!g) return nullptr;
