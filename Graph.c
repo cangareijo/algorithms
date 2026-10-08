@@ -240,11 +240,11 @@ unsigned getMinimumOutDegree(const Graph *g);
 unsigned getMaximumOutDegree(const Graph *g);
 unsigned getMinimumDegree(const Graph *g);
 unsigned getMaximumDegree(const Graph *g);
+unsigned countSources(const Graph *g);
+unsigned countSinks(const Graph *g);
 unsigned countSourceLeaves(const Graph *g);
 unsigned countSinkLeaves(const Graph *g);
 unsigned countUndirectedLeaves(const Graph *g);
-unsigned countSources(const Graph *g);
-unsigned countSinks(const Graph *g);
 unsigned countParallelEdges(const Graph *g);
 unsigned countIsolatedVertices(const Graph *g);
 unsigned countStronglyConnectedComponents(const Graph *g);
@@ -278,7 +278,7 @@ unsigned calculate_cutwidth(const Graph *g);
 unsigned calculate_feedback_vertex_set_number(const Graph *g);
 unsigned calculate_feedback_arc_set_number(const Graph *g);
 unsigned find_source(const Graph *g);
-unsigned find_sink(const Graph *graph);
+unsigned find_sink(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -3858,6 +3858,30 @@ unsigned getMaximumDegree(const Graph *g) {
   return maximum;
 }
 
+unsigned countSources(const Graph *g) {
+  if (!g) return 0;
+  bool *sources = getSources(g);
+  if (!sources) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (sources[v])
+      n++;
+  free(sources);
+  return n;
+}
+
+unsigned countSinks(const Graph *g) {
+  if (!g) return 0;
+  bool *sinks = getSinks(g);
+  if (!sinks) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (sinks[v])
+      n++;
+  free(sinks);
+  return n;
+}
+
 unsigned countSourceLeaves(const Graph *g) {
   if (!g) return 0;
   unsigned *in = getInDegrees(g);
@@ -3913,30 +3937,6 @@ unsigned countStronglyConnectedComponents(const Graph *g) {
       count++;
   free(components);
   return count;
-}
-
-unsigned countSources(const Graph *g) {
-  if (!g) return 0;
-  bool *sources = getSources(g);
-  if (!sources) return 0;
-  unsigned n = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (sources[v])
-      n++;
-  free(sources);
-  return n;
-}
-
-unsigned countSinks(const Graph *g) {
-  if (!g) return 0;
-  bool *sinks = getSinks(g);
-  if (!sinks) return 0;
-  unsigned n = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (sinks[v])
-      n++;
-  free(sinks);
-  return n;
 }
 
 unsigned countParallelEdges(const Graph *g) {
