@@ -49,7 +49,7 @@ bool isUndirected(const Graph *g);
 bool hasParallelEdges(const Graph *g);
 bool isDirectedForest(const Graph *g);
 bool isUndirectedForest(const Graph *g);
-bool isDirectedTree(const Graph *g);
+bool is_directed_tree(const Graph *g);
 bool isUndirectedTree(const Graph *g);
 bool is_directed_path_graph(const Graph *g);
 bool is_undirected_path_graph(const Graph *g);
@@ -81,6 +81,7 @@ bool isDense(const Graph *g, double threshold);
 bool isIsolated(const Graph *g, unsigned v);
 bool isSource(const Graph *g, unsigned v);
 bool isSink(const Graph *g, unsigned v);
+bool isUniversalSource(const Graph *g, unsigned v);
 bool isUniversalSink(const Graph *g, unsigned v);
 bool isDirectedLeaf(const Graph *g, unsigned v);
 bool isUndirectedLeaf(const Graph *g, unsigned v);
@@ -763,18 +764,35 @@ bool isUndirectedForest(const Graph *g) {
   return isUndirected(g) && !hasUndirectedCycle(g);
 }
 
-bool isDirectedTree(const Graph *g) {
-  if (!g) return false;
-  unsigned *degree = getInDegrees(g);
-  if (!degree) return false;
-  unsigned roots = 0;
-  bool b = !hasDirectedCycle(g);
-  for (unsigned v = 0; v < g->size && b; v++) {
-    if (degree[v] == 0) roots++;
-    b = b && roots < 2 && degree[v] < 2;
-  }
-  free(degree);
-  return b && roots == 1;
+static void is_directed_tree_helper(const Graph *graph, unsigned vertex, bool *visited) {
+  visited[vertex] = true;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (!visited[edge->destination])
+      is_directed_tree_helper(graph, edge->destination, visited);
+}
+
+bool is_directed_tree(const Graph *graph) {
+  if (!graph || graph->size == 0 || !graph->edges) return false;
+  unsigned degrees[graph->size] = {};
+  unsigned total = 0, root = 0, count = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next) {
+      if (edge->destination >= graph->size) return false;
+      degrees[edge->destination]++;
+      total++;
+    }
+  if (total != graph->size - 1) return false;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (degrees[vertex] == 0) {
+      root = vertex;
+      count++;
+    }
+  if (count != 1) return false;
+  bool visited[graph->size] = {};
+  is_directed_tree_helper(graph, root, visited);
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!visited[vertex]) return false;
+  return true;
 }
 
 bool isUndirectedTree(const Graph *g) {
