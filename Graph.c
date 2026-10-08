@@ -278,6 +278,7 @@ unsigned calculate_cutwidth(const Graph *g);
 unsigned calculate_feedback_vertex_set_number(const Graph *g);
 unsigned calculate_feedback_arc_set_number(const Graph *g);
 unsigned find_source(const Graph *g);
+unsigned find_sink(const Graph *graph);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -4744,6 +4745,14 @@ unsigned find_source(const Graph *graph) {
         target[edge->destination] = true;
   for (unsigned vertex = 0; vertex < graph->size; vertex++)
     if (!target[vertex])
+      return vertex;
+  return -1;
+}
+
+unsigned find_sink(const Graph *graph) {
+  if (!graph || graph->size == 0 || !graph->edges) return -1;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!graph->edges[vertex])
       return vertex;
   return -1;
 }
