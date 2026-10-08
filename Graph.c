@@ -277,6 +277,7 @@ unsigned calculate_carving_width(const Graph *g);
 unsigned calculate_cutwidth(const Graph *g);
 unsigned calculate_feedback_vertex_set_number(const Graph *g);
 unsigned calculate_feedback_arc_set_number(const Graph *g);
+unsigned find_source(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -4732,6 +4733,19 @@ unsigned calculate_feedback_arc_set_number(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
   bool placed[g->size] = {};
   return calculate_feedback_arc_set_number_recursive(g, placed, 0, 0);
+}
+
+unsigned find_source(const Graph *graph) {
+  if (!graph || graph->size == 0 || !graph->edges) return -1;
+  bool target[graph->size] = {};
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+      if (edge->destination < graph->size)
+        target[edge->destination] = true;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!target[vertex])
+      return vertex;
+  return -1;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
