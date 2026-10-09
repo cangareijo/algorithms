@@ -81,8 +81,8 @@ bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
 bool isDense(const Graph *g, double threshold);
 bool isIsolated(const Graph *g, unsigned v);
-bool isSource(const Graph *g, unsigned v);
-bool isSink(const Graph *g, unsigned v);
+bool is_source(const Graph *g, unsigned v);
+bool is_sink(const Graph *g, unsigned v);
 bool isUniversalSource(const Graph *g, unsigned v);
 bool isUniversalSink(const Graph *g, unsigned v);
 bool isDirectedLeaf(const Graph *g, unsigned v);
@@ -389,7 +389,7 @@ double *calculateLoadCentrality(const Graph *g);
 double *calculate_information_centrality(const Graph *g);
 double *calculate_eigenvector_centrality(const Graph *g);
 double *calculate_random_walk_betweenness_centrality(const Graph *graph);
-double *calculateGraphSpectrum(const Graph *g);
+double *calculate_graph_spectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
@@ -1415,9 +1415,7 @@ bool isKConnected(const Graph *g, unsigned k) {
 }
 
 bool isProperColoring(const Graph *g, const unsigned *coloring) {
-  if (!g || !g->edges) return false;
-  if (g->size == 0) return true;
-  if (!coloring) return false;
+  if (!g || !g->edges || !coloring) return false;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size && coloring[v] == coloring[e->destination])
@@ -1442,11 +1440,11 @@ bool isIsolated(const Graph *g, unsigned v) {
   return get_out_degree(g, v) == 0 && getInDegree(g, v) == 0;
 }
 
-bool isSource(const Graph *g, unsigned v) {
+bool is_source(const Graph *g, unsigned v) {
   return getInDegree(g, v) == 0 && get_out_degree(g, v) > 0;
 }
 
-bool isSink(const Graph *g, unsigned v) {
+bool is_sink(const Graph *g, unsigned v) {
   return get_out_degree(g, v) == 0 && getInDegree(g, v) > 0;
 }
 
@@ -7655,15 +7653,15 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return result;
 }
 
-[[nodiscard]] double *calculateGraphSpectrum(const Graph *g) {
+[[nodiscard]] double *calculate_graph_spectrum(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   double *spectrum = malloc(g->size * sizeof(double));
   if (!spectrum) return nullptr;
-  double matrix[g->size][g->size] = {};
   double degrees[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       degrees[v] += e->weight;
+  double matrix[g->size][g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
     if (degrees[v] > 0) {
       matrix[v][v] = 1;
