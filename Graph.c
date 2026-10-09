@@ -73,6 +73,8 @@ bool isDistanceRegular(const Graph *g);
 bool hasHamiltonianPathSufficientCondition(const Graph *g);
 bool is_permutation_graph(const Graph *g);
 bool is_interval_graph(const Graph *g);
+bool has_sources(const Graph *g);
+bool has_sinks(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
@@ -1377,6 +1379,27 @@ bool is_interval_graph(const Graph *g) {
   unsigned list[g->size];
   for (unsigned v = 0; v < g->size; v++) list[v] = v;
   return is_interval_graph_recursive(g, list, 0);
+}
+
+bool has_sources(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return false;
+  bool seen[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        seen[e->destination] = true;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!seen[v])
+      return true;
+  return false;
+}
+
+bool has_sinks(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!g->edges[v])
+      return true;
+  return false;
 }
 
 bool isKRegular(const Graph *g, unsigned k) {
