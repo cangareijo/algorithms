@@ -386,6 +386,7 @@ double *calculateSubgraphCentrality(const Graph *g);
 double *calculateLoadCentrality(const Graph *g);
 double *calculate_information_centrality(const Graph *g);
 double *calculate_eigenvector_centrality(const Graph *g);
+double *calculate_random_walk_betweenness_centrality(const Graph *graph);
 double *calculateGraphSpectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
@@ -7575,6 +7576,60 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
     }
   }
   return vector;
+}
+
+[[nodiscard]] double *calculate_random_walk_betweenness_centrality(const Graph *graph) {
+  if (!graph || graph->size < 2 || !graph->edges) return nullptr;
+  unsigned size = graph->size;
+  double *result = calloc(size, sizeof(double));
+  if (!result) return nullptr;
+  double matrix[size][size + 1], voltage[size];
+  for (unsigned source = 0; source < size; source++) {
+    for (unsigned target = 0; target < size; target++) {
+      if (source == target) continue;
+      for (unsigned row = 0; row < size; row++) {
+        for (unsigned column = 0; column <= size; column++) matrix[row][column] = 0.0;
+        if (row == target) {
+          matrix[row][row] = 1.0;
+          continue;
+        }
+        for (Edge *edge = graph->edges[row]; edge; edge = edge->next)
+          if (edge->destination < size) {
+            matrix[row][row] += edge->weight;
+            matrix[row][edge->destination] -= edge->weight;
+          }
+        if (row == source) matrix[row][size] = 1.0;
+      }
+      for (unsigned pivot = 0; pivot < size; pivot++) {
+        if (fabs(matrix[pivot][pivot]) < 1e-12) {
+          free(result);
+          return nullptr;
+        }
+        for (unsigned row = pivot + 1; row < size; row++) {
+          double factor = matrix[row][pivot] / matrix[pivot][pivot];
+          for (unsigned column = pivot; column <= size; column++) matrix[row][column] -= factor * matrix[pivot][column];
+        }
+      }
+      for (int row = size - 1; row >= 0; row--) {
+        double sum = matrix[row][size];
+        for (unsigned column = row + 1; column < size; column++) sum -= matrix[row][column] * voltage[column];
+        voltage[row] = sum / matrix[row][row];
+      }
+      for (unsigned vertex = 0; vertex < size; vertex++) {
+        if (vertex == source || vertex == target) {
+          result[vertex] += 1.0;
+          continue;
+        }
+        double current = 0.0;
+        for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+          if (edge->destination < size)
+            current += edge->weight * fabs(voltage[vertex] - voltage[edge->destination]);
+        result[vertex] += 0.5 * current;
+      }
+    }
+  }
+  for (unsigned vertex = 0; vertex < size; vertex++) result[vertex] /= size * (size - 1);
+  return result;
 }
 
 [[nodiscard]] double *calculateGraphSpectrum(const Graph *g) {
