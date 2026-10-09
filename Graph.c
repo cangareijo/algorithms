@@ -388,7 +388,8 @@ double *calculateSubgraphCentrality(const Graph *g);
 double *calculateLoadCentrality(const Graph *g);
 double *calculate_information_centrality(const Graph *g);
 double *calculate_eigenvector_centrality(const Graph *g);
-double *calculate_random_walk_betweenness_centrality(const Graph *graph);
+double *calculate_random_walk_betweenness_centrality(const Graph *g);
+double *calculate_coreness_centrality(const Graph *g);
 double *calculate_graph_spectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
@@ -7651,6 +7652,34 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   }
   for (unsigned vertex = 0; vertex < size; vertex++) result[vertex] /= size * (size - 1);
   return result;
+}
+
+[[nodiscard]] double *calculate_coreness_centrality(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *coreness = malloc(g->size * sizeof(double));
+  if (!coreness) return nullptr;
+  bool removed[g->size] = {};
+  double current_core_level = 0;
+  for (unsigned step = 0; step < g->size; step++) {
+    unsigned minimum_vertex = g->size;
+    double minimum_degree = INFINITY;
+    for (unsigned v = 0; v < g->size; v++) {
+      if (removed[v]) continue;
+      double current_degree = 0;
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && !removed[e->destination])
+          current_degree += e->weight;
+      if (minimum_vertex == g->size || current_degree < minimum_degree) {
+        minimum_degree = current_degree;
+        minimum_vertex = v;
+      }
+    }
+    if (minimum_vertex == g->size) break;
+    if (minimum_degree > current_core_level) current_core_level = minimum_degree;
+    coreness[minimum_vertex] = current_core_level;
+    removed[minimum_vertex] = true;
+  }
+  return coreness;
 }
 
 [[nodiscard]] double *calculate_graph_spectrum(const Graph *g) {
