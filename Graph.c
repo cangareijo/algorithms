@@ -390,10 +390,10 @@ double *calculate_information_centrality(const Graph *g);
 double *calculate_eigenvector_centrality(const Graph *g);
 double *calculate_random_walk_betweenness_centrality(const Graph *g);
 double *calculate_coreness_centrality(const Graph *g);
+double *calculate_pagerank_centrality(const Graph *g);
 double *calculate_graph_spectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
-double *calculate_pagerank(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
@@ -7682,6 +7682,40 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return coreness;
 }
 
+[[nodiscard]] double *calculate_pagerank_centrality(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned n = g->size;
+  double *rank = malloc(n * sizeof(double));
+  if (!rank) return nullptr;
+  double buffer[2][n]; 
+  double out_weight_sum[n] = {};
+  for (unsigned v = 0; v < n; v++) {
+    buffer[0][v] = 1.0 / n;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < n && e->weight > 0.0)
+        out_weight_sum[v] += e->weight;
+  }
+  const double d = 0.85;
+  const int iterations = 100;
+  for (int i = 0; i < iterations; i++) {
+    int source = i % 2;
+    int destination = 1 - source;
+    for (unsigned u = 0; u < n; u++) buffer[destination][u] = (1.0 - d) / n;
+    for (unsigned u = 0; u < n; u++) {
+      if (out_weight_sum[u] > 0.0) {
+        for (Edge *e = g->edges[u]; e; e = e->next) {
+          if (e->destination < n && e->weight > 0.0)
+            buffer[destination][e->destination] += d * buffer[source][u] * (e->weight / out_weight_sum[u]);
+        }
+      } else {
+        for (unsigned v = 0; v < n; v++) buffer[destination][v] += d * buffer[source][u] / n;
+      }
+    }
+  }
+  for (unsigned v = 0; v < n; v++) rank[v] = buffer[iterations % 2][v];
+  return rank;
+}
+
 [[nodiscard]] double *calculate_graph_spectrum(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   double *spectrum = malloc(g->size * sizeof(double));
@@ -7817,40 +7851,6 @@ static void find_minimum_fractional_vertex_cover_recursive(
     result[vertex] = left + right;
   }
   return result;
-}
-
-[[nodiscard]] double *calculate_pagerank(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return nullptr;
-  unsigned n = g->size;
-  double *rank = malloc(n * sizeof(double));
-  if (!rank) return nullptr;
-  double buffer[2][n]; 
-  double out_weight_sum[n] = {};
-  for (unsigned v = 0; v < n; v++) {
-    buffer[0][v] = 1.0 / n;
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < n && e->weight > 0.0)
-        out_weight_sum[v] += e->weight;
-  }
-  const double d = 0.85;
-  const int iterations = 100;
-  for (int i = 0; i < iterations; i++) {
-    int source = i % 2;
-    int destination = 1 - source;
-    for (unsigned u = 0; u < n; u++) buffer[destination][u] = (1.0 - d) / n;
-    for (unsigned u = 0; u < n; u++) {
-      if (out_weight_sum[u] > 0.0) {
-        for (Edge *e = g->edges[u]; e; e = e->next) {
-          if (e->destination < n && e->weight > 0.0)
-            buffer[destination][e->destination] += d * buffer[source][u] * (e->weight / out_weight_sum[u]);
-        }
-      } else {
-        for (unsigned v = 0; v < n; v++) buffer[destination][v] += d * buffer[source][u] / n;
-      }
-    }
-  }
-  for (unsigned v = 0; v < n; v++) rank[v] = buffer[iterations % 2][v];
-  return rank;
 }
 
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
