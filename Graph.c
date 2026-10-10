@@ -393,9 +393,9 @@ double *calculate_coreness_centrality(const Graph *g);
 double *calculate_graph_spectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
+double *calculate_pagerank(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
-double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance);
 
 double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 
@@ -7667,7 +7667,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
       if (removed[v]) continue;
       double current_degree = 0;
       for (Edge *e = g->edges[v]; e; e = e->next)
-        if (e->destination < g->size && !removed[e->destination])
+        if (e->destination < g->size && !isnan(e->weight) && !removed[e->destination])
           current_degree += e->weight;
       if (minimum_vertex == g->size || current_degree < minimum_degree) {
         minimum_degree = current_degree;
@@ -7819,6 +7819,40 @@ static void find_minimum_fractional_vertex_cover_recursive(
   return result;
 }
 
+[[nodiscard]] double *calculate_pagerank(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned n = g->size;
+  double *rank = malloc(n * sizeof(double));
+  if (!rank) return nullptr;
+  double buffer[2][n]; 
+  double out_weight_sum[n] = {};
+  for (unsigned v = 0; v < n; v++) {
+    buffer[0][v] = 1.0 / n;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < n && e->weight > 0.0)
+        out_weight_sum[v] += e->weight;
+  }
+  const double d = 0.85;
+  const int iterations = 100;
+  for (int i = 0; i < iterations; i++) {
+    int source = i % 2;
+    int destination = 1 - source;
+    for (unsigned u = 0; u < n; u++) buffer[destination][u] = (1.0 - d) / n;
+    for (unsigned u = 0; u < n; u++) {
+      if (out_weight_sum[u] > 0.0) {
+        for (Edge *e = g->edges[u]; e; e = e->next) {
+          if (e->destination < n && e->weight > 0.0)
+            buffer[destination][e->destination] += d * buffer[source][u] * (e->weight / out_weight_sum[u]);
+        }
+      } else {
+        for (unsigned v = 0; v < n; v++) buffer[destination][v] += d * buffer[source][u] / n;
+      }
+    }
+  }
+  for (unsigned v = 0; v < n; v++) rank[v] = buffer[iterations % 2][v];
+  return rank;
+}
+
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return nullptr;
   double *distance = malloc(g->size * sizeof(double));
@@ -7864,54 +7898,6 @@ static void find_minimum_fractional_vertex_cover_recursive(
   }
   free(visited);
   return distances;
-}
-
-[[nodiscard]] double *calculatePageRank(const Graph *g, double damping, unsigned iterations, double tolerance) {
-  if (!g || g->size == 0) return nullptr;
-  double *ranks = malloc(g->size * sizeof(double));
-  double *nextRanks = malloc(g->size * sizeof(double));
-  if (!ranks || !nextRanks) {
-    free(ranks);
-    free(nextRanks);
-    return nullptr;
-  }
-  for (unsigned v = 0; v < g->size; v++)
-    ranks[v] = 1.0 / g->size;
-  bool converged = false;
-  for (unsigned i = 0; i < iterations; i++) {
-    double sinkMass = 0;
-    for (unsigned v = 0; v < g->size; v++)
-      if (get_out_degree(g, v) == 0)
-        sinkMass += ranks[v];
-    for (unsigned v = 0; v < g->size; v++)
-      nextRanks[v] = (1 - damping) / g->size;
-    if (sinkMass > 0)
-      for (unsigned v = 0; v < g->size; v++)
-        nextRanks[v] += damping * sinkMass / g->size;
-    for (unsigned v = 0; v < g->size; v++)
-      if (get_out_degree(g, v) > 0)
-        for (Edge *e = g->edges[v]; e; e = e->next)
-          if (e->destination < g->size)
-            nextRanks[e->destination] += damping * ranks[v] / get_out_degree(g, v);
-    double maxDelta = 0;
-    for (unsigned v = 0; v < g->size; v++) {
-      double delta = fabs(nextRanks[v] - ranks[v]);
-      if (delta > maxDelta) maxDelta = delta;
-    }
-    double *swap = ranks;
-    ranks = nextRanks;
-    nextRanks = swap;
-    if (maxDelta < tolerance) {
-      converged = true;
-      break;
-    }
-  }
-  free(nextRanks);
-  if (!converged) {
-    free(ranks);
-    return nullptr;
-  }
-  return ranks;
 }
 
 
