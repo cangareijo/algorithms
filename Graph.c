@@ -207,6 +207,7 @@ Graph *createTensorProduct(const Graph *g1, const Graph *g2);
 Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2);
 Graph *createStrongProduct(const Graph *g1, const Graph *g2);
 Graph *createRootedProduct(const Graph *g1, const Graph *g2);
+Graph *create_modular_product(const Graph *g1, const Graph *g2);
 
 void destroy_graph(Graph *g);
 void addVertex(Graph *g);
@@ -3552,6 +3553,19 @@ static void createStronglyConnectedComponentsQuotientBackward(
       }
     }
   return result;
+}
+
+[[nodiscard]] Graph *create_modular_product(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g2) return nullptr;
+  Graph *g = create_graph(g1->size * g2->size);
+  if (!g) return nullptr;
+  for (unsigned u = 0; u < g1->size; u++)
+    for (unsigned v = 0; v < g2->size; v++)
+      for (unsigned up = 0; up < g1->size; up++)
+        for (unsigned vp = 0; vp < g2->size; vp++)
+          if (u != up && v != vp && has_directed_edge(g1, u, up) == has_directed_edge(g2, v, vp))
+            add_directed_edge(g, u * g2->size + v, up * g2->size + vp);
+  return g;
 }
 
 
