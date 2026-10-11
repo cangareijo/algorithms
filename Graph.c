@@ -371,6 +371,7 @@ double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
 double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
 double getOutWeight(const Graph *g, unsigned v);
+double calculate_vertex_flow_vitality(const Graph *g, unsigned v);
 double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
 double calculate_weighted_distance(const Graph *g, unsigned u, unsigned v);
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
@@ -7170,6 +7171,53 @@ double getOutWeight(const Graph *g, unsigned v) {
   for (const Edge *e = g->edges[v]; e; e = e->next)
     total += e->weight;
   return total;
+}
+
+static double vertex_flow_vitality_dfs(unsigned n, double res[n][n], unsigned u, unsigned sink, double flow, bool visited[n]) {
+  if (u == sink) return flow;
+  visited[u] = true;
+  for (unsigned v = 0; v < n; v++)
+    if (!visited[v] && res[u][v] > 0.0) {
+      double min_cap = flow < res[u][v] ? flow : res[u][v];
+      double pushed = vertex_flow_vitality_dfs(n, res, v, sink, min_cap, visited);
+      if (pushed > 1e-9) {
+        res[u][v] -= pushed;
+        res[v][u] += pushed;
+        return pushed;
+      }
+    }
+  return 0.0;
+}
+
+static double vertex_flow_vitality_max_flow(const Graph *g, unsigned skip_vertex) {
+  unsigned n = g->size;
+  double res[n][n] = {};
+  for (unsigned u = 0; u < n; u++)
+    if (u != skip_vertex)
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination != skip_vertex && e->destination < g->size && e->weight > 0.0)
+          res[u][e->destination] += e->weight;
+  unsigned source = 0;
+  unsigned sink = n - 1;
+  double total_flow = 0.0;
+  while (true) {
+    bool visited[n] = {};
+    double pushed = vertex_flow_vitality_dfs(n, res, source, sink, 1e9, visited);
+    if (pushed <= 1e-9) break;
+    total_flow += pushed;
+  }
+  return total_flow;
+}
+
+double calculate_vertex_flow_vitality(const Graph *g, unsigned v) {
+  if (!g || g->size < 2 || !g->edges || v >= g->size) return 0.0;
+  unsigned source = 0;
+  unsigned sink = g->size - 1;
+  unsigned no_skip = -1;
+  double orig_flow = vertex_flow_vitality_max_flow(g, no_skip);
+  if (v == source || v == sink) return orig_flow;
+  double mod_flow = vertex_flow_vitality_max_flow(g, v);
+  return orig_flow - mod_flow;
 }
 
 double getEdgeWeight(const Graph *g, unsigned u, unsigned v) {
