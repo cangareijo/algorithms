@@ -86,7 +86,7 @@ bool is_sink(const Graph *g, unsigned v);
 bool isUniversalSource(const Graph *g, unsigned v);
 bool isUniversalSink(const Graph *g, unsigned v);
 bool isDirectedLeaf(const Graph *g, unsigned v);
-bool isUndirectedLeaf(const Graph *g, unsigned v);
+bool is_undirected_leaf(const Graph *g, unsigned v);
 bool canReachAll(const Graph *g, unsigned v);
 bool isArticulationVertex(const Graph *g, unsigned v);
 bool isSimplicial(const Graph *g, unsigned v);
@@ -1463,8 +1463,15 @@ bool isDirectedLeaf(const Graph *g, unsigned v) {
   return get_out_degree(g, v) + getInDegree(g, v) == 1;
 }
 
-bool isUndirectedLeaf(const Graph *g, unsigned v) {
-  return get_out_degree(g, v) == 1;
+bool is_undirected_leaf(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return false;
+  unsigned degree = 0;
+  for (Edge *e = g->edges[v]; e; e = e->next) {
+    if (v == e->destination) return false;
+    if (e->destination >= g->size) return false;
+    degree++;
+  }
+  return degree == 1;
 }
 
 bool canReachAll(const Graph *g, unsigned v) {
