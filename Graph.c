@@ -100,7 +100,8 @@ bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
 bool has_weighted_directed_edge(const Graph *g, unsigned u, unsigned v, double weight);
 bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double weight);
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
-bool isClique(const Graph *g, const bool *set);
+bool is_clique(const Graph *g, const bool *set);
+bool is_maximal_clique(const Graph *g, const bool *set);
 bool isIndependentSet(const Graph *g, const bool *set);
 bool isVertexCover(const Graph *g, const bool *set);
 bool is_dominating_set(const Graph *g, const bool *set);
@@ -197,6 +198,7 @@ Graph *createDualGraph(const Graph *g);
 Graph *createBipartiteDoubleCover(const Graph *g);
 Graph *createStronglyConnectedComponentsQuotient(const Graph *g);
 Graph *createDualHypergraphProjection(const Graph *g);
+Graph *create_clique_graph(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -1630,15 +1632,32 @@ bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w) {
   return u != v && v != w && w != u && has_directed_edge(g, u, v) && has_directed_edge(g, v, w) && has_directed_edge(g, w, u);
 }
 
-bool isClique(const Graph *g, const bool *set) {
-  if (!set) return true;
+bool is_clique(const Graph *g, const bool *set) {
   if (!g) return false;
+  if (g->size == 0) return true;
+  if (!set) return false;
   for (unsigned u = 0; u < g->size; u++)
     if (set[u])
       for (unsigned v = u + 1; v < g->size; v++)
         if (set[v])
           if (!has_directed_edge(g, u, v) || !has_directed_edge(g, v, u))
             return false;
+  return true;
+}
+
+bool is_maximal_clique(const Graph *g, const bool *set) {
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!set) return false;
+  if (!is_clique(g, set)) return false;
+  bool copy[g->size];
+  for (unsigned v = 0; v < g->size; v++) copy[v] = set[v];
+  for (unsigned v = 0; v < g->size; v++)
+    if (!copy[v]) {
+      copy[v] = true;
+      if (is_clique(g, copy)) return false;
+      copy[v] = false;
+    }
   return true;
 }
 
@@ -3423,6 +3442,47 @@ static void createStronglyConnectedComponentsQuotientBackward(
         if (u != v && has_directed_edge(g, u, w) && has_directed_edge(g, w, v) && !has_directed_edge(projection, u, v))
           add_directed_edge(projection, u, v);
   return projection;
+}
+
+static void find_all_maximal_cliques_recursive(const Graph *g, bool *set, unsigned u, bool ***cliques, unsigned *count) {
+  if (u >= g->size) {
+    if (!is_maximal_clique(g, set)) return;
+    bool **temporary = realloc(*cliques, (*count + 1) * sizeof(bool *));
+    if (!temporary) return;
+    *cliques = temporary;
+    (*cliques)[*count] = malloc(g->size * sizeof(bool));
+    if (!(*cliques)[*count]) return;
+    for (unsigned v = 0; v < g->size; v++) (*cliques)[*count][v] = set[v];
+    (*count)++;
+    return;
+  }
+  set[u] = true;
+  find_all_maximal_cliques_recursive(g, set, u + 1, cliques, count);
+  set[u] = false;
+  find_all_maximal_cliques_recursive(g, set, u + 1, cliques, count);
+}
+
+[[nodiscard]] Graph *create_clique_graph(const Graph *g) {
+  if (!g) return nullptr;
+  if (g->size == 0) return create_graph(0);
+  bool set[g->size] = {};
+  bool **cliques = nullptr;
+  unsigned count = 0;
+  find_all_maximal_cliques_recursive(g, set, 0, &cliques, &count);
+  Graph *cg = create_graph(count);
+  if (!cg) return nullptr;
+  for (unsigned i = 0; i < count; i++)
+    for (unsigned j = 0; j < count; j++)
+      if (i != j) {
+        bool share = false;
+        for (unsigned v = 0; v < g->size; v++)
+          if (cliques[i][v] && cliques[j][v])
+            share = true;
+        if (share) add_directed_edge(cg, i, j);
+      }
+  for (unsigned i = 0; i < count; i++) free(cliques[i]);
+  free(cliques);
+  return cg;
 }
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {

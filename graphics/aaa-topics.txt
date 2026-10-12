@@ -1,2 +1,4 @@
  * line drawing
  * circle drawing
+ * ellipse drawing
+ * filled, tilted ellipse drawing
