@@ -1467,7 +1467,6 @@ bool is_undirected_leaf(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return false;
   unsigned degree = 0;
   for (Edge *e = g->edges[v]; e; e = e->next) {
-    if (v == e->destination) return false;
     if (e->destination >= g->size) return false;
     degree++;
   }
