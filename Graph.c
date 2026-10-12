@@ -273,7 +273,7 @@ unsigned calculateEdgeConnectivity(const Graph *g);
 unsigned countAutomorphisms(const Graph *g);
 unsigned calculateVertexFrustrationNumber(const Graph *g);
 unsigned calculateEdgeFrustrationNumber(const Graph *g);
-unsigned calculateIndependenceNumber(const Graph *g);
+unsigned calculate_independence_number(const Graph *g);
 unsigned calculateDominatingNumber(const Graph *g);
 unsigned calculateVertexCoverNumber(const Graph *g);
 unsigned calculatePathwidth(const Graph *g);
@@ -4531,22 +4531,19 @@ unsigned calculateEdgeFrustrationNumber(const Graph *g) {
   return frustration;
 }
 
-unsigned calculateIndependenceNumber(const Graph *g) {
+unsigned calculate_independence_number(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
   bool set[g->size] = {};
   unsigned maximum = 0;
   while (true) {
     bool independent = true;
     unsigned count = 0;
-    for (unsigned v = 0; v < g->size; v++)
+    for (unsigned v = 0; v < g->size && independent; v++)
       if (set[v]) {
         count++;
-        for (const Edge *e = g->edges[v]; e; e = e->next)
-          if (e->destination < g->size && set[e->destination]) {
+        for (Edge *e = g->edges[v]; e; e = e->next)
+          if (e->destination < g->size && set[e->destination])
             independent = false;
-            break;
-          }
-        if (!independent) break;
       }
     if (independent && count > maximum) maximum = count;
     unsigned v = 0;
