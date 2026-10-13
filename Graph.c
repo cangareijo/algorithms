@@ -102,6 +102,7 @@ bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double we
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
 bool is_clique(const Graph *g, const bool *set);
 bool is_maximal_clique(const Graph *g, const bool *set);
+bool is_maximum_clique(const Graph *g, const bool *set);
 bool isIndependentSet(const Graph *g, const bool *set);
 bool isVertexCover(const Graph *g, const bool *set);
 bool is_dominating_set(const Graph *g, const bool *set);
@@ -138,7 +139,7 @@ bool is_isomorphism(const Graph *g1, const Graph *g2, const unsigned *mapping);
 bool *graphCenter(const Graph *g);
 bool *graphPeriphery(const Graph *g);
 bool *findArticulationPoints(const Graph *g);
-bool *findMaximumClique(const Graph *g);
+bool *find_maximum_clique(const Graph *g);
 bool *findApproximatedMaximumClique(const Graph *g);
 bool *getIsolatedVertices(const Graph *g);
 bool *getSources(const Graph *g);
@@ -264,7 +265,7 @@ unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateMinimumVertexCut(const Graph *g);
 unsigned countSpanningTrees(const Graph *g);
 unsigned calculateChromaticNumber(const Graph *g);
-unsigned calculateCliqueNumber(const Graph *g);
+unsigned calculate_clique_number(const Graph *g);
 unsigned calculateTreewidth(const Graph *g);
 unsigned calculateDirectedEdgeConnectivity(const Graph *g);
 unsigned calculateDegeneracy(const Graph *g);
@@ -1661,6 +1662,18 @@ bool is_maximal_clique(const Graph *g, const bool *set) {
   return true;
 }
 
+bool is_maximum_clique(const Graph *g, const bool *set) {
+  if (!g) return false;
+  if (g->size == 0) return true;
+  if (!set) return false;
+  if (!is_clique(g, set)) return false;
+  unsigned size = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (set[v])
+      size++;
+  return size == calculate_clique_number(g);
+}
+
 bool isIndependentSet(const Graph *g, const bool *set) {
   if (!g || !g->edges || !set) return true;
   for (unsigned u = 0; u < g->size; u++)
@@ -2133,41 +2146,30 @@ static void findArticulationPointsDfs(
   return articulations;
 }
 
-static void findMaximumCliqueRecursive(
+static void find_maximum_clique_recursive(
   const Graph *g, unsigned v, bool *current, unsigned currentSize, bool *maximum, unsigned *maximumSize)
 {
-  if (v == g->size) {
+  if (v >= g->size) {
     if (currentSize > *maximumSize) {
       *maximumSize = currentSize;
       for (unsigned u = 0; u < g->size; u++) maximum[u] = current[u];
     }
     return;
   }
-  bool addable = true;
-  for (unsigned u = 0; u < v; u++)
-    if (current[u])
-      if (!has_directed_edge(g, v, u) || !has_directed_edge(g, u, v))
-        addable = false;
-  if (addable) {
-    current[v] = true;
-    findMaximumCliqueRecursive(g, v + 1, current, currentSize + 1, maximum, maximumSize);
-  }
+  current[v] = true;
+  if (is_clique(g, current))
+    find_maximum_clique_recursive(g, v + 1, current, currentSize + 1, maximum, maximumSize);
   current[v] = false;
-  findMaximumCliqueRecursive(g, v + 1, current, currentSize, maximum, maximumSize);
+  find_maximum_clique_recursive(g, v + 1, current, currentSize, maximum, maximumSize);
 }
 
-[[nodiscard]] bool *findMaximumClique(const Graph *g) {
-  if (!g) return nullptr;
-  bool *current = calloc(g->size, sizeof(bool));
+[[nodiscard]] bool *find_maximum_clique(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
   bool *maximum = calloc(g->size, sizeof(bool));
-  if (!current || !maximum) {
-    free(current);
-    free(maximum);
-    return nullptr;
-  }
+  if (!maximum) return nullptr;
+  bool current[g->size] = {};
   unsigned size = 0;
-  findMaximumCliqueRecursive(g, 0, current, 0, maximum, &size);
-  free(current);
+  find_maximum_clique_recursive(g, 0, current, 0, maximum, &size);
   return maximum;
 }
 
@@ -4293,9 +4295,9 @@ unsigned calculateChromaticNumber(const Graph *g) {
   return chromatic;
 }
 
-unsigned calculateCliqueNumber(const Graph *g) {
+unsigned calculate_clique_number(const Graph *g) {
   if (!g) return 0;
-  bool *clique = findMaximumClique(g);
+  bool *clique = find_maximum_clique(g);
   if (!clique) return 0;
   unsigned size = 0;
   for (unsigned v = 0; v < g->size; v++)
