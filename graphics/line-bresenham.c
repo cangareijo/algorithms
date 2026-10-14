@@ -54,7 +54,7 @@ bool draw_pixel_array(SDL_Renderer* renderer, SDL_Texture* texture, const uint32
   return true;
 }
 
-int main(void) {
+int main(int, char*[]) {
   if (!SDL_Init(SDL_INIT_VIDEO)) {
     SDL_Log("SDL could not initialize: %s", SDL_GetError());
     return 1;

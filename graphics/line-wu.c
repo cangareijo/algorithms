@@ -194,8 +194,6 @@ void draw_line_wu(Canvas* canvas, int32_t x0, int32_t y0, int32_t x1, int32_t y1
 }
 
 int main(int, char*[]) {
-    srand((unsigned int)time(NULL));
-
     const int32_t width = 800;
     const int32_t height = 600;
 
@@ -228,6 +226,8 @@ int main(int, char*[]) {
     for (int i = 0; i < width * height; i++) {
         canvas.pixels[i] = 0xFF000000;
     }
+
+    srand((unsigned int)time(NULL));
 
     for (int i = 0; i < 20; i++) {
         int32_t x0 = rand() % width;
