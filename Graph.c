@@ -190,8 +190,8 @@ Graph *createUndirectedLine(const Graph *g);
 Graph *createUnderlying(const Graph *g);
 Graph *get_minimum_spanning_tree_by_kruskal(const Graph *g);
 Graph *get_minimum_spanning_tree_by_prim(const Graph *g);
-Graph *createDirectedSubdivision(const Graph *g);
-Graph *createUndirectedSubdivision(const Graph *g);
+Graph *create_directed_barycentric_subdivision(const Graph *g);
+Graph *create_undirected_barycentric_subdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *findFeedbackArcSet(const Graph *g);
 Graph *createCactusGraph(const Graph *g);
@@ -237,7 +237,7 @@ void delete_first_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, dou
 
 unsigned getSize(const Graph *g);
 unsigned count_directed_edges(const Graph *g);
-unsigned countUndirectedEdges(const Graph *g);
+unsigned count_undirected_edges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *g);
 unsigned getMinimumInDegree(const Graph *g);
@@ -2008,7 +2008,7 @@ bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
 }
 
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && countUndirectedEdges(g1) == g1->size - 1 &&
+  return g1 && g2 && g1->size == g2->size && g1->size > 0 && count_undirected_edges(g1) == g1->size - 1 &&
     !hasSelfLoops(g1) && !hasParallelEdges(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
@@ -3090,7 +3090,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
 
 [[nodiscard]] Graph *createUndirectedLine(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = create_graph(countUndirectedEdges(g));
+  Graph *g2 = create_graph(count_undirected_edges(g));
   unsigned i = 0;
   for (unsigned u = 0; u < g->size; u++) {
     unsigned uSelf = 0;
@@ -3185,7 +3185,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   return tree;
 }
 
-[[nodiscard]] Graph *createDirectedSubdivision(const Graph *g) {
+[[nodiscard]] Graph *create_directed_barycentric_subdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
   Graph *g2 = create_graph(g->size + count_directed_edges(g));
   unsigned u = g->size;
@@ -3198,22 +3198,44 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   return g2;
 }
 
-[[nodiscard]] Graph *createUndirectedSubdivision(const Graph *g) {
+[[nodiscard]] Graph *create_undirected_barycentric_subdivision(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = create_graph(g->size + countUndirectedEdges(g));
-  unsigned u = g->size;
-  for (unsigned v = 0; v < g->size; v++) {
-    unsigned self = 0;
+  unsigned total = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      total++;
+  Graph *sub = create_graph(g->size + (total / 2));
+  if (!sub) return nullptr;
+  unsigned sources[total];
+  unsigned targets[total];
+  double weights[total];
+  bool paired[total] = {};
+  unsigned i = 0;
+  for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next) {
-      if (v < e->destination || (v == e->destination && self % 2 == 0)) {
-        add_weighted_undirected_edge(g2, v, u, e->weight);
-        add_weighted_undirected_edge(g2, u, e->destination, e->weight);
-        u++;
-      }
-      if (v == e->destination) self++;
+      sources[i] = v;
+      targets[i] = e->destination;
+      weights[i] = e->weight;
+      i++;
     }
+  unsigned v = g->size;
+  for (unsigned i = 0; i < total; i++) {
+    if (paired[i]) continue;
+    bool found = false;
+    for (unsigned j = i + 1; j < total && !found; j++)
+      if (!paired[j] && sources[i] == targets[j] && targets[i] == sources[j] && weights[i] == weights[j]) {
+        paired[j] = true;
+        found = true;
+      }
+    if (!found) {
+      destroy_graph(sub);
+      return nullptr;
+    }
+    add_weighted_undirected_edge(sub, sources[i], v, weights[i]);
+    add_weighted_undirected_edge(sub, targets[i], v, weights[i]);
+    v++;
   }
-  return g2;
+  return sub;
 }
 
 [[nodiscard]] Graph *createTransitiveClosure(const Graph *g) {
@@ -3873,7 +3895,7 @@ unsigned count_directed_edges(const Graph *g) {
   return n;
 }
 
-unsigned countUndirectedEdges(const Graph *g) {
+unsigned count_undirected_edges(const Graph *g) {
   return count_directed_edges(g) / 2;
 }
 

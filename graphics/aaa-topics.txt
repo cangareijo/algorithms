@@ -3,4 +3,4 @@
  * ellipse drawing
  * filled, tilted ellipse drawing
  * flood fill
- * polygon fill
+ * scanline fill
