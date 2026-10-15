@@ -360,16 +360,16 @@ double calculateMinCut(const Graph *g);
 double calculateGraphEnergy(const Graph *g);
 double calculateAssortativityCoefficient(const Graph *g);
 double calculateAlgebraicConnectivity(const Graph *g);
-double calculateGlobalEfficiency(const Graph *g);
+double calculate_global_efficiency(const Graph *g);
 double calculateEffectiveGraphResistance(const Graph *g);
 double calculateRandicIndex(const Graph *g);
 double calculateZagrebIndex(const Graph *g);
 double calculateSecondZagrebIndex(const Graph *g);
-double calculateGraphEfficiency(const Graph *g);
 double calculateNaturalConnectivity(const Graph *g);
 double calculatePercolationThreshold(const Graph *g);
 double calculateCorePeripheralScore(const Graph *g);
 double calculateSymmetryRatio(const Graph *g);
+double calculate_vulnerability_index(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -382,6 +382,7 @@ double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculateConductance(const Graph *g, const bool *set);
 double calculateNormalizedCut(const Graph *g, const bool *set);
+double calculate_subgraph_efficiency(const Graph *g, const bool *set);
 double calculateModularity(const Graph *g, const unsigned *partition);
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length);
 
@@ -6832,34 +6833,27 @@ double calculateAlgebraicConnectivity(const Graph *g) {
   return secondSmallest;
 }
 
-double calculateGlobalEfficiency(const Graph *g) {
+double calculate_global_efficiency(const Graph *g) {
   if (!g || g->size < 2 || !g->edges) return 0;
-
-  unsigned n = g->size;
-  double distance[n][n];
-
-  for (unsigned u = 0; u < n; u++)
-    for (unsigned v = 0; v < n; v++)
-      distance[u][v] = (u == v) ? 0 : INFINITY;
-
-  for (unsigned u = 0; u < n; u++)
+  double distance[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      distance[u][v] = u == v ? 0 : INFINITY;
+  for (unsigned u = 0; u < g->size; u++)
     for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < n && e->weight < distance[u][e->destination])
+      if (e->destination < g->size && e->weight > 0 && e->weight < distance[u][e->destination])
         distance[u][e->destination] = e->weight;
-
-  for (unsigned w = 0; w < n; w++)
-    for (unsigned u = 0; u < n; u++)
-      for (unsigned v = 0; v < n; v++)
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
         if (distance[u][w] + distance[w][v] < distance[u][v])
           distance[u][v] = distance[u][w] + distance[w][v];
-
   double sum = 0;
-  for (unsigned u = 0; u < n; ++u)
-    for (unsigned v = 0; v < n; ++v)
-      if (u != v && !isinf(distance[u][v]))
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v)
         sum += 1 / distance[u][v];
-
-  return sum / n / (n - 1);
+  return sum / g->size / (g->size - 1);
 }
 
 double calculateEffectiveGraphResistance(const Graph *g) {
@@ -6931,29 +6925,6 @@ double calculateSecondZagrebIndex(const Graph *g) {
         sum += (double)degree_u * degree_v;
       }
   return sum / 2;
-}
-
-double calculateGraphEfficiency(const Graph *g) {
-  if (!g || g->size <= 1 || !g->edges) return 0;
-  double distance[g->size][g->size];
-  for (unsigned u = 0; u < g->size; u++)
-    for (unsigned v = 0; v < g->size; v++)
-      distance[u][v] = u == v ? 0 : INFINITY;
-  for (unsigned u = 0; u < g->size; u++)
-    for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size && 0 <= e->weight && e->weight < distance[u][e->destination])
-        distance[u][e->destination] = e->weight;
-  for (unsigned w = 0; w < g->size; w++)
-    for (unsigned u = 0; u < g->size; u++)
-      for (unsigned v = 0; v < g->size; v++)
-        if (distance[u][w] + distance[w][v] < distance[u][v])
-          distance[u][v] = distance[u][w] + distance[w][v];
-  double sum = 0;
-  for (unsigned u = 0; u < g->size; u++)
-    for (unsigned v = 0; v < g->size; v++)
-      if (u != v && distance[u][v] < INFINITY)
-        sum += 1 / distance[u][v];
-  return sum / g->size / (g->size - 1);
 }
 
 double calculateNaturalConnectivity(const Graph *g) {
@@ -7206,6 +7177,21 @@ double calculateSymmetryRatio(const Graph *g) {
   return (double)unique_count / n;
 }
 
+double calculate_vulnerability_index(const Graph *g) {
+  if (!g || g->size <= 1) return NAN;
+  bool keep[g->size];
+  for (unsigned v = 0; v < g->size; v++) keep[v] = true;
+  double base = calculate_subgraph_efficiency(g, keep);
+  double maximum = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    keep[v] = false;
+    double vulnerability = 1 - calculate_subgraph_efficiency(g, keep) / base;
+    if (vulnerability > maximum) maximum = vulnerability;
+    keep[v] = true;
+  }
+  return maximum;
+}
+
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
   if (!g || v >= g->size) return -INFINITY;
   double *distance = calculateWeightedDistances(g, v);
@@ -7421,6 +7407,36 @@ double calculateNormalizedCut(const Graph *g, const bool *set) {
   double term_a = volume_a > 0 ? cut_weight / volume_a : 0;
   double term_b = volume_b > 0 ? cut_weight / volume_b : 0;
   return term_a + term_b;
+}
+
+double calculate_subgraph_efficiency(const Graph *g, const bool *set) {
+  if (!g || !g->edges) return 0;
+  double distance[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      distance[u][v] = u == v ? 0 : INFINITY;
+  for (unsigned u = 0; u < g->size; u++)
+    if (set[u])
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination < g->size && set[e->destination] && e->weight > 0 && e->weight < distance[u][e->destination])
+          distance[u][e->destination] = e->weight;
+  for (unsigned w = 0; w < g->size; w++)
+    if (set[w])
+      for (unsigned u = 0; u < g->size; u++)
+        if (set[u])
+          for (unsigned v = 0; v < g->size; v++)
+            if (set[v] && distance[u][w] + distance[w][v] < distance[u][v])
+                distance[u][v] = distance[u][w] + distance[w][v];
+  double sum = 0;
+  unsigned pairs = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    if (set[u])
+      for (unsigned v = 0; v < g->size; v++)
+        if (set[v] && u != v) {
+          sum += 1 / distance[u][v];
+          pairs++;
+        }
+  return pairs > 0 ? sum / pairs : 0;
 }
 
 double calculateModularity(const Graph *g, const unsigned *partition) {
@@ -7808,7 +7824,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   unsigned n = g->size;
   double *rank = malloc(n * sizeof(double));
   if (!rank) return nullptr;
-  double buffer[2][n]; 
+  double buffer[2][n];
   double out_weight_sum[n] = {};
   for (unsigned v = 0; v < n; v++) {
     buffer[0][v] = 1.0 / n;
