@@ -255,6 +255,7 @@ unsigned countParallelEdges(const Graph *g);
 unsigned countIsolatedVertices(const Graph *g);
 unsigned countStronglyConnectedComponents(const Graph *g);
 unsigned countComponents(const Graph *g);
+unsigned calculate_maximum_component_size(const Graph *g);
 unsigned getFirstActiveVertex(const Graph *g);
 unsigned calculateWienerIndex(const Graph *g);
 unsigned countInvalidEdges(const Graph *g);
@@ -308,6 +309,8 @@ unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, d
 unsigned get_subset_size(const Graph *g, const bool *set);
 unsigned get_first_vertex_in_subset(const Graph *g, const bool *set);
 unsigned calculate_cut_size(const Graph *g, const bool *set);
+unsigned count_subgraph_components(const Graph *g, const bool *set);
+unsigned calculate_subgraph_maximum_component_size(const Graph *g, const bool *set);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
 
 unsigned *getInDegrees(const Graph *g);
@@ -370,6 +373,7 @@ double calculatePercolationThreshold(const Graph *g);
 double calculateCorePeripheralScore(const Graph *g);
 double calculateSymmetryRatio(const Graph *g);
 double calculate_vulnerability_index(const Graph *g);
+double calculate_graph_tenacity(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -4114,6 +4118,28 @@ unsigned countComponents(const Graph *g) {
   return n;
 }
 
+static void calculate_maximum_component_size_recursive(const Graph *graph, unsigned vertex, bool *visited, unsigned *count)
+{
+  visited[vertex] = true;
+  (*count)++;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (edge->destination < graph->size && !visited[edge->destination])
+      calculate_maximum_component_size_recursive(graph, edge->destination, visited, count);
+}
+
+unsigned calculate_maximum_component_size(const Graph *graph) {
+  if (!graph || graph->size == 0 || !graph->edges) return 0;
+  bool visited[graph->size] = {};
+  unsigned maximum = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!visited[vertex]) {
+      unsigned count = 0;
+      calculate_maximum_component_size_recursive(graph, vertex, visited, &count);
+      if (count > maximum) maximum = count;
+    }
+  return maximum;
+}
+
 unsigned getFirstActiveVertex(const Graph *g) {
   if (g && g->edges)
     for (unsigned v = 0; v < g->size; v++)
@@ -5262,6 +5288,48 @@ unsigned calculate_cut_size(const Graph *g, const bool *set) {
       if (e->destination < g->size && set[v] && !set[e->destination])
         n++;
   return n;
+}
+
+static void count_subgraph_components_recursive(const Graph *graph, const bool *set, unsigned vertex, bool *visited) {
+  visited[vertex] = true;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (edge->destination < graph->size && set[edge->destination] && !visited[edge->destination])
+      count_subgraph_components_recursive(graph, set, edge->destination, visited);
+}
+
+unsigned count_subgraph_components(const Graph *graph, const bool *set) {
+  if (!graph || graph->size == 0 || !graph->edges || !set) return 0;
+  bool visited[graph->size] = {};
+  unsigned components = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (set[vertex] && !visited[vertex]) {
+      count_subgraph_components_recursive(graph, set, vertex, visited);
+      components++;
+    }
+  return components;
+}
+
+static void calculate_subgraph_maximum_component_size_recursive(
+  const Graph *graph, const bool *set, unsigned vertex, bool *visited, unsigned *count)
+{
+  visited[vertex] = true;
+  (*count)++;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (edge->destination < graph->size && set[edge->destination] && !visited[edge->destination])
+      calculate_subgraph_maximum_component_size_recursive(graph, set, edge->destination, visited, count);
+}
+
+unsigned calculate_subgraph_maximum_component_size(const Graph *graph, const bool *set) {
+  if (!graph || graph->size == 0 || !graph->edges || !set) return 0;
+  bool visited[graph->size] = {};
+  unsigned maximum = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (set[vertex] && !visited[vertex]) {
+      unsigned count = 0;
+      calculate_subgraph_maximum_component_size_recursive(graph, set, vertex, visited, &count);
+      if (count > maximum) maximum = count;
+    }
+  return maximum;
 }
 
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
@@ -7190,6 +7258,30 @@ double calculate_vulnerability_index(const Graph *g) {
     keep[v] = true;
   }
   return maximum;
+}
+
+static void calculate_graph_tenacity_recursive(const Graph *graph, bool *set, unsigned vertex, unsigned removed, double *minimum) {
+  if (vertex >= graph->size) {
+    unsigned components = count_subgraph_components(graph, set);
+    if (components > 1) {
+      unsigned maximum = calculate_subgraph_maximum_component_size(graph, set);
+      double score = ((double)removed + maximum) / components;
+      if (score < *minimum) *minimum = score;
+    }
+    return;
+  }
+  set[vertex] = false;
+  calculate_graph_tenacity_recursive(graph, set, vertex + 1, removed + 1, minimum);
+  set[vertex] = true;
+  calculate_graph_tenacity_recursive(graph, set, vertex + 1, removed, minimum);
+}
+
+double calculate_graph_tenacity(const Graph *graph) {
+  if (!graph || graph->size == 0) return 0;
+  bool set[graph->size];
+  double minimum = INFINITY;
+  calculate_graph_tenacity_recursive(graph, set, 0, 0, &minimum);
+  return minimum;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
