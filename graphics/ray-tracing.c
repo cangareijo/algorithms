@@ -154,7 +154,7 @@ int main(void) {
     Vetor3D camera = {}; // Origem na coordenada (0, 0, 0)
 
     // Criação do ficheiro PPM
-    auto *ficheiro = fopen("raytracing_c23.ppm", "wb");
+    auto ficheiro = fopen("raytracing_c23.ppm", "wb");
     if (!ficheiro) {
         perror("Erro ao criar o ficheiro de imagem");
         return EXIT_FAILURE;
