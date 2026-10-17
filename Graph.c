@@ -374,6 +374,7 @@ double calculateCorePeripheralScore(const Graph *g);
 double calculateSymmetryRatio(const Graph *g);
 double calculate_vulnerability_index(const Graph *g);
 double calculate_graph_tenacity(const Graph *g);
+double calculate_scattering_number(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -5281,20 +5282,20 @@ unsigned calculate_cut_size(const Graph *g, const bool *set) {
   return n;
 }
 
-static void count_subgraph_components_recursive(const Graph *graph, const bool *set, unsigned vertex, bool *visited) {
-  visited[vertex] = true;
-  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
-    if (edge->destination < graph->size && set[edge->destination] && !visited[edge->destination])
-      count_subgraph_components_recursive(graph, set, edge->destination, visited);
+static void count_subgraph_components_recursive(const Graph *g, const bool *set, unsigned v, bool *visited) {
+  visited[v] = true;
+  for (Edge *edge = g->edges[v]; edge; edge = edge->next)
+    if (edge->destination < g->size && set[edge->destination] && !visited[edge->destination])
+      count_subgraph_components_recursive(g, set, edge->destination, visited);
 }
 
-unsigned count_subgraph_components(const Graph *graph, const bool *set) {
-  if (!graph || graph->size == 0 || !graph->edges || !set) return 0;
-  bool visited[graph->size] = {};
+unsigned count_subgraph_components(const Graph *g, const bool *set) {
+  if (!g || g->size == 0 || !g->edges || !set) return 0;
+  bool visited[g->size] = {};
   unsigned components = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    if (set[vertex] && !visited[vertex]) {
-      count_subgraph_components_recursive(graph, set, vertex, visited);
+  for (unsigned v = 0; v < g->size; v++)
+    if (set[v] && !visited[v]) {
+      count_subgraph_components_recursive(g, set, v, visited);
       components++;
     }
   return components;
@@ -7273,6 +7274,24 @@ double calculate_graph_tenacity(const Graph *graph) {
   double minimum = INFINITY;
   calculate_graph_tenacity_recursive(graph, set, 0, 0, &minimum);
   return minimum;
+}
+
+static double calculate_scattering_number_recursive(const Graph *g, bool *set, unsigned v, unsigned removed) {
+  if (v >= g->size) {
+    unsigned components = count_subgraph_components(g, set);
+    return (double)components - removed;
+  }
+  set[v] = false;
+  double without = calculate_scattering_number_recursive(g, set, v + 1, removed + 1);
+  set[v] = true;
+  double with = calculate_scattering_number_recursive(g, set, v + 1, removed);
+  return without > with ? without : with;
+}
+
+double calculate_scattering_number(const Graph *g) {
+  if (!g || g->size == 0) return 0;
+  bool set[g->size];
+  return calculate_scattering_number_recursive(g, set, 0, 0);
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
