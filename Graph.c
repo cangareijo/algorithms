@@ -254,7 +254,7 @@ unsigned countUndirectedLeaves(const Graph *g);
 unsigned countParallelEdges(const Graph *g);
 unsigned countIsolatedVertices(const Graph *g);
 unsigned countStronglyConnectedComponents(const Graph *g);
-unsigned countComponents(const Graph *g);
+unsigned count_components(const Graph *g);
 unsigned calculate_maximum_component_size(const Graph *g);
 unsigned getFirstActiveVertex(const Graph *g);
 unsigned calculateWienerIndex(const Graph *g);
@@ -1493,9 +1493,9 @@ bool canReachAll(const Graph *g, unsigned v) {
 bool isArticulationVertex(const Graph *g, unsigned v) {
   Graph *g2 = copyGraph(g);
   deleteVertex(g2, v);
-  unsigned n = countComponents(g2);
+  unsigned n = count_components(g2);
   destroy_graph(g2);
-  return n > countComponents(g);
+  return n > count_components(g);
 }
 
 bool isSimplicial(const Graph *g, unsigned v) {
@@ -1609,17 +1609,17 @@ bool have_common_neighbors(const Graph *g, unsigned u, unsigned v) {
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
   Graph *g2 = copyGraph(g);
   deleteFirstDirectedEdge(g2, u, v);
-  unsigned n = countComponents(g2);
+  unsigned n = count_components(g2);
   destroy_graph(g2);
-  return n > countComponents(g);
+  return n > count_components(g);
 }
 
 bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
   Graph *g2 = copyGraph(g);
   deleteFirstUndirectedEdge(g2, u, v);
-  unsigned n = countComponents(g2);
+  unsigned n = count_components(g2);
   destroy_graph(g2);
-  return n > countComponents(g);
+  return n > count_components(g);
 }
 
 bool has_weighted_directed_edge(const Graph *g, unsigned u, unsigned v, double weight) {
@@ -4048,6 +4048,24 @@ unsigned countUndirectedLeaves(const Graph *g) {
   return n;
 }
 
+unsigned countParallelEdges(const Graph *g) {
+  if (!is_valid(g)) return 0;
+  bool *seen = calloc(g->size, sizeof(bool));
+  if (!seen) return 0;
+  unsigned count = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (seen[e->destination])
+        count++;
+      else
+        seen[e->destination] = true;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      seen[e->destination] = false;
+  }
+  free(seen);
+  return count;
+}
+
 unsigned countIsolatedVertices(const Graph *g) {
   if (!g) return 0;
   bool *isolated = getIsolatedVertices(g);
@@ -4072,50 +4090,23 @@ unsigned countStronglyConnectedComponents(const Graph *g) {
   return count;
 }
 
-unsigned countParallelEdges(const Graph *g) {
-  if (!is_valid(g)) return 0;
-  bool *seen = calloc(g->size, sizeof(bool));
-  if (!seen) return 0;
-  unsigned count = 0;
-  for (unsigned v = 0; v < g->size; v++) {
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (seen[e->destination])
-        count++;
-      else
-        seen[e->destination] = true;
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      seen[e->destination] = false;
-  }
-  free(seen);
-  return count;
+static void count_components_recursive(const Graph *graph, unsigned vertex, bool *visited) {
+  visited[vertex] = true;
+  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+    if (edge->destination < graph->size && !visited[edge->destination])
+      count_components_recursive(graph, edge->destination, visited);
 }
 
-unsigned countComponents(const Graph *g) {
-  if (!is_valid(g)) return 0;
-  Graph *g2 = createUndirected(g);
-  if (!g2) return 0;
-  deleteInvalidEdges(g2);
-  bool *visited = calloc(g2->size, sizeof(bool));
-  unsigned *stack = malloc(g2->size * sizeof(unsigned));
-  unsigned n = 0;
-  if (visited && stack)
-    for (unsigned u = 0; u < g2->size; u++)
-      if (!visited[u]) {
-        n++;
-        unsigned size = 0;
-        stack[size++] = u;
-        visited[u] = true;
-        while (size > 0)
-          for (Edge *e = g2->edges[stack[--size]]; e; e = e->next)
-            if (!visited[e->destination]) {
-              visited[e->destination] = true;
-              stack[size++] = e->destination;
-            }
-      }
-  destroy_graph(g2);
-  free(visited);
-  free(stack);
-  return n;
+unsigned count_components(const Graph *graph) {
+  if (!graph || graph->size == 0 || !graph->edges) return 0;
+  bool visited[graph->size] = {};
+  unsigned components = 0;
+  for (unsigned vertex = 0; vertex < graph->size; vertex++)
+    if (!visited[vertex]) {
+      count_components_recursive(graph, vertex, visited);
+      components++;
+    }
+  return components;
 }
 
 static void calculate_maximum_component_size_recursive(const Graph *graph, unsigned vertex, bool *visited, unsigned *count)
