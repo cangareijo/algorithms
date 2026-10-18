@@ -272,7 +272,7 @@ unsigned calculateDirectedEdgeConnectivity(const Graph *g);
 unsigned calculateDegeneracy(const Graph *g);
 unsigned calculateVertexConnectivity(const Graph *g);
 unsigned calculateEdgeConnectivity(const Graph *g);
-unsigned countAutomorphisms(const Graph *g);
+unsigned count_automorphisms(const Graph *g);
 unsigned calculateVertexFrustrationNumber(const Graph *g);
 unsigned calculateEdgeFrustrationNumber(const Graph *g);
 unsigned calculate_independence_number(const Graph *g);
@@ -4462,40 +4462,27 @@ unsigned calculateEdgeConnectivity(const Graph *g) {
   return minimum;
 }
 
-static bool countAutomorphisms_isValidMapping(const Graph *g, const unsigned *p, unsigned u) {
-  for (unsigned v = 0; v <= u; v++) {
-    if (get_weight(g, u, v) != get_weight(g, p[u], p[v])) return false;
-    if (get_weight(g, v, u) != get_weight(g, p[v], p[u])) return false;
-  }
-  return true;
-}
-
-static unsigned countAutomorphisms_permute(const Graph *g, unsigned *p, bool *used, unsigned v) {
-  if (v == g->size) return 1;
-
+static unsigned count_automorphisms_recursive(const Graph *g, unsigned *permutation, unsigned v) {
+  if (v >= g->size) return is_automorphism(g, permutation) ? 1 : 0;
   unsigned count = 0;
-  for (unsigned u = 0; u < g->size; u++)
-    if (!used[u]) {
-      p[v] = u;
-
-      if (countAutomorphisms_isValidMapping(g, p, v)) {
-        used[u] = true;
-        count += countAutomorphisms_permute(g, p, used, v + 1);
-        used[u] = false;
-      }
-    }
+  for (unsigned u = v; u < g->size; u++) {
+    unsigned temporary = permutation[v];
+    permutation[v] = permutation[u];
+    permutation[u] = temporary;
+    count += count_automorphisms_recursive(g, permutation, v + 1);
+    permutation[u] = permutation[v];
+    permutation[v] = temporary;
+  }
   return count;
 }
 
-unsigned countAutomorphisms(const Graph *g) {
+unsigned count_automorphisms(const Graph *g) {
   if (!g) return 0;
   if (g->size == 0) return 1;
   if (!g->edges) return 0;
-
-  unsigned p[g->size] = {};
-  bool used[g->size] = {};
-
-  return countAutomorphisms_permute(g, p, used, 0);
+  unsigned permutation[g->size];
+  for (unsigned v = 0; v < g->size; v++) permutation[v] = v;
+  return count_automorphisms_recursive(g, permutation, 0);
 }
 
 static bool isBipartiteWithRemovals(const Graph *g, bool removed[g->size]) {
