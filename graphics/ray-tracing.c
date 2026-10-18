@@ -166,10 +166,10 @@ int main(void) {
     // Proporção do ecrã (Aspect Ratio)
     auto proporcao = (double)largura / (double)altura;
 
-    // Loop de renderização (linha a linha, pixel a pixel)
+    // Loop de renderização (linha a linha, píxel a píxel)
     for (int y = 0; y < altura; ++y) {
         for (int x = 0; x < largura; ++x) {
-            // Converte as coordenadas do pixel para o espaço tridimensional da câmara
+            // Converte as coordenadas do píxel para o espaço tridimensional da câmara
             auto pixel_x = (2.0 * ((x + 0.5) / largura) - 1.0) * proporcao;
             auto pixel_y = 1.0 - 2.0 * ((y + 0.5) / altura);
 
