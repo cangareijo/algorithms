@@ -201,7 +201,7 @@ gcc -lm -O3 -std=c23 raytracer.c -o raytracer
 
 /*
 
-Escreve um artigo longo a explicar o programa.
+Escreve um artigo longo a explicar o algoritmo.
 Escreve em português europeu.
 Escreve em formato TXT.
 Escreve em Unicode.
@@ -210,162 +210,163 @@ Escreve em Unicode.
 
 /*
 
-================================================================================
-1. INTRODUÇÃO
-================================================================================
+===============================================================================
+O ESPELHO DA REALIDADE: DESVENDANDO O ALGORITMO DE RAY TRACING EM C23
+===============================================================================
 
-O desenvolvimento de gráficos por computador tem sido historicamente impulsionado 
-pela busca pelo realismo visual. Entre as diversas técnicas disponíveis, o Ray Tracing 
-(Traçado de Raios) destaca-se como o algoritmo mais intuitivo e fisicamente fiel para 
-simular o comportamento da luz. Embora tenha sido considerado proibitivamente dispendioso 
-em termos computacionais no passado, a evolução do hardware e das linguagens de programação 
-tornou esta técnica acessível e omnipresente, desde os videojogos modernos até ao cinema.
+Introdução
+----------
+A procura pela fidedignidade visual na computação gráfica levou ao desenvolvimento
+de diversas técnicas de renderização. Entre elas, o Ray Tracing (Lançamento de 
+Raios) destaca-se como um dos algoritmos mais elegantes e intuitivos para simular
+o comportamento físico da luz. 
 
-Paralelamente, a linguagem C passou recentemente por uma das suas atualizações mais 
-profundas e significativas: o padrão C23. Longe de ser apenas uma revisão incremental, 
-o C23 traz para a linguagem uma modernização há muito esperada, combinando a máxima 
-performance e controlo ao nível do hardware com uma sintaxe mais limpa, segura e expressiva.
+Neste artigo, analisamos em detalhe a implementação de um motor de Ray Tracing 
+básico, escrito em linguagem C moderna segundo o padrão C23. O algoritmo em causa
+projeta uma cena tridimensional composta por uma esfera vermelha iluminada, um
+chão com padrão em xadrez que projeta sombras e um fundo em gradiente que mimetiza
+o céu azul. Tudo isto é processado de forma analítica e guardado diretamente num
+ficheiro de imagem no formato raster PPM (Portable Pixmap).
 
-Este artigo técnico analisa detalhadamente uma implementação minimalista de um motor 
-de Ray Tracing desenvolvido em C23. Ao longo das próximas secções, exploraremos a 
-matemática subjacente ao traçado de raios, a arquitetura do código proposto e a forma 
-como as novas funcionalidades do C23 foram aplicadas para criar um código elegante e eficiente.
 
-================================================================================
-2. FUNDAMENTOS DO RAY TRACING
-================================================================================
+1. A Filosofia do Ray Tracing: Luz Inversa
+-------------------------------------------
+No mundo real, as fontes de luz (como o Sol ou uma lâmpada) emitem triliões de
+fotões que viajam pelo espaço, colidem com superfícies e, eventualmente, uma
+fração minúscula atinge os nossos olhos ou o sensor de uma câmara. Simular este
+processo diretamente num computador seria computacionalmente inviável, pois a
+esmagadora maioria dos raios gerados nunca chegaria à câmara, desperdiçando
+recursos preciosos.
 
-O princípio fundamental do Ray Tracing inverte a física real para economizar recursos 
-computacionais. Na natureza, as fontes de luz emitem triliões de fotões que ressaltam 
-nos objetos até atingirem os nossos olhos. Simular todos estes fotões num computador seria 
-impossível, pois a esmagadora maioria nunca chegaria à câmara.
+O Ray Tracing resolve este problema invertendo o trajeto da luz. Em vez de lançar
+raios a partir da fonte de luz, o algoritmo lança raios a partir do olho do
+observador (a câmara) através de cada píxel do ecrã virtual para o interior da
+cena. Se o raio colidir com um objeto, calcula-se a iluminação nesse ponto de 
+impacto, determinando a cor final do píxel correspondente.
 
-No Ray Tracing, o processo é invertido:
-1. Lançamos um raio primário a partir da posição da câmara através de cada pixel do ecrã virtual.
-2. Determinamos se esse raio interseta algum objeto na cena tridimensional.
-3. Se houver uma interseção, calculamos o ponto de impacto e a geometria local (a normal).
-4. Lançamos raios secundários a partir desse ponto em direção às fontes de luz para determinar 
-   se o ponto está na sombra ou iluminado.
-5. Calculamos a cor final com base nas propriedades do material e da luz.
 
-Este modelo simplificado permite simular sombras perfeitas, reflexos e refrações com uma 
-fidelidade geométrica matemática absoluta.
+2. Estruturas de Dados e a Modernidade do C23
+---------------------------------------------
+O código adota representações geométricas limpas e conceitos da especificação
+C23, que trazem maior legibilidade e segurança ao desenvolvimento em C.
 
-================================================================================
-3. AS INOVAÇÕES DO C23 NO CÓDIGO
-================================================================================
+* Vetor3D e Cor: No espaço tridimensional, pontos, direções e cores partilham a
+  mesma natureza matemática de três componentes. O tipo 'Vetor3D' armazena as
+  coordenadas (x, y, z), servindo também para definir a intensidade dos canais
+  RGB (Vermelho, Verde, Azul) de uma 'Cor'.
+* Raio: Definido por uma estrutura matemática rígida que contém uma 'origem' 
+  (o ponto de partida no espaço) e uma 'direcao' (um vetor unitário que aponta 
+  para onde o raio se propaga).
+* Esfera: Caracterizada analiticamente por um ponto central ('centro'), um 
+  comprimento numérico ('raio') e uma propriedade visual ('cor').
 
-O programa fornecido beneficia grandemente do padrão C23. Destacam-se três grandes inovações:
+A modernização com o padrão C23 reflete-se na utilização do atributo
+[[nodiscard]], que força o compilador a emitir um aviso se o valor de retorno 
+de funções matemáticas cruciais for ignorado. Adicionalmente, o uso de 'auto' 
+simplifica a inferência de tipos em variáveis locais (como no cálculo do
+comprimento de vetores), e a inicialização universal 'return (Vetor3D){};' 
+garante uma limpeza segura das estruturas para zero.
 
-A. Inferência de Tipos com 'auto'
-Inspirado por linguagens modernas (e pelo C++), o C23 introduz a palavra-chave 'auto'. 
-No nosso código, isto é visível em atribuições como:
-    auto oc = subtrair(raio.origem, esfera.centro);
-    auto discriminante = (b * b) - (4.0 * a * c);
-A inferência de tipos reduz o ruído visual do código, especialmente quando lidamos com 
-ponteiros complexos ou tipos derivados, mantendo a tipagem forte e a verificação em tempo 
-de compilação.
 
-B. Inicialização Universal e Segura '{}'
-Anteriormente, inicializar uma estrutura com zeros exigia sintaxes inconsistentes ou o uso 
-de 'memset'. Com o C23, a inicialização universal por chavetas vazias '{}' garante que 
-todos os campos de uma estrutura ou array são limpos de forma segura:
-    if (comprimento == 0.0) return (Vetor3D){};
-Isto previne bugs catastróficos causados por memória residual "lixo".
+3. Álgebra Vetorial: Os Alicerces do Motor Gráfico
+--------------------------------------------------
+Toda a magia do Ray Tracing assenta na geometria analítica e na álgebra linear. 
+O ficheiro implementa operações básicas de vetores através de funções 'inline'
+para maximizar o desempenho:
 
-C. Atributos Standard: '[[nodiscard]]'
-O C23 introduz uma sintaxe oficial para atributos. O uso de '[[nodiscard]]' nas funções de 
-álgebra vetorial instrui o compilador a emitir um aviso (warning) caso o código chamador 
-ignore o valor de retorno. Sendo funções puramente matemáticas, ignorar o seu retorno seria 
-sempre um erro de lógica, tornando o desenvolvimento substancialmente mais seguro.
+* Soma e Subtração: Permitem deslocar pontos e encontrar vetores de direção.
+* Multiplicação Escalar: Altera a magnitude de um vetor sem mudar a sua direção.
+* Produto Escalar (Dot Product): É o coração do motor de iluminação. Retorna um
+  escalar que representa a relação angular entre dois vetores. Se o produto
+  escalar for máximo (igual a 1 para vetores normalizados), os vetores são 
+  paralelos; se for 0, são perpendiculares.
+* Normalização: Transforma qualquer vetor num vetor unitário (comprimento igual
+  a 1.0). Isto é imperativo para que os cálculos de projeção e iluminação não
+  sejam distorcidos pela escala do espaço.
 
-================================================================================
-4. GEOMETRIA E MATEMÁTICA DA INTERSEÇÃO
-================================================================================
 
-O motor gráfico utiliza o conceito de vetores tridimensionais (Vetor3D) para todas as suas 
-operações. A estrutura básica define uma coordenada (x, y, z), que serve tanto para posições 
-no espaço como para direções ou cores (RGB).
+4. Interseção Raio-Esfera: A Matemática do Impacto
+--------------------------------------------------
+Para descobrir se um raio atinge uma esfera, recorre-se à equação analítica da
+geometria. Um ponto P num raio é definido por:
+    P(t) = Origem + t * Direção, onde t > 0.
 
-A. Equação do Raio
-Um raio é definido matematicamente como:
-    P(t) = O + t * D
-Onde:
-- O é a origem do raio (posição da câmara).
-- D é o vetor de direção normalizado (comprimento unitário).
-- t é um escalar real positivo que representa a distância percorrida ao longo do raio.
+Uma esfera é definida pelo conjunto de pontos P que satisfazem:
+    (P - Centro) . (P - Centro) = Raio^2
 
-B. Interseção com a Esfera
-Uma esfera com centro C e raio R cumpre a equação:
-    (P - C) · (P - C) = R^2
-Substituindo a equação do raio na equação da esfera, obtemos uma equação quadrática na forma:
-    a*t^2 + b*t + c = 0
-Onde:
-- a = D · D
-- b = 2 * (O - C) · D
-- c = (O - C) · (O - C) - R^2
+Substituindo a equação do raio na equação da esfera, obtemos uma equação do
+segundo grau na forma tradicional: ax^2 + bx + c = 0, onde:
+* a = Direção . Direção
+* b = 2 * (Origem - Centro) . Direção
+* c = (Origem - Centro) . (Origem - Centro) - Raio^2
 
-O discriminante (b^2 - 4ac) determina o número de interseções. Se for negativo, o raio falha 
-a esfera. Se for positivo, resolvemos a fórmula quadrática para encontrar o menor valor de 't' 
-positivo, que representa o ponto de impacto visível mais próximo da câmara.
+A função 'intersecao_esfera' calcula o discriminante (Delta) desta equação:
+1. Se Delta < 0: O raio falha completamente a esfera.
+2. Se Delta >= 0: O raio atravessa ou toca a esfera.
 
-================================================================================
-5. ILUMINAÇÃO, SOMBRAS E O CHÃO DE XADREZ
-================================================================================
+Calcula-se a menor raiz positiva 't'. Se 't' for válido, encontramos a distância
+exata da câmara até à superfície da esfera, permitindo mapear o ponto preciso de 
+impacto no espaço tridimensional.
 
-Assim que o ponto de impacto é determinado, entra em ação o modelo de iluminação.
 
-A. Iluminação Difusa (Lambertiana)
-A intensidade da luz numa superfície depende do ângulo entre o vetor normal da superfície 
-(a direção perpendicular à superfície no ponto de impacto) e a direção da luz. Isto é calculado 
-através do produto escalar (dot product). Quanto mais direto for o ângulo, mais iluminada 
-estará a superfície. Adiciona-se uma pequena componente "ambiente" para que as zonas na 
-sombra não fiquem totalmente pretas, simulando a dispersão global da luz.
+5. O Modelo de Iluminação e Sombras
+------------------------------------
+A função 'calcular_cor' é o centro nevrálgico do algoritmo. Ela decide a cor
+de cada raio avaliando a proximidade dos objetos intersetados.
 
-B. O Desafio das Sombras
-Para determinar se o chão está na sombra da esfera, o algoritmo lança um "raio de sombra". 
-A sua origem é o ponto de impacto no chão e a sua direção aponta para a luz. Se este raio 
-intersetar a esfera antes de chegar à luz, sabemos que o ponto está obstruído. O chão recebe 
-então apenas a luz ambiente ténue, criando uma sombra projetada geometricamente perfeita.
+* O Chão Infinito: O chão é modelado como um plano horizontal perfeito numa 
+  coordenada Y fixa. Para criar interesse visual, calcula-se a posição x e z
+  do impacto. Arredondando estes valores e aplicando uma operação de módulo
+  induz-se o padrão alternado de xadrez.
+* Iluminação Difusa (Lambertiana): Quando um objeto é atingido, calcula-se o
+  vetor 'Normal' (perpendicular à superfície) e o vetor que aponta para a luz.
+  A intensidade da cor depende do cosseno do ângulo entre estes dois vetores,
+  obtido através do produto escalar. Superfícies diretamente viradas para a luz
+  ficam claras; superfícies tangenciais escurecem gradualmente, criando a ilusão
+  perfeita de volume 3D.
+* Luz Ambiente: Para evitar que as zonas não iluminadas fiquem totalmente
+  negras e irreais, adiciona-se uma pequena percentagem de luz ambiente fixa,
+  simulando a dispersão global da luz na atmosfera.
+* Sombras Projetadas (Shadow Rays): O maior trunfo deste código é o realismo das
+  sombras. Ao detetar que o raio primário atingiu o chão, o algoritmo dispara um
+  raio secundário a partir do ponto de impacto em direção à fonte de luz. Se este
+  raio de sombra intersetar a esfera antes de chegar à luz, significa que a esfera
+  está a bloquear o Sol. O ponto do chão é, portanto, declarado em sombra, e a 
+  sua iluminação difusa é anulada, restando apenas a luz ambiente ténue.
 
-C. O Chão de Xadrez Infinito
-Para dar profundidade e perspetiva à cena, o chão simula um plano matemático infinito. Utilizando 
-a função 'floor' nas coordenadas X e Z do ponto de impacto, criamos um padrão alternado baseado na 
-paridade da soma das coordenadas inteiras:
-    ((x_ajustado + z_ajustado) % 2 == 0)
-Isto permite demonstrar o efeito de fuga tridimensional em direção ao horizonte sem gastar 
-memória com texturas pesadas.
 
-================================================================================
-6. OUTPUT SEM DEPENDÊNCIAS: O FORMATO PPM
-================================================================================
+6. A Janela para o Mundo: A Câmara e a Renderização
+---------------------------------------------------
+A função 'main' orquestra a geração da imagem de 800x600 píxeis. A câmara está
+posicionada estaticamente na origem (0, 0, 0) a olhar para o eixo Z negativo.
 
-Para manter o projeto puramente educativo e evitar a complexidade de gerir bibliotecas gráficas 
-específicas de cada sistema operativo (como OpenGL, DirectX ou bibliotecas de compressão PNG), 
-o programa faz o output diretamente num ficheiro PPM (Portable Pixmap).
+Para cada píxel da grelha bidimensional, o algoritmo normaliza as coordenadas
+de ecrã para um intervalo entre -1.0 e 1.0, compensando a proporção de largura e 
+altura (Aspect Ratio) para prevenir que a esfera fique oval ou deformada.
 
-O formato PPM é um formato de imagem de texto plano extremamente simples. O cabeçalho consiste em:
-- "P3" : Identificador do formato (ASCII RGB).
-- "800 600" : Largura e altura em pixels.
-- "255" : O valor máximo para cada componente de cor.
+Após determinar a cor linear (valores entre 0.0 e 1.0) através do cálculo de
+iluminação, o programa realiza um "Tone Mapping" elementar, limitando o teto
+máximo com a função 'fmin' para evitar saturação, convertendo depois os valores
+para a escala inteira padrão de 8 bits (0 a 255).
 
-Seguem-se os valores inteiros de RGB (0 a 255) para cada pixel, ordenados da esquerda para a 
-direita, de cima para baixo. Qualquer visualizador moderno ou sistema baseado em Unix consegue 
-converter e abrir este ficheiro nativamente, permitindo focar toda a atenção no algoritmo 
-core do Ray Tracing.
 
-================================================================================
-7. CONCLUSÃO
-================================================================================
+7. Saída de Dados: O Formato PPM
+--------------------------------
+Os dados resultantes são gravados sequencialmente num ficheiro chamado
+'raytracing_c23.ppm'. O formato PPM (P3) é uma das formas mais simples de 
+armazenamento de imagem: um cabeçalho de texto define o tipo de formato, as
+dimensões da imagem e o valor máximo de cor, seguido por uma listagem direta
+de tripletos inteiros representando o R, G e B de cada píxel. Isto elimina a
+necessidade de incluir bibliotecas externas complexas de compressão (como as
+de PNG ou JPEG), tornando o código totalmente autónomo e autocontido.
 
-O Ray Tracing e o padrão C23 formam uma combinação poderosa. O C23 prova que a linguagem C 
-continua viva, relevante e em constante modernização, oferecendo ferramentas que tornam o 
-código mais limpo e legível sem abdicar do desempenho bruto. 
 
-Este motor minimalista demonstra que, com menos de 200 linhas de código limpo e estruturado, 
-é possível simular os princípios fundamentais da ótica física e da computação gráfica 3D. 
-A partir deste alicerce robusto em C23, o leitor poderá expandir o programa para suportar 
-múltiplas esferas, reflexos recursivos (esferas espelhadas), refração (vidro) e técnicas de 
-anti-aliasing para suavizar as arestas dos objetos.
+Conclusão
+---------
+Com menos de 200 linhas de código, este algoritmo ilustra com precisão o poder do
+Ray Tracing. Ao unir conceitos geométricos fundamentais à eficiência pura da
+linguagem C moderna (C23), o código demonstra como a simulação matemática das leis
+da ótica consegue transformar números e equações abstratas numa imagem cénica de
+alta fidelidade com luz, sombras e profundidade tangíveis.
 
 */
