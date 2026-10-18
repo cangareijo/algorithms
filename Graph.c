@@ -379,11 +379,14 @@ double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
 double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
-double getOutWeight(const Graph *g, unsigned v);
+double calculate_total_weight(const Graph *g, unsigned v);
 double calculate_vertex_flow_vitality(const Graph *g, unsigned v);
-double getEdgeWeight(const Graph *g, unsigned u, unsigned v);
+double calculate_burts_constraint(const Graph *g, unsigned v);
+double get_weight(const Graph *g, unsigned u, unsigned v);
 double calculate_weighted_distance(const Graph *g, unsigned u, unsigned v);
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
+double calculate_direct_investment(const Graph *g, unsigned u, unsigned v);
+double calculate_indirect_investment(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculateConductance(const Graph *g, const bool *set);
 double calculateNormalizedCut(const Graph *g, const bool *set);
@@ -3844,7 +3847,7 @@ void contractVertices(Graph *g, unsigned u, unsigned v) {
 
 void subdivideEdge(Graph *g, unsigned u, unsigned v) {
   if (!g) return;
-  double weight = getEdgeWeight(g, u, v);
+  double weight = get_weight(g, u, v);
   deleteFirstWeightedDirectedEdge(g, u, v, weight);
   addVertex(g);
   add_weighted_directed_edge(g, u, g->size - 1, weight / 2);
@@ -4459,17 +4462,10 @@ unsigned calculateEdgeConnectivity(const Graph *g) {
   return minimum;
 }
 
-static double countAutomorphisms_getEdgeWeight(const Graph *g, unsigned u, unsigned v) {
-  for (const Edge *e = g->edges[u]; e; e = e->next)
-    if (e->destination == v)
-      return e->weight;
-  return 0;
-}
-
 static bool countAutomorphisms_isValidMapping(const Graph *g, const unsigned *p, unsigned u) {
   for (unsigned v = 0; v <= u; v++) {
-    if (countAutomorphisms_getEdgeWeight(g, u, v) != countAutomorphisms_getEdgeWeight(g, p[u], p[v])) return false;
-    if (countAutomorphisms_getEdgeWeight(g, v, u) != countAutomorphisms_getEdgeWeight(g, p[v], p[u])) return false;
+    if (get_weight(g, u, v) != get_weight(g, p[u], p[v])) return false;
+    if (get_weight(g, v, u) != get_weight(g, p[v], p[u])) return false;
   }
   return true;
 }
@@ -7326,12 +7322,11 @@ double calculateLocalClusteringCoefficient(const Graph *g, unsigned v) {
   return (double)edges / get_out_degree(g, v) / (get_out_degree(g, v) - 1);
 }
 
-double getOutWeight(const Graph *g, unsigned v) {
+double calculate_total_weight(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
-  double total = 0;
-  for (const Edge *e = g->edges[v]; e; e = e->next)
-    total += e->weight;
-  return total;
+  double sum = 0;
+  for (Edge *e = g->edges[v]; e; e = e->next) sum += e->weight;
+  return sum;
 }
 
 static double vertex_flow_vitality_dfs(unsigned n, double res[n][n], unsigned u, unsigned sink, double flow, bool visited[n]) {
@@ -7381,12 +7376,23 @@ double calculate_vertex_flow_vitality(const Graph *g, unsigned v) {
   return orig_flow - mod_flow;
 }
 
-double getEdgeWeight(const Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size) return INFINITY;
-  for (const Edge *e = g->edges[u]; e; e = e->next)
+double calculate_burts_constraint(const Graph *g, unsigned u) {
+  if (!g || !g->edges || u >= g->size) return 0;
+  double sum = 0;
+  for (unsigned v = 0; v < g->size; v++) {
+    double p = calculate_direct_investment(g, u, v) + calculate_indirect_investment(g, u, v);
+    sum += p * p;
+  }
+  return sum;
+}
+
+double get_weight(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size) return 0;
+  double sum = 0;
+  for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v)
-      return e->weight;
-  return INFINITY;
+      sum += e->weight;
+  return sum;
 }
 
 double calculate_weighted_distance(const Graph *g, unsigned u, unsigned v) {
@@ -7458,6 +7464,20 @@ double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v) {
   free(queue);
   free(residualCapacity);
   return maxFlow;
+}
+
+double calculate_direct_investment(const Graph *g, unsigned u, unsigned v) {
+  if (u == v) return 0;
+  double total = calculate_total_weight(g, u);
+  return total > 0 ? get_weight(g, u, v) / total : 0;
+}
+
+double calculate_indirect_investment(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size) return 0;
+  double sum = 0;
+  for (unsigned w = 0; w < g->size; w++)
+    sum += calculate_direct_investment(g, u, w) * calculate_direct_investment(g, w, v);
+  return sum;
 }
 
 double calculateSubgraphDensity(const Graph *g, const bool *set) {
@@ -7581,8 +7601,7 @@ double calculateModularity(const Graph *g, const unsigned *partition) {
 double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length) {
   if (!path) return 0;
   double weight = 0;
-  for (unsigned i = 1; i < length; i++)
-    weight += getEdgeWeight(g, path[i - 1], path[i]);
+  for (unsigned i = 1; i < length; i++) weight += get_weight(g, path[i - 1], path[i]);
   return weight;
 }
 
