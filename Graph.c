@@ -63,7 +63,7 @@ bool isCubic(const Graph *g);
 bool hasDirectedCycle(const Graph *g);
 bool hasUndirectedCycle(const Graph *g);
 bool hasNegativeCycle(const Graph *g);
-bool isSelfComplementary(const Graph *g);
+bool is_self_complementary(const Graph *g);
 bool isChordal(const Graph *g);
 bool isPerfect(const Graph *g);
 bool isPlanar(const Graph *g);
@@ -118,6 +118,7 @@ bool isTopologicalSort(const Graph *g, const unsigned *ordering);
 bool is_maximal_matching(const Graph *g, const unsigned *matching);
 bool is_perfect_matching(const Graph *g, const unsigned *matching);
 bool is_automorphism(const Graph *g, const unsigned *mapping);
+bool is_self_complement(const Graph *g, const unsigned *mapping);
 bool isWalk(const Graph *g, const unsigned *sequence, unsigned length);
 bool isPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length);
@@ -297,7 +298,7 @@ unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned calculate_unweighted_distance(const Graph *g, unsigned u, unsigned v);
-unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v);
+unsigned count_matching_edges(const Graph *g, unsigned u, unsigned v);
 unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned countWalks(const Graph *g, unsigned u, unsigned v);
@@ -1018,27 +1019,25 @@ bool hasNegativeCycle(const Graph *g) {
   return false;
 }
 
-static bool isSelfComplementaryIsomorphism(const Graph *g, unsigned *p, unsigned i) {
-  if (i == g->size) {
-    for (unsigned u = 0; u < g->size; u++)
-      for (unsigned v = 0; v < g->size; v++)
-        if (u != v && has_directed_edge(g, u, v) == has_directed_edge(g, p[u], p[v]))
-          return false;
-    return true;
-  }
-  for (unsigned j = i; j < g->size; j++) {
-    swap_unsigned(&p[i], &p[j]);
-    if (isSelfComplementaryIsomorphism(g, p, i + 1)) return true;
-    swap_unsigned(&p[i], &p[j]);
+static bool is_self_complementary_recursive(const Graph *g, unsigned *permutation, unsigned v) {
+  if (v >= g->size) return is_self_complement(g, permutation);
+  for (unsigned u = v; u < g->size; u++) {
+    unsigned temporary = permutation[v];
+    permutation[v] = permutation[u];
+    permutation[u] = temporary;
+    if (is_self_complementary_recursive(g, permutation, v + 1)) return true;
+    permutation[u] = permutation[v];
+    permutation[v] = temporary;
   }
   return false;
 }
 
-bool isSelfComplementary(const Graph *g) {
-  if (!g) return true;
-  unsigned p[g->size];
-  for (unsigned i = 0; i < g->size; i++) p[i] = i;
-  return isSelfComplementaryIsomorphism(g, p, 0);
+bool is_self_complementary(const Graph *g) {
+  if (!g) return false;
+  if (g->size == 0) return true;
+  unsigned permutation[g->size];
+  for (unsigned v = 0; v < g->size; v++) permutation[v] = v;
+  return is_self_complementary_recursive(g, permutation, 0);
 }
 
 bool isChordal(const Graph *g) {
@@ -1861,6 +1860,26 @@ bool is_automorphism(const Graph *g, const unsigned *mapping) {
       unsigned n = count_matching_weighted_edges(g, mapping[v], mapping[e->destination], e->weight);
       if (m != n) return false;
     }
+  return true;
+}
+
+bool is_self_complement(const Graph *g, const unsigned *mapping) {
+  if (!g || (g->size > 0 && (!g->edges || !mapping))) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size || v == e->destination || count_matching_edges(g, v, e->destination) >= 2)
+        return false;
+  for (unsigned v = 0; v < g->size; v++)
+    if (mapping[v] >= g->size)
+      return false;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && mapping[u] == mapping[v])
+        return false;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v && has_directed_edge(g, u, v) == has_directed_edge(g, mapping[u], mapping[v]))
+        return false;
   return true;
 }
 
@@ -4885,7 +4904,7 @@ unsigned find_sink(const Graph *graph) {
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
-  return countMatchingEdges(g, v, v);
+  return count_matching_edges(g, v, v);
 }
 
 unsigned get_out_degree(const Graph *g, unsigned v) {
@@ -4898,7 +4917,7 @@ unsigned get_out_degree(const Graph *g, unsigned v) {
 unsigned getInDegree(const Graph *g, unsigned v) {
   if (!g) return 0;
   unsigned n = 0;
-  for (unsigned u = 0; u < g->size; u++) n += countMatchingEdges(g, u, v);
+  for (unsigned u = 0; u < g->size; u++) n += count_matching_edges(g, u, v);
   return n;
 }
 
@@ -5053,7 +5072,7 @@ unsigned calculate_unweighted_distance(const Graph *g, unsigned u, unsigned v) {
   return distance[v];
 }
 
-unsigned countMatchingEdges(const Graph *g, unsigned u, unsigned v) {
+unsigned count_matching_edges(const Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size) return 0;
   unsigned n = 0;
   for (const Edge *e = g->edges[u]; e; e = e->next)
