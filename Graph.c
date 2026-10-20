@@ -92,7 +92,7 @@ bool isArticulationVertex(const Graph *g, unsigned v);
 bool isSimplicial(const Graph *g, unsigned v);
 bool isCactus(const Graph *g);
 bool has_directed_edge(const Graph *g, unsigned u, unsigned v);
-bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v);
+bool has_undirected_edge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
 bool have_common_neighbors(const Graph *g, unsigned u, unsigned v);
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v);
@@ -293,6 +293,10 @@ unsigned getInDegree(const Graph *g, unsigned v);
 unsigned getDegree(const Graph *g, unsigned v);
 unsigned calculateUnweightedEccentricity(const Graph *g, unsigned v);
 unsigned countSimpleCyclesThroughVertex(const Graph *g, unsigned v);
+unsigned count_in_neighbors(const Graph *g, unsigned v);
+unsigned count_out_neighbors(const Graph *g, unsigned v);
+unsigned count_neighbors(const Graph *g, unsigned v);
+unsigned calculate_vertex_h_index(const Graph *g, unsigned v);
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
 unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
@@ -1566,7 +1570,7 @@ bool has_directed_edge(const Graph *g, unsigned u, unsigned v) {
   return false;
 }
 
-bool hasUndirectedEdge(const Graph *g, unsigned u, unsigned v) {
+bool has_undirected_edge(const Graph *g, unsigned u, unsigned v) {
   return has_directed_edge(g, u, v) && has_directed_edge(g, v, u);
 }
 
@@ -1921,7 +1925,7 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
   Graph *copy = copyGraph(g);
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
-    if (hasUndirectedEdge(copy, sequence[i - 1], sequence[i]))
+    if (has_undirected_edge(copy, sequence[i - 1], sequence[i]))
       deleteFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
@@ -2013,7 +2017,7 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
   bool valid = true;
   Graph *copy = copyGraph(g);
   for (unsigned i = 0; i < length && valid; i++)
-    if (hasUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]))
+    if (has_undirected_edge(copy, sequence[i], sequence[(i + 1) % length]))
       deleteFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
@@ -3151,7 +3155,7 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   Graph *g2 = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      if (v != e->destination && !hasUndirectedEdge(g2, v, e->destination))
+      if (v != e->destination && !has_undirected_edge(g2, v, e->destination))
         add_undirected_edge(g2, v, e->destination);
   return g2;
 }
@@ -4955,6 +4959,62 @@ unsigned countSimpleCyclesThroughVertex(const Graph *g, unsigned v) {
   for (const Edge *e = g->edges[v]; e; e = e->next)
     count += countSimpleCyclesThroughVertexDfs(g, v, e->destination, visited, 1);
   return count;
+}
+
+unsigned count_in_neighbors(const Graph *g, unsigned u) {
+  if (!g || !g->edges) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (u != v && has_directed_edge(g, v, u))
+      n++;
+  return n;
+}
+
+unsigned count_out_neighbors(const Graph *g, unsigned u) {
+  if (!g || !g->edges) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (u != v && has_directed_edge(g, u, v))
+      n++;
+  return n;
+}
+
+unsigned count_neighbors(const Graph *g, unsigned u) {
+  if (!g || !g->edges) return 0;
+  unsigned n = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (u != v && (has_directed_edge(g, u, v) || has_directed_edge(g, v, u)))
+      n++;
+  return n;
+}
+
+unsigned calculate_vertex_h_index(const Graph *g, unsigned u) {
+  if (!g || u >= g->size) return 0;
+  unsigned count = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (u != v && has_directed_edge(g, u, v))
+      count++;
+  if (count == 0) return 0;
+  unsigned i = 0;
+  unsigned neighbors[count];
+  for (unsigned v = 0; v < g->size; v++)
+    if (u != v && has_directed_edge(g, u, v)) {
+      neighbors[i] = 0;
+      for (unsigned w = 0; w < g->size; w++)
+        if (u != w && v != w && has_directed_edge(g, v, w))
+          neighbors[i]++;
+      i++;
+    }
+  for (unsigned i = 0; i < count; i++)
+    for (unsigned j = i + 1; j < count; j++)
+      if (neighbors[i] < neighbors[j]) {
+        unsigned temporary = neighbors[i];
+        neighbors[i] = neighbors[j];
+        neighbors[j] = temporary;
+      }
+  unsigned h = 0;
+  while (h < count && neighbors[h] >= h + 1) h++;
+  return h;
 }
 
 unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
