@@ -428,6 +428,7 @@ double **calculate_forman_ricci_curvature(const Graph *g);
 double **calculate_resource_allocation_index(const Graph *g);
 double **create_directed_normalized_laplacian_matrix(const Graph *g);
 double **create_undirected_normalized_laplacian_matrix(const Graph *g);
+double **create_seidel_adjacency_matrix(const Graph *g);
 
 int main();
 
@@ -8557,6 +8558,20 @@ static void find_minimum_fractional_vertex_cover_recursive(
         if (e->destination < g->size && sum_out_weights(g, e->destination) > 0)
           laplacian[v][e->destination] -= e->weight / sqrt(sum_out_weights(g, v) * sum_out_weights(g, e->destination));
   return laplacian;
+}
+
+[[nodiscard]] double **create_seidel_adjacency_matrix(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  double **matrix = allocate_zero_matrix(g->size, g->size);
+  if (!matrix) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      matrix[u][v] = u == v ? 0 : -1;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (u != e->destination && e->destination < g->size)
+        matrix[u][e->destination] = 1;
+  return matrix;
 }
 
 
