@@ -425,6 +425,8 @@ double **calculatePreferentialAttachment(const Graph *g);
 double **calculateOllivierRicciCurvature(const Graph *g);
 double **calculate_forman_ricci_curvature(const Graph *g);
 double **calculate_resource_allocation_index(const Graph *g);
+double **create_directed_normalized_laplacian_matrix(const Graph *g);
+double **create_undirected_normalized_laplacian_matrix(const Graph *g);
 
 int main();
 
@@ -8513,6 +8515,48 @@ static void find_minimum_fractional_vertex_cover_recursive(
           if (has_directed_edge(g, u, w) && has_directed_edge(g, w, v) && get_out_degree(g, w) > 0)
             matrix[u][v] += 1 / (double)get_out_degree(g, w);
   return matrix;
+}
+
+[[nodiscard]] double **create_directed_normalized_laplacian_matrix(const Graph *g) {
+  if (!g) return nullptr;
+  if (g->size == 0) return malloc(0 * sizeof(double *));
+  if (!g->edges) return nullptr;
+  double **laplacian = allocate_zero_matrix(g->size, g->size);
+  if (!laplacian) return nullptr;
+  double degrees[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      degrees[v] += e->weight;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degrees[v] > 0)
+      laplacian[v][v] = 1;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degrees[v] > 0)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size)
+          laplacian[v][e->destination] -= e->weight / degrees[v];
+  return laplacian;
+}
+
+[[nodiscard]] double **create_undirected_normalized_laplacian_matrix(const Graph *g) {
+  if (!g) return nullptr;
+  if (g->size == 0) return malloc(0 * sizeof(double *));
+  if (!g->edges) return nullptr;
+  double **laplacian = allocate_zero_matrix(g->size, g->size);
+  if (!laplacian) return nullptr;
+  double degrees[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      degrees[v] += e->weight;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degrees[v] > 0)
+      laplacian[v][v] = 1;
+  for (unsigned v = 0; v < g->size; v++)
+    if (degrees[v] > 0)
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && degrees[e->destination] > 0)
+          laplacian[v][e->destination] -= e->weight / sqrt(degrees[v] * degrees[e->destination]);
+  return laplacian;
 }
 
 

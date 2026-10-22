@@ -7,7 +7,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// Definição de estruturas matemáticas básicas
 typedef struct {
     double x, y, z;
 } Vetor3;
@@ -16,7 +15,6 @@ typedef struct {
     double r, g, b;
 } Cor;
 
-// Funções utilitárias para vetores
 static inline Vetor3 vetor_sub(Vetor3 a, Vetor3 b) {
     return (Vetor3){a.x - b.x, a.y - b.y, a.z - b.z};
 }
@@ -35,82 +33,73 @@ static inline Vetor3 vetor_normalizar(Vetor3 v) {
     return (Vetor3){v.x / len, v.y / len, v.z / len};
 }
 
-// Estrutura para representar um Vértice na malha da esfera
 typedef struct {
     Vetor3 posicao;
     Vetor3 normal;
-    Cor cor_iluminada; // Essência do Gouraud Shading: Cor calculada POR VÉRTICE
+    Cor cor_iluminada;
 } Vertice;
 
-// Estrutura para uma face triangular
 typedef struct {
     int v0, v1, v2;
 } Face;
 
-// Modelo de Iluminação de Lambert (Difusa + Ambiente)
 static inline Cor calcular_iluminacao_gouraud(Vetor3 normal, Vetor3 dir_luz, Cor cor_objeto, Cor cor_luz, Cor luz_ambiente) {
     double dot = vetor_ponto(normal, dir_luz);
     double intensidade_difusa = dot > 0.0 ? dot : 0.0;
-    
+
     Cor c;
     c.r = luz_ambiente.r * cor_objeto.r + intensidade_difusa * cor_luz.r * cor_objeto.r;
     c.g = luz_ambiente.g * cor_objeto.g + intensidade_difusa * cor_luz.g * cor_objeto.g;
     c.b = luz_ambiente.b * cor_objeto.b + intensidade_difusa * cor_luz.b * cor_objeto.b;
-    
-    // Clamp dos valores de cor para o intervalo [0.0, 1.0]
+
     if (c.r > 1.0) c.r = 1.0;
     if (c.g > 1.0) c.g = 1.0;
     if (c.b > 1.0) c.b = 1.0;
-    
+
     return c;
 }
 
-// Cálculo de Coordenadas Baricêntricas para a rasterização do triângulo
 static inline bool calcular_baricentricas(double px, double py, Vetor3 v0, Vetor3 v1, Vetor3 v2, double *w0, double *w1, double *w2) {
     double det = (v1.y - v2.y) * (v0.x - v2.x) + (v2.x - v1.x) * (v0.y - v2.y);
     if (fabs(det) < 1e-9) return false;
-    
+
     *w0 = ((v1.y - v2.y) * (px - v2.x) + (v2.x - v1.x) * (py - v2.y)) / det;
     *w1 = ((v2.y - v0.y) * (px - v2.x) + (v0.x - v2.x) * (py - v2.y)) / det;
     *w2 = 1.0 - *w0 - *w1;
-    
+
     return (*w0 >= 0.0) && (*w1 >= 0.0) && (*w2 >= 0.0);
 }
 
-// Projeção Ortográfica simples do espaço 3D para o plano 2D do ecrã
 static inline Vetor3 projetar(Vetor3 v, int larg, int alt) {
-    double escala = 2.4; // Ajuste de zoom da câmera
+    double escala = 2.4;
     double screen_x = ((v.x / escala) + 0.5) * larg;
-    double screen_y = ((0.5 - v.y / escala)) * alt; // Inverte o eixo Y gráfico
+    double screen_y = ((0.5 - v.y / escala)) * alt;
     return (Vetor3){screen_x, screen_y, v.z};
 }
 
 int main(void) {
-    // Configurações da imagem de saída
+
     const int largura = 800;
     const int altura = 800;
-    
-    // Alocação segura usando nullptr (Padrão C23)
+
     unsigned char *imagem = malloc(largura * altura * 3);
     if (imagem == nullptr) {
         fprintf(stderr, "Erro ao alocar memória para o buffer de imagem.\\n");
         return EXIT_FAILURE;
     }
-    
-    // Inicializar o fundo com um tom escuro (cinza suave)
+
     for (int i = 0; i < largura * altura * 3; i++) {
-        imagem[i] = 25; 
+        imagem[i] = 25;
     }
-    
-    // Parâmetros da malha geométrica da esfera (UV Sphere)
+
     const int paralelos = 40;
     const int meridianos = 40;
     const int num_vertices = (paralelos + 1) * (meridianos + 1);
     const int num_faces = paralelos * meridianos * 2;
-    
+
     Vertice *vertices = malloc(num_vertices * sizeof(Vertice));
     Face *faces = malloc(num_faces * sizeof(Face));
-    
+
     if (vertices == nullptr || faces == nullptr) {
         fprintf(stderr, "Erro ao alocar memória para a malha geométrica.\\n");
         free(imagem);
@@ -118,29 +107,27 @@ int main(void) {
         free(faces);
         return EXIT_FAILURE;
     }
-    
+
     double raio = 1.0;
     Vetor3 centro = {0.0, 0.0, 0.0};
-    
-    // 1. Gerar os Vértices e Normais da Esfera
+
     int v_idx = 0;
     for (int p = 0; p <= paralelos; p++) {
         double phi = M_PI * (double)p / paralelos;
         for (int m = 0; m <= meridianos; m++) {
             double theta = 2.0 * M_PI * (double)m / meridianos;
-            
+
             double x = raio * sin(phi) * cos(theta);
             double y = raio * cos(phi);
             double z = raio * sin(phi) * sin(theta);
-            
+
             vertices[v_idx].posicao = (Vetor3){x + centro.x, y + centro.y, z + centro.z};
-            // Numa esfera na origem, o vetor posição normalizado equivale à própria normal
+
             vertices[v_idx].normal = vetor_normalizar((Vetor3){x, y, z});
             v_idx++;
         }
     }
-    
-    // 2. Construir a Topologia (Índices das Faces Triangulares)
+
     int f_idx = 0;
     for (int p = 0; p < paralelos; p++) {
         for (int m = 0; m < meridianos; m++) {
@@ -148,52 +135,46 @@ int main(void) {
             int seguinte = atual + 1;
             int baixo = (p + 1) * (meridianos + 1) + m;
             int baixo_seguinte = baixo + 1;
-            
+
             faces[f_idx++] = (Face){atual, baixo, seguinte};
             faces[f_idx++] = (Face){seguinte, baixo, baixo_seguinte};
         }
     }
-    
-    // 3. Configuração do Cenário de Iluminação
-    Vetor3 dir_luz = vetor_normalizar((Vetor3){1.0, 1.0, 1.2}); // Luz direcional vinda do canto superior direito frontal
-    Cor cor_luz = {1.0, 0.95, 0.85};      // Luz branca-quente
-    Cor luz_ambiente = {0.15, 0.15, 0.25}; // Luz de preenchimento azulada suave
-    Cor cor_esfera = {0.1, 0.55, 0.85};    // Tom base da esfera (Azul ciano)
-    
-    // 4. PASSO GOURAUD SHADING: Cálculo de iluminação estritamente NOS VÉRTICES
+
+    Vetor3 dir_luz = vetor_normalizar((Vetor3){1.0, 1.0, 1.2});
+    Cor cor_luz = {1.0, 0.95, 0.85};
+    Cor luz_ambiente = {0.15, 0.15, 0.25};
+    Cor cor_esfera = {0.1, 0.55, 0.85};
+
     for (int i = 0; i < num_vertices; i++) {
         vertices[i].cor_iluminada = calcular_iluminacao_gouraud(
             vertices[i].normal, dir_luz, cor_esfera, cor_luz, luz_ambiente
         );
     }
-    
-    // 5. Rasterização e Interpolação no Ecrã
+
     for (int i = 0; i < num_faces; i++) {
         Face f = faces[i];
         Vetor3 p0 = projetar(vertices[f.v0].posicao, largura, altura);
         Vetor3 p1 = projetar(vertices[f.v1].posicao, largura, altura);
         Vetor3 p2 = projetar(vertices[f.v2].posicao, largura, altura);
-        
-        // Determinar a Bounding Box do triângulo no ecrã para otimizar o ciclo de desenho
+
         int min_x = (int)fmax(0.0, fmin(p0.x, fmin(p1.x, p2.x)));
         int max_x = (int)fmin((double)(largura - 1), fmax(p0.x, fmax(p1.x, p2.x)));
         int min_y = (int)fmax(0.0, fmin(p0.y, fmin(p1.y, p2.y)));
         int max_y = (int)fmin((double)(altura - 1), fmax(p0.y, fmax(p1.y, p2.y)));
-        
+
         for (int y = min_y; y <= max_y; y++) {
             for (int x = min_x; x <= max_x; x++) {
                 double w0, w1, w2;
                 if (calcular_baricentricas((double)x, (double)y, p0, p1, p2, &w0, &w1, &w2)) {
-                    
-                    // O núcleo do Gouraud Shading:
-                    // Interpolamos linearmente as CORES calculadas nos vértices recorrendo aos pesos baricêntricos
+
                     Cor cor_pixel;
                     cor_pixel.r = w0 * vertices[f.v0].cor_iluminada.r + w1 * vertices[f.v1].cor_iluminada.r + w2 * vertices[f.v2].cor_iluminada.r;
                     cor_pixel.g = w0 * vertices[f.v0].cor_iluminada.g + w1 * vertices[f.v1].cor_iluminada.g + w2 * vertices[f.v2].cor_iluminada.g;
                     cor_pixel.b = w0 * vertices[f.v0].cor_iluminada.b + w1 * vertices[f.v1].cor_iluminada.b + w2 * vertices[f.v2].cor_iluminada.b;
-                    
+
                     int pixel_idx = (y * largura + x) * 3;
-                    
+
                     imagem[pixel_idx]     = (unsigned char)(cor_pixel.r * 255.0);
                     imagem[pixel_idx + 1] = (unsigned char)(cor_pixel.g * 255.0);
                     imagem[pixel_idx + 2] = (unsigned char)(cor_pixel.b * 255.0);
@@ -201,8 +182,7 @@ int main(void) {
             }
         }
     }
-    
-    // 6. Exportar resultado para ficheiro PPM (Formato de imagem bruto sem compressão)
+
     FILE *ficheiro = fopen("esfera_gouraud.ppm", "wb");
     if (ficheiro != nullptr) {
         fprintf(ficheiro, "P6\n%d %d\n255\n", largura, altura);
@@ -212,12 +192,11 @@ int main(void) {
     } else {
         fprintf(stderr, "Erro ao gravar o ficheiro no disco.\n");
     }
-    
-    // Libertação explícita de memória para passar nos testes de -fsanitize=leak
+
     free(imagem);
     free(vertices);
     free(faces);
-    
+
     return EXIT_SUCCESS;
 }
 
@@ -275,7 +254,7 @@ Passo a Passo do Algoritmo
 
 1. Cálculo das Normais dos Vértices
 
-Numa malha de polígonos planos padrão, os triângulos partilham vértices entre si. Um único vértice pode ser a quina de
+Numa malha de polígonos convencional, os triângulos partilham vértices entre si. Um único vértice pode ser a quina de
 quatro, cinco ou mais triângulos adjacentes. Para calcular uma iluminação suave, precisamos de um vetor normal para
 esse vértice que represente a curvatura teórica da superfície naquele ponto exato.
 
