@@ -384,7 +384,8 @@ double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
 double calculateLocalClusteringCoefficient(const Graph *g, unsigned v);
-double calculate_total_weight(const Graph *g, unsigned v);
+double sum_in_weights(const Graph *g, unsigned v);
+double sum_out_weights(const Graph *g, unsigned v);
 double calculate_vertex_flow_vitality(const Graph *g, unsigned v);
 double calculate_burts_constraint(const Graph *g, unsigned v);
 double get_weight(const Graph *g, unsigned u, unsigned v);
@@ -7390,11 +7391,22 @@ double calculateLocalClusteringCoefficient(const Graph *g, unsigned v) {
   return (double)edges / get_out_degree(g, v) / (get_out_degree(g, v) - 1);
 }
 
-double calculate_total_weight(const Graph *g, unsigned v) {
+double sum_in_weights(const Graph *g, unsigned u) {
+  if (!g || !g->edges) return 0;
+  double total = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination == u)
+        total += e->weight;
+  return total;
+}
+
+double sum_out_weights(const Graph *g, unsigned v) {
   if (!g || !g->edges || v >= g->size) return 0;
-  double sum = 0;
-  for (Edge *e = g->edges[v]; e; e = e->next) sum += e->weight;
-  return sum;
+  double total = 0;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    total += e->weight;
+  return total;
 }
 
 static double vertex_flow_vitality_dfs(unsigned n, double res[n][n], unsigned u, unsigned sink, double flow, bool visited[n]) {
@@ -7536,7 +7548,7 @@ double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v) {
 
 double calculate_direct_investment(const Graph *g, unsigned u, unsigned v) {
   if (u == v) return 0;
-  double total = calculate_total_weight(g, u);
+  double total = sum_out_weights(g, u);
   return total > 0 ? get_weight(g, u, v) / total : 0;
 }
 
@@ -8518,44 +8530,32 @@ static void find_minimum_fractional_vertex_cover_recursive(
 }
 
 [[nodiscard]] double **create_directed_normalized_laplacian_matrix(const Graph *g) {
-  if (!g) return nullptr;
-  if (g->size == 0) return malloc(0 * sizeof(double *));
-  if (!g->edges) return nullptr;
+  if (!g || !g->edges) return nullptr;
   double **laplacian = allocate_zero_matrix(g->size, g->size);
   if (!laplacian) return nullptr;
-  double degrees[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      degrees[v] += e->weight;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degrees[v] > 0)
+    if (sum_out_weights(g, v) > 0)
       laplacian[v][v] = 1;
   for (unsigned v = 0; v < g->size; v++)
-    if (degrees[v] > 0)
+    if (sum_out_weights(g, v) > 0)
       for (Edge *e = g->edges[v]; e; e = e->next)
         if (e->destination < g->size)
-          laplacian[v][e->destination] -= e->weight / degrees[v];
+          laplacian[v][e->destination] -= e->weight / sum_out_weights(g, v);
   return laplacian;
 }
 
 [[nodiscard]] double **create_undirected_normalized_laplacian_matrix(const Graph *g) {
-  if (!g) return nullptr;
-  if (g->size == 0) return malloc(0 * sizeof(double *));
-  if (!g->edges) return nullptr;
+  if (!g || !g->edges) return nullptr;
   double **laplacian = allocate_zero_matrix(g->size, g->size);
   if (!laplacian) return nullptr;
-  double degrees[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      degrees[v] += e->weight;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degrees[v] > 0)
+    if (sum_out_weights(g, v) > 0)
       laplacian[v][v] = 1;
   for (unsigned v = 0; v < g->size; v++)
-    if (degrees[v] > 0)
+    if (sum_out_weights(g, v) > 0)
       for (Edge *e = g->edges[v]; e; e = e->next)
-        if (e->destination < g->size && degrees[e->destination] > 0)
-          laplacian[v][e->destination] -= e->weight / sqrt(degrees[v] * degrees[e->destination]);
+        if (e->destination < g->size && sum_out_weights(g, e->destination) > 0)
+          laplacian[v][e->destination] -= e->weight / sqrt(sum_out_weights(g, v) * sum_out_weights(g, e->destination));
   return laplacian;
 }
 
