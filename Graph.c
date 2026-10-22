@@ -422,7 +422,7 @@ double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 double **calculateFloydWarshall(const Graph *g);
 double **calculateJaccardCoefficientMatrix(const Graph *g);
 double **calculateAdamicAdarIndex(const Graph *g);
-double **calculatePreferentialAttachment(const Graph *g);
+double **calculate_preferential_attachment(const Graph *g);
 double **calculateOllivierRicciCurvature(const Graph *g);
 double **calculate_forman_ricci_curvature(const Graph *g);
 double **calculate_resource_allocation_index(const Graph *g);
@@ -8413,7 +8413,7 @@ static void find_minimum_fractional_vertex_cover_recursive(
   return scores;
 }
 
-[[nodiscard]] double **calculatePreferentialAttachment(const Graph *g) {
+[[nodiscard]] double **calculate_preferential_attachment(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   double **matrix = malloc(g->size * sizeof(double *));
   if (!matrix) return nullptr;
