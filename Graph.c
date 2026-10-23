@@ -380,6 +380,7 @@ double calculateSymmetryRatio(const Graph *g);
 double calculate_vulnerability_index(const Graph *g);
 double calculate_graph_tenacity(const Graph *g);
 double calculate_scattering_number(const Graph *g);
+double calculate_estrada_index(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -7358,6 +7359,32 @@ double calculate_scattering_number(const Graph *g) {
   if (!g || g->size == 0) return 0;
   bool set[g->size];
   return calculate_scattering_number_recursive(g, set, 0, 0);
+}
+
+double calculate_estrada_index(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  double A[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        A[u][e->destination] += e->weight;
+  double T[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    T[u][u] = 1;
+  double index = g->size;
+  for (int k = 1; k < 50; k++) {
+    double next[g->size][g->size] = {};
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        for (unsigned w = 0; w < g->size; w++)
+          next[u][v] += T[u][w] * A[w][v] / k;
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        T[u][v] = next[u][v];
+    for (unsigned u = 0; u < g->size; u++)
+      index += next[u][u];
+  }
+  return index;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
