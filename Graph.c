@@ -326,7 +326,7 @@ unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *findGreedyVertexColoring(const Graph *g);
 unsigned *findOptimalVertexColoring(const Graph *g);
 unsigned *findWelchPowellGraphColoring(const Graph *g);
-unsigned *findGreedyEdgeColoring(const Graph *g);
+unsigned *find_greedy_edge_coloring(const Graph *g);
 unsigned *findOptimalEdgeColoring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
@@ -5582,46 +5582,35 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   return colors;
 }
 
-[[nodiscard]] unsigned *findGreedyEdgeColoring(const Graph *g) {
+[[nodiscard]] unsigned *find_greedy_edge_coloring(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   unsigned edge_count = 0;
-  for (unsigned u = 0; u < g->size; u++) {
-    for (Edge *e = g->edges[u]; e; e = e->next) {
-      if (u < e->destination) {
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < u)
         edge_count++;
-      }
-    }
-  }
   if (edge_count == 0) return nullptr;
   unsigned *colors = malloc(edge_count * sizeof(unsigned));
-  for (unsigned i = 0; i < edge_count; i++) {
-    colors[i] = edge_count;
-  }
+  for (unsigned u = 0; u < edge_count; u++) colors[u] = edge_count;
   unsigned i = 0;
-  for (unsigned u = 0; u < g->size; u++) {
+  for (unsigned u = 0; u < g->size; u++)
     for (Edge *e1 = g->edges[u]; e1; e1 = e1->next) {
-      if (u >= e1->destination) continue;
+      if (e1->destination >= u) continue;
       bool used_colors[edge_count] = {};
       unsigned j = 0;
-      for (unsigned v = 0; v < g->size; v++) {
+      for (unsigned v = 0; v < g->size; v++)
         for (Edge *e2 = g->edges[v]; e2; e2 = e2->next) {
-          if (v >= e2->destination) continue;
-          if (i != j && colors[j] != edge_count) {
-            if (u == v || u == e2->destination || e1->destination == v || e1->destination == e2->destination) {
+          if (e2->destination >= v) continue;
+          if (i != j && colors[j] != edge_count)
+            if (u == v || u == e2->destination || e1->destination == v || e1->destination == e2->destination)
               used_colors[colors[j]] = true;
-            }
-          }
           j++;
         }
-      }
       unsigned color = 0;
-      while (used_colors[color]) {
-        color++;
-      }
+      while (used_colors[color]) color++;
       colors[i] = color;
       i++;
     }
-  }
   return colors;
 }
 
