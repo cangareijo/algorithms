@@ -359,7 +359,7 @@ double calculateWeightedRadius(const Graph *g);
 double calculateWeightedDiameter(const Graph *g);
 double calculate_density(const Graph *g);
 double calculateAverageClusteringCoefficient(const Graph *g);
-double calculateDirectedWeightedGirth(const Graph *g);
+double calculate_directed_weighted_girth(const Graph *g);
 double calculateUndirectedWeightedGirth(const Graph *g);
 double calculateFordFulkersonMinCut(const Graph *g);
 double calculateStoerWagnerMinCut(const Graph *g);
@@ -6591,43 +6591,24 @@ double calculateAverageClusteringCoefficient(const Graph *g) {
   return sum / g->size;
 }
 
-double calculateDirectedWeightedGirth(const Graph *g) {
-  if (!g || !g->edges) return INFINITY;
-  double minimum = INFINITY;
-  double *distances = malloc(g->size * sizeof(double));
-  bool *visited = malloc(g->size * sizeof(bool));
-  if (!distances || !visited) {
-    free(distances);
-    free(visited);
-    return INFINITY;
-  }
-  for (unsigned start = 0; start < g->size; start++) {
-    for (unsigned v = 0; v < g->size; v++) {
-      distances[v] = INFINITY;
-      visited[v] = false;
-    }
-    distances[start] = 0;
-    while (true) {
-      unsigned u = UINT_MAX;
-      double distance = INFINITY;
+double calculate_directed_weighted_girth(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return INFINITY;
+  double m = INFINITY, d[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      d[u][v] = INFINITY;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        d[u][e->destination] = e->weight;
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
       for (unsigned v = 0; v < g->size; v++)
-        if (!visited[v] && distances[v] < distance) {
-          distance = distances[v];
-          u = v;
-        }
-      if (u == UINT_MAX) break;
-      visited[u] = true;
-      for (const Edge *e = g->edges[u]; e; e = e->next)
-        if (e->destination == start) {
-          if (distances[u] + e->weight < minimum) minimum = distances[u] + e->weight;
-        } else if (e->destination < g->size && distances[u] + e->weight < distances[e->destination]) {
-          distances[e->destination] = distances[u] + e->weight;
-        }
-    }
-  }
-  free(distances);
-  free(visited);
-  return minimum;
+        if (d[u][w] + d[w][v] < d[u][v]) d[u][v] = d[u][w] + d[w][v];
+  for (unsigned u = 0; u < g->size; u++)
+    if (d[u][u] < m)
+      m = d[u][u];
+  return m < 0 ? -INFINITY : m;
 }
 
 double calculateUndirectedWeightedGirth(const Graph *g) {
