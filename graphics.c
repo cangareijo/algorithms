@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 typedef uint32_t CorRGBA;
@@ -30,16 +31,62 @@ typedef struct {
   CorRGBA cor;
 } Vertice;
 
+void limpar_zbuffer(float* zbuffer, int largura, int altura);
+[[nodiscard]] float* criar_zbuffer(int largura, int altura);
+
 void destruir_framebuffer(Framebuffer* fb);
 void limpar_framebuffer(Framebuffer* fb, CorRGBA cor);
 void desenhar_pixel(Framebuffer* fb, int x, int y, CorRGBA cor);
 [[nodiscard]] Framebuffer criar_framebuffer(int largura, int altura);
+
 [[nodiscard]] CorRGBA amostrar_textura(const Textura* textura, float u, float v);
-[[nodiscard]] Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
-[[nodiscard]] Vetor3D transformar_vetor(Vetor3D v, float matriz[static 16]);
+
 void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, CorRGBA cor);
 void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, CorRGBA cor);
+
+[[nodiscard]] Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
+[[nodiscard]] Vetor3D transformar_vetor(Vetor3D v, float matriz[static 16]);
+[[nodiscard]] Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
+
 void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, Vertice v3);
+
+void limpar_zbuffer(float* zbuffer, int largura, int altura) {
+    // Proteção contra ponteiros nulos ou dimensões inválidas
+    if (zbuffer == nullptr || largura <= 0 || altura <= 0) {
+        return;
+    }
+
+    int total_pixeis = largura * altura;
+
+    // Preenche o buffer com 1.0f (profundidade máxima no espaço de projeção)
+    for (int i = 0; i < total_pixeis; ++i) {
+        zbuffer[i] = 1.0f;
+    }
+}
+
+[[nodiscard]] float* criar_zbuffer(int largura, int altura) {
+    // Validação estrita dos argumentos para evitar overflows ou alocações inválidas
+    if (largura <= 0 || altura <= 0) {
+        fprintf(stderr, "Erro: Dimensões do Z-buffer inválidas (%dx%d).\n", largura, altura);
+        return nullptr;
+    }
+
+    // Conversão explícita para size_t para evitar overflow de inteiros (UBSan)
+    int total_pixeis = largura * altura;
+    
+    // Alocação dinâmica de memória para os valores de profundidade (float)
+    float* zbuffer = calloc(total_pixeis, sizeof(float));
+
+    if (zbuffer == nullptr) {
+        fprintf(stderr, "Erro: Falha na alocação de memória para o Z-buffer.\n");
+        return nullptr;
+    }
+
+    // Inicializa o buffer imediatamente para evitar leituras de memória não inicializada
+    limpar_zbuffer(zbuffer, largura, altura);
+
+    return zbuffer;
+}
 
 void destruir_framebuffer(Framebuffer* fb) {
   // Se o ponteiro for nulo, não há nada a libertar
@@ -126,6 +173,88 @@ void desenhar_pixel(Framebuffer* fb, int x, int y, CorRGBA cor) {
   return textura->dados[x + y * textura->largura];
 }
 
+void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, CorRGBA cor) {
+    // Validação do ponteiro do framebuffer e do array de píxeis
+    if (fb == nullptr || fb->pixeis == nullptr || fb->largura <= 0 || fb->altura <= 0) {
+        return;
+    }
+
+    // Conversão das coordenadas contínuas (float) para discretas (int)
+    // O truncamento simples é suficiente para a rasterização básica
+    int x0 = (int)p1.x;
+    int y0 = (int)p1.y;
+    int x1 = (int)p2.x;
+    int y1 = (int)p2.y;
+
+    // Algoritmo de Bresenham
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+    
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    
+    int erro = dx - dy;
+
+    while (true) {
+        // Guardião de Limites (Pixel Clipping): Garante total segurança de memória.
+        // Impede que coordenadas fora do ecrã corrompam a memória do programa.
+        if (x0 >= 0 && x0 < fb->largura && y0 >= 0 && y0 < fb->altura) {
+            fb->pixeis[y0 * fb->largura + x0] = cor;
+        }
+
+        // Se chegámos ao ponto final, o traçado terminou
+        if (x0 == x1 && y0 == y1) {
+            break;
+        }
+
+        int erro2 = 2 * erro;
+        
+        if (erro2 > -dy) {
+            erro -= dy;
+            x0 += sx;
+        }
+        
+        if (erro2 < dx) {
+            erro += dx;
+            y0 += sy;
+        }
+    }
+}
+
+void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, CorRGBA cor) {
+  if (fb == nullptr || fb->pixeis == nullptr) {
+    return;
+  }
+  int min_x = fminf(fminf(p1.x, p2.x), p3.x);
+  int max_x = fmaxf(fmaxf(p1.x, p2.x), p3.x);
+  int min_y = fminf(fminf(p1.y, p2.y), p3.y);
+  int max_y = fmaxf(fmaxf(p1.y, p2.y), p3.y);
+  if (min_x < 0) min_x = 0;
+  if (min_y < 0) min_y = 0;
+  if (max_x >= fb->largura) max_x = fb->largura - 1;
+  if (max_y >= fb->altura) max_y = fb->altura - 1;
+  float dy12 = p2.y - p1.y; float dx12 = p2.x - p1.x;
+  float dy23 = p3.y - p2.y; float dx23 = p3.x - p2.x;
+  float dy31 = p1.y - p3.y; float dx31 = p1.x - p3.x;
+  float area_dupla = dx12 * dy23 - dy12 * dx23;
+  if (area_dupla == 0.0f) {
+    return;
+  }
+  float sinal = (area_dupla < 0.0f) ? -1.0f : 1.0f;
+  for (int y = min_y; y <= max_y; ++y) {
+    for (int x = min_x; x <= max_x; ++x) {
+      float px = (float)x + 0.5f;
+      float py = (float)y + 0.5f;
+      float w0 = ((px - p2.x) * dy23 - (py - p2.y) * dx23) * sinal;
+      float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
+      float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
+      if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
+        desenhar_pixel(fb, x, y, cor);
+      }
+    }
+  }
+}
+
 [[nodiscard]] Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura) {
   // Evita a divisão por zero ou projeções inválidas se o ponto estiver atrás da câmara
   // ou mesmo na origem do plano de corte anterior (near plane).
@@ -169,68 +298,35 @@ void desenhar_pixel(Framebuffer* fb, int x, int y, CorRGBA cor) {
   return (Vetor3D){ .x = x, .y = y, .z = z };
 }
 
-void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, CorRGBA cor) {
-  if (fb == nullptr || fb->pixeis == nullptr) {
-    return;
-  }
-  int x0 = p1.x;
-  int y0 = p1.y;
-  int x1 = p2.x;
-  int y1 = p2.y;
-  int dx = abs(x1 - x0);
-  int dy = abs(y1 - y0);
-  int sx = (x0 < x1) ? 1 : -1;
-  int sy = (y0 < y1) ? 1 : -1;
-  int erro = dx - dy;
-  while (true) {
-    desenhar_pixel(fb, x0, y0, cor);
-    if (x0 == x1 && y0 == y1) {
-      break;
-    }
-    int erro2 = 2 * erro;
-    if (erro2 > -dy) {
-      erro -= dy;
-      x0 += sx;
-    }
-    if (erro2 < dx) {
-      erro += dx;
-      y0 += sy;
-    }
-  }
-}
+[[nodiscard]] Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
+    // 1. Calcular as arestas do triângulo (dois vetores diretores)
+    Vetor3D aresta1 = { .x = v2.x - v1.x, .y = v2.y - v1.y, .z = v2.z - v1.z };
+    Vetor3D aresta2 = { .x = v3.x - v1.x, .y = v3.y - v1.y, .z = v3.z - v1.z };
 
-void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, CorRGBA cor) {
-  if (fb == nullptr || fb->pixeis == nullptr) {
-    return;
-  }
-  int min_x = fminf(fminf(p1.x, p2.x), p3.x);
-  int max_x = fmaxf(fmaxf(p1.x, p2.x), p3.x);
-  int min_y = fminf(fminf(p1.y, p2.y), p3.y);
-  int max_y = fmaxf(fmaxf(p1.y, p2.y), p3.y);
-  if (min_x < 0) min_x = 0;
-  if (min_y < 0) min_y = 0;
-  if (max_x >= fb->largura) max_x = fb->largura - 1;
-  if (max_y >= fb->altura) max_y = fb->altura - 1;
-  float dy12 = p2.y - p1.y; float dx12 = p2.x - p1.x;
-  float dy23 = p3.y - p2.y; float dx23 = p3.x - p2.x;
-  float dy31 = p1.y - p3.y; float dx31 = p1.x - p3.x;
-  float area_dupla = dx12 * dy23 - dy12 * dx23;
-  if (area_dupla == 0.0f) {
-    return;
-  }
-  float sinal = (area_dupla < 0.0f) ? -1.0f : 1.0f;
-  for (int y = min_y; y <= max_y; ++y) {
-    for (int x = min_x; x <= max_x; ++x) {
-      float px = (float)x + 0.5f;
-      float py = (float)y + 0.5f;
-      float w0 = ((px - p2.x) * dy23 - (py - p2.y) * dx23) * sinal;
-      float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
-      float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
-      if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
-        desenhar_pixel(fb, x, y, cor);
-      }
+    // 2. Calcular o produto cruzado (Aresta1 x Aresta2) para obter o vetor perpendicular
+    Vetor3D normal = {
+        .x = (aresta1.y * aresta2.z) - (aresta1.z * aresta2.y),
+        .y = (aresta1.z * aresta2.x) - (aresta1.x * aresta2.z),
+        .z = (aresta1.x * aresta2.y) - (aresta1.y * aresta2.x)
+    };
+
+    // 3. Calcular a magnitude (comprimento) do vetor resultante
+    // Usamos a função de precisão simples sqrtf() ideal para floats
+    float magnitude = sqrtf((normal.x * normal.x) + (normal.y * normal.y) + (normal.z * normal.z));
+
+    // 4. Normalizar o vetor (dividir cada componente pela magnitude)
+    // Prevenção contra a divisão por zero para evitar comportamento indefinido (UB)
+    if (magnitude > 0.000001f) {
+        float inverso_magnitude = 1.0f / magnitude;
+        normal.x *= inverso_magnitude;
+        normal.y *= inverso_magnitude;
+        normal.z *= inverso_magnitude;
+    } else {
+        // Retorna um vetor nulo por defeito caso o triângulo seja degenerado (área zero)
+        normal = (Vetor3D){ .x = 0.0f, .y = 0.0f, .z = 0.0f };
     }
-  }
+
+    return normal;
 }
 
 void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, Vertice v3) {
