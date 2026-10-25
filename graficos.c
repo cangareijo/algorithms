@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define PI_CONST 3.14159265358979323846f
+
 typedef uint32_t CorRGBA;
 
 typedef struct {
@@ -31,8 +33,15 @@ typedef struct {
   CorRGBA cor;
 } Vertice;
 
+static inline float valor_absoluto(float x);
+static inline float calcular_seno(float x);
+static inline float calcular_cosseno(float x);
+static inline float calcular_tangente(float x);
+void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe);
 void limpar_zbuffer(float* zbuffer, int largura, int altura);
 [[nodiscard]] float* criar_zbuffer(int largura, int altura);
+
+static inline double raiz_quadrada(double valor);
 
 void destruir_framebuffer(Framebuffer* fb);
 void limpar_framebuffer(Framebuffer* fb, CorRGBA cor);
@@ -49,6 +58,60 @@ void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, C
 [[nodiscard]] Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
 
 void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, Vertice v3);
+
+static inline float valor_absoluto(float x) {
+    return x < 0.0f ? -x : x;
+}
+
+static float calcular_seno(float x) {
+    while (x > PI_CONST)  x -= 2.0f * PI_CONST;
+    while (x < -PI_CONST) x += 2.0f * PI_CONST;
+    float termo = x;
+    float soma = x;
+    float x_quadrado = x * x;
+    for (int i = 1; i <= 6; i++) {
+        termo *= -x_quadrado / ((2.0f * i) * (2.0f * i + 1.0f));
+        soma += termo;
+    }
+    return soma;
+}
+
+static float calcular_cosseno(float x) {
+    while (x > PI_CONST)  x -= 2.0f * PI_CONST;
+    while (x < -PI_CONST) x += 2.0f * PI_CONST;
+    float termo = 1.0f;
+    float soma = 1.0f;
+    float x_quadrado = x * x;
+    for (int i = 1; i <= 6; i++) {
+        termo *= -x_quadrado / ((2.0f * i - 1.0f) * (2.0f * i));
+        soma += termo;
+    }
+    return soma;
+}
+
+static inline float calcular_tangente(float x) {
+    float cos_x = calcular_cosseno(x);
+    if (valor_absoluto(cos_x) < 0.000001f) {
+        return 0.0f; // Evita a divisão por zero
+    }
+    return calcular_seno(x) / cos_x;
+}
+
+void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe) {
+    for (int i = 0; i < 16; i++) {
+        matriz[i] = 0.0f;
+    }
+    float fov_radianos = fov * (PI_CONST / 180.0f);
+    float tan_metade_fov = calcular_tangente(fov_radianos / 2.0f);
+    if (tan_metade_fov == 0.0f || aspeto == 0.0f || longe - perto == 0.0f) {
+        return;
+    }
+    matriz[0] = 1.0f / (aspeto * tan_metade_fov);
+    matriz[5] = 1.0f / tan_metade_fov;
+    matriz[10] = -(longe + perto) / (longe - perto);
+    matriz[11] = -1.0f;
+    matriz[14] = -(2.0f * longe * perto) / (longe - perto);
+}
 
 void limpar_zbuffer(float* zbuffer, int largura, int altura) {
     // Proteção contra ponteiros nulos ou dimensões inválidas
@@ -86,6 +149,17 @@ void limpar_zbuffer(float* zbuffer, int largura, int altura) {
     limpar_zbuffer(zbuffer, largura, altura);
 
     return zbuffer;
+}
+
+static inline double raiz_quadrada(double valor) {
+    if (valor <= 0.0) {
+        return 0.0;
+    }
+    double x = valor;
+    for (int i = 0; i < 10; i++) {
+        x = 0.5 * (x + valor / x);
+    }
+    return x;
 }
 
 void destruir_framebuffer(Framebuffer* fb) {
