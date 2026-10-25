@@ -394,6 +394,7 @@ double calculate_weighted_distance(const Graph *g, unsigned u, unsigned v);
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
 double calculate_direct_investment(const Graph *g, unsigned u, unsigned v);
 double calculate_indirect_investment(const Graph *g, unsigned u, unsigned v);
+double calculate_hitting_time(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculateConductance(const Graph *g, const bool *set);
 double calculateNormalizedCut(const Graph *g, const bool *set);
@@ -7575,6 +7576,55 @@ double calculate_indirect_investment(const Graph *g, unsigned u, unsigned v) {
   for (unsigned w = 0; w < g->size; w++)
     sum += calculate_direct_investment(g, u, w) * calculate_direct_investment(g, w, v);
   return sum;
+}
+
+double calculate_hitting_time(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return INFINITY;
+  if (u == v) return 0;
+  double A[g->size][g->size], B[g->size];
+  for (unsigned i = 0; i < g->size; i++) {
+    for (unsigned j = 0; j < g->size; j++) A[i][j] = i == j ? 1 : 0;
+    if (i == v) {
+      B[i] = 0;
+      continue;
+    }
+    B[i] = 1;
+    double sum = 0;
+    for (Edge *e = g->edges[i]; e; e = e->next) sum += e->weight;
+    if (sum > 0) {
+      for (Edge *e = g->edges[i]; e; e = e->next)
+        if (e->destination < g->size && e->weight > 0)
+          A[i][e->destination] -= e->weight / sum;
+    } else {
+      A[i][i] -= 1;
+    }
+  }
+  for (unsigned i = 0; i < g->size; i++) {
+    if (fabs(A[i][i]) < 1e-12)
+      for (unsigned k = i + 1; k < g->size; k++)
+        if (fabs(A[k][i]) > 1e-12) {
+          for (unsigned j = 0; j < g->size; j++) {
+            double t = A[i][j];
+            A[i][j] = A[k][j];
+            A[k][j] = t;
+          }
+          double t = B[i];
+          B[i] = B[k];
+          B[k] = t;
+          break;
+        }
+    double pivot = A[i][i];
+    if (fabs(pivot) < 1e-12) continue;
+    for (unsigned j = 0; j < g->size; j++) A[i][j] /= pivot;
+    B[i] /= pivot;
+    for (unsigned k = 0; k < g->size; k++) {
+      if (k == i) continue;
+      double factor = A[k][i];
+      for (unsigned j = 0; j < g->size; j++) A[k][j] -= factor * A[i][j];
+      B[k] -= factor * B[i];
+    }
+  }
+  return (fabs(A[u][u]) < 1e-12) ? INFINITY : B[u];
 }
 
 double calculateSubgraphDensity(const Graph *g, const bool *set) {
