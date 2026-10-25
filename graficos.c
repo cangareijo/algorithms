@@ -35,12 +35,12 @@ typedef struct {
 
 void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe);
 void limpar_zbuffer(float* zbuffer, int largura, int altura);
-static inline float valor_absoluto(float x);
 static inline float calcular_seno(float x);
 static inline float calcular_cosseno(float x);
 static inline float calcular_tangente(float x);
 [[nodiscard]] float* criar_zbuffer(int largura, int altura);
 
+double absoluto(double x);
 static inline double raiz_quadrada(double valor);
 
 void destruir_framebuffer(Framebuffer* fb);
@@ -85,10 +85,6 @@ void limpar_zbuffer(float* zbuffer, int largura, int altura) {
     }
 }
 
-static inline float valor_absoluto(float x) {
-    return x < 0.0f ? -x : x;
-}
-
 static float calcular_seno(float x) {
     while (x > PI_CONST)  x -= 2.0f * PI_CONST;
     while (x < -PI_CONST) x += 2.0f * PI_CONST;
@@ -117,8 +113,8 @@ static float calcular_cosseno(float x) {
 
 static inline float calcular_tangente(float x) {
     float cos_x = calcular_cosseno(x);
-    if (valor_absoluto(cos_x) < 0.000001f) {
-        return 0.0f; // Evita a divisão por zero
+    if (absoluto(cos_x) < 0.000001f) {
+        return 0.0f;
     }
     return calcular_seno(x) / cos_x;
 }
@@ -145,6 +141,10 @@ static inline float calcular_tangente(float x) {
     limpar_zbuffer(zbuffer, largura, altura);
 
     return zbuffer;
+}
+
+double absoluto(double x) {
+    return x >= 0 ? x : -x;
 }
 
 static inline double raiz_quadrada(double valor) {
