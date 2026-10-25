@@ -9,15 +9,15 @@
 typedef uint32_t CorRGBA;
 
 typedef struct {
-  CorRGBA* pixeis;
   int largura;
   int altura;
+  CorRGBA* pixeis;
 } Framebuffer;
 
 typedef struct {
-  CorRGBA* dados;
   int largura;
   int altura;
+  CorRGBA* dados;
 } Textura;
 
 typedef struct {
@@ -33,12 +33,12 @@ typedef struct {
   CorRGBA cor;
 } Vertice;
 
+void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe);
+void limpar_zbuffer(float* zbuffer, int largura, int altura);
 static inline float valor_absoluto(float x);
 static inline float calcular_seno(float x);
 static inline float calcular_cosseno(float x);
 static inline float calcular_tangente(float x);
-void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe);
-void limpar_zbuffer(float* zbuffer, int largura, int altura);
 [[nodiscard]] float* criar_zbuffer(int largura, int altura);
 
 static inline double raiz_quadrada(double valor);
@@ -58,6 +58,32 @@ void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, C
 [[nodiscard]] Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
 
 void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, Vertice v3);
+
+void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe) {
+    for (int i = 0; i < 16; i++) {
+        matriz[i] = 0.0f;
+    }
+    float fov_radianos = fov * (PI_CONST / 180.0f);
+    float tan_metade_fov = calcular_tangente(fov_radianos / 2.0f);
+    if (tan_metade_fov == 0.0f || aspeto == 0.0f || longe - perto == 0.0f) {
+        return;
+    }
+    matriz[0] = 1.0f / (aspeto * tan_metade_fov);
+    matriz[5] = 1.0f / tan_metade_fov;
+    matriz[10] = -(longe + perto) / (longe - perto);
+    matriz[11] = -1.0f;
+    matriz[14] = -(2.0f * longe * perto) / (longe - perto);
+}
+
+void limpar_zbuffer(float* zbuffer, int largura, int altura) {
+    if (zbuffer == nullptr || largura <= 0 || altura <= 0) {
+        return;
+    }
+    int total_pixeis = largura * altura;
+    for (int i = 0; i < total_pixeis; ++i) {
+        zbuffer[i] = 1.0f;
+    }
+}
 
 static inline float valor_absoluto(float x) {
     return x < 0.0f ? -x : x;
@@ -95,36 +121,6 @@ static inline float calcular_tangente(float x) {
         return 0.0f; // Evita a divisão por zero
     }
     return calcular_seno(x) / cos_x;
-}
-
-void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe) {
-    for (int i = 0; i < 16; i++) {
-        matriz[i] = 0.0f;
-    }
-    float fov_radianos = fov * (PI_CONST / 180.0f);
-    float tan_metade_fov = calcular_tangente(fov_radianos / 2.0f);
-    if (tan_metade_fov == 0.0f || aspeto == 0.0f || longe - perto == 0.0f) {
-        return;
-    }
-    matriz[0] = 1.0f / (aspeto * tan_metade_fov);
-    matriz[5] = 1.0f / tan_metade_fov;
-    matriz[10] = -(longe + perto) / (longe - perto);
-    matriz[11] = -1.0f;
-    matriz[14] = -(2.0f * longe * perto) / (longe - perto);
-}
-
-void limpar_zbuffer(float* zbuffer, int largura, int altura) {
-    // Proteção contra ponteiros nulos ou dimensões inválidas
-    if (zbuffer == nullptr || largura <= 0 || altura <= 0) {
-        return;
-    }
-
-    int total_pixeis = largura * altura;
-
-    // Preenche o buffer com 1.0f (profundidade máxima no espaço de projeção)
-    for (int i = 0; i < total_pixeis; ++i) {
-        zbuffer[i] = 1.0f;
-    }
 }
 
 [[nodiscard]] float* criar_zbuffer(int largura, int altura) {
