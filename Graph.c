@@ -382,6 +382,7 @@ double calculate_vulnerability_index(const Graph *g);
 double calculate_graph_tenacity(const Graph *g);
 double calculate_scattering_number(const Graph *g);
 double calculate_estrada_index(const Graph *g);
+double calculate_balaban_j_index(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -7391,6 +7392,36 @@ double calculate_estrada_index(const Graph *g) {
       index += next[u][u];
   }
   return index;
+}
+
+double calculate_balaban_j_index(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  double d[g->size][g->size], D[g->size], M = 0, sum = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    for (unsigned v = 0; v < g->size; v++)
+      d[u][v] = u == v ? 0 : INFINITY;
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        d[u][e->destination] = e->weight;
+  }
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (d[u][w] + d[w][v] < d[u][v])
+          d[u][v] = d[u][w] + d[w][v];
+  for (unsigned u = 0; u < g->size; u++) {
+    D[u] = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      D[u] += d[u][v];
+  }
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (u < e->destination && e->destination < g->size) {
+        M++;
+        sum += 1 / sqrt(D[u] * D[e->destination]);
+      }
+  if (M + 2 <= g->size) return 0;
+  return (M / (M - g->size + 2)) * sum;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
