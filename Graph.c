@@ -259,6 +259,7 @@ unsigned count_components(const Graph *g);
 unsigned calculate_maximum_component_size(const Graph *g);
 unsigned getFirstActiveVertex(const Graph *g);
 unsigned calculateWienerIndex(const Graph *g);
+unsigned calculate_wiener_polarity_index(const Graph *g);
 unsigned countInvalidEdges(const Graph *g);
 unsigned calculateDirectedUnweightedGirth(const Graph *g);
 unsigned calculateUndirectedUnweightedGirth(const Graph *g);
@@ -4190,6 +4191,31 @@ unsigned calculateWienerIndex(const Graph *g) {
   return sum;
 }
 
+unsigned calculate_wiener_polarity_index(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  unsigned pairs = 0;
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned distance[g->size];
+    for (unsigned v = 0; v < g->size; v++) distance[v] = UINT_MAX;
+    distance[u] = 0;
+    unsigned queue[g->size];
+    unsigned head = 0, tail = 0;
+    queue[tail++] = u;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && distance[e->destination] == UINT_MAX) {
+          distance[e->destination] = distance[v] + 1;
+          queue[tail++] = e->destination;
+        }
+    }
+    for (unsigned v = 0; v < g->size; v++)
+      if (distance[v] == 3)
+        pairs++;
+  }
+  return pairs / 2;
+}
+
 unsigned countInvalidEdges(const Graph *g) {
   if (!g || !g->edges) return 0;
   unsigned n = 0;
@@ -7606,6 +7632,10 @@ double calculate_hitting_time(const Graph *g, unsigned u, unsigned v) {
     }
   }
   return (fabs(A[u][u]) < 1e-12) ? INFINITY : B[u];
+}
+
+double calculate_commute_time(const Graph *g, unsigned u, unsigned v) {
+  return calculate_hitting_time(g, u, v) + calculate_hitting_time(g, v, u);
 }
 
 double calculateSubgraphDensity(const Graph *g, const bool *set) {
