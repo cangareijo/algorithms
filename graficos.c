@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define PI_CONST 3.14159265358979323846f
+constexpr double PI = 3.14159265358979323846;
 
 typedef uint32_t CorRGBA;
 
@@ -35,13 +35,16 @@ typedef struct {
 
 void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe);
 void limpar_zbuffer(float* zbuffer, int largura, int altura);
-static inline float calcular_seno(float x);
-static inline float calcular_cosseno(float x);
-static inline float calcular_tangente(float x);
 [[nodiscard]] float* criar_zbuffer(int largura, int altura);
 
 double absoluto(double x);
-static inline double raiz_quadrada(double valor);
+double truncar(double x);
+double raiz_quadrada(double x);
+double seno(double x);
+double cosseno(double x);
+double tangente(double x);
+double distancia(double x, double y);
+double modulo(double x, double y);
 
 void destruir_framebuffer(Framebuffer* fb);
 void limpar_framebuffer(Framebuffer* fb, CorRGBA cor);
@@ -63,8 +66,8 @@ void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, flo
     for (int i = 0; i < 16; i++) {
         matriz[i] = 0.0f;
     }
-    float fov_radianos = fov * (PI_CONST / 180.0f);
-    float tan_metade_fov = calcular_tangente(fov_radianos / 2.0f);
+    float fov_radianos = fov * (PI / 180.0f);
+    float tan_metade_fov = tangente(fov_radianos / 2.0);
     if (tan_metade_fov == 0.0f || aspeto == 0.0f || longe - perto == 0.0f) {
         return;
     }
@@ -85,40 +88,6 @@ void limpar_zbuffer(float* zbuffer, int largura, int altura) {
     }
 }
 
-static float calcular_seno(float x) {
-    while (x > PI_CONST)  x -= 2.0f * PI_CONST;
-    while (x < -PI_CONST) x += 2.0f * PI_CONST;
-    float termo = x;
-    float soma = x;
-    float x_quadrado = x * x;
-    for (int i = 1; i <= 6; i++) {
-        termo *= -x_quadrado / ((2.0f * i) * (2.0f * i + 1.0f));
-        soma += termo;
-    }
-    return soma;
-}
-
-static float calcular_cosseno(float x) {
-    while (x > PI_CONST)  x -= 2.0f * PI_CONST;
-    while (x < -PI_CONST) x += 2.0f * PI_CONST;
-    float termo = 1.0f;
-    float soma = 1.0f;
-    float x_quadrado = x * x;
-    for (int i = 1; i <= 6; i++) {
-        termo *= -x_quadrado / ((2.0f * i - 1.0f) * (2.0f * i));
-        soma += termo;
-    }
-    return soma;
-}
-
-static inline float calcular_tangente(float x) {
-    float cos_x = calcular_cosseno(x);
-    if (absoluto(cos_x) < 0.000001f) {
-        return 0.0f;
-    }
-    return calcular_seno(x) / cos_x;
-}
-
 [[nodiscard]] float* criar_zbuffer(int largura, int altura) {
     // Validação estrita dos argumentos para evitar overflows ou alocações inválidas
     if (largura <= 0 || altura <= 0) {
@@ -128,7 +97,7 @@ static inline float calcular_tangente(float x) {
 
     // Conversão explícita para size_t para evitar overflow de inteiros (UBSan)
     int total_pixeis = largura * altura;
-    
+
     // Alocação dinâmica de memória para os valores de profundidade (float)
     float* zbuffer = calloc(total_pixeis, sizeof(float));
 
@@ -144,18 +113,70 @@ static inline float calcular_tangente(float x) {
 }
 
 double absoluto(double x) {
-    return x >= 0 ? x : -x;
+    return x >= 0.0 ? x : -x;
 }
 
-static inline double raiz_quadrada(double valor) {
-    if (valor <= 0.0) {
+double truncar(double x) {
+    if (x >= 9223372036854775807.0 || x <= -9223372036854775807.0) {
+        return x;
+    }
+    return (long long)x;
+}
+
+double raiz_quadrada(double x) {
+    if (x <= 0.0) {
         return 0.0;
     }
-    double x = valor;
-    for (int i = 0; i < 10; i++) {
-        x = 0.5 * (x + valor / x);
+    double anterior;
+    double raiz = x;
+    do {
+        anterior = raiz;
+        raiz = 0.5 * (raiz + x / raiz);
+    } while (distancia(raiz, anterior) >= 1e-15);
+    return raiz;
+}
+
+double seno(double x) {
+    x = modulo(x, 2.0 * PI);
+    if (x > PI)  x -= 2.0 * PI;
+    if (x < -PI) x += 2.0 * PI;
+    double termo = x;
+    double soma = x;
+    double x_quadrado = x * x;
+    for (int i = 1; i <= 6; i++) {
+        termo *= -x_quadrado / ((2 * i) * (2 * i + 1));
+        soma += termo;
     }
-    return x;
+    return soma;
+}
+
+double cosseno(double x) {
+    x = modulo(x, 2.0 * PI);
+    if (x > PI)  x -= 2.0 * PI;
+    if (x < -PI) x += 2.0 * PI;
+    double termo = 1.0;
+    double soma = 1.0;
+    double x_quadrado = x * x;
+    for (int i = 1; i <= 6; i++) {
+        termo *= -x_quadrado / ((2 * i - 1) * (2 * i));
+        soma += termo;
+    }
+    return soma;
+}
+
+double tangente(double x) {
+    return seno(x) / cosseno(x);
+}
+
+double distancia(double x, double y) {
+    return absoluto(x - y);
+}
+
+double modulo(double x, double y) {
+    if (y == 0.0) {
+        return 0.0;
+    }
+    return x - truncar(x / y) * y;
 }
 
 void destruir_framebuffer(Framebuffer* fb) {
@@ -259,10 +280,10 @@ void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, CorRGBA cor) {
     // Algoritmo de Bresenham
     int dx = abs(x1 - x0);
     int dy = abs(y1 - y0);
-    
+
     int sx = (x0 < x1) ? 1 : -1;
     int sy = (y0 < y1) ? 1 : -1;
-    
+
     int erro = dx - dy;
 
     while (true) {
@@ -278,12 +299,12 @@ void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, CorRGBA cor) {
         }
 
         int erro2 = 2 * erro;
-        
+
         if (erro2 > -dy) {
             erro -= dy;
             x0 += sx;
         }
-        
+
         if (erro2 < dx) {
             erro += dx;
             y0 += sy;
@@ -454,7 +475,7 @@ void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, V
       // Sub-áreas para o cálculo dos pesos baricêntricos
       float area1 = (x3 - x2) * (py - y2) - (y3 - y2) * (px - x2);
       float area2 = (x1 - x3) * (py - y3) - (y1 - y3) * (px - x3);
-      
+
       // Pesos baricêntricos (w1, w2, w3) relativos a cada vértice
       float w1 = area1 * inv_det;
       float w2 = area2 * inv_det;
@@ -463,7 +484,7 @@ void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, V
       // Se todos os pesos tiverem o mesmo sinal, o píxel está dentro do triângulo
       // (Suporta ambas as orientações horária e anti-horária)
       if ((w1 >= 0.0f && w2 >= 0.0f && w3 >= 0.0f) || (w1 <= 0.0f && w2 <= 0.0f && w3 <= 0.0f)) {
-        
+
         // Interpolação linear dos canais de cor
         float r_interp = w1 * r1 + w2 * r2 + w3 * r3;
         float g_interp = w1 * g1 + w2 * g2 + w3 * g3;
