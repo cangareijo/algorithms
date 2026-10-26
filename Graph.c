@@ -258,7 +258,7 @@ unsigned countStronglyConnectedComponents(const Graph *g);
 unsigned count_components(const Graph *g);
 unsigned calculate_maximum_component_size(const Graph *g);
 unsigned getFirstActiveVertex(const Graph *g);
-unsigned calculateWienerIndex(const Graph *g);
+unsigned calculate_wiener_index(const Graph *g);
 unsigned calculate_wiener_polarity_index(const Graph *g);
 unsigned countInvalidEdges(const Graph *g);
 unsigned calculateDirectedUnweightedGirth(const Graph *g);
@@ -4173,22 +4173,31 @@ unsigned getFirstActiveVertex(const Graph *g) {
   return UINT_MAX;
 }
 
-unsigned calculateWienerIndex(const Graph *g) {
-  if (!g) return 0;
+unsigned calculate_wiener_index(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
   unsigned sum = 0;
   for (unsigned u = 0; u < g->size; u++) {
-    unsigned *distances = calculateUnweightedDistances(g, u);
-    if (!distances) return 0;
+    unsigned distance[g->size];
+    for (unsigned v = 0; v < g->size; v++) distance[v] = UINT_MAX;
+    distance[u] = 0;
+    unsigned queue[g->size];
+    unsigned head = 0, tail = 0;
+    queue[tail++] = u;
+    while (head < tail) {
+      unsigned v = queue[head++];
+      for (Edge *e = g->edges[v]; e; e = e->next)
+        if (e->destination < g->size && distance[e->destination] == UINT_MAX) {
+          distance[e->destination] = distance[v] + 1;
+          queue[tail++] = e->destination;
+        }
+    }
     for (unsigned v = 0; v < g->size; v++)
-      if (distances[v] < UINT_MAX) {
-        sum += distances[v];
-      } else {
-        free(distances);
+      if (distance[v] < UINT_MAX)
+        sum += distance[v];
+      else
         return UINT_MAX;
-      }
-    free(distances);
   }
-  return sum;
+  return sum / 2;
 }
 
 unsigned calculate_wiener_polarity_index(const Graph *g) {
