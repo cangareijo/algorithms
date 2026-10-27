@@ -61,6 +61,7 @@ void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, C
 
 void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, float brilho);
 float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor3D normalizar_vetor(Vetor3D v);
 Vetor3D somar_vetores(Vetor3D u, Vetor3D v);
@@ -531,6 +532,54 @@ Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_obje
             (Cor)(uint8_t)res_b;
 }
 
+static inline float potencia_brilho(float base, float expoente) {
+    if (base <= 0.0f) return 0.0f;
+    if (expoente <= 0.0f) return 1.0f;
+    int exp_int = expoente;
+    float resultado = 1.0f;
+    float atual = base;
+    while (exp_int > 0) {
+        if (exp_int % 2 == 1) {
+            resultado *= atual;
+        }
+        atual *= atual;
+        exp_int /= 2;
+    }
+    return resultado;
+}
+
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, float brilho) {
+    float tam_normal_qd = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+    float inv_tam_normal = reciproco_raiz_quadrada(tam_normal_qd);
+    Vetor3D n = { normal.x * inv_tam_normal, normal.y * inv_tam_normal, normal.z * inv_tam_normal };
+    float tam_luz_qd = direcao_luz.x * direcao_luz.x + direcao_luz.y * direcao_luz.y + direcao_luz.z * direcao_luz.z;
+    float inv_tam_luz = reciproco_raiz_quadrada(tam_luz_qd);
+    Vetor3D l = { direcao_luz.x * inv_tam_luz, direcao_luz.y * inv_tam_luz, direcao_luz.z * inv_tam_luz };
+    float tam_olhar_qd = direcao_olhar.x * direcao_olhar.x + direcao_olhar.y * direcao_olhar.y + direcao_olhar.z * direcao_olhar.z;
+    float inv_tam_olhar = reciproco_raiz_quadrada(tam_olhar_qd);
+    Vetor3D v = { direcao_olhar.x * inv_tam_olhar, direcao_olhar.y * inv_tam_olhar, direcao_olhar.z * inv_tam_olhar };
+    Vetor3D h_sub = { l.x + v.x, l.y + v.y, l.z + v.z };
+    float tam_h_sq = h_sub.x * h_sub.x + h_sub.y * h_sub.y + h_sub.z * h_sub.z;
+    float inv_tam_h = reciproco_raiz_quadrada(tam_h_sq);
+    Vetor3D h = { h_sub.x * inv_tam_h, h_sub.y * inv_tam_h, h_sub.z * inv_tam_h };
+    float dot_nh = n.x * h.x + n.y * h.y + n.z * h.z;
+    if (dot_nh < 0.0f) {
+        dot_nh = 0.0f;
+    }
+    float dot_nl = n.x * l.x + n.y * l.y + n.z * l.z;
+    if (dot_nl <= 0.0f) {
+        dot_nh = 0.0f;
+    }
+    float intensidade = potencia_brilho(dot_nh, brilho);
+    float res_cor = intensidade * 255.0f;
+    if (res_cor > 255.0f) res_cor = 255.0f;
+    uint8_t especular = res_cor;
+    return ((Cor)255       << 24) |
+           ((Cor)especular << 16) |
+           ((Cor)especular << 8 ) |
+            (Cor)especular;
+}
+
 float produto_escalar(Vetor3D u, Vetor3D v) {
     return u.x * v.x + u.y * v.y + u.z * v.z;
 }
@@ -615,33 +664,22 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b) {
 }
 
 [[nodiscard]] Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
-
     Vetor3D aresta1 = { .x = v2.x - v1.x, .y = v2.y - v1.y, .z = v2.z - v1.z };
     Vetor3D aresta2 = { .x = v3.x - v1.x, .y = v3.y - v1.y, .z = v3.z - v1.z };
-
-
     Vetor3D normal = {
         .x = (aresta1.y * aresta2.z) - (aresta1.z * aresta2.y),
         .y = (aresta1.z * aresta2.x) - (aresta1.x * aresta2.z),
         .z = (aresta1.x * aresta2.y) - (aresta1.y * aresta2.x)
     };
-
-
-
     float magnitude = raiz_quadrada((normal.x * normal.x) + (normal.y * normal.y) + (normal.z * normal.z));
-
-
-
     if (magnitude > 0.000001f) {
         float inverso_magnitude = 1.0f / magnitude;
         normal.x *= inverso_magnitude;
         normal.y *= inverso_magnitude;
         normal.z *= inverso_magnitude;
     } else {
-
         normal = (Vetor3D){ .x = 0.0f, .y = 0.0f, .z = 0.0f };
     }
-
     return normal;
 }
 
@@ -701,6 +739,8 @@ void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, V
     }
   }
 }
+
+
 
 int main() {
   return 0;
