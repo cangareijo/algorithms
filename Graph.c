@@ -280,7 +280,7 @@ unsigned calculateEdgeFrustrationNumber(const Graph *g);
 unsigned calculate_independence_number(const Graph *g);
 unsigned calculateDominatingNumber(const Graph *g);
 unsigned calculateVertexCoverNumber(const Graph *g);
-unsigned calculatePathwidth(const Graph *g);
+unsigned calculate_pathwidth(const Graph *g);
 unsigned calculateCliqueWidth(const Graph *g);
 unsigned calculate_carving_width(const Graph *g);
 unsigned calculate_cutwidth(const Graph *g);
@@ -4710,48 +4710,38 @@ unsigned calculateVertexCoverNumber(const Graph *g) {
   return g->size;
 }
 
-unsigned calculatePathwidth(const Graph *g) {
-  if (!g || g->size <= 1 || !g->edges) return 0;
-  unsigned n = g->size;
-  unsigned min_width = n;
-  bool adj[n][n] = {};
-  for (unsigned v = 0; v < n; v++)
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < n)
-        adj[v][e->destination] = true;
-  unsigned p[n];
-  for (unsigned i = 0; i < n; i++) p[i] = i;
-  while (true) {
-    unsigned max_separation = 0;
-    for (unsigned k = 1; k < n; k++) {
-      unsigned crossing = 0;
-      for (unsigned i = 0; i < k; i++)
-        for (unsigned j = k; j < n; j++)
-          if (adj[p[i]][p[j]]) {
-            crossing++;
+static unsigned calculate_pathwidth_recursive(const Graph *g, unsigned step, bool *used, unsigned *order, unsigned maximum) {
+  if (step >= g->size) return maximum;
+  unsigned best = -1;
+  for (unsigned i = 0; i < g->size; i++)
+    if (!used[i]) {
+      used[i] = true;
+      order[step] = i;
+      unsigned separation = 0;
+      for (unsigned j = 0; j <= step; j++)
+        for (Edge *e = g->edges[order[j]]; e; e = e->next) {
+          bool external = true;
+          for (unsigned k = 0; k <= step; k++)
+            if (order[k] == e->destination)
+              external = false;
+          if (external) {
+            separation++;
             break;
           }
-      if (crossing > max_separation) max_separation = crossing;
+        }
+      unsigned current = maximum > separation ? maximum : separation;
+      unsigned result = calculate_pathwidth_recursive(g, step + 1, used, order, current);
+      if (result < best) best = result;
+      used[i] = false;
     }
-    if (max_separation < min_width) min_width = max_separation;
-    unsigned i = n - 1;
-    while (i > 0 && p[i - 1] >= p[i]) i--;
-    if (i == 0) break;
-    unsigned j = n - 1;
-    while (p[i - 1] >= p[j]) j--;
-    unsigned temp = p[i - 1];
-    p[i - 1] = p[j];
-    p[j] = temp;
-    unsigned left = i, right = n - 1;
-    while (left < right) {
-      temp = p[left];
-      p[left] = p[right];
-      p[right] = temp;
-      left++;
-      right--;
-    }
-  }
-  return min_width;
+  return best;
+}
+
+unsigned calculate_pathwidth(const Graph *g) {
+  if (!g || g->size <= 1 || !g->edges) return 0;
+  bool used[g->size] = {};
+  unsigned order[g->size];
+  return calculate_pathwidth_recursive(g, 0, used, order, 0);
 }
 
 unsigned calculateCliqueWidth(const Graph *g) {
