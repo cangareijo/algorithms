@@ -318,6 +318,7 @@ unsigned calculate_cut_size(const Graph *g, const bool *set);
 unsigned count_subgraph_components(const Graph *g, const bool *set);
 unsigned calculate_subgraph_maximum_component_size(const Graph *g, const bool *set);
 unsigned calculateBandwidth(const Graph *g, const unsigned *ordering);
+unsigned calculate_layout_pathwidth(const Graph *g, const unsigned *ordering);
 
 unsigned *getInDegrees(const Graph *g);
 unsigned *getOutDegrees(const Graph *g);
@@ -4710,38 +4711,26 @@ unsigned calculateVertexCoverNumber(const Graph *g) {
   return g->size;
 }
 
-static unsigned calculate_pathwidth_recursive(const Graph *g, unsigned step, bool *used, unsigned *order, unsigned maximum) {
-  if (step >= g->size) return maximum;
-  unsigned best = -1;
-  for (unsigned i = 0; i < g->size; i++)
-    if (!used[i]) {
-      used[i] = true;
-      order[step] = i;
-      unsigned separation = 0;
-      for (unsigned j = 0; j <= step; j++)
-        for (Edge *e = g->edges[order[j]]; e; e = e->next) {
-          bool external = true;
-          for (unsigned k = 0; k <= step; k++)
-            if (order[k] == e->destination)
-              external = false;
-          if (external) {
-            separation++;
-            break;
-          }
-        }
-      unsigned current = maximum > separation ? maximum : separation;
-      unsigned result = calculate_pathwidth_recursive(g, step + 1, used, order, current);
-      if (result < best) best = result;
-      used[i] = false;
-    }
+static unsigned calculate_pathwidth_recursive(const Graph *g, unsigned *ordering, unsigned i) {
+  if (i >= g->size) return calculate_layout_pathwidth(g, ordering);
+  unsigned best = UINT_MAX;
+  for (unsigned j = i; j < g->size; j++) {
+    unsigned temporary = ordering[i];
+    ordering[i] = ordering[j];
+    ordering[j] = temporary;
+    unsigned result = calculate_pathwidth_recursive(g, ordering, i + 1);
+    if (result < best) best = result;
+    ordering[j] = ordering[i];
+    ordering[i] = temporary;
+  }
   return best;
 }
 
 unsigned calculate_pathwidth(const Graph *g) {
   if (!g || g->size <= 1 || !g->edges) return 0;
-  bool used[g->size] = {};
-  unsigned order[g->size];
-  return calculate_pathwidth_recursive(g, 0, used, order, 0);
+  unsigned ordering[g->size];
+  for (unsigned v = 0; v < g->size; v++) ordering[v] = v;
+  return calculate_pathwidth_recursive(g, ordering, 0);
 }
 
 unsigned calculateCliqueWidth(const Graph *g) {
@@ -5436,6 +5425,26 @@ unsigned calculateBandwidth(const Graph *g, const unsigned *ordering) {
       }
   free(position);
   return bandwidth;
+}
+
+unsigned calculate_layout_pathwidth(const Graph *g, const unsigned *ordering) {
+  unsigned maximum = 0;
+  for (unsigned i = 0; i < g->size; i++) {
+    unsigned separation = 0;
+    for (unsigned j = 0; j <= i; j++)
+      for (Edge *e = g->edges[ordering[j]]; e; e = e->next) {
+        bool external = true;
+        for (unsigned k = 0; k <= i; k++)
+          if (ordering[k] == e->destination)
+            external = false;
+        if (external) {
+          separation++;
+          break;
+        }
+      }
+    if (separation > maximum) maximum = separation;
+  }
+  return maximum;
 }
 
 
