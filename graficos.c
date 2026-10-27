@@ -1,3 +1,5 @@
+/* row-major, RGBA */
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -47,6 +49,7 @@ float distancia(float x, float y);
 float modulo(float x, float y);
 float* criar_zbuffer(int largura, int altura);
 
+Cor aplicar_intensidade(Cor cor, float intensidade);
 Cor misturar_cores(Cor c1, Cor c2, float fator);
 
 void destruir_framebuffer(Framebuffer* fb);
@@ -276,6 +279,26 @@ float modulo(float x, float y) {
 }
 
 
+
+Cor aplicar_intensidade(Cor cor, float intensidade) {
+    if (intensidade < 0.0f) {
+        intensidade = 0.0f;
+    }
+    if (intensidade > 1.0f) {
+        intensidade = 1.0f;
+    }
+    uint8_t a = (cor >> 24) & 0xFF;
+    uint8_t r = (cor >> 16) & 0xFF;
+    uint8_t g = (cor >>  8) & 0xFF;
+    uint8_t b =  cor        & 0xFF;
+    float res_r = r * intensidade;
+    float res_g = g * intensidade;
+    float res_b = b * intensidade;
+    return ((Cor)a     << 24) |
+           ((Cor)res_r << 16) |
+           ((Cor)res_g <<  8) |
+            (Cor)res_b;
+}
 
 Cor misturar_cores(Cor c1, Cor c2, float fator) {
     if (fator < 0.0f) fator = 0.0f;
