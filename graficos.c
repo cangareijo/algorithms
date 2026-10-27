@@ -46,6 +46,8 @@ float distancia(float x, float y);
 float modulo(float x, float y);
 float* criar_zbuffer(int largura, int altura);
 
+Cor misturar_cores(Cor c1, Cor c2, float fator);
+
 void destruir_framebuffer(Framebuffer* fb);
 void limpar_framebuffer(Framebuffer* fb, Cor cor);
 void desenhar_pixel(Framebuffer* fb, int x, int y, Cor cor);
@@ -255,6 +257,31 @@ float modulo(float x, float y) {
     limpar_zbuffer(zbuffer, largura, altura);
     return zbuffer;
 }
+
+
+
+Cor misturar_cores(Cor c1, Cor c2, float fator) {
+    if (fator < 0.0f) fator = 0.0f;
+    if (fator > 1.0f) fator = 1.0f;
+    uint8_t c1_b1 = (c1 >> 24) & 0xFF;
+    uint8_t c1_b2 = (c1 >> 16) & 0xFF;
+    uint8_t c1_b3 = (c1 >> 8)  & 0xFF;
+    uint8_t c1_b4 =  c1        & 0xFF;
+    uint8_t c2_b1 = (c2 >> 24) & 0xFF;
+    uint8_t c2_b2 = (c2 >> 16) & 0xFF;
+    uint8_t c2_b3 = (c2 >> 8)  & 0xFF;
+    uint8_t c2_b4 =  c2        & 0xFF;
+    uint8_t r_b1 = (uint8_t)(c1_b1 + fator * ((float)c2_b1 - (float)c1_b1));
+    uint8_t r_b2 = (uint8_t)(c1_b2 + fator * ((float)c2_b2 - (float)c1_b2));
+    uint8_t r_b3 = (uint8_t)(c1_b3 + fator * ((float)c2_b3 - (float)c1_b3));
+    uint8_t r_b4 = (uint8_t)(c1_b4 + fator * ((float)c2_b4 - (float)c1_b4));
+    return ((Cor)r_b1 << 24) |
+           ((Cor)r_b2 << 16) |
+           ((Cor)r_b3 << 8)  |
+            (Cor)r_b4;
+}
+
+
 
 void destruir_framebuffer(Framebuffer* fb) {
 
