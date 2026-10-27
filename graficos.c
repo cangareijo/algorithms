@@ -37,6 +37,7 @@ void limpar_zbuffer(float* zbuffer, int largura, int altura);
 float absoluto(float x);
 float truncar(float x);
 float raiz_quadrada(float x);
+float reciproco_raiz_quadrada(float x);
 float seno(float x);
 float cosseno(float x);
 float tangente(float x);
@@ -59,6 +60,7 @@ void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Cor cor);
 void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
 
 void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
+Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
 float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor3D normalizar_vetor(Vetor3D v);
 Vetor3D somar_vetores(Vetor3D u, Vetor3D v);
@@ -191,6 +193,20 @@ float raiz_quadrada(float x) {
         raiz = 0.5f * (raiz + x / raiz);
     } while (distancia(raiz, anterior) >= 1e-6f);
     return raiz;
+}
+
+float reciproco_raiz_quadrada(float x) {
+    if (x <= 0.0f) return 0.0f;
+    float metade = 0.5f * x;
+    union {
+        float f;
+        uint32_t i;
+    } u;
+    u.f = x;
+    u.i = 0x5f3759df - (u.i >> 1);
+    u.f = u.f * (1.5f - metade * u.f * u.f);
+    u.f = u.f * (1.5f - metade * u.f * u.f);
+    return u.f;
 }
 
 float seno(float x) {
@@ -474,6 +490,47 @@ void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo,
     matriz[15] = 1.0f;
 }
 
+Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz) {
+    float tam_normal_qd = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+    float rec_tam_normal = reciproco_raiz_quadrada(tam_normal_qd);
+    Vetor3D n = {
+        normal.x * rec_tam_normal,
+        normal.y * rec_tam_normal,
+        normal.z * rec_tam_normal
+    };
+    float tam_luz_qd = direcao_luz.x * direcao_luz.x + direcao_luz.y * direcao_luz.y + direcao_luz.z * direcao_luz.z;
+    float rec_tam_luz = reciproco_raiz_quadrada(tam_luz_qd);
+    Vetor3D l = {
+        direcao_luz.x * rec_tam_luz,
+        direcao_luz.y * rec_tam_luz,
+        direcao_luz.z * rec_tam_luz
+    };
+    float cosseno = n.x * l.x + n.y * l.y + n.z * l.z;
+    if (cosseno < 0.0f) {
+        cosseno = 0.0f;
+    }
+    uint8_t obj_a = (cor_objeto >> 24) & 0xFF;
+    uint8_t obj_r = (cor_objeto >> 16) & 0xFF;
+    uint8_t obj_g = (cor_objeto >> 8 ) & 0xFF;
+    uint8_t obj_b =  cor_objeto        & 0xFF;
+    uint8_t luz_a = (cor_luz >> 24) & 0xFF;
+    uint8_t luz_r = (cor_luz >> 16) & 0xFF;
+    uint8_t luz_g = (cor_luz >> 8 ) & 0xFF;
+    uint8_t luz_b =  cor_luz        & 0xFF;
+    float res_r = ((float)obj_r / 255.0f) * ((float)luz_r / 255.0f) * cosseno * 255.0f;
+    float res_g = ((float)obj_g / 255.0f) * ((float)luz_g / 255.0f) * cosseno * 255.0f;
+    float res_b = ((float)obj_b / 255.0f) * ((float)luz_b / 255.0f) * cosseno * 255.0f;
+    float res_a = ((float)obj_a / 255.0f) * ((float)luz_a / 255.0f) * 255.0f;
+    if (res_r > 255.0f) res_r = 255.0f;
+    if (res_g > 255.0f) res_g = 255.0f;
+    if (res_b > 255.0f) res_b = 255.0f;
+    if (res_a > 255.0f) res_a = 255.0f;
+    return ((Cor)(uint8_t)res_a << 24) |
+           ((Cor)(uint8_t)res_r << 16) |
+           ((Cor)(uint8_t)res_g << 8)  |
+            (Cor)(uint8_t)res_b;
+}
+
 float produto_escalar(Vetor3D u, Vetor3D v) {
     return u.x * v.x + u.y * v.y + u.z * v.z;
 }
@@ -592,82 +649,53 @@ void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, V
   if (fb == nullptr || fb->pixeis == nullptr) {
     return;
   }
-
-
   float x1 = v1.posicao.x; float y1 = v1.posicao.y;
   float x2 = v2.posicao.x; float y2 = v2.posicao.y;
   float x3 = v3.posicao.x; float y3 = v3.posicao.y;
-
-
-  int min_x = (int)minimo(minimo(x1, x2), x3);
-  int max_x = (int)maximo(maximo(x1, x2), x3);
-  int min_y = (int)minimo(minimo(y1, y2), y3);
-  int max_y = (int)maximo(maximo(y1, y2), y3);
-
-
+  int min_x = minimo(minimo(x1, x2), x3);
+  int max_x = maximo(maximo(x1, x2), x3);
+  int min_y = minimo(minimo(y1, y2), y3);
+  int max_y = maximo(maximo(y1, y2), y3);
   if (min_x < 0) min_x = 0;
   if (min_y < 0) min_y = 0;
   if (max_x >= fb->largura) max_x = fb->largura - 1;
-  if (max_y >= fb->altura) max_y = fb->altura - 1;
-
-
-
+  if (max_y >= fb->altura ) max_y = fb->altura  - 1;
   float det = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
   if (det == 0.0f) {
     return;
   }
   float inv_det = 1.0f / det;
-
-
   float r1 = (float)((v1.cor >> 24) & 0xFF);
   float g1 = (float)((v1.cor >> 16) & 0xFF);
   float b1 = (float)((v1.cor >> 8)  & 0xFF);
   float a1 = (float)(v1.cor         & 0xFF);
-
   float r2 = (float)((v2.cor >> 24) & 0xFF);
   float g2 = (float)((v2.cor >> 16) & 0xFF);
   float b2 = (float)((v2.cor >> 8)  & 0xFF);
   float a2 = (float)(v2.cor         & 0xFF);
-
   float r3 = (float)((v3.cor >> 24) & 0xFF);
   float g3 = (float)((v3.cor >> 16) & 0xFF);
   float b3 = (float)((v3.cor >> 8)  & 0xFF);
   float a3 = (float)(v3.cor         & 0xFF);
-
-
   for (int y = min_y; y <= max_y; ++y) {
     for (int x = min_x; x <= max_x; ++x) {
       float px = (float)x + 0.5f;
       float py = (float)y + 0.5f;
-
-
       float area1 = (x3 - x2) * (py - y2) - (y3 - y2) * (px - x2);
       float area2 = (x1 - x3) * (py - y3) - (y1 - y3) * (px - x3);
-
-
       float w1 = area1 * inv_det;
       float w2 = area2 * inv_det;
       float w3 = 1.0f - w1 - w2;
-
-
-
       if ((w1 >= 0.0f && w2 >= 0.0f && w3 >= 0.0f) || (w1 <= 0.0f && w2 <= 0.0f && w3 <= 0.0f)) {
-
-
         float r_interp = w1 * r1 + w2 * r2 + w3 * r3;
         float g_interp = w1 * g1 + w2 * g2 + w3 * g3;
         float b_interp = w1 * b1 + w2 * b2 + w3 * b3;
         float a_interp = w1 * a1 + w2 * a2 + w3 * a3;
-
-
         uint32_t r = minimo(maximo(r_interp, 0.0f), 255.0f);
         uint32_t g = minimo(maximo(g_interp, 0.0f), 255.0f);
         uint32_t b = minimo(maximo(b_interp, 0.0f), 255.0f);
         uint32_t a = minimo(maximo(a_interp, 0.0f), 255.0f);
-
-
         Cor cor_final = (r << 24) | (g << 16) | (b << 8) | a;
-
         desenhar_pixel(fb, x, y, cor_final);
       }
     }
