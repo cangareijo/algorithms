@@ -260,6 +260,7 @@ unsigned calculate_maximum_component_size(const Graph *g);
 unsigned getFirstActiveVertex(const Graph *g);
 unsigned calculate_wiener_index(const Graph *g);
 unsigned calculate_wiener_polarity_index(const Graph *g);
+unsigned calculate_hosoya_index(const Graph *g);
 unsigned countInvalidEdges(const Graph *g);
 unsigned calculateDirectedUnweightedGirth(const Graph *g);
 unsigned calculateUndirectedUnweightedGirth(const Graph *g);
@@ -288,7 +289,7 @@ unsigned calculate_feedback_vertex_set_number(const Graph *g);
 unsigned calculate_feedback_arc_set_number(const Graph *g);
 unsigned find_source(const Graph *g);
 unsigned find_sink(const Graph *g);
-unsigned calculate_hosoya_index(const Graph *g);
+unsigned calculate_graph_integrity(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -4228,6 +4229,44 @@ unsigned calculate_wiener_polarity_index(const Graph *g) {
   return pairs / 2;
 }
 
+/*
+ * The Hosoya index, also known as the Z-index, is a fundamental topological descriptor in chemical graph theory that
+ * quantifies the structural complexity of a molecule by counting its total number of matchings. Introduced by Japanese
+ * chemist Haruo Hosoya in 1971, this graph-theoretical invariant is defined for a given molecular graph as the sum of
+ * all its non-adjacent edge combinations, including the empty set which counts as one. In practical terms, it
+ * enumerates the ways to select sets of bonds in a molecule such that no two bonds in a set share a common atom. For
+ * acyclic graphs, like the carbon skeletons of saturated alkanes, the Hosoya index directly correlates with the
+ * coefficients of the graph's characteristic polynomial, acting as a bridge between structural topology and quantum
+ * chemistry. The index possesses a fascinating mathematical connection to classical integer sequences; for instance,
+ * the Hosoya indices of linear path graphs correspond to the Fibonacci sequence, while those of monocyclic ring graphs
+ * relate to Lucas numbers. In quantitative structure-property relationship (QSPR) models, the Hosoya index serves as a
+ * powerful molecular descriptor, showing strong correlations with physical and thermodynamic properties such as
+ * boiling points, heats of formation, entropy, and chromatographic retention indices. By translating the visual
+ * geometry of a chemical structure into a single, robust mathematical value, Hosoya’s invention has remained a
+ * cornerstone for evaluating structural isomerism and predicting physicochemical behavior without the need for
+ * intensive laboratory synthesis.
+ */
+
+static unsigned calculate_hosoya_index_recursive(const Graph *g, unsigned u, Edge *e, bool visited[g->size]) {
+  if (!e) {
+    if (u + 1 >= g->size) return 1;
+    return calculate_hosoya_index_recursive(g, u + 1, g->edges[u + 1], visited);
+  }
+  unsigned total = calculate_hosoya_index_recursive(g, u, e->next, visited);
+  if (u < e->destination && e->destination < g->size && !visited[u] && !visited[e->destination]) {
+    visited[u] = visited[e->destination] = true;
+    total += calculate_hosoya_index_recursive(g, u, e->next, visited);
+    visited[u] = visited[e->destination] = false;
+  }
+  return total;
+}
+
+unsigned calculate_hosoya_index(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 1;
+  bool visited[g->size] = {};
+  return calculate_hosoya_index_recursive(g, 0, g->edges[0], visited);
+}
+
 unsigned countInvalidEdges(const Graph *g) {
   if (!g || !g->edges) return 0;
   unsigned n = 0;
@@ -4930,41 +4969,34 @@ unsigned find_sink(const Graph *graph) {
 }
 
 /*
- * The Hosoya index, also known as the Z-index, is a fundamental topological descriptor in chemical graph theory that
- * quantifies the structural complexity of a molecule by counting its total number of matchings. Introduced by Japanese
- * chemist Haruo Hosoya in 1971, this graph-theoretical invariant is defined for a given molecular graph as the sum of
- * all its non-adjacent edge combinations, including the empty set which counts as one. In practical terms, it
- * enumerates the ways to select sets of bonds in a molecule such that no two bonds in a set share a common atom. For
- * acyclic graphs, like the carbon skeletons of saturated alkanes, the Hosoya index directly correlates with the
- * coefficients of the graph's characteristic polynomial, acting as a bridge between structural topology and quantum
- * chemistry. The index possesses a fascinating mathematical connection to classical integer sequences; for instance,
- * the Hosoya indices of linear path graphs correspond to the Fibonacci sequence, while those of monocyclic ring graphs
- * relate to Lucas numbers. In quantitative structure-property relationship (QSPR) models, the Hosoya index serves as a
- * powerful molecular descriptor, showing strong correlations with physical and thermodynamic properties such as
- * boiling points, heats of formation, entropy, and chromatographic retention indices. By translating the visual
- * geometry of a chemical structure into a single, robust mathematical value, Hosoya’s invention has remained a
- * cornerstone for evaluating structural isomerism and predicting physicochemical behavior without the need for
- * intensive laboratory synthesis.
+ * Graph integrity is a vital structural vulnerability metric in graph theory designed to evaluate how robust a network
+ * is against targeted disruptions and how operational it remains once those disruptions occur. Traditional network
+ * metrics, such as standard vertex or edge connectivity, focus exclusively on the minimum number of elements that must
+ * be removed to disconnect a graph, completely ignoring the structural state of what remains behind. Graph integrity
+ * fixes this limitation by creating a dual optimization problem that balances the cost of an attack against the
+ * resulting damage. It is defined as the minimum possible value, across all choices of vertex subsets to remove, of
+ * the number of removed vertices plus the number of vertices in the largest surviving connected component. This
+ * mathematical formulation makes it uniquely suited for testing real-world network resilience, such as assessing how a
+ * power grid, a communication system, or a supply chain behaves under targeted failure, ensuring that an optimal
+ * attack cannot isolate a massive, functional cluster while expending minimal effort. Because finding this exact
+ * balance requires evaluating the fragmentation of the network across a massive combination of possibilities,
+ * calculating graph integrity is a known NP-complete problem for general graphs, meaning that exact calculations scale
+ * exponentially with network size and ultimately require exhaustive exploration strategies.
  */
 
-static unsigned calculate_hosoya_index_recursive(const Graph *g, unsigned u, Edge *e, bool visited[g->size]) {
-  if (!e) {
-    if (u + 1 >= g->size) return 1;
-    return calculate_hosoya_index_recursive(g, u + 1, g->edges[u + 1], visited);
-  }
-  unsigned total = calculate_hosoya_index_recursive(g, u, e->next, visited);
-  if (u < e->destination && e->destination < g->size && !visited[u] && !visited[e->destination]) {
-    visited[u] = visited[e->destination] = true;
-    total += calculate_hosoya_index_recursive(g, u, e->next, visited);
-    visited[u] = visited[e->destination] = false;
-  }
-  return total;
+static unsigned calculate_graph_integrity_recursive(const Graph *g, bool *set, unsigned u, unsigned count) {
+  if (u >= g->size) return count + calculate_subgraph_maximum_component_size(g, set);
+  set[u] = false;
+  unsigned without = calculate_graph_integrity_recursive(g, set, u + 1, count + 1);
+  set[u] = true;
+  unsigned with = calculate_graph_integrity_recursive(g, set, u + 1, count);
+  return without < with ? without : with;
 }
 
-unsigned calculate_hosoya_index(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return 1;
-  bool visited[g->size] = {};
-  return calculate_hosoya_index_recursive(g, 0, g->edges[0], visited);
+unsigned calculate_graph_integrity(const Graph *g) {
+  if (!g || g->size == 0) return 0;
+  bool set[g->size];
+  return calculate_graph_integrity_recursive(g, set, 0, 0);
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
@@ -5423,24 +5455,23 @@ unsigned count_subgraph_components(const Graph *g, const bool *set) {
   return components;
 }
 
-static void calculate_subgraph_maximum_component_size_recursive(
-  const Graph *graph, const bool *set, unsigned vertex, bool *visited, unsigned *count)
+static unsigned calculate_subgraph_maximum_component_size_recursive(const Graph *graph, const bool *set, unsigned v, bool *visited)
 {
-  visited[vertex] = true;
-  (*count)++;
-  for (Edge *edge = graph->edges[vertex]; edge; edge = edge->next)
+  visited[v] = true;
+  unsigned count = 1;
+  for (Edge *edge = graph->edges[v]; edge; edge = edge->next)
     if (edge->destination < graph->size && set[edge->destination] && !visited[edge->destination])
-      calculate_subgraph_maximum_component_size_recursive(graph, set, edge->destination, visited, count);
+      count += calculate_subgraph_maximum_component_size_recursive(graph, set, edge->destination, visited);
+  return count;
 }
 
 unsigned calculate_subgraph_maximum_component_size(const Graph *graph, const bool *set) {
   if (!graph || graph->size == 0 || !graph->edges || !set) return 0;
   bool visited[graph->size] = {};
   unsigned maximum = 0;
-  for (unsigned vertex = 0; vertex < graph->size; vertex++)
-    if (set[vertex] && !visited[vertex]) {
-      unsigned count = 0;
-      calculate_subgraph_maximum_component_size_recursive(graph, set, vertex, visited, &count);
+  for (unsigned v = 0; v < graph->size; v++)
+    if (set[v] && !visited[v]) {
+      unsigned count = calculate_subgraph_maximum_component_size_recursive(graph, set, v, visited);
       if (count > maximum) maximum = count;
     }
   return maximum;
