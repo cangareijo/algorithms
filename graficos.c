@@ -56,16 +56,17 @@ Cor amostrar_textura(const Textura* textura, float u, float v);
 void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Cor cor);
 void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
 
+void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
+float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor3D normalizar_vetor(Vetor3D v);
-Vetor3D somar_vetores(Vetor3D a, Vetor3D b);
-Vetor3D subtrair_vetores(Vetor3D a, Vetor3D b);
-Vetor3D produto_vetorial(Vetor3D a, Vetor3D b);
-float produto_escalar(Vetor3D a, Vetor3D b);
+Vetor3D somar_vetores(Vetor3D u, Vetor3D v);
+Vetor3D subtrair_vetores(Vetor3D u, Vetor3D v);
+Vetor3D produto_vetorial(Vetor3D u, Vetor3D v);
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 Vetor3D transformar_vetor(Vetor3D v, float matriz[static 16]);
-Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
+Vetor3D calcular_normal(Vetor3D u, Vetor3D v, Vetor3D w);
 
-void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice v1, Vertice v2, Vertice v3);
+void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice u, Vertice v, Vertice w);
 
 void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe) {
     for (int i = 0; i < 16; i++) {
@@ -90,6 +91,74 @@ void limpar_zbuffer(float* zbuffer, int largura, int altura) {
     int total_pixeis = largura * altura;
     for (int i = 0; i < total_pixeis; ++i) {
         zbuffer[i] = 1.0f;
+    }
+}
+
+void criar_matriz_identidade(float matriz[static 16]) {
+    for (int i = 0; i < 16; ++i) {
+        matriz[i] = 0.0f;
+    }
+    matriz[0]  = 1.0f;
+    matriz[5]  = 1.0f;
+    matriz[10] = 1.0f;
+    matriz[15] = 1.0f;
+}
+
+void criar_matriz_translacao(float matriz[static 16], float x, float y, float z) {
+    criar_matriz_identidade(matriz);
+    matriz[12] = x;
+    matriz[13] = y;
+    matriz[14] = z;
+}
+
+void criar_matriz_escala(float matriz[static 16], float sx, float sy, float sz) {
+    criar_matriz_identidade(matriz);
+    matriz[0]  = sx;
+    matriz[5]  = sy;
+    matriz[10] = sz;
+}
+
+void criar_matriz_rotacao(float matriz[static 16], float angulo, float x, float y, float z) {
+    criar_matriz_identidade(matriz);
+    float magnitude = raiz_quadrada(x * x + y * y + z * z);
+    if (magnitude == 0.0f) return;
+    float ux = x / magnitude;
+    float uy = y / magnitude;
+    float uz = z / magnitude;
+    float c = cosseno(angulo);
+    float s = seno(angulo);
+    float omc = 1.0f - c;
+    matriz[0] = c + ux * ux * omc;
+    matriz[1] = uy * ux * omc + uz * s;
+    matriz[2] = uz * ux * omc - uy * s;
+    matriz[3] = 0.0f;
+    matriz[4] = ux * uy * omc - uz * s;
+    matriz[5] = c + uy * uy * omc;
+    matriz[6] = uz * uy * omc + ux * s;
+    matriz[7] = 0.0f;
+    matriz[8]  = ux * uz * omc + uy * s;
+    matriz[9]  = uy * uz * omc - ux * s;
+    matriz[10] = c + uz * uz * omc;
+    matriz[11] = 0.0f;
+    matriz[12] = 0.0f;
+    matriz[13] = 0.0f;
+    matriz[14] = 0.0f;
+    matriz[15] = 1.0f;
+}
+
+void multiplicar_matrizes(float resultado[static 16], const float a[static 16], const float b[static 16]) {
+    float temporario[16];
+    for (int coluna = 0; coluna < 4; ++coluna) {
+        for (int linha = 0; linha < 4; ++linha) {
+            float soma = 0.0f;
+            for (int k = 0; k < 4; ++k) {
+                soma += a[k * 4 + linha] * b[coluna * 4 + k];
+            }
+            temporario[coluna * 4 + linha] = soma;
+        }
+    }
+    for (size_t i = 0; i < 16; ++i) {
+        resultado[i] = temporario[i];
     }
 }
 
@@ -174,26 +243,16 @@ float modulo(float x, float y) {
 }
 
 [[nodiscard]] float* criar_zbuffer(int largura, int altura) {
-
     if (largura <= 0 || altura <= 0) {
         fprintf(stderr, "Erro: Dimensões do Z-buffer inválidas (%dx%d).\n", largura, altura);
         return nullptr;
     }
-
-
-    int total_pixeis = largura * altura;
-
-
-    float* zbuffer = calloc(total_pixeis, sizeof(float));
-
+    float* zbuffer = calloc(largura * altura, sizeof(float));
     if (zbuffer == nullptr) {
         fprintf(stderr, "Erro: Falha na alocação de memória para o Z-buffer.\n");
         return nullptr;
     }
-
-
     limpar_zbuffer(zbuffer, largura, altura);
-
     return zbuffer;
 }
 
@@ -348,6 +407,50 @@ void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, C
   }
 }
 
+void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
+    float zx = posicao.x - alvo.x;
+    float zy = posicao.y - alvo.y;
+    float zz = posicao.z - alvo.z;
+    float magnitude_z = raiz_quadrada(zx * zx + zy * zy + zz * zz);
+    if (magnitude_z > 0.0f) {
+        zx /= magnitude_z;
+        zy /= magnitude_z;
+        zz /= magnitude_z;
+    }
+    float xx = cima.y * zz - cima.z * zy;
+    float xy = cima.z * zx - cima.x * zz;
+    float xz = cima.x * zy - cima.y * zx;
+    float magnitude_x = raiz_quadrada(xx * xx + xy * xy + xz * xz);
+    if (magnitude_x > 0.0f) {
+        xx /= magnitude_x;
+        xy /= magnitude_x;
+        xz /= magnitude_x;
+    }
+    float yx = zy * xz - zz * xy;
+    float yy = zz * xx - zx * xz;
+    float yz = zx * xy - zy * xx;
+    matriz[0] = xx;
+    matriz[1] = yx;
+    matriz[2] = zx;
+    matriz[3] = 0.0f;
+    matriz[4] = xy;
+    matriz[5] = yy;
+    matriz[6] = zy;
+    matriz[7] = 0.0f;
+    matriz[8] = xz;
+    matriz[9] = yz;
+    matriz[10] = zz;
+    matriz[11] = 0.0f;
+    matriz[12] = -(xx * posicao.x + xy * posicao.y + xz * posicao.z);
+    matriz[13] = -(yx * posicao.x + yy * posicao.y + yz * posicao.z);
+    matriz[14] = -(zx * posicao.x + zy * posicao.y + zz * posicao.z);
+    matriz[15] = 1.0f;
+}
+
+float produto_escalar(Vetor3D u, Vetor3D v) {
+    return u.x * v.x + u.y * v.y + u.z * v.z;
+}
+
 Vetor3D normalizar_vetor(Vetor3D v) {
     float comprimento = raiz_quadrada((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
     if (comprimento == 0.0f) {
@@ -382,10 +485,6 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b) {
         .y = (a.z * b.x) - (a.x * b.z),
         .z = (a.x * b.y) - (a.y * b.x)
     };
-}
-
-float produto_escalar(Vetor3D a, Vetor3D b) {
-    return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
 }
 
 [[nodiscard]] Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura) {
