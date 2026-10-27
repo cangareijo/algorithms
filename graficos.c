@@ -63,6 +63,7 @@ void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Cor cor);
 void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
 
 void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
+bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, float brilho);
 float produto_escalar(Vetor3D u, Vetor3D v);
@@ -512,6 +513,20 @@ void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo,
     matriz[13] = -(yx * posicao.x + yy * posicao.y + yz * posicao.z);
     matriz[14] = -(zx * posicao.x + zy * posicao.y + zz * posicao.z);
     matriz[15] = 1.0f;
+}
+
+bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara) {
+    Vetor3D aresta1 = { v2.x - v1.x, v2.y - v1.y, v2.z - v1.z };
+    Vetor3D aresta2 = { v3.x - v1.x, v3.y - v1.y, v3.z - v1.z };
+    Vetor3D normal_face = {
+        aresta1.y * aresta2.z - aresta1.z * aresta2.y,
+        aresta1.z * aresta2.x - aresta1.x * aresta2.z,
+        aresta1.x * aresta2.y - aresta1.y * aresta2.x
+    };
+    float produto_escalar = normal_face.x * direcao_camara.x +
+                            normal_face.y * direcao_camara.y +
+                            normal_face.z * direcao_camara.z;
+    return produto_escalar >= 0.0f;
 }
 
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz) {
