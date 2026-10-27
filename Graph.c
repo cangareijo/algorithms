@@ -288,6 +288,7 @@ unsigned calculate_feedback_vertex_set_number(const Graph *g);
 unsigned calculate_feedback_arc_set_number(const Graph *g);
 unsigned find_source(const Graph *g);
 unsigned find_sink(const Graph *g);
+unsigned calculate_hosoya_index(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -4926,6 +4927,44 @@ unsigned find_sink(const Graph *graph) {
     if (!graph->edges[vertex])
       return vertex;
   return -1;
+}
+
+/*
+ * The Hosoya index, also known as the Z-index, is a fundamental topological descriptor in chemical graph theory that
+ * quantifies the structural complexity of a molecule by counting its total number of matchings. Introduced by Japanese
+ * chemist Haruo Hosoya in 1971, this graph-theoretical invariant is defined for a given molecular graph as the sum of
+ * all its non-adjacent edge combinations, including the empty set which counts as one. In practical terms, it
+ * enumerates the ways to select sets of bonds in a molecule such that no two bonds in a set share a common atom. For
+ * acyclic graphs, like the carbon skeletons of saturated alkanes, the Hosoya index directly correlates with the
+ * coefficients of the graph's characteristic polynomial, acting as a bridge between structural topology and quantum
+ * chemistry. The index possesses a fascinating mathematical connection to classical integer sequences; for instance,
+ * the Hosoya indices of linear path graphs correspond to the Fibonacci sequence, while those of monocyclic ring graphs
+ * relate to Lucas numbers. In quantitative structure-property relationship (QSPR) models, the Hosoya index serves as a
+ * powerful molecular descriptor, showing strong correlations with physical and thermodynamic properties such as
+ * boiling points, heats of formation, entropy, and chromatographic retention indices. By translating the visual
+ * geometry of a chemical structure into a single, robust mathematical value, Hosoya’s invention has remained a
+ * cornerstone for evaluating structural isomerism and predicting physicochemical behavior without the need for
+ * intensive laboratory synthesis.
+ */
+
+static unsigned calculate_hosoya_index_recursive(const Graph *g, unsigned u, Edge *e, bool visited[g->size]) {
+  if (!e) {
+    if (u + 1 >= g->size) return 1;
+    return calculate_hosoya_index_recursive(g, u + 1, g->edges[u + 1], visited);
+  }
+  unsigned total = calculate_hosoya_index_recursive(g, u, e->next, visited);
+  if (u < e->destination && e->destination < g->size && !visited[u] && !visited[e->destination]) {
+    visited[u] = visited[e->destination] = true;
+    total += calculate_hosoya_index_recursive(g, u, e->next, visited);
+    visited[u] = visited[e->destination] = false;
+  }
+  return total;
+}
+
+unsigned calculate_hosoya_index(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 1;
+  bool visited[g->size] = {};
+  return calculate_hosoya_index_recursive(g, 0, g->edges[0], visited);
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
