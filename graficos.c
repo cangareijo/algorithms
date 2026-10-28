@@ -64,7 +64,7 @@ void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
 void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, float brilho);
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
 float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 Vetor3D normalizar_vetor(Vetor3D v);
@@ -376,10 +376,10 @@ void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor)
     if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
         return;
     }
-    int min_x = (int)min_f(min_f(p1.x, p2.x), p3.x);
-    int max_x = (int)max_f(max_f(p1.x, p2.x), p3.x);
-    int min_y = (int)min_f(min_f(p1.y, p2.y), p3.y);
-    int max_y = (int)max_f(max_f(p1.y, p2.y), p3.y);
+    int min_x = (int)minimo(minimo(p1.x, p2.x), p3.x);
+    int max_x = (int)maximo(maximo(p1.x, p2.x), p3.x);
+    int min_y = (int)minimo(minimo(p1.y, p2.y), p3.y);
+    int max_y = (int)maximo(maximo(p1.y, p2.y), p3.y);
     if (min_x < 0) min_x = 0;
     if (min_y < 0) min_y = 0;
     if (max_x >= tela->largura) max_x = tela->largura - 1;
