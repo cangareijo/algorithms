@@ -1,5 +1,3 @@
-/* row-major, RGBA */
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -16,7 +14,7 @@ typedef struct {
 typedef struct {
   int largura;
   int altura;
-  Cor* dados;
+  Cor* pixeis;
 } Textura;
 
 typedef struct {
@@ -34,12 +32,17 @@ typedef struct {
 
 constexpr float PI = 3.14159265f;
 
-void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe);
 void limpar_zbuffer(float* zbuffer, int largura, int altura);
+void criar_matriz_identidade(float matriz[4][4]);
+void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
+void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
+void criar_matriz_projecao(float matriz[4][4], float fov, float aspeto, float perto, float longe);
+void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
+
 float absoluto(float x);
 float truncar(float x);
-float raiz_quadrada(float x);
-float reciproco_raiz_quadrada(float x);
+float raiz(float x);
+float reciproco_raiz(float x);
 float seno(float x);
 float cosseno(float x);
 float tangente(float x);
@@ -47,9 +50,10 @@ float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
+
 float* criar_zbuffer(int largura, int altura);
 
-Cor aplicar_intensidade(Cor cor, float intensidade);
+Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
 
 void destruir_framebuffer(Framebuffer* fb);
@@ -62,7 +66,8 @@ Cor amostrar_textura(const Textura* textura, float u, float v);
 void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Cor cor);
 void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
 
-void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
+void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
+void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
 int clipar_triangulo_plano(Vetor3D plano_ponto, Vetor3D plano_normal, Vertice triangulo_in[static 3], Vertice triangulos_out[static 6]);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
@@ -73,26 +78,10 @@ Vetor3D somar_vetores(Vetor3D u, Vetor3D v);
 Vetor3D subtrair_vetores(Vetor3D u, Vetor3D v);
 Vetor3D produto_vetorial(Vetor3D u, Vetor3D v);
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
-Vetor3D transformar_vetor(Vetor3D v, float matriz[static 16]);
+Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
 Vetor3D calcular_normal(Vetor3D u, Vetor3D v, Vetor3D w);
 
 void rasterizar_triangulo_interpolado(Framebuffer* fb, Vertice u, Vertice v, Vertice w);
-
-void criar_matriz_projecao(float matriz[static 16], float fov, float aspeto, float perto, float longe) {
-    for (int i = 0; i < 16; i++) {
-        matriz[i] = 0.0f;
-    }
-    float fov_radianos = fov * (PI / 180.0f);
-    float tan_metade_fov = tangente(fov_radianos / 2.0);
-    if (tan_metade_fov == 0.0f || aspeto == 0.0f || longe - perto == 0.0f) {
-        return;
-    }
-    matriz[0] = 1.0f / (aspeto * tan_metade_fov);
-    matriz[5] = 1.0f / tan_metade_fov;
-    matriz[10] = -(longe + perto) / (longe - perto);
-    matriz[11] = -1.0f;
-    matriz[14] = -(2.0f * longe * perto) / (longe - perto);
-}
 
 void limpar_zbuffer(float* zbuffer, int largura, int altura) {
     if (zbuffer == nullptr || largura <= 0 || altura <= 0) {
@@ -104,80 +93,71 @@ void limpar_zbuffer(float* zbuffer, int largura, int altura) {
     }
 }
 
-void criar_matriz_identidade(float matriz[static 16]) {
-    for (int i = 0; i < 16; ++i) {
-        matriz[i] = 0.0f;
-    }
-    matriz[0]  = 1.0f;
-    matriz[5]  = 1.0f;
-    matriz[10] = 1.0f;
-    matriz[15] = 1.0f;
-}
-
-void criar_matriz_translacao(float matriz[static 16], float x, float y, float z) {
-    criar_matriz_identidade(matriz);
-    matriz[12] = x;
-    matriz[13] = y;
-    matriz[14] = z;
-}
-
-void criar_matriz_escala(float matriz[static 16], float sx, float sy, float sz) {
-    criar_matriz_identidade(matriz);
-    matriz[0]  = sx;
-    matriz[5]  = sy;
-    matriz[10] = sz;
-}
-
-void criar_matriz_rotacao(float matriz[static 16], float angulo, float x, float y, float z) {
-    criar_matriz_identidade(matriz);
-    float magnitude = raiz_quadrada(x * x + y * y + z * z);
-    if (magnitude == 0.0f) return;
-    float ux = x / magnitude;
-    float uy = y / magnitude;
-    float uz = z / magnitude;
-    float c = cosseno(angulo);
-    float s = seno(angulo);
-    float omc = 1.0f - c;
-    matriz[0] = c + ux * ux * omc;
-    matriz[1] = uy * ux * omc + uz * s;
-    matriz[2] = uz * ux * omc - uy * s;
-    matriz[3] = 0.0f;
-    matriz[4] = ux * uy * omc - uz * s;
-    matriz[5] = c + uy * uy * omc;
-    matriz[6] = uz * uy * omc + ux * s;
-    matriz[7] = 0.0f;
-    matriz[8]  = ux * uz * omc + uy * s;
-    matriz[9]  = uy * uz * omc - ux * s;
-    matriz[10] = c + uz * uz * omc;
-    matriz[11] = 0.0f;
-    matriz[12] = 0.0f;
-    matriz[13] = 0.0f;
-    matriz[14] = 0.0f;
-    matriz[15] = 1.0f;
-}
-
-void multiplicar_matrizes(float resultado[static 16], const float a[static 16], const float b[static 16]) {
-    float temporario[16];
-    for (int coluna = 0; coluna < 4; ++coluna) {
-        for (int linha = 0; linha < 4; ++linha) {
-            float soma = 0.0f;
-            for (int k = 0; k < 4; ++k) {
-                soma += a[k * 4 + linha] * b[coluna * 4 + k];
-            }
-            temporario[coluna * 4 + linha] = soma;
+void criar_matriz_identidade(float matriz[4][4]) {
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            matriz[i][j] = (i == j) ? 1.0f : 0.0f;
         }
     }
-    for (size_t i = 0; i < 16; ++i) {
-        resultado[i] = temporario[i];
+}
+
+void criar_matriz_translacao(float matriz[4][4], float x, float y, float z) {
+    criar_matriz_identidade(matriz);
+    matriz[3][0] = x;
+    matriz[3][1] = y;
+    matriz[3][2] = z;
+}
+
+void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz) {
+    criar_matriz_identidade(matriz);
+    matriz[0][0] = sx;
+    matriz[1][1] = sy;
+    matriz[2][2] = sz;
+}
+
+void criar_matriz_projecao(float matriz[4][4], float fov, float aspeto, float perto, float longe) {
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            matriz[i][j] = 0.0f;
+        }
+    }
+    float metade_fov = tangente(fov / 2.0f);
+    if (metade_fov == 0.0f || aspeto == 0.0f || (longe - perto) == 0.0f) {
+        return;
+    }
+    matriz[0][0] = 1.0f / (aspeto * metade_fov);
+    matriz[1][1] = 1.0f / metade_fov;
+    matriz[2][2] = -(longe + perto) / (longe - perto);
+    matriz[2][3] = -1.0f;
+    matriz[3][2] = -(2.0f * longe * perto) / (longe - perto);
+}
+
+void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
+    float temporario[4][4];
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            float soma = 0.0f;
+            for (int k = 0; k < 4; ++k) {
+                soma += a[i][k] * b[k][j];
+            }
+            temporario[i][j] = soma;
+        }
+    }
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            resultado[i][j] = temporario[i][j];
+        }
     }
 }
+
+
 
 float absoluto(float x) {
     return x >= 0.0f ? x : -x;
 }
 
 float truncar(float x) {
-    if (x >= 9223371487098961920.0f || x <= -9223371487098961920.0f) {
+    if (x >= 16777216.0f || x <= -16777216.0f) {
         return x;
     }
     return (long long)x;
@@ -188,7 +168,7 @@ float chao(float x) {
     return x < 0.0f && x != y ? y - 1 : y;
 }
 
-float raiz_quadrada(float x) {
+float raiz(float x) {
     if (x <= 0.0f) {
         return 0.0f;
     }
@@ -201,7 +181,7 @@ float raiz_quadrada(float x) {
     return raiz;
 }
 
-float reciproco_raiz_quadrada(float x) {
+float reciproco_raiz(float x) {
     if (x <= 0.0f) return 0.0f;
     float metade = 0.5f * x;
     union {
@@ -209,7 +189,7 @@ float reciproco_raiz_quadrada(float x) {
         uint32_t i;
     } u;
     u.f = x;
-    u.i = 0x5f3759df - (u.i >> 1);
+    u.i = 0x5f375a86 - (u.i >> 1);
     u.f = u.f * (1.5f - metade * u.f * u.f);
     u.f = u.f * (1.5f - metade * u.f * u.f);
     return u.f;
@@ -217,30 +197,29 @@ float reciproco_raiz_quadrada(float x) {
 
 float seno(float x) {
     x = modulo(x, 2.0f * PI);
-    if (x > PI)  x -= 2.0f * PI;
-    if (x < -PI) x += 2.0f * PI;
+    if (x < 0.0f) {
+        x += 2.0f * PI;
+    }
+    float sinal = 1.0f;
+    if (x > PI) {
+        x -= PI;
+        sinal = -1.0f;
+    }
+    if (x > 0.5f * PI) {
+        x = PI - x;
+    }
     float termo = x;
     float soma = x;
-    float x_quadrado = x * x;
-    for (int i = 1; i <= 6; i++) {
-        termo *= -x_quadrado / ((2 * i) * (2 * i + 1));
+    float quadrado = x * x;
+    for (int i = 1; i <= 4; i++) {
+        termo *= -quadrado / ((2 * i) * (2 * i + 1));
         soma += termo;
     }
-    return soma;
+    return sinal * soma;
 }
 
 float cosseno(float x) {
-    x = modulo(x, 2.0f * PI);
-    if (x > PI)  x -= 2.0f * PI;
-    if (x < -PI) x += 2.0f * PI;
-    float termo = 1.0f;
-    float soma = 1.0f;
-    float x_quadrado = x * x;
-    for (int i = 1; i <= 6; i++) {
-        termo *= -x_quadrado / ((2 * i - 1) * (2 * i));
-        soma += termo;
-    }
-    return soma;
+    return seno(x + 0.5f * PI);
 }
 
 float tangente(float x) {
@@ -266,12 +245,12 @@ float modulo(float x, float y) {
     return x - truncar(x / y) * y;
 }
 
-[[nodiscard]] float* criar_zbuffer(int largura, int altura) {
+float* criar_zbuffer(int largura, int altura) {
     if (largura <= 0 || altura <= 0) {
         fprintf(stderr, "Erro: Dimensões do Z-buffer inválidas (%dx%d).\n", largura, altura);
         return nullptr;
     }
-    float* zbuffer = calloc(largura * altura, sizeof(float));
+    float* zbuffer = malloc(largura * altura * sizeof(float));
     if (zbuffer == nullptr) {
         fprintf(stderr, "Erro: Falha na alocação de memória para o Z-buffer.\n");
         return nullptr;
@@ -282,45 +261,49 @@ float modulo(float x, float y) {
 
 
 
-Cor aplicar_intensidade(Cor cor, float intensidade) {
+Cor multiplicar_cor(Cor cor, float intensidade) {
     if (intensidade < 0.0f) {
         intensidade = 0.0f;
     }
     if (intensidade > 1.0f) {
         intensidade = 1.0f;
     }
-    uint8_t a = (cor >> 24) & 0xFF;
-    uint8_t r = (cor >> 16) & 0xFF;
-    uint8_t g = (cor >>  8) & 0xFF;
-    uint8_t b =  cor        & 0xFF;
-    float res_r = r * intensidade;
-    float res_g = g * intensidade;
-    float res_b = b * intensidade;
-    return ((Cor)a     << 24) |
-           ((Cor)res_r << 16) |
-           ((Cor)res_g <<  8) |
-            (Cor)res_b;
+    uint8_t r = (cor >> 24) & 0xFF;
+    uint8_t g = (cor >> 16) & 0xFF;
+    uint8_t b = (cor >>  8) & 0xFF;
+    uint8_t a =  cor        & 0xFF;
+    uint32_t res_r = r * intensidade + 0.5f;
+    uint32_t res_g = g * intensidade + 0.5f;
+    uint32_t res_b = b * intensidade + 0.5f;
+    return (res_r << 24) |
+           (res_g << 16) |
+           (res_b <<  8) |
+           (uint32_t)a;
 }
 
 Cor interpolar_cores(Cor c1, Cor c2, float fator) {
-    if (fator < 0.0f) fator = 0.0f;
-    if (fator > 1.0f) fator = 1.0f;
-    uint8_t c1_b1 = (c1 >> 24) & 0xFF;
-    uint8_t c1_b2 = (c1 >> 16) & 0xFF;
-    uint8_t c1_b3 = (c1 >> 8)  & 0xFF;
-    uint8_t c1_b4 =  c1        & 0xFF;
-    uint8_t c2_b1 = (c2 >> 24) & 0xFF;
-    uint8_t c2_b2 = (c2 >> 16) & 0xFF;
-    uint8_t c2_b3 = (c2 >> 8)  & 0xFF;
-    uint8_t c2_b4 =  c2        & 0xFF;
-    uint8_t r_b1 = (uint8_t)(c1_b1 + fator * ((float)c2_b1 - (float)c1_b1));
-    uint8_t r_b2 = (uint8_t)(c1_b2 + fator * ((float)c2_b2 - (float)c1_b2));
-    uint8_t r_b3 = (uint8_t)(c1_b3 + fator * ((float)c2_b3 - (float)c1_b3));
-    uint8_t r_b4 = (uint8_t)(c1_b4 + fator * ((float)c2_b4 - (float)c1_b4));
-    return ((Cor)r_b1 << 24) |
-           ((Cor)r_b2 << 16) |
-           ((Cor)r_b3 << 8)  |
-            (Cor)r_b4;
+    if (fator < 0.0f) {
+        fator = 0.0f;
+    }
+    if (fator > 1.0f) {
+        fator = 1.0f;
+    }
+    uint8_t r1 = (c1 >> 24) & 0xFF;
+    uint8_t g1 = (c1 >> 16) & 0xFF;
+    uint8_t b1 = (c1 >>  8) & 0xFF;
+    uint8_t a1 =  c1        & 0xFF;
+    uint8_t r2 = (c2 >> 24) & 0xFF;
+    uint8_t g2 = (c2 >> 16) & 0xFF;
+    uint8_t b2 = (c2 >>  8) & 0xFF;
+    uint8_t a2 =  c2        & 0xFF;
+    uint32_t r_final = r1 + fator * (r2 - r1) + 0.5f;
+    uint32_t g_final = g1 + fator * (g2 - g1) + 0.5f;
+    uint32_t b_final = b1 + fator * (b2 - b1) + 0.5f;
+    uint32_t a_final = a1 + fator * (a2 - a1) + 0.5f;
+    return (r_final << 24) |
+           (g_final << 16) |
+           (b_final <<  8) |
+            a_final;
 }
 
 
@@ -387,7 +370,7 @@ void desenhar_pixel(Framebuffer* fb, int x, int y, Cor cor) {
 
 [[nodiscard]] Cor amostrar_textura(const Textura* textura, float u, float v) {
 
-  if (textura == nullptr || textura->dados == nullptr || textura->largura <= 0 || textura->altura <= 0) {
+  if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
     return 0;
   }
 
@@ -407,7 +390,7 @@ void desenhar_pixel(Framebuffer* fb, int x, int y, Cor cor) {
   if (y < 0) y = 0;
 
 
-  return textura->dados[x + y * textura->largura];
+  return textura->pixeis[x + y * textura->largura];
 }
 
 void desenhar_linha(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Cor cor) {
@@ -476,7 +459,30 @@ void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, C
   }
 }
 
-void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
+void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
+    criar_matriz_identidade(matriz);
+    float magnitude = raiz_quadrada(eixo.x * eixo.x + eixo.y * eixo.y + eixo.z * eixo.z);
+    if (magnitude == 0.0f) {
+        return;
+    }
+    float ux = eixo.x / magnitude;
+    float uy = eixo.y / magnitude;
+    float uz = eixo.z / magnitude;
+    float c = cosseno(radianos);
+    float s = seno(radianos);
+    float omc = 1.0f - c;
+    matriz[0][0] = c + ux * ux * omc;
+    matriz[0][1] = ux * uy * omc + uz * s;
+    matriz[0][2] = ux * uz * omc - uy * s;
+    matriz[1][0] = ux * uy * omc - uz * s;
+    matriz[1][1] = c + uy * uy * omc;
+    matriz[1][2] = uy * uz * omc + ux * s;
+    matriz[2][0] = ux * uz * omc + uy * s;
+    matriz[2][1] = uy * uz * omc - ux * s;
+    matriz[2][2] = c + uz * uz * omc;
+}
+
+void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
     float zx = posicao.x - alvo.x;
     float zy = posicao.y - alvo.y;
     float zz = posicao.z - alvo.z;
