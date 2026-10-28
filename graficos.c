@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -50,6 +51,7 @@ float reciproco_raiz(float x);
 float seno(float x);
 float cosseno(float x);
 float tangente(float x);
+float potencia_inteira(float x, int n);
 float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
@@ -317,6 +319,25 @@ float tangente(float x) {
     return seno(x) / cosseno(x);
 }
 
+float potencia_inteira(float base, int expoente) {
+    assert(base != 0.0f || expoente > 0);
+    if (expoente == 0) return 1.0f;
+    if (expoente < 0) {
+        base = 1.0f / base;
+        expoente = -expoente;
+    }
+    float resultado = 1.0f;
+    float atual = base;
+    while (expoente > 0) {
+        if ((expoente & 1) == 1) {
+            resultado *= atual;
+        }
+        atual *= atual;
+        expoente >>= 1;
+    }
+    return resultado;
+}
+
 float minimo(float x, float y) {
     return x <= y ? x : y;
 }
@@ -398,7 +419,7 @@ void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor)
       float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
       float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
       if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
-        desenhar_pixel(fb, x, y, cor);
+        desenhar_pixel(tela, x, y, cor);
       }
     }
   }
@@ -430,43 +451,25 @@ void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
 }
 
 void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
-    float zx = posicao.x - alvo.x;
-    float zy = posicao.y - alvo.y;
-    float zz = posicao.z - alvo.z;
-    float magnitude_z = raiz(zx * zx + zy * zy + zz * zz);
-    if (magnitude_z > 0.0f) {
-        zx /= magnitude_z;
-        zy /= magnitude_z;
-        zz /= magnitude_z;
-    }
-    float xx = cima.y * zz - cima.z * zy;
-    float xy = cima.z * zx - cima.x * zz;
-    float xz = cima.x * zy - cima.y * zx;
-    float magnitude_x = raiz(xx * xx + xy * xy + xz * xz);
-    if (magnitude_x > 0.0f) {
-        xx /= magnitude_x;
-        xy /= magnitude_x;
-        xz /= magnitude_x;
-    }
-    float yx = zy * xz - zz * xy;
-    float yy = zz * xx - zx * xz;
-    float yz = zx * xy - zy * xx;
-    matriz[0] = xx;
-    matriz[1] = yx;
-    matriz[2] = zx;
-    matriz[3] = 0.0f;
-    matriz[4] = xy;
-    matriz[5] = yy;
-    matriz[6] = zy;
-    matriz[7] = 0.0f;
-    matriz[8] = xz;
-    matriz[9] = yz;
-    matriz[10] = zz;
-    matriz[11] = 0.0f;
-    matriz[12] = -(xx * posicao.x + xy * posicao.y + xz * posicao.z);
-    matriz[13] = -(yx * posicao.x + yy * posicao.y + yz * posicao.z);
-    matriz[14] = -(zx * posicao.x + zy * posicao.y + zz * posicao.z);
-    matriz[15] = 1.0f;
+    Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(posicao, alvo));
+    Vetor3D x_eixo = normalizar_vetor(produto_vetorial(cima, z_eixo));
+    Vetor3D y_eixo = produto_vetorial(z_eixo, x_eixo);
+    matriz[0][0] = x_eixo.x;
+    matriz[0][1] = y_eixo.x;
+    matriz[0][2] = z_eixo.x;
+    matriz[0][3] = 0.0f;
+    matriz[1][0] = x_eixo.y;
+    matriz[1][1] = y_eixo.y;
+    matriz[1][2] = z_eixo.y;
+    matriz[1][3] = 0.0f;
+    matriz[2][0] = x_eixo.z;
+    matriz[2][1] = y_eixo.z;
+    matriz[2][2] = z_eixo.z;
+    matriz[2][3] = 0.0f;
+    matriz[3][0] = -produto_escalar(x_eixo, posicao);
+    matriz[3][1] = -produto_escalar(y_eixo, posicao);
+    matriz[3][2] = -produto_escalar(z_eixo, posicao);
+    matriz[3][3] = 1.0f;
 }
 
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara) {
@@ -524,22 +527,6 @@ Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_obje
             (Cor)(uint8_t)res_b;
 }
 
-static inline float potencia_brilho(float base, float expoente) {
-    if (base <= 0.0f) return 0.0f;
-    if (expoente <= 0.0f) return 1.0f;
-    int exp_int = expoente;
-    float resultado = 1.0f;
-    float atual = base;
-    while (exp_int > 0) {
-        if (exp_int % 2 == 1) {
-            resultado *= atual;
-        }
-        atual *= atual;
-        exp_int /= 2;
-    }
-    return resultado;
-}
-
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, float brilho) {
     float tam_normal_qd = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
     float inv_tam_normal = reciproco_raiz(tam_normal_qd);
@@ -562,7 +549,7 @@ Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D d
     if (dot_nl <= 0.0f) {
         dot_nh = 0.0f;
     }
-    float intensidade = potencia_brilho(dot_nh, brilho);
+    float intensidade = potencia_inteira(dot_nh, brilho);
     float res_cor = intensidade * 255.0f;
     if (res_cor > 255.0f) res_cor = 255.0f;
     uint8_t especular = res_cor;
@@ -625,20 +612,20 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b) {
 }
 
 Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]) {
-  float x = matriz[0] * v.x + matriz[1] * v.y + matriz[2] * v.z + matriz[3];
-  float y = matriz[4] * v.x + matriz[5] * v.y + matriz[6] * v.z + matriz[7];
-  float z = matriz[8] * v.x + matriz[9] * v.y + matriz[10] * v.z + matriz[11];
-  float w = matriz[12] * v.x + matriz[13] * v.y + matriz[14] * v.z + matriz[15];
-  if (w != 0.0f) {
-    float inv_w = 1.0f / w;
-    x *= inv_w;
-    y *= inv_w;
-    z *= inv_w;
-  }
-  return (Vetor3D){ .x = x, .y = y, .z = z };
+    float x = v.x * matriz[0][0] + v.y * matriz[1][0] + v.z * matriz[2][0] + matriz[3][0];
+    float y = v.x * matriz[0][1] + v.y * matriz[1][1] + v.z * matriz[2][1] + matriz[3][1];
+    float z = v.x * matriz[0][2] + v.y * matriz[1][2] + v.z * matriz[2][2] + matriz[3][2];
+    float w = v.x * matriz[0][3] + v.y * matriz[1][3] + v.z * matriz[2][3] + matriz[3][3];
+    if (w != 0.0f && w != 1.0f) {
+        float reciproco_w = 1.0f / w;
+        x *= reciproco_w;
+        y *= reciproco_w;
+        z *= reciproco_w;
+    }
+    return (Vetor3D){ .x = x, .y = y, .z = z };
 }
 
-[[nodiscard]] Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
+Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
     Vetor3D aresta1 = { .x = v2.x - v1.x, .y = v2.y - v1.y, .z = v2.z - v1.z };
     Vetor3D aresta2 = { .x = v3.x - v1.x, .y = v3.y - v1.y, .z = v3.z - v1.z };
     Vetor3D normal = {
