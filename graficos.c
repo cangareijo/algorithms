@@ -55,8 +55,8 @@ float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
 
-void desenhar_linha(Tela* fb, Vetor2D p1, Vetor2D p2, Cor cor);
-void desenhar_triangulo(Tela* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
+void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
+void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
 
 void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
 void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
@@ -286,14 +286,15 @@ float reciproco_raiz(float x) {
 }
 
 float seno(float x) {
-    x = modulo(x, 2.0f * PI);
-    if (x < 0.0f) {
-        x += 2.0f * PI;
-    }
     float sinal = 1.0f;
+    if (x < 0.0f) {
+        x = -x;
+        sinal = -sinal;
+    }
+    x = modulo(x, 2.0f * PI);
     if (x > PI) {
         x -= PI;
-        sinal = -1.0f;
+        sinal = -sinal;
     }
     if (x > 0.5f * PI) {
         x = PI - x;
@@ -337,8 +338,8 @@ float modulo(float x, float y) {
 
 
 
-void desenhar_linha(Tela* fb, Vetor2D p1, Vetor2D p2, Cor cor) {
-    if (fb == nullptr || fb->pixeis == nullptr || fb->largura <= 0 || fb->altura <= 0) {
+void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
+    if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
         return;
     }
     int x0 = p1.x;
@@ -351,8 +352,8 @@ void desenhar_linha(Tela* fb, Vetor2D p1, Vetor2D p2, Cor cor) {
     int sy = (y0 < y1) ? 1 : -1;
     int erro = dx - dy;
     while (true) {
-        if (x0 >= 0 && x0 < fb->largura && y0 >= 0 && y0 < fb->altura) {
-            fb->pixeis[y0 * fb->largura + x0] = cor;
+        if (x0 >= 0 && x0 < tela->largura && y0 >= 0 && y0 < tela->altura) {
+            tela->pixeis[y0 * tela->largura + x0] = cor;
         }
         if (x0 == x1 && y0 == y1) {
             break;
@@ -369,8 +370,8 @@ void desenhar_linha(Tela* fb, Vetor2D p1, Vetor2D p2, Cor cor) {
     }
 }
 
-void desenhar_triangulo(Tela* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
-  if (fb == nullptr || fb->pixeis == nullptr) {
+void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
+  if (tela == nullptr || tela->pixeis == nullptr) {
     return;
   }
   int min_x = minimo(minimo(p1.x, p2.x), p3.x);
@@ -379,8 +380,8 @@ void desenhar_triangulo(Tela* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
   int max_y = maximo(maximo(p1.y, p2.y), p3.y);
   if (min_x < 0) min_x = 0;
   if (min_y < 0) min_y = 0;
-  if (max_x >= fb->largura) max_x = fb->largura - 1;
-  if (max_y >= fb->altura) max_y = fb->altura - 1;
+  if (max_x >= tela->largura) max_x = tela->largura - 1;
+  if (max_y >= tela->altura) max_y = tela->altura - 1;
   float dy12 = p2.y - p1.y; float dx12 = p2.x - p1.x;
   float dy23 = p3.y - p2.y; float dx23 = p3.x - p2.x;
   float dy31 = p1.y - p3.y; float dx31 = p1.x - p3.x;
@@ -623,22 +624,17 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b) {
     };
 }
 
-Vetor3D transformar_vetor(Vetor3D v, float matriz[static 16]) {
-
+Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]) {
   float x = matriz[0] * v.x + matriz[1] * v.y + matriz[2] * v.z + matriz[3];
   float y = matriz[4] * v.x + matriz[5] * v.y + matriz[6] * v.z + matriz[7];
   float z = matriz[8] * v.x + matriz[9] * v.y + matriz[10] * v.z + matriz[11];
   float w = matriz[12] * v.x + matriz[13] * v.y + matriz[14] * v.z + matriz[15];
-
-
-
   if (w != 0.0f) {
     float inv_w = 1.0f / w;
     x *= inv_w;
     y *= inv_w;
     z *= inv_w;
   }
-
   return (Vetor3D){ .x = x, .y = y, .z = z };
 }
 
