@@ -36,7 +36,7 @@ Tela criar_tela(int largura, int altura);
 void criar_matriz_identidade(float matriz[4][4]);
 void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
 void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
-void criar_matriz_projecao(float matriz[4][4], float fov, float aspeto, float perto, float longe);
+void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
@@ -145,18 +145,18 @@ void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz) {
     matriz[2][2] = sz;
 }
 
-void criar_matriz_projecao(float matriz[4][4], float fov, float aspeto, float perto, float longe) {
+void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             matriz[i][j] = 0.0f;
         }
     }
-    float metade_fov = tangente(fov / 2.0f);
-    if (metade_fov == 0.0f || aspeto == 0.0f || (longe - perto) == 0.0f) {
+    float tan_metade_fov = tangente(0.5f * fov);
+    if (tan_metade_fov == 0.0f || proporcao == 0.0f || (longe - perto) == 0.0f) {
         return;
     }
-    matriz[0][0] = 1.0f / (aspeto * metade_fov);
-    matriz[1][1] = 1.0f / metade_fov;
+    matriz[0][0] = 1.0f / (proporcao * tan_metade_fov);
+    matriz[1][1] = 1.0f / tan_metade_fov;
     matriz[2][2] = -(longe + perto) / (longe - perto);
     matriz[2][3] = -1.0f;
     matriz[3][2] = -(2.0f * longe * perto) / (longe - perto);
@@ -399,11 +399,9 @@ void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor)
         int offset_linha = y * largura;
         for (int x = min_x; x <= max_x; ++x) {
             float px = (float)x + 0.5f;
-            
             float w0 = ((px - p2.x) * dy23 - (py - p2.y) * dx23) * sinal;
             float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
             float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
-            
             if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
                 pixeis[offset_linha + x] = cor;
             }
@@ -582,10 +580,10 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b) {
 }
 
 Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]) {
-    float x = v.x * matriz[0][0] + v.y * matriz[1][0] + v.z * matriz[2][0] + matriz[3][0];
-    float y = v.x * matriz[0][1] + v.y * matriz[1][1] + v.z * matriz[2][1] + matriz[3][1];
-    float z = v.x * matriz[0][2] + v.y * matriz[1][2] + v.z * matriz[2][2] + matriz[3][2];
-    float w = v.x * matriz[0][3] + v.y * matriz[1][3] + v.z * matriz[2][3] + matriz[3][3];
+    float x = v.x * matriz[0][0] + v.y * matriz[0][1] + v.z * matriz[0][2] + matriz[0][3];
+    float y = v.x * matriz[1][0] + v.y * matriz[1][1] + v.z * matriz[1][2] + matriz[1][3];
+    float z = v.x * matriz[2][0] + v.y * matriz[2][1] + v.z * matriz[2][2] + matriz[2][3];
+    float w = v.x * matriz[3][0] + v.y * matriz[3][1] + v.z * matriz[3][2] + matriz[3][3];
     if (w != 0.0f && w != 1.0f) {
         float reciproco_w = 1.0f / w;
         x *= reciproco_w;
@@ -596,23 +594,10 @@ Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]) {
 }
 
 Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
-    Vetor3D aresta1 = { .x = v2.x - v1.x, .y = v2.y - v1.y, .z = v2.z - v1.z };
-    Vetor3D aresta2 = { .x = v3.x - v1.x, .y = v3.y - v1.y, .z = v3.z - v1.z };
-    Vetor3D normal = {
-        .x = (aresta1.y * aresta2.z) - (aresta1.z * aresta2.y),
-        .y = (aresta1.z * aresta2.x) - (aresta1.x * aresta2.z),
-        .z = (aresta1.x * aresta2.y) - (aresta1.y * aresta2.x)
-    };
-    float magnitude = raiz((normal.x * normal.x) + (normal.y * normal.y) + (normal.z * normal.z));
-    if (magnitude > 0.000001f) {
-        float inverso_magnitude = 1.0f / magnitude;
-        normal.x *= inverso_magnitude;
-        normal.y *= inverso_magnitude;
-        normal.z *= inverso_magnitude;
-    } else {
-        normal = (Vetor3D){ .x = 0.0f, .y = 0.0f, .z = 0.0f };
-    }
-    return normal;
+    Vetor3D aresta1 = subtrair_vetores(v2, v1);
+    Vetor3D aresta2 = subtrair_vetores(v3, v1);
+    Vetor3D normal_nao_normalizada = produto_vetorial(aresta1, aresta2);
+    return normalizar_vetor(normal_nao_normalizada);
 }
 
 
