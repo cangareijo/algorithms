@@ -245,16 +245,11 @@ float chao(float x) {
 }
 
 float raiz(float x) {
-    if (x <= 0.0f) {
-        return 0.0f;
-    }
-    float anterior;
-    float raiz = x;
-    do {
-        anterior = raiz;
-        raiz = 0.5f * (raiz + x / raiz);
-    } while (distancia(raiz, anterior) >= 1e-6f);
-    return raiz;
+    if (x <= 0.0f) return 0.0f;
+    float inv = reciproco_raiz(x);
+    if (inv == 0.0f) return 0.0f;
+    float r = 1.0f / inv;
+    return 0.5f * (r + x / r);
 }
 
 float reciproco_raiz(float x) {
@@ -478,103 +473,87 @@ bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_cam
 }
 
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz) {
-    float tam_normal_qd = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
-    float rec_tam_normal = reciproco_raiz(tam_normal_qd);
-    Vetor3D n = {
-        normal.x * rec_tam_normal,
-        normal.y * rec_tam_normal,
-        normal.z * rec_tam_normal
-    };
-    float tam_luz_qd = direcao_luz.x * direcao_luz.x + direcao_luz.y * direcao_luz.y + direcao_luz.z * direcao_luz.z;
-    float rec_tam_luz = reciproco_raiz(tam_luz_qd);
-    Vetor3D l = {
-        direcao_luz.x * rec_tam_luz,
-        direcao_luz.y * rec_tam_luz,
-        direcao_luz.z * rec_tam_luz
-    };
-    float cosseno = n.x * l.x + n.y * l.y + n.z * l.z;
+    Vetor3D n = normalizar_vetor(normal);
+    Vetor3D l = normalizar_vetor(direcao_luz);
+    float cosseno = produto_escalar(n, l);
     if (cosseno < 0.0f) {
         cosseno = 0.0f;
     }
-    uint8_t obj_a = (cor_objeto >> 24) & 0xFF;
-    uint8_t obj_r = (cor_objeto >> 16) & 0xFF;
-    uint8_t obj_g = (cor_objeto >> 8 ) & 0xFF;
-    uint8_t obj_b =  cor_objeto        & 0xFF;
-    uint8_t luz_a = (cor_luz >> 24) & 0xFF;
-    uint8_t luz_r = (cor_luz >> 16) & 0xFF;
-    uint8_t luz_g = (cor_luz >> 8 ) & 0xFF;
-    uint8_t luz_b =  cor_luz        & 0xFF;
-    float res_r = ((float)obj_r / 255.0f) * ((float)luz_r / 255.0f) * cosseno * 255.0f;
-    float res_g = ((float)obj_g / 255.0f) * ((float)luz_g / 255.0f) * cosseno * 255.0f;
-    float res_b = ((float)obj_b / 255.0f) * ((float)luz_b / 255.0f) * cosseno * 255.0f;
-    float res_a = ((float)obj_a / 255.0f) * ((float)luz_a / 255.0f) * 255.0f;
+    uint8_t obj_r = (cor_objeto >> 24) & 0xFF;
+    uint8_t obj_g = (cor_objeto >> 16) & 0xFF;
+    uint8_t obj_b = (cor_objeto >> 8)  & 0xFF;
+    uint8_t obj_a =  cor_objeto        & 0xFF;
+    uint8_t luz_r = (cor_luz >> 24) & 0xFF;
+    uint8_t luz_g = (cor_luz >> 16) & 0xFF;
+    uint8_t luz_b = (cor_luz >> 8)  & 0xFF;
+    uint8_t luz_a =  cor_luz        & 0xFF;
+    float fator = cosseno / 255.0f;
+    float res_r = (float)obj_r * (float)luz_r * fator;
+    float res_g = (float)obj_g * (float)luz_g * fator;
+    float res_b = (float)obj_b * (float)luz_b * fator;
+    float res_a = ((float)obj_a * (float)luz_a) / 255.0f;
     if (res_r > 255.0f) res_r = 255.0f;
     if (res_g > 255.0f) res_g = 255.0f;
     if (res_b > 255.0f) res_b = 255.0f;
     if (res_a > 255.0f) res_a = 255.0f;
-    return ((Cor)(uint8_t)res_a << 24) |
-           ((Cor)(uint8_t)res_r << 16) |
-           ((Cor)(uint8_t)res_g << 8)  |
-            (Cor)(uint8_t)res_b;
+    return ((Cor)(uint8_t)res_r << 24) |
+           ((Cor)(uint8_t)res_g << 16) |
+           ((Cor)(uint8_t)res_b << 8)  |
+            (Cor)(uint8_t)res_a;
 }
 
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, float brilho) {
-    float tam_normal_qd = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
-    float inv_tam_normal = reciproco_raiz(tam_normal_qd);
-    Vetor3D n = { normal.x * inv_tam_normal, normal.y * inv_tam_normal, normal.z * inv_tam_normal };
-    float tam_luz_qd = direcao_luz.x * direcao_luz.x + direcao_luz.y * direcao_luz.y + direcao_luz.z * direcao_luz.z;
-    float inv_tam_luz = reciproco_raiz(tam_luz_qd);
-    Vetor3D l = { direcao_luz.x * inv_tam_luz, direcao_luz.y * inv_tam_luz, direcao_luz.z * inv_tam_luz };
-    float tam_olhar_qd = direcao_olhar.x * direcao_olhar.x + direcao_olhar.y * direcao_olhar.y + direcao_olhar.z * direcao_olhar.z;
-    float inv_tam_olhar = reciproco_raiz(tam_olhar_qd);
-    Vetor3D v = { direcao_olhar.x * inv_tam_olhar, direcao_olhar.y * inv_tam_olhar, direcao_olhar.z * inv_tam_olhar };
-    Vetor3D h_sub = { l.x + v.x, l.y + v.y, l.z + v.z };
-    float tam_h_sq = h_sub.x * h_sub.x + h_sub.y * h_sub.y + h_sub.z * h_sub.z;
-    float inv_tam_h = reciproco_raiz(tam_h_sq);
-    Vetor3D h = { h_sub.x * inv_tam_h, h_sub.y * inv_tam_h, h_sub.z * inv_tam_h };
-    float dot_nh = n.x * h.x + n.y * h.y + n.z * h.z;
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho) {
+    Vetor3D n = normalizar_vetor(normal);
+    Vetor3D l = normalizar_vetor(direcao_luz);
+    Vetor3D v = normalizar_vetor(direcao_olhar);
+    Vetor3D h = normalizar_vetor(somar_vetores(l, v));
+    float dot_nh = produto_escalar(n, h);
     if (dot_nh < 0.0f) {
         dot_nh = 0.0f;
     }
-    float dot_nl = n.x * l.x + n.y * l.y + n.z * l.z;
+    float dot_nl = produto_escalar(n, l);
     if (dot_nl <= 0.0f) {
         dot_nh = 0.0f;
     }
     float intensidade = potencia_inteira(dot_nh, brilho);
     float res_cor = intensidade * 255.0f;
-    if (res_cor > 255.0f) res_cor = 255.0f;
-    uint8_t especular = res_cor;
-    return ((Cor)255       << 24) |
+    if (res_cor > 255.0f) {
+        res_cor = 255.0f;
+    }
+    uint8_t especular = (uint8_t)res_cor;
+    return ((Cor)especular << 24) |
            ((Cor)especular << 16) |
-           ((Cor)especular << 8 ) |
-            (Cor)especular;
+           ((Cor)especular << 8)  |
+            (Cor)255;
 }
 
 float produto_escalar(Vetor3D u, Vetor3D v) {
     return u.x * v.x + u.y * v.y + u.z * v.z;
 }
 
-Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura) {
-  if (ponto_3d.z <= 0.1f) {
-    return (Vetor2D){ .x = 0.0f, .y = 0.0f };
-  }
-  float fov_escala = (float)largura * 0.5f;
-  float x_projetado = (ponto_3d.x * fov_escala) / ponto_3d.z;
-  float y_projetado = (ponto_3d.y * fov_escala) / ponto_3d.z;
-  float x_ecra = x_projetado + ((float)largura * 0.5f);
-  float y_ecra = -y_projetado + ((float)altura * 0.5f);
-  return (Vetor2D){ .x = x_ecra, .y = y_ecra };
+Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int height) {
+    if (ponto_3d.z <= 0.1f) {
+        return (Vetor2D){ .x = 0.0f, .y = 0.0f };
+    }
+    float fov_escala = (float)largura * 0.5f;
+    float inv_z = 1.0f / ponto_3d.z;
+    float x_projetado = (ponto_3d.x * fov_escala) * inv_z;
+    float y_projetado = (ponto_3d.y * fov_escala) * inv_z;
+    float x_ecra = x_projetado + ((float)largura * 0.5f);
+    float y_ecra = -y_projetado + ((float)height * 0.5f);
+    return (Vetor2D){ .x = x_ecra, .y = y_ecra };
 }
 
 Vetor3D normalizar_vetor(Vetor3D v) {
-    float comprimento = raiz((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
-    if (comprimento == 0.0f) {
+    float tam_qd = v.x * v.x + v.y * v.y + v.z * v.z;
+    float inv_tam = reciproco_raiz(tam_qd);
+    if (tam_qd == 0.0f) {
         return (Vetor3D){0.0f, 0.0f, 0.0f};
     }
     return (Vetor3D){
-        .x = v.x / comprimento,
-        .y = v.y / comprimento,
-        .z = v.z / comprimento
+        .x = v.x * inv_tam,
+        .y = v.y * inv_tam,
+        .z = v.z * inv_tam
     };
 }
 
