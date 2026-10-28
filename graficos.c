@@ -50,7 +50,7 @@ float modulo(float x, float y);
 float* criar_zbuffer(int largura, int altura);
 
 Cor aplicar_intensidade(Cor cor, float intensidade);
-Cor misturar_cores(Cor c1, Cor c2, float fator);
+Cor interpolar_cores(Cor c1, Cor c2, float fator);
 
 void destruir_framebuffer(Framebuffer* fb);
 void limpar_framebuffer(Framebuffer* fb, Cor cor);
@@ -64,6 +64,7 @@ void rasterizar_triangulo(Framebuffer* fb, Vetor2D p1, Vetor2D p2, Vetor2D p3, C
 
 void criar_matriz_camara(float matriz[static 16], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
+int clipar_triangulo_plano(Vetor3D plano_ponto, Vetor3D plano_normal, Vertice triangulo_in[static 3], Vertice triangulos_out[static 6]);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, float brilho);
 float produto_escalar(Vetor3D u, Vetor3D v);
@@ -301,7 +302,7 @@ Cor aplicar_intensidade(Cor cor, float intensidade) {
             (Cor)res_b;
 }
 
-Cor misturar_cores(Cor c1, Cor c2, float fator) {
+Cor interpolar_cores(Cor c1, Cor c2, float fator) {
     if (fator < 0.0f) fator = 0.0f;
     if (fator > 1.0f) fator = 1.0f;
     uint8_t c1_b1 = (c1 >> 24) & 0xFF;
@@ -527,6 +528,76 @@ bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_cam
                             normal_face.y * direcao_camara.y +
                             normal_face.z * direcao_camara.z;
     return produto_escalar >= 0.0f;
+}
+
+int clipar_triangulo_plano(Vetor3D plano_ponto, Vetor3D plano_normal, Vertice triangulo_in[static 3], Vertice triangulos_out[static 6]) {
+    Vertice dentro[3];
+    Vertice fora[3];
+    int contagem_dentro = 0;
+    int contagem_fora = 0;
+    for (int i = 0; i < 3; i++) {
+        Vetor3D v = triangulo_in[i].posicao;
+        Vetor3D dir = { v.x - plano_ponto.x, v.y - plano_ponto.y, v.z - plano_ponto.z };
+        float distancia = (dir.x * plano_normal.x) + (dir.y * plano_normal.y) + (dir.z * plano_normal.z);
+        if (distancia >= 0.0f) {
+            dentro[contagem_dentro++] = triangulo_in[i];
+        } else {
+            fora[contagem_fora++] = triangulo_in[i];
+        }
+    }
+    if (contagem_dentro == 0) {
+        return 0;
+    }
+    if (contagem_dentro == 3) {
+        triangulos_out[0] = triangulo_in[0];
+        triangulos_out[1] = triangulo_in[1];
+        triangulos_out[2] = triangulo_in[2];
+        return 1;
+    }
+    if (contagem_dentro == 1) {
+        triangulos_out[0] = dentro[0];
+        Vetor3D d1 = dentro[0].posicao;
+        Vetor3D f1 = fora[0].posicao;
+        float dist_d1 = ((d1.x - plano_ponto.x) * plano_normal.x) + ((d1.y - plano_ponto.y) * plano_normal.y) + ((d1.z - plano_ponto.z) * plano_normal.z);
+        float dist_f1 = ((f1.x - plano_ponto.x) * plano_normal.x) + ((f1.y - plano_ponto.y) * plano_normal.y) + ((f1.z - plano_ponto.z) * plano_normal.z);
+        float t1 = dist_d1 / (dist_d1 - dist_f1);
+        triangulos_out[1].posicao.x = d1.x + t1 * (f1.x - d1.x);
+        triangulos_out[1].posicao.y = d1.y + t1 * (f1.y - d1.y);
+        triangulos_out[1].posicao.z = d1.z + t1 * (f1.z - d1.z);
+        triangulos_out[1].cor = interpolar_cores(dentro[0].cor, fora[0].cor, t1);
+        Vetor3D f2 = fora[1].posicao;
+        float dist_f2 = ((f2.x - plano_ponto.x) * plano_normal.x) + ((f2.y - plano_ponto.y) * plano_normal.y) + ((f2.z - plano_ponto.z) * plano_normal.z);
+        float t2 = dist_d1 / (dist_d1 - dist_f2);
+        triangulos_out[2].posicao.x = d1.x + t2 * (f2.x - d1.x);
+        triangulos_out[2].posicao.y = d1.y + t2 * (f2.y - d1.y);
+        triangulos_out[2].posicao.z = d1.z + t2 * (f2.z - d1.z);
+        triangulos_out[2].cor = interpolar_cores(dentro[0].cor, fora[1].cor, t2);
+        return 1;
+    }
+    if (contagem_dentro == 2) {
+        triangulos_out[0] = dentro[0];
+        triangulos_out[1] = dentro[1];
+        Vetor3D d1 = dentro[0].posicao;
+        Vetor3D f1 = fora[0].posicao;
+        float dist_d1 = ((d1.x - plano_ponto.x) * plano_normal.x) + ((d1.y - plano_ponto.y) * plano_normal.y) + ((d1.z - plano_ponto.z) * plano_normal.z);
+        float dist_f1 = ((f1.x - plano_ponto.x) * plano_normal.x) + ((f1.y - plano_ponto.y) * plano_normal.y) + ((f1.z - plano_ponto.z) * plano_normal.z);
+        float t1 = dist_d1 / (dist_d1 - dist_f1);
+        triangulos_out[2].posicao.x = d1.x + t1 * (f1.x - d1.x);
+        triangulos_out[2].posicao.y = d1.y + t1 * (f1.y - d1.y);
+        triangulos_out[2].posicao.z = d1.z + t1 * (f1.z - d1.z);
+        triangulos_out[2].cor = interpolar_cores(dentro[0].cor, fora[0].cor, t1);
+        triangulos_out[3] = dentro[1];
+        triangulos_out[4] = triangulos_out[2];
+        Vetor3D d2 = dentro[1].posicao;
+        float dist_d2 = ((d2.x - plano_ponto.x) * plano_normal.x) + ((d2.y - plano_ponto.y) * plano_normal.y) + ((d2.z - plano_ponto.z) * plano_normal.z);
+        float t2 = dist_d2 / (dist_d2 - dist_f1);
+        triangulos_out[5].posicao.x = d2.x + t2 * (f1.x - d2.x);
+        triangulos_out[5].posicao.y = d2.y + t2 * (f1.y - d2.y);
+        triangulos_out[5].posicao.z = d2.z + t2 * (f1.z - d2.z);
+        triangulos_out[5].cor = interpolar_cores(dentro[1].cor, fora[0].cor, t2);
+        return 2;
+    }
+    return 0;
 }
 
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz) {
