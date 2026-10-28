@@ -163,14 +163,13 @@ void criar_matriz_projecao(float matriz[4][4], float fov, float aspeto, float pe
 }
 
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
-    float temporario[4][4];
+    float temporario[4][4] = {};
     for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            float soma = 0.0f;
-            for (int k = 0; k < 4; ++k) {
-                soma += a[i][k] * b[k][j];
+        for (int k = 0; k < 4; ++k) {
+            float elemento_a = a[i][k];
+            for (int j = 0; j < 4; ++j) {
+                temporario[i][j] += elemento_a * b[k][j];
             }
-            temporario[i][j] = soma;
         }
     }
     for (int i = 0; i < 4; ++i) {
@@ -181,34 +180,22 @@ void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
 }
 
 
-
 Cor multiplicar_cor(Cor cor, float intensidade) {
-    if (intensidade < 0.0f) {
-        intensidade = 0.0f;
-    }
-    if (intensidade > 1.0f) {
-        intensidade = 1.0f;
-    }
+    if (intensidade <= 0.0f) return cor & 0xFF;
+    if (intensidade >= 1.0f) return cor;
     uint8_t r = (cor >> 24) & 0xFF;
     uint8_t g = (cor >> 16) & 0xFF;
     uint8_t b = (cor >>  8) & 0xFF;
     uint8_t a =  cor        & 0xFF;
-    uint32_t res_r = r * intensidade + 0.5f;
-    uint32_t res_g = g * intensidade + 0.5f;
-    uint32_t res_b = b * intensidade + 0.5f;
-    return (res_r << 24) |
-           (res_g << 16) |
-           (res_b <<  8) |
-           (uint32_t)a;
+    uint32_t res_r = (uint32_t)(r * intensidade + 0.5f);
+    uint32_t res_g = (uint32_t)(g * intensidade + 0.5f);
+    uint32_t res_b = (uint32_t)(b * intensidade + 0.5f);
+    return (res_r << 24) | (res_g << 16) | (res_b <<  8) | a;
 }
 
 Cor interpolar_cores(Cor c1, Cor c2, float fator) {
-    if (fator < 0.0f) {
-        fator = 0.0f;
-    }
-    if (fator > 1.0f) {
-        fator = 1.0f;
-    }
+    if (fator <= 0.0f) return c1;
+    if (fator >= 1.0f) return c2;
     uint8_t r1 = (c1 >> 24) & 0xFF;
     uint8_t g1 = (c1 >> 16) & 0xFF;
     uint8_t b1 = (c1 >>  8) & 0xFF;
@@ -217,29 +204,26 @@ Cor interpolar_cores(Cor c1, Cor c2, float fator) {
     uint8_t g2 = (c2 >> 16) & 0xFF;
     uint8_t b2 = (c2 >>  8) & 0xFF;
     uint8_t a2 =  c2        & 0xFF;
-    uint32_t r_final = r1 + fator * (r2 - r1) + 0.5f;
-    uint32_t g_final = g1 + fator * (g2 - g1) + 0.5f;
-    uint32_t b_final = b1 + fator * (b2 - b1) + 0.5f;
-    uint32_t a_final = a1 + fator * (a2 - a1) + 0.5f;
-    return (r_final << 24) |
-           (g_final << 16) |
-           (b_final <<  8) |
-            a_final;
+    uint32_t r_final = (uint32_t)(r1 + fator * (r2 - r1) + 0.5f);
+    uint32_t g_final = (uint32_t)(g1 + fator * (g2 - g1) + 0.5f);
+    uint32_t b_final = (uint32_t)(b1 + fator * (b2 - b1) + 0.5f);
+    uint32_t a_final = (uint32_t)(a1 + fator * (a2 - a1) + 0.5f);
+    return (r_final << 24) | (g_final << 16) | (b_final <<  8) | a_final;
 }
 
 Cor amostrar_textura(Tela* textura, float u, float v) {
-  if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
-    return 0;
-  }
-  float u_repetido = u - chao(u);
-  float v_repetido = v - chao(v);
-  int x = (int)(u_repetido * (float)textura->largura);
-  int y = (int)(v_repetido * (float)textura->altura);
-  if (x >= textura->largura) x = textura->largura - 1;
-  if (y >= textura->altura)  y =  textura->altura - 1;
-  if (x < 0) x = 0;
-  if (y < 0) y = 0;
-  return textura->pixeis[x + y * textura->largura];
+    if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
+        return 0;
+    }
+    float u_repetido = u - chao(u);
+    float v_repetido = v - chao(v);
+    int x = (int)(u_repetido * (float)textura->largura);
+    int y = (int)(v_repetido * (float)textura->altura);
+    if (x >= textura->largura) x = textura->largura - 1;
+    if (y >= textura->altura)  y = textura->altura - 1;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    return textura->pixeis[x + y * textura->largura];
 }
 
 
@@ -328,13 +312,13 @@ float potencia_inteira(float base, int expoente) {
     }
     float resultado = 1.0f;
     float atual = base;
-    while (expoente > 0) {
+    do {
         if ((expoente & 1) == 1) {
             resultado *= atual;
         }
         atual *= atual;
         expoente >>= 1;
-    }
+    } while (expoente > 0);
     return resultado;
 }
 
@@ -363,18 +347,20 @@ void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
     if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
         return;
     }
-    int x0 = p1.x;
-    int y0 = p1.y;
-    int x1 = p2.x;
-    int y1 = p2.y;
+    int x0 = (int)p1.x;
+    int y0 = (int)p1.y;
+    int x1 = (int)p2.x;
+    int y1 = (int)p2.y;
     int dx = abs(x1 - x0);
     int dy = abs(y1 - y0);
     int sx = (x0 < x1) ? 1 : -1;
     int sy = (y0 < y1) ? 1 : -1;
     int erro = dx - dy;
+    int largura = tela->largura;
+    int altura = tela->altura;
     while (true) {
-        if (x0 >= 0 && x0 < tela->largura && y0 >= 0 && y0 < tela->altura) {
-            tela->pixeis[y0 * tela->largura + x0] = cor;
+        if (x0 >= 0 && x0 < largura && y0 >= 0 && y0 < altura) {
+            tela->pixeis[y0 * largura + x0] = cor;
         }
         if (x0 == x1 && y0 == y1) {
             break;
@@ -392,37 +378,42 @@ void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
 }
 
 void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
-  if (tela == nullptr || tela->pixeis == nullptr) {
-    return;
-  }
-  int min_x = minimo(minimo(p1.x, p2.x), p3.x);
-  int max_x = maximo(maximo(p1.x, p2.x), p3.x);
-  int min_y = minimo(minimo(p1.y, p2.y), p3.y);
-  int max_y = maximo(maximo(p1.y, p2.y), p3.y);
-  if (min_x < 0) min_x = 0;
-  if (min_y < 0) min_y = 0;
-  if (max_x >= tela->largura) max_x = tela->largura - 1;
-  if (max_y >= tela->altura) max_y = tela->altura - 1;
-  float dy12 = p2.y - p1.y; float dx12 = p2.x - p1.x;
-  float dy23 = p3.y - p2.y; float dx23 = p3.x - p2.x;
-  float dy31 = p1.y - p3.y; float dx31 = p1.x - p3.x;
-  float area_dupla = dx12 * dy23 - dy12 * dx23;
-  if (area_dupla == 0.0f) {
-    return;
-  }
-  float sinal = (area_dupla < 0.0f) ? -1.0f : 1.0f;
-  for (int y = min_y; y <= max_y; ++y) {
-    for (int x = min_x; x <= max_x; ++x) {
-      float px = (float)x + 0.5f;
-      float py = (float)y + 0.5f;
-      float w0 = ((px - p2.x) * dy23 - (py - p2.y) * dx23) * sinal;
-      float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
-      float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
-      if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
-        desenhar_pixel(tela, x, y, cor);
-      }
+    if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
+        return;
     }
-  }
+    int min_x = (int)min_f(min_f(p1.x, p2.x), p3.x);
+    int max_x = (int)max_f(max_f(p1.x, p2.x), p3.x);
+    int min_y = (int)min_f(min_f(p1.y, p2.y), p3.y);
+    int max_y = (int)max_f(max_f(p1.y, p2.y), p3.y);
+    if (min_x < 0) min_x = 0;
+    if (min_y < 0) min_y = 0;
+    if (max_x >= tela->largura) max_x = tela->largura - 1;
+    if (max_y >= tela->altura) max_y = tela->altura - 1;
+    float dy12 = p2.y - p1.y; float dx12 = p2.x - p1.x;
+    float dy23 = p3.y - p2.y; float dx23 = p3.x - p2.x;
+    float dy31 = p1.y - p3.y; float dx31 = p1.x - p3.x;
+    float area_dupla = dx12 * dy23 - dy12 * dx23;
+    if (area_dupla == 0.0f) {
+        return;
+    }
+    float sinal = (area_dupla < 0.0f) ? -1.0f : 1.0f;
+    int largura = tela->largura;
+    Cor* pixeis = tela->pixeis;
+    for (int y = min_y; y <= max_y; ++y) {
+        float py = (float)y + 0.5f;
+        int offset_linha = y * largura;
+        for (int x = min_x; x <= max_x; ++x) {
+            float px = (float)x + 0.5f;
+            
+            float w0 = ((px - p2.x) * dy23 - (py - p2.y) * dx23) * sinal;
+            float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
+            float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
+            
+            if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
+                pixeis[offset_linha + x] = cor;
+            }
+        }
+    }
 }
 
 
