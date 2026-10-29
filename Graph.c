@@ -201,6 +201,7 @@ Graph *createBipartiteDoubleCover(const Graph *g);
 Graph *createStronglyConnectedComponentsQuotient(const Graph *g);
 Graph *createDualHypergraphProjection(const Graph *g);
 Graph *create_clique_graph(const Graph *g);
+Graph *create_gomory_hu_tree(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -3550,6 +3551,76 @@ static void find_all_maximal_cliques_recursive(const Graph *g, bool *set, unsign
   for (unsigned i = 0; i < count; i++) free(cliques[i]);
   free(cliques);
   return cg;
+}
+
+static double st_min_cut(const Graph *g, unsigned s, unsigned t, bool reachable[g->size]) {
+  double residual[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        residual[u][e->destination] += e->weight;
+  double max_flow = 0;
+  unsigned parent[g->size];
+  unsigned queue[g->size];
+  while (true) {
+    for (unsigned u = 0; u < g->size; u++) parent[u] = UINT_MAX;
+    parent[s] = s;
+    unsigned head = 0, tail = 0;
+    queue[tail++] = s;
+    while (head < tail) {
+      unsigned u = queue[head++];
+      for (unsigned v = 0; v < g->size; v++)
+        if (parent[v] == UINT_MAX && residual[u][v] > 1e-9) {
+          parent[v] = u;
+          queue[tail++] = v;
+        }
+    }
+    if (parent[t] == UINT_MAX) break;
+    double push = INFINITY;
+    for (unsigned v = t; v != s; v = parent[v]) {
+      unsigned u = parent[v];
+      if (residual[u][v] < push) push = residual[u][v];
+    }
+    for (unsigned v = t; v != s; v = parent[v]) {
+      unsigned u = parent[v];
+      residual[u][v] -= push;
+      residual[v][u] += push;
+    }
+    max_flow += push;
+  }
+  for (unsigned u = 0; u < g->size; u++) reachable[u] = false;
+  reachable[s] = true;
+  unsigned head = 0, tail = 0;
+  queue[tail++] = s;
+  while (head < tail) {
+    unsigned u = queue[head++];
+    for (unsigned v = 0; v < g->size; v++)
+      if (!reachable[v] && residual[u][v] > 1e-9) {
+        reachable[v] = true;
+        queue[tail++] = v;
+      }
+  }
+  return max_flow;
+}
+
+[[nodiscard]] Graph *create_gomory_hu_tree(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  Graph *tree = create_graph(g->size);
+  if (g->size == 0 || !tree) return tree;
+  unsigned p[g->size] = {};
+  double fl[g->size] = {};
+  bool reachable[g->size];
+  for (unsigned u = 1; u < g->size; u++) {
+    unsigned s = u;
+    unsigned t = p[u];
+    double cut_weight = st_min_cut(g, s, t, reachable);
+    fl[u] = cut_weight;
+    for (unsigned v = u + 1; v < g->size; v++)
+      if (p[v] == t && reachable[v])
+        p[v] = s;
+  }
+  for (unsigned u = 1; u < g->size; u++) add_weighted_undirected_edge(tree, u, p[u], fl[u]);
+  return tree;
 }
 
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
