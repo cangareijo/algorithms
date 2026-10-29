@@ -31,17 +31,20 @@ constexpr float PI = 3.14159265f;
 void destruir_tela(Tela* tela);
 void limpar_tela(Tela* tela, Cor cor);
 void desenhar_pixel(Tela* tela, int x, int y, Cor cor);
-Tela criar_tela(int largura, int altura);
-
 void criar_matriz_identidade(float matriz[4][4]);
 void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
 void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
 void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
+void limpar_profundidade(Profundidade* const pf, const float valor);
+
+bool testar_e_definir_profundidade(Profundidade* const pf, const int x, const int y, const float z);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
 Cor amostrar_textura(Tela* textura, float u, float v);
+
+Tela criar_tela(int largura, int altura);
 
 float absoluto(float x);
 float truncar(float x);
@@ -106,23 +109,6 @@ void desenhar_pixel(Tela* tela, int x, int y, Cor cor) {
   tela->pixeis[x + y * tela->largura] = cor;
 }
 
-Tela criar_tela(int largura, int altura) {
-  Tela tela = {};
-  if (largura <= 0 || altura <= 0) {
-    return tela;
-  }
-  Cor* memoria_pixeis = malloc(largura * altura * sizeof(Cor));
-  if (memoria_pixeis == nullptr) {
-    return tela;
-  }
-  tela.largura = largura;
-  tela.altura = altura;
-  tela.pixeis = memoria_pixeis;
-  return tela;
-}
-
-
-
 void criar_matriz_identidade(float matriz[4][4]) {
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
@@ -179,6 +165,37 @@ void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
     }
 }
 
+void limpar_profundidade(Profundidade* const pf, const float valor) {
+  if (pf == NULL || pf->profundidades == NULL) {
+    return;
+  }
+  if (pf->largura <= 0 || pf->altura <= 0) {
+    return;
+  }
+  const size_t total_pixeis = (size_t)pf->largura * (size_t)pf->altura;
+  for (size_t i = 0; i < total_pixeis; ++i) {
+    pf->profundidades[i] = valor;
+  }
+}
+
+
+
+bool testar_e_definir_profundidade(Profundidade* const pf, const int x, const int y, const float z) {
+  if (pf == NULL || pf->profundidades == NULL) {
+    return false;
+  }
+  if (x < 0 || x >= pf->largura || y < 0 || y >= pf->altura) {
+    return false;
+  }
+  const size_t indice = (size_t)y * (size_t)pf->largura + (size_t)x;
+  if (z < pf->profundidades[indice]) {
+    pf->profundidades[indice] = z;
+    return true;
+  }
+  return false;
+}
+
+
 
 Cor multiplicar_cor(Cor cor, float intensidade) {
     if (intensidade <= 0.0f) return cor & 0xFF;
@@ -224,6 +241,23 @@ Cor amostrar_textura(Tela* textura, float u, float v) {
     if (x < 0) x = 0;
     if (y < 0) y = 0;
     return textura->pixeis[x + y * textura->largura];
+}
+
+
+
+Tela criar_tela(int largura, int altura) {
+  Tela tela = {};
+  if (largura <= 0 || altura <= 0) {
+    return tela;
+  }
+  Cor* memoria_pixeis = malloc(largura * altura * sizeof(Cor));
+  if (memoria_pixeis == nullptr) {
+    return tela;
+  }
+  tela.largura = largura;
+  tela.altura = altura;
+  tela.pixeis = memoria_pixeis;
+  return tela;
 }
 
 
