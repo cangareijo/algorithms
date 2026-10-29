@@ -3512,6 +3512,17 @@ static void createStronglyConnectedComponentsQuotientBackward(
   return projection;
 }
 
+/*
+ * A clique graph is the intersection graph of the maximal cliques of a given base graph. For any undirected graph G,
+ * its clique graph—commonly denoted as K(G)—is formed by representing each maximal clique of G as a distinct vertex.
+ * Two vertices in K(G) are then connected by an edge if and only if their corresponding maximal cliques in G share at
+ * least one vertex in common. This mathematical transformation is a central concept in graph theory, especially when
+ * exploring iterated clique graphs, written as Kⁿ(G) = K(Kⁿ⁻¹(G)). Depending on the structure of the initial graph,
+ * iterating this operation can lead to drastically different structural behaviors: the graph sequence may eventually
+ * become periodic (clique periodic), continuously grow in size (clique divergent), or eventually shrink down to a
+ * single isolated vertex (clique convergent).
+ */
+
 static void find_all_maximal_cliques_recursive(const Graph *g, bool *set, unsigned u, bool ***cliques, unsigned *count) {
   if (u >= g->size) {
     if (!is_maximal_clique(g, set)) return;
@@ -3552,6 +3563,18 @@ static void find_all_maximal_cliques_recursive(const Graph *g, bool *set, unsign
   free(cliques);
   return cg;
 }
+
+/*
+ * A Gomory-Hu tree (or cut tree) is a specialized data structure in graph theory that compactly represents the minimum
+ * s-t cuts and maximum flow values between all pairs of vertices in an undirected, weighted graph. Instead of
+ * computing the maximum flow for all O(n²) pairs independently, which is computationally expensive, the Gomory-Hu tree
+ * allows these values to be found using only n - 1 maximum flow computations. The tree is constructed over the same
+ * vertex set as the original graph, and it possesses the remarkable property that the weight of the cheapest edge on
+ * the unique path between any two vertices u and v in the tree is exactly equal to the maximum flow (or minimum cut
+ * capacity) between u and v in the original graph. Furthermore, removing that bottleneck edge from the tree yields a
+ * cut that is a valid minimum cut between u and v in the original network, making it an indispensable tool for network
+ * reliability analysis, clustering, and solving complex routing problems.
+ */
 
 static double st_min_cut(const Graph *g, unsigned s, unsigned t, bool reachable[g->size]) {
   double residual[g->size][g->size] = {};
