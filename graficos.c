@@ -21,6 +21,12 @@ typedef struct {
 } Vetor3D;
 
 typedef struct {
+  Vetor3D posicao;
+  Vetor2D uv;
+  Cor cor;
+} Vertice;
+
+typedef struct {
   int largura;
   int altura;
   float* profundidades;
@@ -31,14 +37,17 @@ constexpr float PI = 3.14159265f;
 void destruir_tela(Tela* tela);
 void limpar_tela(Tela* tela, Cor cor);
 void desenhar_pixel(Tela* tela, int x, int y, Cor cor);
+void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
+void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
+void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
 void criar_matriz_identidade(float matriz[4][4]);
 void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
 void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
 void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
-void limpar_profundidade(Profundidade* const pf, const float valor);
+void limpar_profundidade(Profundidade* pf, float valor);
 
-bool testar_e_definir_profundidade(Profundidade* const pf, const int x, const int y, const float z);
+bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
@@ -60,9 +69,6 @@ float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
 
-void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
-void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
-
 void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
 void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
@@ -70,6 +76,8 @@ Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_obje
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
 float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
+
+Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Vetor2D c);
 Vetor3D normalizar_vetor(Vetor3D v);
 Vetor3D somar_vetores(Vetor3D u, Vetor3D v);
 Vetor3D subtrair_vetores(Vetor3D u, Vetor3D v);
@@ -107,6 +115,137 @@ void desenhar_pixel(Tela* tela, int x, int y, Cor cor) {
     return;
   }
   tela->pixeis[x + y * tela->largura] = cor;
+}
+
+void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
+    if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
+        return;
+    }
+    int x0 = (int)p1.x;
+    int y0 = (int)p1.y;
+    int x1 = (int)p2.x;
+    int y1 = (int)p2.y;
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    int erro = dx - dy;
+    int largura = tela->largura;
+    int altura = tela->altura;
+    while (true) {
+        if (x0 >= 0 && x0 < largura && y0 >= 0 && y0 < altura) {
+            tela->pixeis[y0 * largura + x0] = cor;
+        }
+        if (x0 == x1 && y0 == y1) {
+            break;
+        }
+        int erro2 = 2 * erro;
+        if (erro2 > -dy) {
+            erro -= dy;
+            x0 += sx;
+        }
+        if (erro2 < dx) {
+            erro += dx;
+            y0 += sy;
+        }
+    }
+}
+
+void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
+    if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
+        return;
+    }
+    int min_x = (int)minimo(minimo(p1.x, p2.x), p3.x);
+    int max_x = (int)maximo(maximo(p1.x, p2.x), p3.x);
+    int min_y = (int)minimo(minimo(p1.y, p2.y), p3.y);
+    int max_y = (int)maximo(maximo(p1.y, p2.y), p3.y);
+    if (min_x < 0) min_x = 0;
+    if (min_y < 0) min_y = 0;
+    if (max_x >= tela->largura) max_x = tela->largura - 1;
+    if (max_y >= tela->altura) max_y = tela->altura - 1;
+    float dy12 = p2.y - p1.y; float dx12 = p2.x - p1.x;
+    float dy23 = p3.y - p2.y; float dx23 = p3.x - p2.x;
+    float dy31 = p1.y - p3.y; float dx31 = p1.x - p3.x;
+    float area_dupla = dx12 * dy23 - dy12 * dx23;
+    if (area_dupla == 0.0f) {
+        return;
+    }
+    float sinal = (area_dupla < 0.0f) ? -1.0f : 1.0f;
+    int largura = tela->largura;
+    Cor* pixeis = tela->pixeis;
+    for (int y = min_y; y <= max_y; ++y) {
+        float py = (float)y + 0.5f;
+        int offset_linha = y * largura;
+        for (int x = min_x; x <= max_x; ++x) {
+            float px = (float)x + 0.5f;
+            float w0 = ((px - p2.x) * dy23 - (py - p2.y) * dx23) * sinal;
+            float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
+            float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
+            if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
+                pixeis[offset_linha + x] = cor;
+            }
+        }
+    }
+}
+
+void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura) {
+  if (tela == NULL || pf == NULL) {
+    return;
+  }
+  Vetor2D p1; p1.x = v1.posicao.x; p1.y = v1.posicao.y;
+  Vetor2D p2; p2.x = v2.posicao.x; p2.y = v2.posicao.y;
+  Vetor2D p3; p3.x = v3.posicao.x; p3.y = v3.posicao.y;
+  float min_x = p1.x;
+  if (p2.x < min_x) min_x = p2.x;
+  if (p3.x < min_x) min_x = p3.x;
+  float max_x = p1.x;
+  if (p2.x > max_x) max_x = p2.x;
+  if (p3.x > max_x) max_x = p3.x;
+  float min_y = p1.y;
+  if (p2.y < min_y) min_y = p2.y;
+  if (p3.y < min_y) min_y = p3.y;
+  float max_y = p1.y;
+  if (p2.y > max_y) max_y = p2.y;
+  if (p3.y > max_y) max_y = p3.y;
+  int inicio_x = (int)min_x;
+  if (inicio_x < 0) inicio_x = 0;
+  int fim_x = (int)max_x + 1;
+  if (fim_x >= tela->largura) fim_x = tela->largura - 1;
+  int inicio_y = (int)min_y;
+  if (inicio_y < 0) inicio_y = 0;
+  int fim_y = (int)max_y + 1;
+  if (fim_y >= tela->altura) fim_y = tela->altura - 1;
+  float inv_w1 = 1.0f / v1.posicao.z;
+  float inv_w2 = 1.0f / v2.posicao.z;
+  float inv_w3 = 1.0f / v3.posicao.z;
+  for (int y = inicio_y; y <= fim_y; ++y) {
+    for (int x = inicio_x; x <= fim_x; ++x) {
+      Vetor2D p;
+      p.x = (float)x + 0.5f;
+      p.y = (float)y + 0.5f;
+      Vetor3D baricentricas = calcular_coordenadas_baricentricas(p, p1, p2, p3);
+      if (baricentricas.x >= 0.0f && baricentricas.y >= 0.0f && baricentricas.z >= 0.0f) {
+        float interpolado_inv_z = baricentricas.x * inv_w1 + baricentricas.y * inv_w2 + baricentricas.z * inv_w3;
+        float z_atual = 1.0f / interpolado_inv_z;
+        if (testar_e_definir_profundidade(pf, x, y, z_atual)) {
+          Cor cor_final;
+          if (textura != NULL && textura->pixeis != NULL) {
+            float u_correto = (baricentricas.x * v1.uv.x * inv_w1 +
+                               baricentricas.y * v2.uv.x * inv_w2 +
+                               baricentricas.z * v3.uv.x * inv_w3) * z_atual;
+            float v_correto = (baricentricas.x * v1.uv.y * inv_w1 +
+                               baricentricas.y * v2.uv.y * inv_w2 +
+                               baricentricas.z * v3.uv.y * inv_w3) * z_atual;
+            cor_final = amostrar_textura(textura, u_correto, v_correto);
+          } else {
+            Cor c12 = interpolar_cores(v1.cor, v2.cor, baricentricas.y / (baricentricas.x + baricentricas.y + 0.000001f));
+            cor_final = interpolar_cores(c12, v3.cor, baricentricas.z);
+          }
+          desenhar_pixel(tela, x, y, cor_final);
+        }
+      }
+    }
+  }
 }
 
 void criar_matriz_identidade(float matriz[4][4]) {
@@ -165,14 +304,14 @@ void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
     }
 }
 
-void limpar_profundidade(Profundidade* const pf, const float valor) {
+void limpar_profundidade(Profundidade* pf, float valor) {
   if (pf == NULL || pf->profundidades == NULL) {
     return;
   }
   if (pf->largura <= 0 || pf->altura <= 0) {
     return;
   }
-  const size_t total_pixeis = (size_t)pf->largura * (size_t)pf->altura;
+  size_t total_pixeis = (size_t)pf->largura * (size_t)pf->altura;
   for (size_t i = 0; i < total_pixeis; ++i) {
     pf->profundidades[i] = valor;
   }
@@ -180,14 +319,14 @@ void limpar_profundidade(Profundidade* const pf, const float valor) {
 
 
 
-bool testar_e_definir_profundidade(Profundidade* const pf, const int x, const int y, const float z) {
+bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z) {
   if (pf == NULL || pf->profundidades == NULL) {
     return false;
   }
   if (x < 0 || x >= pf->largura || y < 0 || y >= pf->altura) {
     return false;
   }
-  const size_t indice = (size_t)y * (size_t)pf->largura + (size_t)x;
+  size_t indice = (size_t)y * (size_t)pf->largura + (size_t)x;
   if (z < pf->profundidades[indice]) {
     pf->profundidades[indice] = z;
     return true;
@@ -372,79 +511,6 @@ float modulo(float x, float y) {
 
 
 
-void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
-    if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
-        return;
-    }
-    int x0 = (int)p1.x;
-    int y0 = (int)p1.y;
-    int x1 = (int)p2.x;
-    int y1 = (int)p2.y;
-    int dx = abs(x1 - x0);
-    int dy = abs(y1 - y0);
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
-    int erro = dx - dy;
-    int largura = tela->largura;
-    int altura = tela->altura;
-    while (true) {
-        if (x0 >= 0 && x0 < largura && y0 >= 0 && y0 < altura) {
-            tela->pixeis[y0 * largura + x0] = cor;
-        }
-        if (x0 == x1 && y0 == y1) {
-            break;
-        }
-        int erro2 = 2 * erro;
-        if (erro2 > -dy) {
-            erro -= dy;
-            x0 += sx;
-        }
-        if (erro2 < dx) {
-            erro += dx;
-            y0 += sy;
-        }
-    }
-}
-
-void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
-    if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) {
-        return;
-    }
-    int min_x = (int)minimo(minimo(p1.x, p2.x), p3.x);
-    int max_x = (int)maximo(maximo(p1.x, p2.x), p3.x);
-    int min_y = (int)minimo(minimo(p1.y, p2.y), p3.y);
-    int max_y = (int)maximo(maximo(p1.y, p2.y), p3.y);
-    if (min_x < 0) min_x = 0;
-    if (min_y < 0) min_y = 0;
-    if (max_x >= tela->largura) max_x = tela->largura - 1;
-    if (max_y >= tela->altura) max_y = tela->altura - 1;
-    float dy12 = p2.y - p1.y; float dx12 = p2.x - p1.x;
-    float dy23 = p3.y - p2.y; float dx23 = p3.x - p2.x;
-    float dy31 = p1.y - p3.y; float dx31 = p1.x - p3.x;
-    float area_dupla = dx12 * dy23 - dy12 * dx23;
-    if (area_dupla == 0.0f) {
-        return;
-    }
-    float sinal = (area_dupla < 0.0f) ? -1.0f : 1.0f;
-    int largura = tela->largura;
-    Cor* pixeis = tela->pixeis;
-    for (int y = min_y; y <= max_y; ++y) {
-        float py = (float)y + 0.5f;
-        int offset_linha = y * largura;
-        for (int x = min_x; x <= max_x; ++x) {
-            float px = (float)x + 0.5f;
-            float w0 = ((px - p2.x) * dy23 - (py - p2.y) * dx23) * sinal;
-            float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
-            float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
-            if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
-                pixeis[offset_linha + x] = cor;
-            }
-        }
-    }
-}
-
-
-
 void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
     criar_matriz_identidade(matriz);
     float magnitude = raiz(eixo.x * eixo.x + eixo.y * eixo.y + eixo.z * eixo.z);
@@ -574,6 +640,24 @@ Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int height) {
     float x_ecra = x_projetado + ((float)largura * 0.5f);
     float y_ecra = -y_projetado + ((float)height * 0.5f);
     return (Vetor2D){ .x = x_ecra, .y = y_ecra };
+}
+
+
+
+Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Vetor2D c) {
+  float det = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+  Vetor3D resultado;
+  if (det > -0.000001f && det < 0.000001f) {
+    resultado.x = -1.0f;
+    resultado.y = -1.0f;
+    resultado.z = -1.0f;
+    return resultado;
+  }
+  float inv_det = 1.0f / det;
+  resultado.x = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) * inv_det;
+  resultado.y = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) * inv_det;
+  resultado.z = 1.0f - resultado.x - resultado.y;
+  return resultado;
 }
 
 Vetor3D normalizar_vetor(Vetor3D v) {
