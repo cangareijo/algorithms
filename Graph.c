@@ -4886,19 +4886,17 @@ unsigned calculate_carving_width(const Graph *g) {
   return calculate_carving_width_recursive(g, 0, s1, s2, s3, g->size, 0, 0);
 }
 
-static unsigned calculate_cutwidth_recursive(const Graph *g, unsigned count, bool *placed, unsigned maximum) {
-  if (count >= g->size) return maximum;
-  unsigned minimum = -1;
-  for (unsigned vertex = 0; vertex < g->size; vertex++)
-    if (!placed[vertex]) {
-      placed[vertex] = true;
+static unsigned calculate_cutwidth_recursive(const Graph *g, bool *placed, unsigned count) {
+  if (count >= g->size) return 0;
+  unsigned minimum = UINT_MAX;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!placed[v]) {
+      placed[v] = true;
       unsigned current = calculate_cut_size(g, placed);
-      if (maximum > current) current = maximum;
-      if (current < minimum) {
-        unsigned result = calculate_cutwidth_recursive(g, count + 1, placed, current);
-        if (result < minimum) minimum = result;
-      }
-      placed[vertex] = false;
+      unsigned remaining = calculate_cutwidth_recursive(g, placed, count + 1);
+      unsigned peak = current > remaining ? current : remaining;
+      if (peak < minimum) minimum = peak;
+      placed[v] = false;
     }
   return minimum;
 }
@@ -4906,7 +4904,7 @@ static unsigned calculate_cutwidth_recursive(const Graph *g, unsigned count, boo
 unsigned calculate_cutwidth(const Graph *g) {
   if (!g || g->size < 2 || !g->edges) return 0;
   bool placed[g->size] = {};
-  return calculate_cutwidth_recursive(g, 0, placed, 0);
+  return calculate_cutwidth_recursive(g, placed, 0);
 }
 
 static unsigned calculate_feedback_vertex_set_number_recursive(const Graph *g, unsigned v, bool *kept, unsigned retained) {
