@@ -65,6 +65,7 @@ void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita,
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
 void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
 void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D direcao, Vetor3D cima);
+void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q);
 void limpar_profundidade(Profundidade* pf, float valor);
 
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
@@ -85,6 +86,7 @@ float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
+float comprimento_vetor(Vetor3D v);
 float produto_escalar(Vetor3D u, Vetor3D v);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
@@ -103,10 +105,13 @@ Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
 Vetor3D somar_vetores(Vetor3D u, Vetor3D v);
 Vetor3D subtrair_vetores(Vetor3D u, Vetor3D v);
 Vetor3D produto_vetorial(Vetor3D u, Vetor3D v);
+Vetor3D refletir_vetor(Vetor3D v, Vetor3D normal);
 Vetor3D interpolar_vetores(Vetor3D a, Vetor3D b, float t);
 Vetor3D calcular_normal(Vetor3D u, Vetor3D v, Vetor3D w);
 
 Quaterniao quaterniao_identidade(void);
+Quaterniao quaterniao_de_eixo_angulo(Vetor3D eixo, float radianos);
+Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2);
 
 Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
 
@@ -397,6 +402,34 @@ void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, 
     matriz[3][3] = 1.0f;
 }
 
+void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q) {
+  float xx = q.x * q.x;
+  float xy = q.x * q.y;
+  float xz = q.x * q.z;
+  float xw = q.x * q.w;
+  float yy = q.y * q.y;
+  float yz = q.y * q.z;
+  float yw = q.y * q.w;
+  float zz = q.z * q.z;
+  float zw = q.z * q.w;
+  matriz[0][0] = 1.0f - 2.0f * (yy + zz);
+  matriz[0][1] = 2.0f * (xy - zw);
+  matriz[0][2] = 2.0f * (xz + yw);
+  matriz[0][3] = 0.0f;
+  matriz[1][0] = 2.0f * (xy + zw);
+  matriz[1][1] = 1.0f - 2.0f * (xx + zz);
+  matriz[1][2] = 2.0f * (yz - xw);
+  matriz[1][3] = 0.0f;
+  matriz[2][0] = 2.0f * (xz - yw);
+  matriz[2][1] = 2.0f * (yz + xw);
+  matriz[2][2] = 1.0f - 2.0f * (xx + yy);
+  matriz[2][3] = 0.0f;
+  matriz[3][0] = 0.0f;
+  matriz[3][1] = 0.0f;
+  matriz[3][2] = 0.0f;
+  matriz[3][3] = 1.0f;
+}
+
 void limpar_profundidade(Profundidade* pf, float valor) {
   if (pf == NULL || pf->profundidades == NULL) {
     return;
@@ -596,6 +629,11 @@ float modulo(float x, float y) {
         return 0.0f;
     }
     return x - truncar(x / y) * y;
+}
+
+float comprimento_vetor(Vetor3D v) {
+  float quadrado_comprimento = produto_escalar(v, v);
+  return raiz(quadrado_comprimento);
 }
 
 float produto_escalar(Vetor3D u, Vetor3D v) {
@@ -806,6 +844,15 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b) {
     };
 }
 
+Vetor3D refletir_vetor(Vetor3D v, Vetor3D normal) {
+  float produto = produto_escalar(v, normal);
+  Vetor3D termo_subtracao;
+  termo_subtracao.x = 2.0f * produto * normal.x;
+  termo_subtracao.y = 2.0f * produto * normal.y;
+  termo_subtracao.z = 2.0f * produto * normal.z;
+  return subtrair_vetores(v, termo_subtracao);
+}
+
 Vetor3D interpolar_vetores(Vetor3D a, Vetor3D b, float t) {
   Vetor3D resultado;
   resultado.x = a.x + t * (b.x - a.x);
@@ -829,6 +876,28 @@ Quaterniao quaterniao_identidade(void) {
   resultado.x = 0.0f;
   resultado.y = 0.0f;
   resultado.z = 0.0f;
+  return resultado;
+}
+
+Quaterniao quaterniao_de_eixo_angulo(Vetor3D eixo, float radianos) {
+  Vetor3D eixo_normalizado = normalizar_vetor(eixo);
+  float metade_angulo = radianos * 0.5f;
+  float seno_metade = seno(metade_angulo);
+  float cosseno_metade = cosseno(metade_angulo);
+  Quaterniao q;
+  q.w = cosseno_metade;
+  q.x = eixo_normalizado.x * seno_metade;
+  q.y = eixo_normalizado.y * seno_metade;
+  q.z = eixo_normalizado.z * seno_metade;
+  return q;
+}
+
+Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2) {
+  Quaterniao resultado;
+  resultado.w = q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z;
+  resultado.x = q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y;
+  resultado.y = q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x;
+  resultado.z = q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w;
   return resultado;
 }
 
