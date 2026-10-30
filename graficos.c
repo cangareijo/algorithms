@@ -21,16 +21,21 @@ typedef struct {
 } Vetor3D;
 
 typedef struct {
-  Vetor3D posicao;
-  Vetor2D uv;
-  Cor cor;
-} Vertice;
-
-typedef struct {
   int largura;
   int altura;
   float* profundidades;
 } Profundidade;
+
+typedef struct {
+  Vetor3D origem;
+  Vetor3D direcao;
+} Raio;
+
+typedef struct {
+  Vetor3D posicao;
+  Vetor2D uv;
+  Cor cor;
+} Vertice;
 
 constexpr float PI = 3.14159265f;
 
@@ -87,6 +92,8 @@ Vetor3D subtrair_vetores(Vetor3D u, Vetor3D v);
 Vetor3D produto_vetorial(Vetor3D u, Vetor3D v);
 Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
 Vetor3D calcular_normal(Vetor3D u, Vetor3D v, Vetor3D w);
+
+Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
 
 Vertice interpolar_vertices(Vertice a, Vertice b, float t);
 
@@ -786,6 +793,28 @@ Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
     Vetor3D aresta2 = subtrair_vetores(v3, v1);
     Vetor3D normal_nao_normalizada = produto_vetorial(aresta1, aresta2);
     return normalizar_vetor(normal_nao_normalizada);
+}
+
+
+
+Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura) {
+  Raio raio;
+  raio.origem = posicao_camara;
+  if (largura <= 0 || altura <= 0) {
+    raio.direcao.x = 0.0f;
+    raio.direcao.y = 0.0f;
+    raio.direcao.z = -1.0f; // Direção padrão para a frente
+    return raio;
+  }
+  float ndc_x = (2.0f * ((float)x + 0.5f) / (float)largura) - 1.0f;
+  float ndc_y = 1.0f - (2.0f * ((float)y + 0.5f) / (float)altura);
+  Vetor3D ponto_clip;
+  ponto_clip.x = ndc_x;
+  ponto_clip.y = ndc_y;
+  ponto_clip.z = 1.0f; 
+  Vetor3D direcao_camara = transformar_vetor(ponto_clip, matriz_inv_proj);
+  raio.direcao = normalizar_vetor(direcao_camara);
+  return raio;
 }
 
 
