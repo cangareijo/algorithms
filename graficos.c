@@ -52,6 +52,8 @@ void limpar_profundidade(Profundidade* pf, float valor);
 
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
+int recortar_triangulo_plano_perto(Vertice triangulo_in[3], Vertice triangulos_out[2], float plano_perto);
+
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
 Cor amostrar_textura(Tela* textura, float u, float v);
@@ -85,6 +87,8 @@ Vetor3D subtrair_vetores(Vetor3D u, Vetor3D v);
 Vetor3D produto_vetorial(Vetor3D u, Vetor3D v);
 Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
 Vetor3D calcular_normal(Vetor3D u, Vetor3D v, Vetor3D w);
+
+Vertice interpolar_vertices(Vertice a, Vertice b, float t);
 
 
 
@@ -396,6 +400,53 @@ bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z) {
     return true;
   }
   return false;
+}
+
+
+
+int recortar_triangulo_plano_perto(Vertice triangulo_in[3], Vertice triangulos_out[2], float plano_perto) {
+  Vertice vertices_dentro[3];
+  Vertice vertices_fora[3];
+  int contagem_dentro = 0;
+  int contagem_fora = 0;
+  for (int i = 0; i < 3; ++i) {
+    if (triangulo_in[i].posicao.z >= plano_perto) {
+      vertices_dentro[contagem_dentro] = triangulo_in[i];
+      contagem_dentro = contagem_dentro + 1;
+    } else {
+      vertices_fora[contagem_fora] = triangulo_in[i];
+      contagem_fora = contagem_fora + 1;
+    }
+  }
+  if (contagem_dentro == 0) {
+    return 0;
+  }
+  if (contagem_dentro == 3) {
+    triangulos_out[0] = triangulo_in[0];
+    triangulos_out[1] = triangulo_in[1];
+    triangulos_out[2] = triangulo_in[2];
+    return 1;
+  }
+  if (contagem_dentro == 1) {
+    triangulos_out[0] = vertices_dentro[0];
+    float t1 = (plano_perto - vertices_dentro[0].posicao.z) / (vertices_fora[0].posicao.z - vertices_dentro[0].posicao.z);
+    triangulos_out[1] = interpolar_vertices(vertices_dentro[0], vertices_fora[0], t1);
+    float t2 = (plano_perto - vertices_dentro[0].posicao.z) / (vertices_fora[1].posicao.z - vertices_dentro[0].posicao.z);
+    triangulos_out[2] = interpolar_vertices(vertices_dentro[0], vertices_fora[1], t2);
+    return 1;
+  }
+  if (contagem_dentro == 2) {
+    triangulos_out[0] = vertices_dentro[0];
+    triangulos_out[1] = vertices_dentro[1];
+    float t1 = (plano_perto - vertices_dentro[0].posicao.z) / (vertices_fora[0].posicao.z - vertices_dentro[0].posicao.z);
+    triangulos_out[2] = interpolar_vertices(vertices_dentro[0], vertices_fora[0], t1);
+    triangulos_out[3] = vertices_dentro[1];
+    triangulos_out[4] = triangulos_out[2];
+    float t2 = (plano_perto - vertices_dentro[1].posicao.z) / (vertices_fora[0].posicao.z - vertices_dentro[1].posicao.z);
+    triangulos_out[5] = interpolar_vertices(vertices_dentro[1], vertices_fora[0], t2);
+    return 2;
+  }
+  return 0;
 }
 
 
@@ -735,6 +786,19 @@ Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
     Vetor3D aresta2 = subtrair_vetores(v3, v1);
     Vetor3D normal_nao_normalizada = produto_vetorial(aresta1, aresta2);
     return normalizar_vetor(normal_nao_normalizada);
+}
+
+
+
+Vertice interpolar_vertices(Vertice a, Vertice b, float t) {
+  Vertice resultado;
+  resultado.posicao.x = a.posicao.x + t * (b.posicao.x - a.posicao.x);
+  resultado.posicao.y = a.posicao.y + t * (b.posicao.y - a.posicao.y);
+  resultado.posicao.z = a.posicao.z + t * (b.posicao.z - a.posicao.z);
+  resultado.uv.x = a.uv.x + t * (b.uv.x - a.uv.x);
+  resultado.uv.y = a.uv.y + t * (b.uv.y - a.uv.y);
+  resultado.cor = interpolar_cores(a.cor, b.cor, t);
+  return resultado;
 }
 
 
