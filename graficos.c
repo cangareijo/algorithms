@@ -32,6 +32,14 @@ typedef struct {
 } Raio;
 
 typedef struct {
+  bool intersetou;
+  float t;
+  Vetor3D ponto;
+  Vetor3D normal;
+  Cor cor_material;
+} Intersecao;
+
+typedef struct {
   Vetor3D posicao;
   Vetor2D uv;
   Cor cor;
@@ -94,6 +102,9 @@ Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
 Vetor3D calcular_normal(Vetor3D u, Vetor3D v, Vetor3D w);
 
 Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
+
+Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor);
+Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor);
 
 Vertice interpolar_vertices(Vertice a, Vertice b, float t);
 
@@ -803,7 +814,7 @@ Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int 
   if (largura <= 0 || altura <= 0) {
     raio.direcao.x = 0.0f;
     raio.direcao.y = 0.0f;
-    raio.direcao.z = -1.0f; // Direção padrão para a frente
+    raio.direcao.z = -1.0f;
     return raio;
   }
   float ndc_x = (2.0f * ((float)x + 0.5f) / (float)largura) - 1.0f;
@@ -815,6 +826,76 @@ Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int 
   Vetor3D direcao_camara = transformar_vetor(ponto_clip, matriz_inv_proj);
   raio.direcao = normalizar_vetor(direcao_camara);
   return raio;
+}
+
+
+
+Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor) {
+  Intersecao resultado;
+  resultado.intersetou = false;
+  resultado.t = -1.0f;
+  resultado.ponto.x = 0.0f; resultado.ponto.y = 0.0f; resultado.ponto.z = 0.0f;
+  resultado.normal.x = 0.0f; resultado.normal.y = 0.0f; resultado.normal.z = 1.0f;
+  resultado.cor_material = cor;
+  Vetor3D l = subtrair_vetores(centro, raio.origem);
+  float tca = produto_escalar(l, raio.direcao);
+  float d2 = produto_escalar(l, l) - tca * tca;
+  float raio2 = raio_esfera * raio_esfera;
+  if (d2 > raio2) {
+    return resultado;
+  }
+  float thc = raiz(raio2 - d2);
+  float t0 = tca - thc;
+  float t1 = tca + thc;
+  float t_escolhido = -1.0f;
+  if (t0 > 0.0001f) {
+    t_escolhido = t0;
+  } else if (t1 > 0.0001f) {
+    t_escolhido = t1;
+  } else {
+    return resultado;
+  }
+  resultado.intersetou = true;
+  resultado.t = t_escolhido;
+  Vetor3D vetor_deslocamento;
+  vetor_deslocamento.x = raio.direcao.x * t_escolhido;
+  vetor_deslocamento.y = raio.direcao.y * t_escolhido;
+  vetor_deslocamento.z = raio.direcao.z * t_escolhido;
+  resultado.ponto = somar_vetores(raio.origem, vetor_deslocamento);
+  Vetor3D vetor_raio = subtrair_vetores(resultado.ponto, centro);
+  resultado.normal = normalizar_vetor(vetor_raio);
+  return resultado;
+}
+
+Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor) {
+  Intersecao resultado;
+  resultado.intersetou = false;
+  resultado.t = -1.0f;
+  resultado.ponto.x = 0.0f; resultado.ponto.y = 0.0f; resultado.ponto.z = 0.0f;
+  resultado.normal = normal_plano;
+  resultado.cor_material = cor;
+  float denominador = produto_escalar(raio.direcao, normal_plano);
+  if (denominador > -0.0001f && denominador < 0.0001f) {
+    return resultado;
+  }
+  Vetor3D origem_a_ponto = subtrair_vetores(ponto_plano, raio.origem);
+  float t_calculado = produto_escalar(origem_a_ponto, normal_plano) / denominador;
+  if (t_calculado < 0.0001f) {
+    return resultado;
+  }
+  resultado.intersetou = true;
+  resultado.t = t_calculado;
+  if (denominador > 0.0f) {
+    resultado.normal.x = -normal_plano.x;
+    resultado.normal.y = -normal_plano.y;
+    resultado.normal.z = -normal_plano.z;
+  }
+  Vetor3D vetor_deslocamento;
+  vetor_deslocamento.x = raio.direcao.x * t_calculado;
+  vetor_deslocamento.y = raio.direcao.y * t_calculado;
+  vetor_deslocamento.z = raio.direcao.z * t_calculado;
+  resultado.ponto = somar_vetores(raio.origem, vetor_deslocamento);
+  return resultado;
 }
 
 
