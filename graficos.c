@@ -44,6 +44,7 @@ void criar_matriz_identidade(float matriz[4][4]);
 void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
 void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
 void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
+void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
 void limpar_profundidade(Profundidade* pf, float valor);
 
@@ -285,6 +286,24 @@ void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float
     matriz[2][2] = -(longe + perto) / (longe - perto);
     matriz[2][3] = -1.0f;
     matriz[3][2] = -(2.0f * longe * perto) / (longe - perto);
+}
+
+void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe) {
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      matriz[i][j] = 0.0f;
+    }
+  }
+  if (direita == esquerda || cima == baixo || longe == perto) {
+    return;
+  }
+  matriz[0][0] = 2.0f / (direita - esquerda);
+  matriz[1][1] = 2.0f / (cima - baixo);
+  matriz[2][2] = -2.0f / (longe - perto);
+  matriz[3][3] = 1.0f;
+  matriz[3][0] = -(direita + esquerda) / (direita - esquerda);
+  matriz[3][1] = -(cima + baixo) / (cima - baixo);
+  matriz[3][2] = -(longe + perto) / (longe - perto);
 }
 
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
