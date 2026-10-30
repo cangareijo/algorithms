@@ -46,6 +46,8 @@ void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
 void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
 void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
+void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
+void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 void limpar_profundidade(Profundidade* pf, float valor);
 
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
@@ -70,8 +72,6 @@ float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
 
-void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
-void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
@@ -323,6 +323,51 @@ void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
     }
 }
 
+void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
+    criar_matriz_identidade(matriz);
+    float magnitude = raiz(eixo.x * eixo.x + eixo.y * eixo.y + eixo.z * eixo.z);
+    if (magnitude == 0.0f) {
+        return;
+    }
+    float ux = eixo.x / magnitude;
+    float uy = eixo.y / magnitude;
+    float uz = eixo.z / magnitude;
+    float c = cosseno(radianos);
+    float s = seno(radianos);
+    float omc = 1.0f - c;
+    matriz[0][0] = c + ux * ux * omc;
+    matriz[0][1] = ux * uy * omc + uz * s;
+    matriz[0][2] = ux * uz * omc - uy * s;
+    matriz[1][0] = ux * uy * omc - uz * s;
+    matriz[1][1] = c + uy * uy * omc;
+    matriz[1][2] = uy * uz * omc + ux * s;
+    matriz[2][0] = ux * uz * omc + uy * s;
+    matriz[2][1] = uy * uz * omc - ux * s;
+    matriz[2][2] = c + uz * uz * omc;
+}
+
+void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
+    Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(posicao, alvo));
+    Vetor3D x_eixo = normalizar_vetor(produto_vetorial(cima, z_eixo));
+    Vetor3D y_eixo = produto_vetorial(z_eixo, x_eixo);
+    matriz[0][0] = x_eixo.x;
+    matriz[0][1] = y_eixo.x;
+    matriz[0][2] = z_eixo.x;
+    matriz[0][3] = 0.0f;
+    matriz[1][0] = x_eixo.y;
+    matriz[1][1] = y_eixo.y;
+    matriz[1][2] = z_eixo.y;
+    matriz[1][3] = 0.0f;
+    matriz[2][0] = x_eixo.z;
+    matriz[2][1] = y_eixo.z;
+    matriz[2][2] = z_eixo.z;
+    matriz[2][3] = 0.0f;
+    matriz[3][0] = -produto_escalar(x_eixo, posicao);
+    matriz[3][1] = -produto_escalar(y_eixo, posicao);
+    matriz[3][2] = -produto_escalar(z_eixo, posicao);
+    matriz[3][3] = 1.0f;
+}
+
 void limpar_profundidade(Profundidade* pf, float valor) {
   if (pf == NULL || pf->profundidades == NULL) {
     return;
@@ -529,51 +574,6 @@ float modulo(float x, float y) {
 }
 
 
-
-void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
-    criar_matriz_identidade(matriz);
-    float magnitude = raiz(eixo.x * eixo.x + eixo.y * eixo.y + eixo.z * eixo.z);
-    if (magnitude == 0.0f) {
-        return;
-    }
-    float ux = eixo.x / magnitude;
-    float uy = eixo.y / magnitude;
-    float uz = eixo.z / magnitude;
-    float c = cosseno(radianos);
-    float s = seno(radianos);
-    float omc = 1.0f - c;
-    matriz[0][0] = c + ux * ux * omc;
-    matriz[0][1] = ux * uy * omc + uz * s;
-    matriz[0][2] = ux * uz * omc - uy * s;
-    matriz[1][0] = ux * uy * omc - uz * s;
-    matriz[1][1] = c + uy * uy * omc;
-    matriz[1][2] = uy * uz * omc + ux * s;
-    matriz[2][0] = ux * uz * omc + uy * s;
-    matriz[2][1] = uy * uz * omc - ux * s;
-    matriz[2][2] = c + uz * uz * omc;
-}
-
-void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
-    Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(posicao, alvo));
-    Vetor3D x_eixo = normalizar_vetor(produto_vetorial(cima, z_eixo));
-    Vetor3D y_eixo = produto_vetorial(z_eixo, x_eixo);
-    matriz[0][0] = x_eixo.x;
-    matriz[0][1] = y_eixo.x;
-    matriz[0][2] = z_eixo.x;
-    matriz[0][3] = 0.0f;
-    matriz[1][0] = x_eixo.y;
-    matriz[1][1] = y_eixo.y;
-    matriz[1][2] = z_eixo.y;
-    matriz[1][3] = 0.0f;
-    matriz[2][0] = x_eixo.z;
-    matriz[2][1] = y_eixo.z;
-    matriz[2][2] = z_eixo.z;
-    matriz[2][3] = 0.0f;
-    matriz[3][0] = -produto_escalar(x_eixo, posicao);
-    matriz[3][1] = -produto_escalar(y_eixo, posicao);
-    matriz[3][2] = -produto_escalar(z_eixo, posicao);
-    matriz[3][3] = 1.0f;
-}
 
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara) {
     Vetor3D aresta1 = { v2.x - v1.x, v2.y - v1.y, v2.z - v1.z };
