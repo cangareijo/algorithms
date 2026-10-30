@@ -15,6 +15,10 @@ typedef struct {
 } Vetor3D;
 
 typedef struct {
+  float w, x, y, z;
+} Quaterniao;
+
+typedef struct {
   int largura;
   int altura;
   float* profundidades;
@@ -95,11 +99,14 @@ Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 
 Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Vetor2D c);
 Vetor3D normalizar_vetor(Vetor3D v);
+Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
 Vetor3D somar_vetores(Vetor3D u, Vetor3D v);
 Vetor3D subtrair_vetores(Vetor3D u, Vetor3D v);
 Vetor3D produto_vetorial(Vetor3D u, Vetor3D v);
-Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
+Vetor3D interpolar_vetores(Vetor3D a, Vetor3D b, float t);
 Vetor3D calcular_normal(Vetor3D u, Vetor3D v, Vetor3D w);
+
+Quaterniao quaterniao_identidade(void);
 
 Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
 
@@ -761,6 +768,20 @@ Vetor3D normalizar_vetor(Vetor3D v) {
     };
 }
 
+Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]) {
+    float x = v.x * matriz[0][0] + v.y * matriz[0][1] + v.z * matriz[0][2] + matriz[0][3];
+    float y = v.x * matriz[1][0] + v.y * matriz[1][1] + v.z * matriz[1][2] + matriz[1][3];
+    float z = v.x * matriz[2][0] + v.y * matriz[2][1] + v.z * matriz[2][2] + matriz[2][3];
+    float w = v.x * matriz[3][0] + v.y * matriz[3][1] + v.z * matriz[3][2] + matriz[3][3];
+    if (w != 0.0f && w != 1.0f) {
+        float reciproco_w = 1.0f / w;
+        x *= reciproco_w;
+        y *= reciproco_w;
+        z *= reciproco_w;
+    }
+    return (Vetor3D){ .x = x, .y = y, .z = z };
+}
+
 Vetor3D somar_vetores(Vetor3D a, Vetor3D b) {
     return (Vetor3D){
         .x = a.x + b.x,
@@ -785,18 +806,12 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b) {
     };
 }
 
-Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]) {
-    float x = v.x * matriz[0][0] + v.y * matriz[0][1] + v.z * matriz[0][2] + matriz[0][3];
-    float y = v.x * matriz[1][0] + v.y * matriz[1][1] + v.z * matriz[1][2] + matriz[1][3];
-    float z = v.x * matriz[2][0] + v.y * matriz[2][1] + v.z * matriz[2][2] + matriz[2][3];
-    float w = v.x * matriz[3][0] + v.y * matriz[3][1] + v.z * matriz[3][2] + matriz[3][3];
-    if (w != 0.0f && w != 1.0f) {
-        float reciproco_w = 1.0f / w;
-        x *= reciproco_w;
-        y *= reciproco_w;
-        z *= reciproco_w;
-    }
-    return (Vetor3D){ .x = x, .y = y, .z = z };
+Vetor3D interpolar_vetores(Vetor3D a, Vetor3D b, float t) {
+  Vetor3D resultado;
+  resultado.x = a.x + t * (b.x - a.x);
+  resultado.y = a.y + t * (b.y - a.y);
+  resultado.z = a.z + t * (b.z - a.z);
+  return resultado;
 }
 
 Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
@@ -804,6 +819,17 @@ Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
     Vetor3D aresta2 = subtrair_vetores(v3, v1);
     Vetor3D normal_nao_normalizada = produto_vetorial(aresta1, aresta2);
     return normalizar_vetor(normal_nao_normalizada);
+}
+
+
+
+Quaterniao quaterniao_identidade(void) {
+  Quaterniao resultado;
+  resultado.w = 1.0f;
+  resultado.x = 0.0f;
+  resultado.y = 0.0f;
+  resultado.z = 0.0f;
+  return resultado;
 }
 
 
