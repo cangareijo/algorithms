@@ -60,12 +60,6 @@ bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
 int recortar_triangulo_plano_perto(Vertice triangulo_in[3], Vertice triangulos_out[2], float plano_perto);
 
-Cor multiplicar_cor(Cor cor, float intensidade);
-Cor interpolar_cores(Cor c1, Cor c2, float fator);
-Cor amostrar_textura(Tela* textura, float u, float v);
-
-Tela criar_tela(int largura, int altura);
-
 float absoluto(float x);
 float truncar(float x);
 float chao(float x);
@@ -79,6 +73,12 @@ float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
+
+Cor multiplicar_cor(Cor cor, float intensidade);
+Cor interpolar_cores(Cor c1, Cor c2, float fator);
+Cor amostrar_textura(Tela* textura, float u, float v);
+
+Tela criar_tela(int largura, int altura);
 
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
@@ -472,71 +472,6 @@ int recortar_triangulo_plano_perto(Vertice triangulo_in[3], Vertice triangulos_o
 
 
 
-Cor multiplicar_cor(Cor cor, float intensidade) {
-    if (intensidade <= 0.0f) return cor & 0xFF;
-    if (intensidade >= 1.0f) return cor;
-    uint8_t r = (cor >> 24) & 0xFF;
-    uint8_t g = (cor >> 16) & 0xFF;
-    uint8_t b = (cor >>  8) & 0xFF;
-    uint8_t a =  cor        & 0xFF;
-    uint32_t res_r = (uint32_t)(r * intensidade + 0.5f);
-    uint32_t res_g = (uint32_t)(g * intensidade + 0.5f);
-    uint32_t res_b = (uint32_t)(b * intensidade + 0.5f);
-    return (res_r << 24) | (res_g << 16) | (res_b <<  8) | a;
-}
-
-Cor interpolar_cores(Cor c1, Cor c2, float fator) {
-    if (fator <= 0.0f) return c1;
-    if (fator >= 1.0f) return c2;
-    uint8_t r1 = (c1 >> 24) & 0xFF;
-    uint8_t g1 = (c1 >> 16) & 0xFF;
-    uint8_t b1 = (c1 >>  8) & 0xFF;
-    uint8_t a1 =  c1        & 0xFF;
-    uint8_t r2 = (c2 >> 24) & 0xFF;
-    uint8_t g2 = (c2 >> 16) & 0xFF;
-    uint8_t b2 = (c2 >>  8) & 0xFF;
-    uint8_t a2 =  c2        & 0xFF;
-    uint32_t r_final = (uint32_t)(r1 + fator * (r2 - r1) + 0.5f);
-    uint32_t g_final = (uint32_t)(g1 + fator * (g2 - g1) + 0.5f);
-    uint32_t b_final = (uint32_t)(b1 + fator * (b2 - b1) + 0.5f);
-    uint32_t a_final = (uint32_t)(a1 + fator * (a2 - a1) + 0.5f);
-    return (r_final << 24) | (g_final << 16) | (b_final <<  8) | a_final;
-}
-
-Cor amostrar_textura(Tela* textura, float u, float v) {
-    if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
-        return 0;
-    }
-    float u_repetido = u - chao(u);
-    float v_repetido = v - chao(v);
-    int x = (int)(u_repetido * (float)textura->largura);
-    int y = (int)(v_repetido * (float)textura->altura);
-    if (x >= textura->largura) x = textura->largura - 1;
-    if (y >= textura->altura)  y = textura->altura - 1;
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    return textura->pixeis[x + y * textura->largura];
-}
-
-
-
-Tela criar_tela(int largura, int altura) {
-  Tela tela = {};
-  if (largura <= 0 || altura <= 0) {
-    return tela;
-  }
-  Cor* memoria_pixeis = malloc(largura * altura * sizeof(Cor));
-  if (memoria_pixeis == nullptr) {
-    return tela;
-  }
-  tela.largura = largura;
-  tela.altura = altura;
-  tela.pixeis = memoria_pixeis;
-  return tela;
-}
-
-
-
 float absoluto(float x) {
     return x >= 0.0f ? x : -x;
 }
@@ -643,6 +578,71 @@ float modulo(float x, float y) {
         return 0.0f;
     }
     return x - truncar(x / y) * y;
+}
+
+
+
+Cor multiplicar_cor(Cor cor, float intensidade) {
+    if (intensidade <= 0.0f) return cor & 0xFF;
+    if (intensidade >= 1.0f) return cor;
+    uint8_t r = (cor >> 24) & 0xFF;
+    uint8_t g = (cor >> 16) & 0xFF;
+    uint8_t b = (cor >>  8) & 0xFF;
+    uint8_t a =  cor        & 0xFF;
+    uint32_t res_r = (uint32_t)(r * intensidade + 0.5f);
+    uint32_t res_g = (uint32_t)(g * intensidade + 0.5f);
+    uint32_t res_b = (uint32_t)(b * intensidade + 0.5f);
+    return (res_r << 24) | (res_g << 16) | (res_b <<  8) | a;
+}
+
+Cor interpolar_cores(Cor c1, Cor c2, float fator) {
+    if (fator <= 0.0f) return c1;
+    if (fator >= 1.0f) return c2;
+    uint8_t r1 = (c1 >> 24) & 0xFF;
+    uint8_t g1 = (c1 >> 16) & 0xFF;
+    uint8_t b1 = (c1 >>  8) & 0xFF;
+    uint8_t a1 =  c1        & 0xFF;
+    uint8_t r2 = (c2 >> 24) & 0xFF;
+    uint8_t g2 = (c2 >> 16) & 0xFF;
+    uint8_t b2 = (c2 >>  8) & 0xFF;
+    uint8_t a2 =  c2        & 0xFF;
+    uint32_t r_final = (uint32_t)(r1 + fator * (r2 - r1) + 0.5f);
+    uint32_t g_final = (uint32_t)(g1 + fator * (g2 - g1) + 0.5f);
+    uint32_t b_final = (uint32_t)(b1 + fator * (b2 - b1) + 0.5f);
+    uint32_t a_final = (uint32_t)(a1 + fator * (a2 - a1) + 0.5f);
+    return (r_final << 24) | (g_final << 16) | (b_final <<  8) | a_final;
+}
+
+Cor amostrar_textura(Tela* textura, float u, float v) {
+    if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
+        return 0;
+    }
+    float u_repetido = u - chao(u);
+    float v_repetido = v - chao(v);
+    int x = (int)(u_repetido * (float)textura->largura);
+    int y = (int)(v_repetido * (float)textura->altura);
+    if (x >= textura->largura) x = textura->largura - 1;
+    if (y >= textura->altura)  y = textura->altura - 1;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    return textura->pixeis[x + y * textura->largura];
+}
+
+
+
+Tela criar_tela(int largura, int altura) {
+  Tela tela = {};
+  if (largura <= 0 || altura <= 0) {
+    return tela;
+  }
+  Cor* memoria_pixeis = malloc(largura * altura * sizeof(Cor));
+  if (memoria_pixeis == nullptr) {
+    return tela;
+  }
+  tela.largura = largura;
+  tela.altura = altura;
+  tela.pixeis = memoria_pixeis;
+  return tela;
 }
 
 
