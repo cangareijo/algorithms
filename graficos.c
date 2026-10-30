@@ -73,6 +73,7 @@ float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
+float produto_escalar(Vetor3D u, Vetor3D v);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
@@ -82,7 +83,6 @@ Cor amostrar_textura(Tela* textura, float u, float v);
 
 Tela criar_tela(int largura, int altura);
 
-float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 
 Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Vetor2D c);
@@ -580,6 +580,10 @@ float modulo(float x, float y) {
     return x - truncar(x / y) * y;
 }
 
+float produto_escalar(Vetor3D u, Vetor3D v) {
+    return u.x * v.x + u.y * v.y + u.z * v.z;
+}
+
 
 
 Cor multiplicar_cor(Cor cor, float intensidade) {
@@ -701,10 +705,6 @@ Tela criar_tela(int largura, int altura) {
 }
 
 
-
-float produto_escalar(Vetor3D u, Vetor3D v) {
-    return u.x * v.x + u.y * v.y + u.z * v.z;
-}
 
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int height) {
     if (ponto_3d.z <= 0.1f) {
