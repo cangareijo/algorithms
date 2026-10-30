@@ -7,12 +7,6 @@
 typedef uint32_t Cor;
 
 typedef struct {
-  int largura;
-  int altura;
-  Cor* pixeis;
-} Tela;
-
-typedef struct {
   float x, y;
 } Vetor2D;
 
@@ -25,6 +19,12 @@ typedef struct {
   int altura;
   float* profundidades;
 } Profundidade;
+
+typedef struct {
+  int largura;
+  int altura;
+  Cor* pixeis;
+} Tela;
 
 typedef struct {
   Vetor3D origem;
@@ -76,12 +76,12 @@ float modulo(float x, float y);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
+Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
 Cor amostrar_textura(Tela* textura, float u, float v);
 
 Tela criar_tela(int largura, int altura);
 
-Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
 float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 
@@ -613,40 +613,6 @@ Cor interpolar_cores(Cor c1, Cor c2, float fator) {
     return (r_final << 24) | (g_final << 16) | (b_final <<  8) | a_final;
 }
 
-Cor amostrar_textura(Tela* textura, float u, float v) {
-    if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
-        return 0;
-    }
-    float u_repetido = u - chao(u);
-    float v_repetido = v - chao(v);
-    int x = (int)(u_repetido * (float)textura->largura);
-    int y = (int)(v_repetido * (float)textura->altura);
-    if (x >= textura->largura) x = textura->largura - 1;
-    if (y >= textura->altura)  y = textura->altura - 1;
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    return textura->pixeis[x + y * textura->largura];
-}
-
-
-
-Tela criar_tela(int largura, int altura) {
-  Tela tela = {};
-  if (largura <= 0 || altura <= 0) {
-    return tela;
-  }
-  Cor* memoria_pixeis = malloc(largura * altura * sizeof(Cor));
-  if (memoria_pixeis == nullptr) {
-    return tela;
-  }
-  tela.largura = largura;
-  tela.altura = altura;
-  tela.pixeis = memoria_pixeis;
-  return tela;
-}
-
-
-
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz) {
     Vetor3D n = normalizar_vetor(normal);
     Vetor3D l = normalizar_vetor(direcao_luz);
@@ -701,6 +667,40 @@ Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D d
            ((Cor)especular << 8)  |
             (Cor)255;
 }
+
+Cor amostrar_textura(Tela* textura, float u, float v) {
+    if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
+        return 0;
+    }
+    float u_repetido = u - chao(u);
+    float v_repetido = v - chao(v);
+    int x = (int)(u_repetido * (float)textura->largura);
+    int y = (int)(v_repetido * (float)textura->altura);
+    if (x >= textura->largura) x = textura->largura - 1;
+    if (y >= textura->altura)  y = textura->altura - 1;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    return textura->pixeis[x + y * textura->largura];
+}
+
+
+
+Tela criar_tela(int largura, int altura) {
+  Tela tela = {};
+  if (largura <= 0 || altura <= 0) {
+    return tela;
+  }
+  Cor* memoria_pixeis = malloc(largura * altura * sizeof(Cor));
+  if (memoria_pixeis == nullptr) {
+    return tela;
+  }
+  tela.largura = largura;
+  tela.altura = altura;
+  tela.pixeis = memoria_pixeis;
+  return tela;
+}
+
+
 
 float produto_escalar(Vetor3D u, Vetor3D v) {
     return u.x * v.x + u.y * v.y + u.z * v.z;
