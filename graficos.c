@@ -50,6 +50,7 @@ void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
 void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D direcao, Vetor3D cima);
 void limpar_profundidade(Profundidade* pf, float valor);
 
+bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
 int recortar_triangulo_plano_perto(Vertice triangulo_in[3], Vertice triangulos_out[2], float plano_perto);
@@ -74,7 +75,6 @@ float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
 
-bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
 float produto_escalar(Vetor3D u, Vetor3D v);
@@ -387,6 +387,20 @@ void limpar_profundidade(Profundidade* pf, float valor) {
 
 
 
+bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara) {
+    Vetor3D aresta1 = { v2.x - v1.x, v2.y - v1.y, v2.z - v1.z };
+    Vetor3D aresta2 = { v3.x - v1.x, v3.y - v1.y, v3.z - v1.z };
+    Vetor3D normal_face = {
+        aresta1.y * aresta2.z - aresta1.z * aresta2.y,
+        aresta1.z * aresta2.x - aresta1.x * aresta2.z,
+        aresta1.x * aresta2.y - aresta1.y * aresta2.x
+    };
+    float produto_escalar = normal_face.x * direcao_camara.x +
+                            normal_face.y * direcao_camara.y +
+                            normal_face.z * direcao_camara.z;
+    return produto_escalar >= 0.0f;
+}
+
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z) {
   if (pf == NULL || pf->profundidades == NULL) {
     return false;
@@ -625,20 +639,6 @@ float modulo(float x, float y) {
 }
 
 
-
-bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara) {
-    Vetor3D aresta1 = { v2.x - v1.x, v2.y - v1.y, v2.z - v1.z };
-    Vetor3D aresta2 = { v3.x - v1.x, v3.y - v1.y, v3.z - v1.z };
-    Vetor3D normal_face = {
-        aresta1.y * aresta2.z - aresta1.z * aresta2.y,
-        aresta1.z * aresta2.x - aresta1.x * aresta2.z,
-        aresta1.x * aresta2.y - aresta1.y * aresta2.x
-    };
-    float produto_escalar = normal_face.x * direcao_camara.x +
-                            normal_face.y * direcao_camara.y +
-                            normal_face.z * direcao_camara.z;
-    return produto_escalar >= 0.0f;
-}
 
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz) {
     Vetor3D n = normalizar_vetor(normal);
