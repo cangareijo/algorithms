@@ -109,9 +109,9 @@ bool is_dominating_set(const Graph *g, const bool *set);
 bool is_total_dominating_set(const Graph *g, const bool *set);
 bool is_connected_subset(const Graph *g, const bool *set);
 bool is_subgraph_cyclic(const Graph *g, const bool *set);
-bool is_fractional_vertex_cover(const Graph *g, double *cover);
 bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v);
 bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v);
+bool is_clique_extension(const Graph *g, const bool *set, unsigned v);
 bool is_roman_dominating_set(const Graph *g, const char *set);
 bool is_roman_dominated_vertex(const Graph *g, const char *set, unsigned v);
 bool isTopologicalSort(const Graph *g, const unsigned *ordering);
@@ -131,6 +131,7 @@ bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
+bool is_fractional_vertex_cover(const Graph *g, double *cover);
 bool isSubGraph(const Graph *g1, const Graph *g2);
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
 bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
@@ -344,6 +345,7 @@ unsigned *calculateCoreDecomposition(const Graph *g);
 unsigned *findCommunities(const Graph *g);
 unsigned *findKTrusses(const Graph *g);
 unsigned *findDegeneracyOrdering(const Graph *g);
+unsigned *calculate_clique_peeling(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -1773,19 +1775,8 @@ bool is_subgraph_cyclic(const Graph *g, const bool *set) {
   return false;
 }
 
-bool is_fractional_vertex_cover(const Graph *g, double *cover) {
-  if (!g || g->size == 0 || !g->edges) return true;
-  for (unsigned v = 0; v < g->size; v++) {
-    if (cover[v] < -0.001 || cover[v] > 1.001) return false;
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size && cover[v] + cover[e->destination] < 0.999)
-        return false;
-  }
-  return true;
-}
-
 bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v) {
-  if (!g || !g->edges || v >= g->size || !set) return false;
+  if (!g || !g->edges || !set || v >= g->size) return false;
   if (set[v]) return true;
   for (Edge *e = g->edges[v]; e; e = e->next)
     if (set[e->destination])
@@ -1794,11 +1785,19 @@ bool is_dominated_vertex(const Graph *g, const bool *set, unsigned v) {
 }
 
 bool is_totally_dominated_vertex(const Graph *g, const bool *set, unsigned v) {
-  if (!g || !g->edges || v >= g->size || !set) return false;
+  if (!g || !g->edges || !set || v >= g->size) return false;
   for (const Edge *e = g->edges[v]; e; e = e->next)
     if (e->destination < g->size && set[e->destination])
       return true;
   return false;
+}
+
+bool is_clique_extension(const Graph *g, const bool *set, unsigned v) {
+  if (!g || !g->edges || !set || v >= g->size) return false;
+  for (unsigned u = 0; u < g->size; u++)
+    if (set[u] && (!has_directed_edge(g, u, v) || !has_directed_edge(g, v, u)))
+      return false;
+  return true;
 }
 
 bool is_roman_dominating_set(const Graph *g, const char *set) {
@@ -2035,6 +2034,17 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
       valid = false;
   destroy_graph(copy);
   return valid;
+}
+
+bool is_fractional_vertex_cover(const Graph *g, double *cover) {
+  if (!g || g->size == 0 || !g->edges) return true;
+  for (unsigned v = 0; v < g->size; v++) {
+    if (cover[v] < -0.001 || cover[v] > 1.001) return false;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size && cover[v] + cover[e->destination] < 0.999)
+        return false;
+  }
+  return true;
 }
 
 bool isSubGraph(const Graph *g1, const Graph *g2) {
@@ -6275,6 +6285,49 @@ static void searchForMinimumEdgeCover(
     removed[chosen] = true;
   }
   return ordering;
+}
+
+static void find_max_clique(
+  const Graph *g, bool remaining[], bool current[], bool best[], unsigned *best_size, unsigned v, unsigned current_size)
+{
+  if (v >= g->size) {
+    if (current_size > *best_size) {
+      *best_size = current_size;
+      for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+    }
+    return;
+  }
+  find_max_clique(g, remaining, current, best, best_size, v + 1, current_size);
+  if (remaining[v] && is_clique_extension(g, current, v)) {
+    current[v] = true;
+    find_max_clique(g, remaining, current, best, best_size, v + 1, current_size + 1);
+    current[v] = false;
+  }
+}
+
+[[nodiscard]] unsigned *calculate_clique_peeling(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  unsigned *result = malloc(g->size * sizeof(unsigned));
+  if (!result) return nullptr;
+  bool remaining[g->size];
+  bool current[g->size] = {};
+  bool best[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++) remaining[v] = true;
+  unsigned peeled_count = 0;
+  unsigned clique_index = 0;
+  while (peeled_count < g->size) {
+    unsigned best_size = 0;
+    for (unsigned v = 0; v < g->size; v++) best[v] = false;
+    find_max_clique(g, remaining, current, best, &best_size, 0, 0);
+    for (unsigned v = 0; v < g->size; v++)
+      if (best[v]) {
+        result[v] = clique_index;
+        remaining[v] = false;
+        peeled_count++;
+      }
+    clique_index++;
+  }
+  return result;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
