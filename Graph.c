@@ -249,8 +249,8 @@ unsigned getMinimumOutDegree(const Graph *g);
 unsigned getMaximumOutDegree(const Graph *g);
 unsigned getMinimumDegree(const Graph *g);
 unsigned getMaximumDegree(const Graph *g);
-unsigned countSources(const Graph *g);
-unsigned countSinks(const Graph *g);
+unsigned count_sources(const Graph *g);
+unsigned count_sinks(const Graph *g);
 unsigned countSourceLeaves(const Graph *g);
 unsigned countSinkLeaves(const Graph *g);
 unsigned countUndirectedLeaves(const Graph *g);
@@ -4133,28 +4133,27 @@ unsigned getMaximumDegree(const Graph *g) {
   return maximum;
 }
 
-unsigned countSources(const Graph *g) {
-  if (!g) return 0;
-  bool *sources = getSources(g);
-  if (!sources) return 0;
-  unsigned n = 0;
+unsigned count_sources(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  bool has_incoming[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
-    if (sources[v])
-      n++;
-  free(sources);
-  return n;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        has_incoming[e->destination] = true;
+  unsigned sources = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!has_incoming[v])
+      sources++;
+  return sources;
 }
 
-unsigned countSinks(const Graph *g) {
-  if (!g) return 0;
-  bool *sinks = getSinks(g);
-  if (!sinks) return 0;
-  unsigned n = 0;
+unsigned count_sinks(const Graph *g) {
+  if (!g || !g->edges) return 0;
+  unsigned sinks = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (sinks[v])
-      n++;
-  free(sinks);
-  return n;
+    if (!g->edges[v])
+      sinks++;
+  return sinks;
 }
 
 unsigned countSourceLeaves(const Graph *g) {
