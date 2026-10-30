@@ -47,7 +47,7 @@ void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float
 void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
 void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
-void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
+void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D direcao, Vetor3D cima);
 void limpar_profundidade(Profundidade* pf, float valor);
 
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
@@ -346,7 +346,7 @@ void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
     matriz[2][2] = c + uz * uz * omc;
 }
 
-void criar_matriz_camara(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
+void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
     Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(posicao, alvo));
     Vetor3D x_eixo = normalizar_vetor(produto_vetorial(cima, z_eixo));
     Vetor3D y_eixo = produto_vetorial(z_eixo, x_eixo);
