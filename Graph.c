@@ -78,6 +78,7 @@ bool has_sinks(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool isKConnected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
+bool is_proper_edge_coloring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
 bool isDense(const Graph *g, double threshold);
 bool isIsolated(const Graph *g, unsigned v);
@@ -333,7 +334,7 @@ unsigned *findGreedyVertexColoring(const Graph *g);
 unsigned *findOptimalVertexColoring(const Graph *g);
 unsigned *findWelchPowellGraphColoring(const Graph *g);
 unsigned *find_greedy_edge_coloring(const Graph *g);
-unsigned *findOptimalEdgeColoring(const Graph *g);
+unsigned *find_optimal_edge_coloring(const Graph *g);
 unsigned *getStronglyConnectedComponents(const Graph *g);
 unsigned *getTopologicalSort(const Graph *g);
 unsigned *findMaximumBipartiteMatching(const Graph *g);
@@ -1453,6 +1454,27 @@ bool isProperColoring(const Graph *g, const unsigned *coloring) {
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size && coloring[v] == coloring[e->destination])
         return false;
+  return true;
+}
+
+bool is_proper_edge_coloring(const Graph *g, const unsigned *coloring) {
+  if (!g || (g->size > 0 && (!g->edges || !coloring))) return false;
+  unsigned i = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e1 = g->edges[u]; e1; e1 = e1->next) {
+      if (u == e1->destination) return false;
+      if (u > e1->destination) continue;
+      unsigned j = 0;
+      for (unsigned v = 0; v < g->size; v++)
+        for (Edge *e2 = g->edges[v]; e2; e2 = e2->next) {
+          if (v > e2->destination) continue;
+          if (i < j && coloring[i] == coloring[j])
+            if (u == v || u == e2->destination || e1->destination == v || e1->destination == e2->destination)
+              return false;
+          j++;
+        }
+      i++;
+    }
   return true;
 }
 
@@ -5822,62 +5844,28 @@ static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned 
   return colors;
 }
 
-[[nodiscard]] unsigned *findOptimalEdgeColoring(const Graph *g) {
+static bool find_optimal_edge_coloring_recursive(const Graph *g, unsigned *coloring, unsigned num_edges, unsigned i, unsigned max_colors) {
+  if (i >= num_edges) return is_proper_edge_coloring(g, coloring);
+  for (unsigned color = 0; color < max_colors; color++) {
+    coloring[i] = color;
+    if (find_optimal_edge_coloring_recursive(g, coloring, num_edges, i + 1, max_colors)) return true;
+  }
+  return false;
+}
+
+[[nodiscard]] unsigned *find_optimal_edge_coloring(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   unsigned total_edges = 0;
-  unsigned maximum_degree = 0;
-  for (unsigned u = 0; u < g->size; u++) {
-    unsigned degree = 0;
-    for (Edge *e = g->edges[u]; e; e = e->next) {
-      degree++;
-      if (u < e->destination) total_edges++;
-    }
-    if (degree > maximum_degree) maximum_degree = degree;
-  }
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (v < e->destination)
+        total_edges++;
   if (total_edges == 0) return nullptr;
-  unsigned edge_u[total_edges];
-  unsigned edge_v[total_edges];
-  unsigned i = 0;
-  for (unsigned u = 0; u < g->size; u++) {
-    for (Edge *e = g->edges[u]; e; e = e->next) {
-      if (u < e->destination) {
-        edge_u[i] = u;
-        edge_v[i] = e->destination;
-        i++;
-      }
-    }
-  }
-  unsigned *coloring = calloc(total_edges, sizeof(unsigned));
+  unsigned *coloring = malloc(total_edges * sizeof(unsigned));
   if (!coloring) return nullptr;
-  for (unsigned number_colors = maximum_degree; number_colors <= maximum_degree + 1; number_colors++) {
-    for (unsigned i = 0; i < total_edges; i++) coloring[i] = 0;
-    unsigned i = 0;
-    while (i < total_edges) {
-      bool safe = false;
-      while (coloring[i] < number_colors) {
-        safe = true;
-        for (unsigned j = 0; j < i; j++) {
-          if (coloring[i] == coloring[j] &&
-            (edge_u[i] == edge_u[j] || edge_u[i] == edge_v[j] || edge_v[i] == edge_u[j] || edge_v[i] == edge_v[j]))
-          {
-            safe = false;
-            break;
-          }
-        }
-        if (safe) break;
-        coloring[i]++;
-      }
-      if (safe) {
-        i++;
-      } else {
-        coloring[i] = 0;
-        if (i == 0) break;
-        i--;
-        coloring[i]++;
-      }
-    }
-    if (i == total_edges) return coloring;
-  }
+  for (unsigned max_colors = 1; max_colors <= total_edges; max_colors++)
+    if (find_optimal_edge_coloring_recursive(g, coloring, total_edges, 0, max_colors))
+      return coloring;
   free(coloring);
   return nullptr;
 }
