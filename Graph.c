@@ -350,6 +350,7 @@ unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
 unsigned *getBreadthFirstSort(const Graph *g, unsigned v);
+unsigned *calculate_graphlet_degree_vector(const Graph *g, unsigned v);
 unsigned *findChinesePostmanTour(const Graph *g, unsigned *length);
 unsigned *findEulerianPathOrCircuit(const Graph *g, unsigned *length);
 unsigned *get_shortest_path(const Graph *g, unsigned u, unsigned v);
@@ -6431,6 +6432,55 @@ static void getPostOrderSortDfs(const Graph *g, unsigned u, bool *visited, unsig
   }
   free(visited);
   return result;
+}
+
+/*
+ * A graphlet degree vector (GDV) is a highly effective, multi-dimensional topological signature used in network
+ * analysis to capture the precise local structural role of a specific node within a graph. While the traditional
+ * degree of a node simply counts its direct neighbors—essentially looking at a single link—the graphlet degree vector
+ * generalizes this concept by counting the number of times a node participates in various small, connected,
+ * non-isomorphic induced subgraphs called graphlets. Typically, researchers look at graphlets containing two, three,
+ * four, or five nodes. Because these subgraphs have symmetrical properties, nodes within them occupy distinct
+ * structural positions known as orbits. For instance, in a three-node path graphlet, the two outer nodes share one
+ * orbit type because they are structurally identical, while the middle node occupies a different orbit type. A
+ * graphlet degree vector breaks down a node's local connectivity across all possible orbits up to a certain graphlet
+ * size—resulting in a 73-dimensional vector when looking at graphlets up to 5 nodes. By providing a detailed count of
+ * how many times a node acts as the "root" for each distinct orbit, the GDV functions like a structural fingerprint.
+ * This allows scientists to compare nodes across different parts of a network, or even between entirely different
+ * networks, making it a cornerstone tool for detecting complex topological patterns, clustering similar nodes, and
+ * matching proteins in biological interaction networks.
+ */
+
+[[nodiscard]] unsigned *calculate_graphlet_degree_vector(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return nullptr;
+  unsigned *gdv = calloc(4, sizeof(unsigned));
+  if (!gdv) return nullptr;
+  bool adjacent[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size) {
+        adjacent[u][e->destination] = true;
+        adjacent[e->destination][u] = true;
+      }
+  for (unsigned u = 0; u < g->size; u++)
+    if (u != v && adjacent[u][v])
+      gdv[0]++;
+  for (unsigned u = 0; u < g->size; u++)
+    if (u != v)
+      for (unsigned w = u + 1; w < g->size; w++)
+        if (w != v) {
+          int edge_count = adjacent[u][v] + adjacent[v][w] + adjacent[u][w];
+          if (edge_count == 2) {
+            if (adjacent[u][v] && adjacent[v][w]) {
+              gdv[2]++;
+            } else {
+              gdv[1]++;
+            }
+          } else if (edge_count == 3) {
+            gdv[3]++;
+          }
+        }
+  return gdv;
 }
 
 [[nodiscard]] unsigned *findChinesePostmanTour(const Graph *g, unsigned *length) {
