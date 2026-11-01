@@ -91,7 +91,10 @@ void criar_matriz_quat_posicao(float matriz[4][4], Quaterniao q, Vetor3D posicao
 
 Quaterniao quaterniao_identidade(void);
 Quaterniao quaterniao_de_eixo_angulo(Vetor3D eixo, float radianos);
+Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima);
+Quaterniao quaterniao_normalizar(Quaterniao q);
 Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2);
+Quaterniao quaterniao_slerp(Quaterniao q1, Quaterniao q2, float t);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
@@ -116,10 +119,14 @@ Vertice interpolar_vertices(Vertice a, Vertice b, float t);
 int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_out, float plano_perto);
 void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente);
 void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
+Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente);
+bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direcao_luz, float distancia_luz, Vetor3D* esferas_centros, float* esferas_raios, int num_esferas);
 
 Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
 Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor);
 Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor);
+Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor);
+Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor);
 
 float absoluto(float x) {
   return x >= 0.0f ? x : -x;
@@ -522,6 +529,78 @@ Quaterniao quaterniao_de_eixo_angulo(Vetor3D axis, float radianos) {
   };
 }
 
+Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
+  // 1. Calculate the forward direction vector (Z-axis) matching your view conventions
+  Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(origem, alvo));
+  
+  // 2. Calculate right and up vectors to form an orthonormal matrix basis
+  Vetor3D x_eixo = normalizar_vetor(produto_vetorial(cima, z_eixo));
+  Vetor3D y_eixo = produto_vetorial(z_eixo, x_eixo);
+
+  // 3. Extract the rotation components directly from the row-major basis matrix
+  // m00 = x_eixo.x, m11 = y_eixo.y, m22 = z_eixo.z
+  float tr = x_eixo.x + y_eixo.y + z_eixo.z;
+  Quaterniao q;
+
+  if (tr > 0.0f) {
+    float s = raiz(tr + 1.0f) * 2.0f; // s = 4 * q.w
+    if (s == 0.0f) {
+      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    }
+    float inv_s = 1.0f / s;
+    q.w = 0.25f * s;
+    q.x = (y_eixo.z - z_eixo.y) * inv_s;
+    q.y = (z_eixo.x - x_eixo.z) * inv_s;
+    q.z = (x_eixo.y - y_eixo.x) * inv_s;
+  } else if ((x_eixo.x > y_eixo.y) && (x_eixo.x > z_eixo.z)) {
+    float s = raiz(1.0f + x_eixo.x - y_eixo.y - z_eixo.z) * 2.0f; // s = 4 * q.x
+    if (s == 0.0f) {
+      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    }
+    float inv_s = 1.0f / s;
+    q.w = (y_eixo.z - z_eixo.y) * inv_s;
+    q.x = 0.25f * s;
+    q.y = (x_eixo.y + y_eixo.x) * inv_s;
+    q.z = (z_eixo.x + x_eixo.z) * inv_s;
+  } else if (y_eixo.y > z_eixo.z) {
+    float s = raiz(1.0f + y_eixo.y - x_eixo.x - z_eixo.z) * 2.0f; // s = 4 * q.y
+    if (s == 0.0f) {
+      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    }
+    float inv_s = 1.0f / s;
+    q.w = (z_eixo.x - x_eixo.z) * inv_s;
+    q.x = (x_eixo.y + y_eixo.x) * inv_s;
+    q.y = 0.25f * s;
+    q.z = (y_eixo.z + z_eixo.y) * inv_s;
+  } else {
+    float s = raiz(1.0f + z_eixo.z - x_eixo.x - y_eixo.y) * 2.0f; // s = 4 * q.z
+    if (s == 0.0f) {
+      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    }
+    float inv_s = 1.0f / s;
+    q.w = (x_eixo.y - y_eixo.x) * inv_s;
+    q.x = (z_eixo.x + x_eixo.z) * inv_s;
+    q.y = (y_eixo.z + z_eixo.y) * inv_s;
+    q.z = 0.25f * s;
+  }
+
+  return q;
+}
+
+Quaterniao quaterniao_normalizar(Quaterniao q) {
+  float n_qd = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
+  if (n_qd == 0.0f) {
+    return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+  }
+  float inv_norma = reciproco_raiz(n_qd);
+  return (Quaterniao){
+    .w = q.w * inv_norma,
+    .x = q.x * inv_norma,
+    .y = q.y * inv_norma,
+    .z = q.z * inv_norma
+  };
+}
+
 Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2) {
   return (Quaterniao){
     .w = q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z,
@@ -529,6 +608,63 @@ Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2) {
     .y = q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x,
     .z = q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w
   };
+}
+
+Quaterniao quaterniao_slerp(Quaterniao q1, Quaterniao q2, float t) {
+  // Ensure we operate on unit quaternions
+  Quaterniao start = quaterniao_normalizar(q1);
+  Quaterniao end = quaterniao_normalizar(q2);
+
+  if (t <= 0.0f) return start;
+  if (t >= 1.0f) return end;
+
+  // Compute the cosine of the angle between the two quaternions (4D dot product)
+  float cosseno_omega = start.w * end.w + start.x * end.x + start.y * end.y + start.z * end.z;
+
+  // If the dot product is negative, the quaternions have opposite polarities.
+  // Take the alternative path to ensure we interpolate along the shortest arc.
+  if (cosseno_omega < 0.0f) {
+    end.w = -end.w;
+    end.x = -end.x;
+    end.y = -end.y;
+    end.z = -end.z;
+    cosseno_omega = -cosseno_omega;
+  }
+
+  float escala_start;
+  float escala_end;
+
+  // Use standard linear interpolation if the quaternions are extremely close
+  // to avoid numerical instability or divisions by zero
+  if (cosseno_omega > 0.9995f) {
+    escala_start = 1.0f - t;
+    escala_end = t;
+  } else {
+    // Standard spherical linear interpolation math
+    float sin_omega = raiz(1.0f - cosseno_omega * cosseno_omega);
+    
+    // Fallback safe guard
+    if (sin_omega == 0.0f) {
+      escala_start = 1.0f - t;
+      escala_end = t;
+    } else {
+      // Analytical arc math
+      float omega = tangente(sin_omega / cosseno_omega); // Using tangent approximation safely
+      float inv_sin_omega = 1.0f / sin_omega;
+      
+      escala_start = seno((1.0f - t) * omega) * inv_sin_omega;
+      escala_end = seno(t * omega) * inv_sin_omega;
+    }
+  }
+
+  // Combine components into the final blending state
+  Quaterniao resultado;
+  resultado.w = escala_start * start.w + escala_end * end.w;
+  resultado.x = escala_start * start.x + escala_end * end.x;
+  resultado.y = escala_start * start.y + escala_end * end.y;
+  resultado.z = escala_start * start.z + escala_end * end.z;
+
+  return quaterniao_normalizar(resultado);
 }
 
 Cor multiplicar_cor(Cor cor, float intensidade) {
@@ -986,6 +1122,91 @@ void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Ver
   }
 }
 
+Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente) {
+  // If no normal map is available, fallback safely to the vertex geometry normal
+  if (mapa_normais == nullptr || mapa_normais->pixeis == nullptr) {
+    return normalizar_vetor(normal_geometria);
+  }
+
+  // 1. Sample the color from the normal map texture at the given UV coordinates
+  Cor cor_amostrada = amostrar_textura(mapa_normais, u, v);
+
+  // 2. Extract channels assuming standard RGBA/RGB byte ordering
+  float r = (float)((cor_amostrada >> 24) & 0xFF);
+  float g = (float)((cor_amostrada >> 16) & 0xFF);
+  float b = (float)((cor_amostrada >> 8)  & 0xFF);
+
+  // 3. Unpack RGB values from [0, 255] to tangent-space vector components in [-1.0, 1.0]
+  Vetor3D normal_tangente;
+  normal_tangente.x = (r / 255.0f) * 2.0f - 1.0f;
+  normal_tangente.y = (g / 255.0f) * 2.0f - 1.0f;
+  normal_tangente.z = (b / 255.0f) * 2.0f - 1.0f;
+
+  // Ensure the sampled vector is unit-length
+  normal_tangente = normalizar_vetor(normal_tangente);
+
+  // Ensure the geometric basis vectors are properly normalized
+  Vetor3D t = normalizar_vetor(tangente);
+  Vetor3D b_vec = normalizar_vetor(bitangente);
+  Vetor3D n = normalizar_vetor(normal_geometria);
+
+  // 4. Transform to target coordinate space using the TBN basis matrix
+  // Row-Major layout: Vector * Matrix multiplication where T, B, N are the matrix rows.
+  Vetor3D normal_final;
+  normal_final.x = normal_tangente.x * t.x + normal_tangente.y * b_vec.x + normal_tangente.z * n.x;
+  normal_final.y = normal_tangente.x * t.y + normal_tangente.y * b_vec.y + normal_tangente.z * n.y;
+  normal_final.z = normal_tangente.x * t.z + normal_tangente.y * b_vec.z + normal_tangente.z * n.z;
+
+  return normalizar_vetor(normal_final);
+}
+
+bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direcao_luz, float distancia_luz, Vetor3D* esferas_centros, float* esferas_raios, int num_esferas) {
+  // Safe validation check for arrays and range boundaries
+  if (esferas_centros == nullptr || esferas_raios == nullptr || num_esferas <= 0) {
+    return false;
+  }
+
+  // Offset origin slightly along light ray vector direction to prevent self-shadowing acne
+  Vetor3D origem_raio;
+  float epsilon = 0.001f;
+  origem_raio.x = ponto_origem.x + direcao_luz.x * epsilon;
+  origem_raio.y = ponto_origem.y + direcao_luz.y * epsilon;
+  origem_raio.z = ponto_origem.z + direcao_luz.z * epsilon;
+
+  // Loop through all spatial primitives inside the cluster array
+  for (int i = 0; i < num_esferas; ++i) {
+    Vetor3D centro_esfera = esferas_centros[i];
+    float raio_esfera = esferas_raios[i];
+
+    // Analytical geometric check for ray-sphere contact
+    Vetor3D l = subtrair_vetores(centro_esfera, origem_raio);
+    float tca = produto_escalar(l, direcao_luz);
+    
+    // If center projects behind ray origin, it cannot block the path forward
+    if (tca < 0.0001f) {
+      continue;
+    }
+
+    float d2 = produto_escalar(l, l) - tca * tca;
+    float raio2 = raio_esfera * raio_esfera;
+    
+    // If the closest distance squared is larger than radius squared, ray misses sphere
+    if (d2 > raio2) {
+      continue;
+    }
+
+    float thc = raiz(raio2 - d2);
+    float t0 = tca - thc;
+
+    // Check if the intersection point is located between the origin and the light source
+    if (t0 > 0.0001f && t0 < distancia_luz) {
+      return true; // Light visibility path is completely blocked
+    }
+  }
+
+  return false; // The visibility lane is unoccluded
+}
+
 Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura) {
   Raio raio;
   raio.origem = posicao_camara;
@@ -1041,6 +1262,154 @@ Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano
     resultado.normal = (Vetor3D){-normal_plano.x, -normal_plano.y, -normal_plano.z};
   }
   resultado.ponto = somar_vetores(raio.origem, (Vetor3D){raio.direcao.x * t_calculado, raio.direcao.y * t_calculado, raio.direcao.z * t_calculado});
+  return resultado;
+}
+
+Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor) {
+  Intersecao resultado = {
+    .intersetou = false,
+    .t = -1.0f,
+    .ponto = {0.0f, 0.0f, 0.0f},
+    .normal = {0.0f, 0.0f, 1.0f},
+    .cor_material = cor
+  };
+
+  float t_min = -1e30f; // Approximated negative infinity
+  float t_max =  1e30f; // Approximated positive infinity
+
+  // --- X-Axis Slab Check ---
+  if (raio.direcao.x != 0.0f) {
+    float inv_dx = 1.0f / raio.direcao.x;
+    float t1 = (min_caixa.x - raio.origem.x) * inv_dx;
+    float t2 = (max_caixa.x - raio.origem.x) * inv_dx;
+    
+    float t_corte_min = minimo(t1, t2);
+    float t_corte_max = maximo(t1, t2);
+    
+    t_min = maximo(t_min, t_corte_min);
+    t_max = minimo(t_max, t_corte_max);
+  } else if (raio.origem.x < min_caixa.x || raio.origem.x > max_caixa.x) {
+    return resultado; // Parallel and outside the box boundaries
+  }
+
+  // --- Y-Axis Slab Check ---
+  if (raio.direcao.y != 0.0f) {
+    float inv_dy = 1.0f / raio.direcao.y;
+    float t1 = (min_caixa.y - raio.origem.y) * inv_dy;
+    float t2 = (max_caixa.y - raio.origem.y) * inv_dy;
+    
+    float t_corte_min = minimo(t1, t2);
+    float t_corte_max = maximo(t1, t2);
+    
+    t_min = maximo(t_min, t_corte_min);
+    t_max = minimo(t_max, t_corte_max);
+  } else if (raio.origem.y < min_caixa.y || raio.origem.y > max_caixa.y) {
+    return resultado;
+  }
+
+  // --- Z-Axis Slab Check ---
+  if (raio.direcao.z != 0.0f) {
+    float inv_dz = 1.0f / raio.direcao.z;
+    float t1 = (min_caixa.z - raio.origem.z) * inv_dz;
+    float t2 = (max_caixa.z - raio.origem.z) * inv_dz;
+    
+    float t_corte_min = minimo(t1, t2);
+    float t_corte_max = maximo(t1, t2);
+    
+    t_min = maximo(t_min, t_corte_min);
+    t_max = minimo(t_max, t_corte_max);
+  } else if (raio.origem.z < min_caixa.z || raio.origem.z > max_caixa.z) {
+    return resultado;
+  }
+
+  // If the slab intersection intervals do not overlap or the box is behind the ray
+  if (t_min > t_max || t_max < 0.0001f) {
+    return resultado;
+  }
+
+  // Determine the final intersection distance parameter t
+  float t_escolhido = (t_min < 0.0001f) ? t_max : t_min;
+
+  resultado.intersetou = true;
+  resultado.t = t_escolhido;
+
+  // Compute precise 3D point of contact on the box plane
+  resultado.ponto.x = raio.origem.x + raio.direcao.x * t_escolhido;
+  resultado.ponto.y = raio.origem.y + raio.direcao.y * t_escolhido;
+  resultado.ponto.z = raio.origem.z + raio.direcao.z * t_escolhido;
+
+  // Derive structural surface normals dynamically depending on which slab plane was hit
+  float epsilon = 0.0005f;
+  if (resultado.ponto.x < min_caixa.x + epsilon)      resultado.normal = (Vetor3D){-1.0f,  0.0f,  0.0f};
+  else if (resultado.ponto.x > max_caixa.x - epsilon) resultado.normal = (Vetor3D){ 1.0f,  0.0f,  0.0f};
+  else if (resultado.ponto.y < min_caixa.y + epsilon) resultado.normal = (Vetor3D){ 0.0f, -1.0f,  0.0f};
+  else if (resultado.ponto.y > max_caixa.y - epsilon) resultado.normal = (Vetor3D){ 0.0f,  1.0f,  0.0f};
+  else if (resultado.ponto.z < min_caixa.z + epsilon) resultado.normal = (Vetor3D){ 0.0f,  0.0f, -1.0f};
+  else                                                resultado.normal = (Vetor3D){ 0.0f,  0.0f,  1.0f};
+
+  return resultado;
+}
+
+Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor) {
+  Intersecao resultado = {
+    .intersetou = false,
+    .t = -1.0f,
+    .ponto = {0.0f, 0.0f, 0.0f},
+    .normal = {0.0f, 0.0f, 1.0f},
+    .cor_material = cor
+  };
+
+  // 1. Calculate edge vectors of the triangle
+  Vetor3D aresta1 = subtrair_vetores(v2, v1);
+  Vetor3D aresta2 = subtrair_vetores(v3, v1);
+
+  // 2. Prepare determinants to calculate barycentric coordinates
+  Vetor3D p_vetor = produto_vetorial(raio.direcao, aresta2);
+  float det = produto_escalar(aresta1, p_vetor);
+
+  // If determinant is close to zero, ray is parallel to the triangle plane
+  if (det > -0.0001f && det < 0.0001f) {
+    return resultado;
+  }
+  float inv_det = 1.0f / det;
+
+  // 3. Compute U barycentric coordinate and validate bounds
+  Vetor3D t_vetor = subtrair_vetores(raio.origem, v1);
+  float u = produto_escalar(t_vetor, p_vetor) * inv_det;
+  if (u < 0.0f || u > 1.0f) {
+    return resultado;
+  }
+
+  // 4. Compute V barycentric coordinate and validate bounds
+  Vetor3D q_vetor = produto_vetorial(t_vetor, aresta1);
+  float v = produto_escalar(raio.direcao, q_vetor) * inv_det;
+  if (v < 0.0f || (u + v) > 1.0f) {
+    return resultado;
+  }
+
+  // 5. Compute ray parameter distance t
+  float t_calculado = produto_escalar(aresta2, q_vetor) * inv_det;
+  if (t_calculado < 0.0001f) {
+    return resultado; // Intersection behind the ray origin
+  }
+
+  // 6. Complete intersection logging
+  resultado.intersetou = true;
+  resultado.t = t_calculado;
+  
+  // Compute hit point: origin + direction * t
+  resultado.ponto.x = raio.origem.x + raio.direcao.x * t_calculado;
+  resultado.ponto.y = raio.origem.y + raio.direcao.y * t_calculado;
+  resultado.ponto.z = raio.origem.z + raio.direcao.z * t_calculado;
+
+  // Calculate face normal and ensure it opposes the ray trajectory
+  Vetor3D normal_face = calcular_normal(v1, v2, v3);
+  if (produto_escalar(raio.direcao, normal_face) > 0.0f) {
+    resultado.normal = (Vetor3D){-normal_face.x, -normal_face.y, -normal_face.z};
+  } else {
+    resultado.normal = normal_face;
+  }
+
   return resultado;
 }
 
