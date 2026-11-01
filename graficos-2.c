@@ -79,12 +79,15 @@ Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
 void criar_matriz_identidade(float matriz[4][4]);
 void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
 void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
+void criar_matriz_perspetiva_infinito(float matriz[4][4], float fov, float proporcao, float perto);
 void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
 void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
 void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
 void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
+void extrair_direcoes_camara(float matriz_vista[4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente);
 void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q);
+void criar_matriz_quat_posicao(float matriz[4][4], Quaterniao q, Vetor3D posicao);
 
 Quaterniao quaterniao_identidade(void);
 Quaterniao quaterniao_de_eixo_angulo(Vetor3D eixo, float radianos);
@@ -94,6 +97,7 @@ Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
 Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente);
 Cor amostrar_textura(Tela* textura, float u, float v);
 
 Tela criar_tela(int largura, int altura);
@@ -110,6 +114,7 @@ Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
 Vertice interpolar_vertices(Vertice a, Vertice b, float t);
 int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_out, float plano_perto);
+void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente);
 void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
 
 Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
@@ -321,6 +326,23 @@ void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz) {
   matriz[2][2] = sz;
 }
 
+void criar_matriz_perspetiva_infinito(float matriz[4][4], float fov, float proporcao, float perto) {
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      matriz[i][j] = 0.0f;
+    }
+  }
+  float tan_metade_fov = tangente(0.5f * fov);
+  if (tan_metade_fov == 0.0f || proporcao == 0.0f || perto == 0.0f) {
+    return;
+  }
+  matriz[0][0] = 1.0f / (proporcao * tan_metade_fov);
+  matriz[1][1] = 1.0f / tan_metade_fov;
+  matriz[2][2] = -1.0f;
+  matriz[2][3] = -1.0f;
+  matriz[3][2] = -2.0f * perto;
+}
+
 void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe) {
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
@@ -416,6 +438,28 @@ void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, 
   matriz[3][3] = 1.0f;
 }
 
+void extrair_direcoes_camara(float matriz_vista[4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente) {
+  if (direita != nullptr) {
+    direita->x = matriz_vista[0][0];
+    direita->y = matriz_vista[1][0];
+    direita->z = matriz_vista[2][0];
+  }
+  
+  if (cima != nullptr) {
+    cima->x = matriz_vista[0][1];
+    cima->y = matriz_vista[1][1];
+    cima->z = matriz_vista[2][1];
+  }
+  
+  if (frente != nullptr) {
+    // Inverte-se o sinal da terceira coluna porque o eixo Z da View Matrix
+    // aponta na direção oposta ao olhar da câmara.
+    frente->x = -matriz_vista[0][2];
+    frente->y = -matriz_vista[1][2];
+    frente->z = -matriz_vista[2][2];
+  }
+}
+
 void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q) {
   float xx = q.x * q.x; float xy = q.x * q.y; float xz = q.x * q.z; float xw = q.x * q.w;
   float yy = q.y * q.y; float yz = q.y * q.z; float yw = q.y * q.w;
@@ -438,6 +482,28 @@ void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q) {
   matriz[2][3] = 0.0f;
 
   matriz[3][0] = 0.0f; matriz[3][1] = 0.0f; matriz[3][2] = 0.0f; matriz[3][3] = 1.0f;
+}
+
+void criar_matriz_quat_posicao(float matriz[4][4], Quaterniao q, Vetor3D posicao) {
+  float xx = q.x * q.x; float xy = q.x * q.y; float xz = q.x * q.z; float xw = q.x * q.w;
+  float yy = q.y * q.y; float yz = q.y * q.z; float yw = q.y * q.w;
+  float zz = q.z * q.z; float zw = q.z * q.w;
+  matriz[0][0] = 1.0f - 2.0f * (yy + zz);
+  matriz[0][1] = 2.0f * (xy + zw);
+  matriz[0][2] = 2.0f * (xz - yw);
+  matriz[0][3] = 0.0f;
+  matriz[1][0] = 2.0f * (xy - zw);
+  matriz[1][1] = 1.0f - 2.0f * (xx + zz);
+  matriz[1][2] = 2.0f * (yz + xw);
+  matriz[1][3] = 0.0f;
+  matriz[2][0] = 2.0f * (xz + yw);
+  matriz[2][1] = 2.0f * (yz - xw);
+  matriz[2][2] = 1.0f - 2.0f * (xx + yy);
+  matriz[2][3] = 0.0f;
+  matriz[3][0] = posicao.x;
+  matriz[3][1] = posicao.y;
+  matriz[3][2] = posicao.z;
+  matriz[3][3] = 1.0f;
 }
 
 Quaterniao quaterniao_identidade(void) {
@@ -542,6 +608,71 @@ Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D d
 
   uint8_t especular = (uint8_t)res_cor;
   return ((Cor)especular << 24) | ((Cor)especular << 16) | ((Cor)especular << 8) | (Cor)255;
+}
+
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente) {
+  Vetor3D n = normalizar_vetor(normal);
+  Vetor3D l = normalizar_vetor(direcao_luz);
+  Vetor3D v = normalizar_vetor(direcao_olhar);
+
+  // Extração dos canais do objeto
+  float obj_r = (float)((cor_objeto >> 24) & 0xFF);
+  float obj_g = (float)((cor_objeto >> 16) & 0xFF);
+  float obj_b = (float)((cor_objeto >> 8) & 0xFF);
+  float obj_a = (float)(cor_objeto & 0xFF);
+
+  // Extração dos canais da luz difusa
+  float dif_r = (float)((cor_difusa_luz >> 24) & 0xFF);
+  float dif_g = (float)((cor_difusa_luz >> 16) & 0xFF);
+  float dif_b = (float)((cor_difusa_luz >> 8) & 0xFF);
+
+  // Extração dos canais da luz especular
+  float esp_r = (float)((cor_especular_luz >> 24) & 0xFF);
+  float esp_g = (float)((cor_especular_luz >> 16) & 0xFF);
+  float esp_b = (float)((cor_especular_luz >> 8) & 0xFF);
+
+  // 1. Componente Ambiente
+  float amb_r = obj_r * intensidade_ambiente;
+  float amb_g = obj_g * intensidade_ambiente;
+  float amb_b = obj_b * intensidade_ambiente;
+
+  // 2. Componente Difusa
+  float cosseno_difuso = produto_escalar(n, l);
+  if (cosseno_difuso < 0.0f) cosseno_difuso = 0.0f; // Caso a luz venha de trás
+
+  float res_dif_r = (obj_r * dif_r * (cosseno_difuso / 255.0f));
+  float res_dif_g = (obj_g * dif_g * (cosseno_difuso / 255.0f));
+  float res_dif_b = (obj_b * dif_b * (cosseno_difuso / 255.0f));
+
+  // 3. Componente Especular (Phong clássico: reflexão da luz vs olhar)
+  float res_esp_r = 0.0f;
+  float res_esp_g = 0.0f;
+  float res_esp_b = 0.0f;
+
+  if (cosseno_difuso > 0.0f) {
+    Vetor3D r_vetor = refletir_vetor((Vetor3D){-l.x, -l.y, -l.z}, n);
+    float cosseno_especular = produto_escalar(r_vetor, v);
+    if (cosseno_especular < 0.0f) cosseno_especular = 0.0f;
+
+    float intensidade_especular = potencia_inteira(cosseno_especular, brilho);
+    res_esp_r = esp_r * intensidade_especular;
+    res_esp_g = esp_g * intensidade_especular;
+    res_esp_b = esp_b * intensidade_especular;
+  }
+
+  // Acumulação final com teto de segurança
+  float final_r = amb_r + res_dif_r + res_esp_r;
+  float final_g = amb_g + res_dif_g + res_esp_g;
+  float final_b = amb_b + res_dif_b + res_esp_b;
+
+  if (final_r > 255.0f) final_r = 255.0f;
+  if (final_g > 255.0f) final_g = 255.0f;
+  if (final_b > 255.0f) final_b = 255.0f;
+
+  return ((Cor)(uint8_t)final_r << 24) |
+         ((Cor)(uint8_t)final_g << 16) |
+         ((Cor)(uint8_t)final_b << 8)  |
+         (Cor)(uint8_t)obj_a;
 }
 
 Cor amostrar_textura(Tela* textura, float u, float v) {
@@ -756,6 +887,39 @@ int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_ou
   }
   
   return 0;
+}
+
+void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente) {
+  Vetor3D delta_pos1 = subtrair_vetores(triangulo[1].posicao, triangulo[0].posicao);
+  Vetor3D delta_pos2 = subtrair_vetores(triangulo[2].posicao, triangulo[0].posicao);
+
+  float delta_u1 = triangulo[1].uv.x - triangulo[0].uv.x;
+  float delta_v1 = triangulo[1].uv.y - triangulo[0].uv.y;
+  float delta_u2 = triangulo[2].uv.x - triangulo[0].uv.x;
+  float delta_v2 = triangulo[2].uv.y - triangulo[0].uv.y;
+
+  float det = delta_u1 * delta_v2 - delta_u2 * delta_v1;
+  float r = 1.0f;
+  
+  if (det > -0.000001f && det < 0.000001f) {
+    r = 1.0f;
+  } else {
+    r = 1.0f / det;
+  }
+
+  if (tangente != nullptr) {
+    tangente->x = r * (delta_v2 * delta_pos1.x - delta_v1 * delta_pos2.x);
+    tangente->y = r * (delta_v2 * delta_pos1.y - delta_v1 * delta_pos2.y);
+    tangente->z = r * (delta_v2 * delta_pos1.z - delta_v1 * delta_pos2.z);
+    *tangente = normalizar_vetor(*tangente);
+  }
+
+  if (bitangente != nullptr) {
+    bitangente->x = r * (-delta_u2 * delta_pos1.x + delta_u1 * delta_pos2.x);
+    bitangente->y = r * (-delta_u2 * delta_pos1.y + delta_u1 * delta_pos2.y);
+    bitangente->z = r * (-delta_u2 * delta_pos1.z + delta_u1 * delta_pos2.z);
+    *bitangente = normalizar_vetor(*bitangente);
+  }
 }
 
 
