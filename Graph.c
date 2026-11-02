@@ -426,6 +426,7 @@ double *calculate_pagerank_centrality(const Graph *g);
 double *calculate_graph_spectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
+double *calculate_distance_laplacian_spectrum(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
@@ -8558,6 +8559,84 @@ static void find_minimum_fractional_vertex_cover_recursive(
     result[vertex] = left + right;
   }
   return result;
+}
+
+[[nodiscard]] double *calculate_distance_laplacian_spectrum(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *spectrum = malloc(g->size * sizeof(double));
+  if (!spectrum) return nullptr;
+  double D[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      D[u][v] = u == v ? 0 : INFINITY;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && e->weight < D[u][e->destination]) {
+        D[u][e->destination] = e->weight;
+        D[e->destination][u] = e->weight;
+      }
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++) {
+        double dist = D[u][w] + D[w][v];
+        if (dist < D[u][v]) D[u][v] = dist;
+      }
+  double LD[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++) {
+    double row_sum = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (D[u][v] < INFINITY)
+        row_sum += D[u][v];
+    for (unsigned v = 0; v < g->size; v++)
+      if (u == v)
+        LD[u][v] = row_sum; 
+      else
+        LD[u][v] = D[u][v] < INFINITY ? -D[u][v] : 0;
+  }
+  unsigned max_iterations = 1000;
+  for (unsigned iter = 0; iter < max_iterations; iter++) {
+    unsigned p = 0, q = 1;
+    double max_offdiag = 0;
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = u + 1; v < g->size; v++)
+        if (fabs(LD[u][v]) > max_offdiag) {
+          max_offdiag = fabs(LD[u][v]);
+          p = u;
+          q = v;
+        }
+    if (max_offdiag < 1e-12) break;
+    double theta = (LD[q][q] - LD[p][p]) / (2 * LD[p][q]);
+    double t = theta >= 0 ? 1 / (theta + sqrt(1 + theta * theta)) : -1 / (-theta + sqrt(1 + theta * theta));
+    double c = 1 / sqrt(1 + t * t);
+    double s = t * c;
+    double l_pp = LD[p][p];
+    double l_qq = LD[q][q];
+    double l_pq = LD[p][q];
+    LD[p][p] = c * c * l_pp - 2 * s * c * l_pq + s * s * l_qq;
+    LD[q][q] = s * s * l_pp + 2 * s * c * l_pq + c * c * l_qq;
+    LD[p][q] = 0;
+    LD[q][p] = 0;
+    for (unsigned u = 0; u < g->size; u++)
+      if (u != p && u != q) {
+        double l_up = LD[u][p];
+        double l_uq = LD[u][q];
+        LD[u][p] = c * l_up - s * l_uq;
+        LD[p][u] = LD[u][p];
+        LD[u][q] = s * l_up + c * l_uq;
+        LD[q][u] = LD[u][q];
+      }
+  }
+  for (unsigned u = 0; u < g->size; u++) spectrum[u] = LD[u][u];
+  for (unsigned u = 0; u < g->size - 1; u++) {
+    unsigned min_w = u;
+    for (unsigned v = u + 1; v < g->size; v++)
+      if (spectrum[v] < spectrum[min_w])
+        min_w = v;
+    double temporary = spectrum[u];
+    spectrum[u] = spectrum[min_w];
+    spectrum[min_w] = temporary;
+  }
+  return spectrum;
 }
 
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
