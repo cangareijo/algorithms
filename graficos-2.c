@@ -51,6 +51,7 @@ typedef struct {
 
 constexpr float PI = 3.14159265f;
 
+float logaritmo_natural(float x);
 float absoluto(float x);
 float truncar(float x);
 float chao(float x);
@@ -60,10 +61,12 @@ float seno(float x);
 float cosseno(float x);
 float tangente(float x);
 float potencia_inteira(float base, int expoente);
+float potencia_real(float base, float expoente);
 float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
+float interpolar_linear(float a, float b, float t);
 
 float comprimento_vetor(Vetor3D v);
 float produto_escalar(Vetor3D u, Vetor3D v);
@@ -105,9 +108,13 @@ Cor amostrar_textura(Tela* textura, float u, float v);
 
 Tela criar_tela(int largura, int altura);
 void destruir_tela(Tela* tela);
+void aplicar_mapeamento_de_tom_reinhard(Tela* tela);
 void limpar_tela(Tela* tela, Cor cor);
+void aplicar_filtro_gamma(Tela* tela, float gama);
 void desenhar_pixel(Tela* tela, int x, int y, Cor cor);
 void limpar_profundidade(Profundidade* pf, float valor);
+bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro);
+bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro);
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
 void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
@@ -1421,4 +1428,278 @@ int main(void) {
   printf("Pipeline C23 Row-Major Unificado e Funcional!\n");
   printf("Teste de Ponto Transformado: (%.1f, %.1f, %.1f)\n", transformado.x, transformado.y, transformado.z);
   return 0;
+}
+
+float interpolar_linear(float a, float b, float t) {
+  return a + t * (b - a);
+}
+
+void aplicar_filtro_gamma(Tela* tela, float gama) {
+  if (tela == nullptr || tela->pixeis == nullptr || gama <= 0.0f) {
+    return;
+  }
+
+  float inverso_gama = 1.0f / gama;
+  int total_pixeis = tela->largura * tela->altura;
+
+  for (int i = 0; i < total_pixeis; i++) {
+    Cor cor_atual = tela->pixeis[i];
+
+    // Extração dos canais assumindo o formato RGBA de 32 bits
+    float r = (float)((cor_atual >> 24) & 0xFF) / 255.0f;
+    float g = (float)((cor_atual >> 16) & 0xFF) / 255.0f;
+    float b = (float)((cor_atual >> 8)  & 0xFF) / 255.0f;
+    unsigned int a = cor_atual & 0xFF;
+
+    // Aplicação da correção de gama exponencial
+    float r_corrigido = potencia_real(r, inverso_gama) * 255.0f;
+    float g_corrigido = potencia_real(g, inverso_gama) * 255.0f;
+    float b_corrigido = potencia_real(b, inverso_gama) * 255.0f;
+
+    // Teto de segurança para os limites de precisão de vírgula flutuante
+    if (r_corrigido > 255.0f) r_corrigido = 255.0f;
+    if (g_corrigido > 255.0f) g_corrigido = 255.0f;
+    if (b_corrigido > 255.0f) b_corrigido = 255.0f;
+    if (r_corrigido < 0.0f) r_corrigido = 0.0f;
+    if (g_corrigido < 0.0f) g_corrigido = 0.0f;
+    if (b_corrigido < 0.0f) b_corrigido = 0.0f;
+
+    // Reconstrução da cor final no formato RGBA
+    tela->pixeis[i] = ((Cor)(unsigned char)r_corrigido << 24) |
+                      ((Cor)(unsigned char)g_corrigido << 16) |
+                      ((Cor)(unsigned char)b_corrigido << 8)  |
+                      (Cor)a;
+  }
+}
+
+float logaritmo_natural(float x) {
+  if (x <= 0.0f) {
+    return 0.0f;
+  }
+
+  float n_log = 0.0f;
+
+  // Redução de gama para aproximar o valor ao intervalo ideal perto de 1.0f
+  while (x > 1.41421356f) {
+    x *= 0.5f;
+    n_log += 0.69314718f;
+  }
+  while (x < 0.70710678f) {
+    x *= 2.0f;
+    n_log -= 0.69314718f;
+  }
+
+  // Série polinomial para ln(x) no intervalo reduzido
+  float num = x - 1.0f;
+  float den = x + 1.0f;
+  float fracao = num / den;
+  float fracao_quadrada = fracao * fracao;
+  
+  float termo_ln = fracao;
+  float soma_ln = fracao;
+  int i_ln = 3;
+
+  for (int j = 0; j < 4; j++) {
+    termo_ln *= fracao_quadrada;
+    soma_ln += termo_ln / (float)i_ln;
+    i_ln += 2;
+  }
+
+  return n_log + (2.0f * soma_ln);
+}
+
+float potencia_real(float base, float expoente) {
+  if (base == 0.0f) {
+    if (expoente > 0.0f) {
+      return 0.0f;
+    }
+    return 1.0f; 
+  }
+
+  if (base < 0.0f) {
+    return 0.0f;
+  }
+
+  if (expoente == 0.0f) {
+    return 1.0f;
+  }
+
+  float ln_final = logaritmo_natural(base);
+  float valor_exp = expoente * ln_final;
+  
+  // Redução de gama para exp(f) aproximado a 0
+  int k_exp = (int)(valor_exp * 1.44269504f);
+  float f_exp = valor_exp - ((float)k_exp * 0.69314718f);
+
+  float termo_exp = 1.0f;
+  float soma_exp = 1.0f;
+
+  // Expansão de Taylor para e^f_exp
+  for (int i = 1; i < 10; i++) {
+    termo_exp *= f_exp / (float)i;
+    soma_exp += termo_exp;
+  }
+
+  // Aplicação do expoente binário remanescente
+  if (k_exp > 0) {
+    for (int i = 0; i < k_exp; i++) {
+      soma_exp *= 2.0f;
+    }
+  } else if (k_exp < 0) {
+    for (int i = 0; i < -k_exp; i++) {
+      soma_exp *= 0.5f;
+    }
+  }
+
+  return soma_exp;
+}
+
+void aplicar_mapeamento_de_tom_reinhard(Tela* tela) {
+  if (tela == nullptr || tela->pixeis == nullptr) {
+    return;
+  }
+
+  int total_pixeis = tela->largura * tela->altura;
+
+  for (int i = 0; i < total_pixeis; i++) {
+    Cor cor_atual = tela->pixeis[i];
+
+    // Extração dos canais normalizados [0.0, 1.0] assumindo o formato RGBA de 32 bits
+    float r = (float)((cor_atual >> 24) & 0xFF) / 255.0f;
+    float g = (float)((cor_atual >> 16) & 0xFF) / 255.0f;
+    float b = (float)((cor_atual >> 8)  & 0xFF) / 255.0f;
+    unsigned int a = cor_atual & 0xFF;
+
+    // Aplicação do operador de Reinhard independente por canal
+    float r_mapeado = r / (1.0f + r);
+    float g_mapeado = g / (1.0f + g);
+    float b_mapeado = b / (1.0f + b);
+
+    // Conversão de volta para a escala inteira [0, 255]
+    float r_final = r_mapeado * 255.0f;
+    float g_final = g_mapeado * 255.0f;
+    float b_final = b_mapeado * 255.0f;
+
+    // Salvaguardas estruturais para limites numéricos
+    if (r_final > 255.0f) r_final = 255.0f;
+    if (g_final > 255.0f) g_final = 255.0f;
+    if (b_final > 255.0f) b_final = 255.0f;
+    if (r_final < 0.0f) r_final = 0.0f;
+    if (g_final < 0.0f) g_final = 0.0f;
+    if (b_final < 0.0f) b_final = 0.0f;
+
+    // Recomposição do pixel no espaço binário RGBA
+    tela->pixeis[i] = ((Cor)(unsigned char)r_final << 24) |
+                      ((Cor)(unsigned char)g_final << 16) |
+                      ((Cor)(unsigned char)b_final << 8)  |
+                      (Cor)a;
+  }
+}
+
+bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro) {
+  if (tela == nullptr || tela->pixeis == nullptr || caminho_ficheiro == nullptr) {
+    return false;
+  }
+
+  FILE* ficheiro = fopen(caminho_ficheiro, "wb");
+  if (ficheiro == nullptr) {
+    return false;
+  }
+
+  // Cabeçalho estrutural do formato TGA (18 bytes)
+  unsigned char cabecalho[18];
+  for (int i = 0; i < 18; i++) {
+    cabecalho[i] = 0;
+  }
+  
+  cabecalho[2] = 2; // Tipo de imagem: True-color não comprimida
+  
+  // Largura (Bytes 12 e 13)
+  cabecalho[12] = (unsigned char)(tela->largura & 0xFF);
+  cabecalho[13] = (unsigned char)((tela->largura >> 8) & 0xFF);
+  
+  // Altura (Bytes 14 e 15)
+  cabecalho[14] = (unsigned char)(tela->altura & 0xFF);
+  cabecalho[15] = (unsigned char)((tela->altura >> 8) & 0xFF);
+  
+  cabecalho[16] = 32; // Profundidade de cor: 32 bits por pixel (BGRA)
+  cabecalho[17] = 8;  // Atributos do descritor: 8 bits de canal alfa
+
+  // Escrita do cabeçalho no disco
+  unsigned long itens_escritos = fwrite(cabecalho, 1, 18, ficheiro);
+  if (itens_escritos != 18) {
+    fclose(ficheiro);
+    return false;
+  }
+
+  // Conversão de RGBA (Top-Down) para BGRA (Bottom-Up) e escrita linha a linha
+  for (int y = tela->altura - 1; y >= 0; y--) {
+    for (int x = 0; x < tela->largura; x++) {
+      int indice_origem = y * tela->largura + x;
+      Cor pixel_rgba = tela->pixeis[indice_origem];
+
+      // Extração analítica dos componentes RGBA
+      unsigned char r = (unsigned char)((pixel_rgba >> 24) & 0xFF);
+      unsigned char g = (unsigned char)((pixel_rgba >> 16) & 0xFF);
+      unsigned char b = (unsigned char)((pixel_rgba >> 8)  & 0xFF);
+      unsigned char a = (unsigned char)(pixel_rgba & 0xFF);
+
+      // Reorganização física para o formato binário BGRA do TGA
+      unsigned char pixel_bgra[4];
+      pixel_bgra[0] = b;
+      pixel_bgra[1] = g;
+      pixel_bgra[2] = r;
+      pixel_bgra[3] = a;
+
+      unsigned long bytes_pixel = fwrite(pixel_bgra, 1, 4, ficheiro);
+      if (bytes_pixel != 4) {
+        fclose(ficheiro);
+        return false;
+      }
+    }
+  }
+
+  fclose(ficheiro);
+  return true;
+}
+
+bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro) {
+  if (tela == nullptr || tela->pixeis == nullptr || caminho_ficheiro == nullptr) {
+    return false;
+  }
+
+  FILE* ficheiro = fopen(caminho_ficheiro, "wb");
+  if (ficheiro == nullptr) {
+    return false;
+  }
+
+  // Escrita do cabeçalho PPM (Formato P6, Largura, Altura, Valor Máximo de Cor)
+  // O formato PPM é lido de cima para baixo (Top-Down), igual à tua estrutura de Tela.
+  int caracteres_escritos = fprintf(ficheiro, "P6\n%d %d\n255\n", tela->largura, tela->altura);
+  if (caracteres_escritos < 0) {
+    fclose(ficheiro);
+    return false;
+  }
+
+  int total_pixeis = tela->largura * tela->altura;
+
+  for (int i = 0; i < total_pixeis; i++) {
+    Cor pixel_rgba = tela->pixeis[i];
+
+    // Extração analítica dos componentes de cor a partir do formato RGBA de 32 bits
+    unsigned char componentes;
+    componentes = (unsigned char)((pixel_rgba >> 24) & 0xFF); // R
+    componentes = (unsigned char)((pixel_rgba >> 16) & 0xFF); // G
+    componentes = (unsigned char)((pixel_rgba >> 8)  & 0xFF); // B
+
+    // Escrita direta do bloco RGB de 3 bytes no ficheiro
+    unsigned long bytes_escritos = fwrite(&componentes, 1, 3, ficheiro);
+    if (bytes_escritos != 3) {
+      fclose(ficheiro);
+      return false;
+    }
+  }
+
+  fclose(ficheiro);
+  return true;
 }
