@@ -49,6 +49,14 @@ typedef struct {
   Cor cor;
 } Vertice;
 
+// Estrutura interna para representação dos nós da árvore BVH
+typedef struct {
+  Vetor3D min_caixa;
+  Vetor3D max_caixa;
+  int indice_esquerdo;  // Se for > 0, aponta para o nó filho. Se for folha, pode ser o índice do objeto.
+  int contagem_objetos; // Se for 0, é um nó interno. Se for > 0, é uma folha com N objetos.
+} NoBVH;
+
 constexpr float PI = 3.14159265f;
 
 float logaritmo_natural(float x);
@@ -1065,7 +1073,6 @@ void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D
   }
 }
 
-
 void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura) {
   if (tela == nullptr || pf == nullptr) return;
 
@@ -1702,4 +1709,371 @@ bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro) {
 
   fclose(ficheiro);
   return true;
+}
+
+float calcular_atenuacao_luz(float distancia, float constante, float linear, float quadratica) {
+  float denominador = constante + (linear * distancia) + (quadratica * distancia * distancia);
+  
+  if (denominador <= 0.0f) {
+    return 1.0f;
+  }
+  
+  return 1.0f / denominador;
+}
+
+Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vetor3D dir_foco, float corte_interno, float corte_externo) {
+  // Calcular o vetor do ponto até à luz
+  Vetor3D direcao_para_luz = subtrair_vetores(pos_luz, ponto);
+  direcao_para_luz = normalizar_vetor(direcao_para_luz);
+  
+  // Normalizar a direção do foco da luz (garantia)
+  Vetor3D dir_foco_normalizada = normalizar_vetor(dir_foco);
+  
+  // O vetor do raio luminoso que sai da luz vai na direção oposta a direcao_para_luz
+  Vetor3D direcao_raio_luz = subtrair_vetores(ponto, pos_luz);
+  direcao_raio_luz = normalizar_vetor(direcao_raio_luz);
+  
+  // Calcular o cosseno do ângulo entre o raio da luz e a direção principal do foco
+  float cosseno_atual = produto_escalar(direcao_raio_luz, dir_foco_normalizada);
+  
+  // No modelo row-major/padrão, os cortes recebidos já devem ser os cossenos dos ângulos.
+  // Se forem ângulos em radianos, seriam calculados previamente com cosseno(angulo).
+  // Assumindo que corte_interno e corte_externo são os cossenos:
+  float diferenca = corte_interno - corte_externo;
+  
+  // Evitar divisão por zero caso os ângulos sejam idênticos
+  if (diferenca <= 0.0001f) {
+    if (cosseno_atual >= corte_interno) {
+      // Fora do cone de transição, totalmente iluminado pelo foco
+      float n_dot_l = maximo(0.0f, produto_escalar(normal, direcao_para_luz));
+      return multiplicar_cor(0xFFFFFFFF, n_dot_l); // Retorna branco com intensidade difusa
+    }
+    return 0x00000000; // Totalmente escuro fora do foco
+  }
+  
+  // Calcular a intensidade da transição (fator de atenuação angular)
+  float intensidade_foco = (cosseno_atual - corte_externo) / diferenca;
+  intensidade_foco = minimo(maximo(intensidade_foco, 0.0f), 1.0f);
+  
+  // Calcular o fator Lambertiano (difuso básico)
+  float fator_difuso = maximo(0.0f, produto_escalar(normal, direcao_para_luz));
+  
+  // Intensidade final combinando a orientação da superfície e o cone do foco
+  float intensidade_final = fator_difuso * intensidade_foco;
+  
+  // Retorna a cor branca modulada pela intensidade (RGBA: 0xFFFFFFFF)
+  return multiplicar_cor(0xFFFFFFFF, intensidade_final);
+}
+
+float calcular_fator_sombra_raster(Vetor3D ponto_espaco_luz, Profundidade* mapa_sombras, float bias) {
+  // Se o mapa de sombras não existir, não há sombra projetada
+  if (mapa_sombras == nullptr || mapa_sombras->profundidades == nullptr) {
+    return 1.0f;
+  }
+
+  // Converter as coordenadas de textura [0.0, 1.0] para índices de píxeis inteiros
+  int tex_x = (int)(ponto_espaco_luz.x * (float)mapa_sombras->largura);
+  int tex_y = (int)(ponto_espaco_luz.y * (float)mapa_sombras->altura);
+
+  // Se o ponto estiver fora dos limites do mapa de sombras, 
+  // assumimos que está fora do cone/frustum da luz (portanto, iluminado)
+  if (tex_x < 0 || tex_x >= mapa_sombras->largura || tex_y < 0 || tex_y >= mapa_sombras->altura) {
+    return 1.0f;
+  }
+
+  // Obter a profundidade linearizada do fragmento atual
+  float profundidade_atual = ponto_espaco_luz.z;
+
+  // Se o fragmento estiver além do plano distante da luz, não recebe sombra projetada
+  if (profundidade_atual > 1.0f) {
+    return 1.0f;
+  }
+
+  // Mapeamento Row-Major para encontrar o índice no buffer de profundidade
+  int indice = (tex_y * mapa_sombras->largura) + tex_x;
+  float profundidade_armazenada = mapa_sombras->profundidades[indice];
+
+  // Teste de sombra tradicional: se a profundidade atual com bias for maior
+  // do que a profundidade mais próxima vista pela luz, o ponto está na sombra
+  if (profundidade_atual - bias > profundidade_armazenada) {
+    return 0.0f; // Totalmente na sombra
+  }
+
+  return 1.0f; // Totalmente iluminado
+}
+
+bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, float* t_min_out) {
+  float t_minimo = -1e30f; // Representação prática de infinito negativo
+  float t_maximo =  1e30f; // Representação prática de infinito positivo
+
+  // Processamento do Eixo X
+  if (raio.direcao.x != 0.0f) {
+    float inverso_dir_x = 1.0f / raio.direcao.x;
+    float t1 = (min_caixa.x - raio.origem.x) * inverso_dir_x;
+    float t2 = (max_caixa.x - raio.origem.x) * inverso_dir_x;
+
+    t_minimo = maximo(t_minimo, minimo(t1, t2));
+    t_maximo = minimo(t_maximo, maximo(t1, t2));
+  } else if (raio.origem.x < min_caixa.x || raio.origem.x > max_caixa.x) {
+    return false;
+  }
+
+  // Processamento do Eixo Y
+  if (raio.direcao.y != 0.0f) {
+    float inverso_dir_y = 1.0f / raio.direcao.y;
+    float t1 = (min_caixa.y - raio.origem.y) * inverso_dir_y;
+    float t2 = (max_caixa.y - raio.origem.y) * inverso_dir_y;
+
+    t_minimo = maximo(t_minimo, minimo(t1, t2));
+    t_maximo = minimo(t_maximo, maximo(t1, t2));
+  } else if (raio.origem.y < min_caixa.y || raio.origem.y > max_caixa.y) {
+    return false;
+  }
+
+  // Processamento do Eixo Z
+  if (raio.direcao.z != 0.0f) {
+    float inverso_dir_z = 1.0f / raio.direcao.z;
+    float t1 = (min_caixa.z - raio.origem.z) * inverso_dir_z;
+    float t2 = (max_caixa.z - raio.origem.z) * inverso_dir_z;
+
+    t_minimo = maximo(t_minimo, minimo(t1, t2));
+    t_maximo = minimo(t_maximo, maximo(t1, t2));
+  } else if (raio.origem.z < min_caixa.z || raio.origem.z > max_caixa.z) {
+    return false;
+  }
+
+  // Verificar se houve uma interseção válida no espaço-tempo do raio
+  if (t_minimo > t_maximo || t_maximo < 0.0f) {
+    return false;
+  }
+
+  // Se o raio começar dentro da caixa, o t_minimo será negativo.
+  // Nesse caso, o primeiro ponto de interseção à frente do raio será em t_minimo = 0.0f ou t_maximo.
+  // Para volumes envolventes de aceleração, queremos saber se intersecta à frente.
+  if (t_minimo < 0.0f) {
+    t_minimo = 0.0f; 
+  }
+
+  if (t_min_out != nullptr) {
+    *t_min_out = t_minimo;
+  }
+
+  return true;
+}
+
+// Função auxiliar interna para computar o volume envolvente (AABB) de um conjunto de esferas
+static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, int inicio, int fim, Vetor3D* min_out, Vetor3D* max_out) {
+  Vetor3D minimo_ = { .x = 1e30f, .y = 1e30f, .z = 1e30f };
+  Vetor3D maximo_ = { .x = -1e30f, .y = -1e30f, .z = -1e30f };
+
+  for (int i = inicio; i < fim; ++i) {
+    int idx = indices[i];
+    Vetor3D c = centros[idx];
+    float r = raios[idx];
+
+    minimo_.x = minimo(minimo_.x, c.x - r);
+    minimo_.y = minimo(minimo_.y, c.y - r);
+    minimo_.z = minimo(minimo_.z, c.z - r);
+
+    maximo_.x = maximo(maximo_.x, c.x + r);
+    maximo_.y = maximo(maximo_.y, c.y + r);
+    maximo_.z = maximo(maximo_.z, c.z + r);
+  }
+
+  *min_out = minimo_;
+  *max_out = maximo_;
+}
+
+// Função recursiva interna para construir os nós da árvore sequencialmente na memória alocada
+static int construir_bvh_recursivo(NoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos) {
+  int no_atual_idx = *contador_nos;
+  (*contador_nos)++;
+
+  NoBVH* no = &nos[no_atual_idx];
+  
+  // Calcular a caixa envolvente para os objetos deste nó
+  calcular_aabb_grupo(centros, raios, indices, inicio, fim, &no->min_caixa, &no->max_caixa);
+
+  int contagem = fim - inicio;
+
+  // Condição de paragem: se tivermos 2 ou menos objetos, transformamos o nó numa folha
+  if (contagem <= 2) {
+    no->indice_esquerdo = indices[inicio]; // Armazena o índice do primeiro objeto no array original
+    no->contagem_objetos = contagem;       // Indica que é um nó folha
+    return no_atual_idx;
+  }
+
+  // Determinar o eixo mais longo da caixa envolvente para fazer a divisão (Split)
+  Vetor3D extensao = subtrair_vetores(no->max_caixa, no->min_caixa);
+  int eixo = 0;
+  if (extensao.y > extensao.x) eixo = 1;
+  if (extensao.z > (eixo == 0 ? extensao.x : extensao.y)) eixo = 2;
+
+  // Dividir a meio com base na posição dos centros dos objetos ao longo do eixo escolhido
+  float divisao = 0.5f * (
+    (eixo == 0 ? no->min_caixa.x + no->max_caixa.x : 
+    (eixo == 1 ? no->min_caixa.y + no->max_caixa.y : no->min_caixa.z + no->max_caixa.z))
+  );
+
+  // Reordenar os índices (particionamento rápido semelhante ao Quicksort)
+  int i = inicio;
+  int j = fim - 1;
+  while (i <= j) {
+    float pos_centro = 0.0f;
+    if (eixo == 0) pos_centro = centros[indices[i]].x;
+    else if (eixo == 1) pos_centro = centros[indices[i]].y;
+    else pos_centro = centros[indices[i]].z;
+
+    if (pos_centro < divisao) {
+      i++;
+    } else {
+      int temporario = indices[i];
+      indices[i] = indices[j];
+      indices[j] = temporario;
+      j--;
+    }
+  }
+
+  // Se a divisão falhar e colocar todos os objetos de um único lado, força a divisão ao meio exato do array
+  int meio = i;
+  if (meio == inicio || meio == fim) {
+    meio = inicio + contagem / 2;
+  }
+
+  // Construir os nós filhos recursivamente
+  no->contagem_objetos = 0; // 0 indica que é um nó interno
+  no->indice_esquerdo = construir_bvh_recursivo(nos, indices, centros, raios, inicio, meio, contador_nos);
+  // O filho direito estará localizado implicitamente no nó gerado logo a seguir ao ramo esquerdo
+  construir_bvh_recursivo(nos, indices, centros, raios, meio, fim, contador_nos);
+
+  return no_atual_idx;
+}
+
+void construir_arvore_bvh(NoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos) {
+  if (nos_bvh == nullptr || centros == nullptr || raios == nullptr || num_objetos <= 0) {
+    return;
+  }
+
+  // Alocar dinamicamente uma tabela temporária de índices para mapeamento e ordenação espacial
+  int* indices = malloc(sizeof(int) * (size_t)num_objetos);
+  if (indices == nullptr) {
+    return;
+  }
+
+  for (int i = 0; i < num_objetos; ++i) {
+    indices[i] = i;
+  }
+
+  int contador_nos = 0;
+  NoBVH* array_nos = (NoBVH*)nos_bvh;
+
+  // Iniciar a construção recursiva a partir da raiz (índice 0)
+  construir_bvh_recursivo(array_nos, indices, centros, raios, 0, num_objetos, &contador_nos);
+
+  // Libertar a tabela temporária de índices
+  free(indices);
+}
+
+// Funções auxiliares para manipulação dos canais RGBA de uma Cor (uint32_t)
+static inline float obter_canal_r(Cor c) { return (float)((c >> 24) & 0xFF); }
+static inline float obter_canal_g(Cor c) { return (float)((c >> 16) & 0xFF); }
+static inline float obter_canal_b(Cor c) { return (float)((c >> 8) & 0xFF); }
+static inline float obter_canal_a(Cor c) { return (float)(c & 0xFF); }
+
+static inline Cor criar_cor_rgba(float r, float g, float b, float a) {
+  uint32_t ur = (uint32_t)minimo(maximo(r, 0.0f), 255.0f);
+  uint32_t ug = (uint32_t)minimo(maximo(g, 0.0f), 255.0f);
+  uint32_t ub = (uint32_t)minimo(maximo(b, 0.0f), 255.0f);
+  uint32_t ua = (uint32_t)minimo(maximo(a, 0.0f), 255.0f);
+  return (ur << 24) | (ug << 16) | (ub << 8) | ua;
+}
+
+void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
+  if (tela == nullptr || tela->pixeis == nullptr || sigma <= 0.0f) {
+    return;
+  }
+
+  // Determinar o raio do núcleo com base no desvio padrão (sigma)
+  int raio = (int)truncar(sigma * 3.0f);
+  if (raio < 1) raio = 1;
+  if (raio > 15) raio = 15; // Limite prático para estabilidade de memória estática
+
+  int tamanho_nucleo = (raio * 2) + 1;
+  float nucleo[31]; // Suporta raio até 15
+  float soma_pesos = 0.0f;
+
+  // Calcular os pesos unidimensionais do núcleo Gaussiano
+  float dois_sigma_quadrado = 2.0f * sigma * sigma;
+  for (int i = -raio; i <= raio; ++i) {
+    float x = (float)i;
+    float peso = (1.0f / (raiz(PI * dois_sigma_quadrado))) * (potencia_real(2.71828182f, -(x * x) / dois_sigma_quadrado));
+    nucleo[i + raio] = peso;
+    soma_pesos += peso;
+  }
+
+  // Normalizar o núcleo para evitar que a imagem escureça ou clareie
+  for (int i = 0; i < tamanho_nucleo; ++i) {
+    nucleo[i] /= soma_pesos;
+  }
+
+  // Alocar uma tela temporária para armazenar a primeira passagem (Horizontal)
+  Cor* buffer_temporario = malloc(sizeof(Cor) * (size_t)tela->largura * (size_t)tela->altura);
+  if (buffer_temporario == nullptr) {
+    return;
+  }
+
+  // Passagem 1: Desfoque Horizontal (Lê de tela->pixeis, escreve em buffer_temporario)
+  for (int y = 0; y < tela->altura; ++y) {
+    for (int x = 0; x < tela->largura; ++x) {
+      float r_acumulado = 0.0f, g_acumulado = 0.0f, b_acumulado = 0.0f, a_acumulado = 0.0f;
+
+      for (int k = -raio; k <= raio; ++k) {
+        // Amostragem com fixação nos limites (Clamp) para as bordas da tela
+        int vizinho_x = x + k;
+        if (vizinho_x < 0) vizinho_x = 0;
+        if (vizinho_x >= tela->largura) vizinho_x = tela->largura - 1;
+
+        int indice_vizinho = (y * tela->largura) + vizinho_x;
+        Cor cor_vizinho = tela->pixeis[indice_vizinho];
+        float peso = nucleo[k + raio];
+
+        r_acumulado += obter_canal_r(cor_vizinho) * peso;
+        g_acumulado += obter_canal_g(cor_vizinho) * peso;
+        b_acumulado += obter_canal_b(cor_vizinho) * peso;
+        a_acumulado += obter_canal_a(cor_vizinho) * peso;
+      }
+
+      int indice_destino = (y * tela->largura) + x;
+      buffer_temporario[indice_destino] = criar_cor_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
+    }
+  }
+
+  // Passagem 2: Desfoque Vertical (Lê de buffer_temporario, escreve de volta em tela->pixeis)
+  for (int y = 0; y < tela->altura; ++y) {
+    for (int x = 0; x < tela->largura; ++x) {
+      float r_acumulado = 0.0f, g_acumulado = 0.0f, b_acumulado = 0.0f, a_acumulado = 0.0f;
+
+      for (int k = -raio; k <= raio; ++k) {
+        // Amostragem com fixação nos limites (Clamp) para as bordas verticais
+        int vizinho_y = y + k;
+        if (vizinho_y < 0) vizinho_y = 0;
+        if (vizinho_y >= tela->altura) vizinho_y = tela->altura - 1;
+
+        int indice_vizinho = (vizinho_y * tela->largura) + x;
+        Cor cor_vizinho = buffer_temporario[indice_vizinho];
+        float peso = nucleo[k + raio];
+
+        r_acumulado += obter_canal_r(cor_vizinho) * peso;
+        g_acumulado += obter_canal_g(cor_vizinho) * peso;
+        b_acumulado += obter_canal_b(cor_vizinho) * peso;
+        a_acumulado += obter_canal_a(cor_vizinho) * peso;
+      }
+
+      int indice_destino = (y * tela->largura) + x;
+      tela->pixeis[indice_destino] = criar_cor_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
+    }
+  }
+
+  // Libertar a memória do buffer temporário alocado
+  free(buffer_temporario);
 }
