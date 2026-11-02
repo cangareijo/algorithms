@@ -2077,3 +2077,462 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
   // Libertar a memória do buffer temporário alocado
   free(buffer_temporario);
 }
+
+// Funções auxiliares para manipulação dos canais RGBA de uma Cor (uint32_t)
+static inline float extrair_r(Cor c) { return (float)((c >> 24) & 0xFF); }
+static inline float extrair_g(Cor c) { return (float)((c >> 16) & 0xFF); }
+static inline float extrair_b(Cor c) { return (float)((c >> 8) & 0xFF); }
+static inline float extrair_a(Cor c) { return (float)(c & 0xFF); }
+
+static inline Cor empacotar_rgba(float r, float g, float b, float a) {
+  uint32_t ur = (uint32_t)minimo(maximo(r, 0.0f), 255.0f);
+  uint32_t ug = (uint32_t)minimo(maximo(g, 0.0f), 255.0f);
+  uint32_t ub = (uint32_t)minimo(maximo(b, 0.0f), 255.0f);
+  uint32_t ua = (uint32_t)minimo(maximo(a, 0.0f), 255.0f);
+  return (ur << 24) | (ug << 16) | (ub << 8) | ua;
+}
+
+void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
+  if (tela == nullptr || tela->pixeis == nullptr || intensidade <= 0.0f || raio <= 0.0f) {
+    return;
+  }
+
+  // Determinar o centro geométrico da tela
+  float centro_x = (float)tela->largura * 0.5f;
+  float centro_y = (float)tela->altura * 0.5f;
+
+  for (int y = 0; y < tela->altura; ++y) {
+    for (int x = 0; x < tela->largura; ++x) {
+      // Calcular a distância do píxel atual ao centro da tela
+      float dx = (float)x - centro_x;
+      float dy = (float)y - centro_y;
+      float dist = raiz((dx * dx) + (dy * dy));
+
+      // Normalizar a distância com base no raio da vinheta
+      float dist_normalizada = dist / raio;
+
+      // Calcular o fator de atenuação (quanto maior a distância, menor o fator)
+      // O decaimento usa uma curva suave para evitar transições abruptas
+      float fator_escurecimento = 1.0f - (dist_normalizada * dist_normalizada * intensidade);
+      fator_escurecimento = minimo(maximo(fator_escurecimento, 0.0f), 1.0f);
+
+      // Obter o índice do píxel na estrutura Row-Major
+      int indice = (y * tela->largura) + x;
+      Cor cor_original = tela->pixeis[indice];
+
+      // Extrair os canais de cor originais
+      float r = extrair_r(cor_original);
+      float g = extrair_g(cor_original);
+      float b = extrair_b(cor_original);
+      float a = extrair_a(cor_original);
+
+      // Aplicar o efeito de vinheta apenas aos canais cromáticos (RGB)
+      r *= fator_escurecimento;
+      g *= fator_escurecimento;
+      b *= fator_escurecimento;
+
+      // Gravar o píxel processado de volta na tela
+      tela->pixeis[indice] = empacotar_rgba(r, g, b, a);
+    }
+  }
+}
+
+Raio gerar_raio_camara_profundidade_campo(Vetor3D posicao, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura) {
+  // 1. Configurar o sistema de coordenadas locais da câmara (Camera Frame)
+  Vetor3D frente = normalizar_vetor(dir);
+  Vetor3D cima_global = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
+  
+  // Evitar singularidade se a câmara olhar exatamente para cima ou para baixo
+  if (absoluto(frente.y) > 0.99f) {
+    cima_global = (Vetor3D){ .x = 1.0f, .y = 0.0f, .z = 0.0f };
+  }
+  
+  Vetor3D direita = normalizar_vetor(produto_vetorial(frente, cima_global));
+  Vetor3D cima_local = produto_vetorial(direita, frente);
+
+  // 2. Calcular as coordenadas normalizadas do ecrã [-1, 1]
+  float proporcao = (float)largura / (float)altura;
+  float fov = 0.785398f; // Assumindo um FOV padrão de 45 graus (PI / 4) em radianos
+  float escala_tangente = tangente(fov * 0.5f);
+
+  float px = (((float)x + 0.5f) / (float)largura * 2.0f - 1.0f) * proporcao * escala_tangente;
+  float py = (1.0f - ((float)y + 0.5f) / (float)altura * 2.0f) * escala_tangente;
+
+  // Direção primária calculada diretamente somando as componentes no espaço da câmara
+  Vetor3D dir_raio_primario;
+  dir_raio_primario.x = (direita.x * px) + (cima_local.x * py) + frente.x;
+  dir_raio_primario.y = (direita.y * px) + (cima_local.y * py) + frente.y;
+  dir_raio_primario.z = (direita.z * px) + (cima_local.z * py) + frente.z;
+  dir_raio_primario = normalizar_vetor(dir_raio_primario);
+
+  // 3. Determinar o ponto de focagem no plano focal
+  float t_foco = distancia_focal;
+  Vetor3D ponto_foco = {
+    .x = posicao.x + dir_raio_primario.x * t_foco,
+    .y = posicao.y + dir_raio_primario.y * t_foco,
+    .z = posicao.z + dir_raio_primario.z * t_foco
+  };
+
+  // 4. Gerar amostragem pseudoaleatória determinista baseada no píxel para o disco da lente
+  uint32_t s = (uint32_t)(x * 73856093 ^ y * 19349663);
+  s = (s ^ 61) ^ (s >> 16);
+  s *= 9;
+  s = s ^ (s >> 4);
+  s *= 0x27d4eb2d;
+  s = s ^ (s >> 15);
+  
+  float r1 = (float)(s & 0xFFFF) / 65535.0f;
+  float r2 = (float)((s >> 16) & 0xFFFF) / 65535.0f;
+
+  // Mapeamento para um disco circular (Coordenadas Polares)
+  float raio_lente = (abertura * 0.5f) * raiz(r1);
+  float angulo = r2 * 2.0f * PI;
+
+  float deslocamento_u = raio_lente * cosseno(angulo);
+  float deslocamento_v = raio_lente * seno(angulo);
+
+  // 5. Calcular a nova origem deslocada sobre a superfície da lente
+  Vetor3D nova_origem = {
+    .x = posicao.x + (direita.x * deslocamento_u) + (cima_local.x * deslocamento_v),
+    .y = posicao.y + (direita.y * deslocamento_u) + (cima_local.y * deslocamento_v),
+    .z = posicao.z + (direita.z * deslocamento_u) + (cima_local.z * deslocamento_v)
+  };
+
+  // 6. A nova direção aponta da lente para o ponto de focagem
+  Vetor3D nova_direcao = normalizar_vetor(subtrair_vetores(ponto_foco, nova_origem));
+
+  Raio raio_camara = {
+    .origem = nova_origem,
+    .direcao = nova_direcao
+  };
+
+  return raio_camara;
+}
+
+int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, int fatias, int pilhas) {
+  if (fatias < 3 || pilhas < 2) {
+    return 0;
+  }
+
+  int total_indices = pilhas * fatias * 6;
+
+  // Se apenas pretendermos calcular a dimensão dos buffers para alocação externa
+  if (vertices_out == nullptr || indices_out == nullptr) {
+    return total_indices;
+  }
+
+  int contagem_vertices = 0;
+
+  // 1. Gerar os Vértices, Normais e Coordenadas UV
+  for (int p = 0; p <= pilhas; ++p) {
+    float fator_p = (float)p / (float)pilhas;
+    // phi varia de 0 a PI (do polo norte ao polo sul)
+    float phi = fator_p * PI;
+
+    for (int f = 0; f <= fatias; ++f) {
+      float fator_f = (float)f / (float)fatias;
+      // theta varia de 0 a 2*PI (uma volta completa)
+      float theta = fator_f * 2.0f * PI;
+
+      float sen_phi = seno(phi);
+      float cos_phi = cosseno(phi);
+      float sen_theta = seno(theta);
+      float cos_theta = cosseno(theta);
+
+      // Calcular as coordenadas cartesianas na superfície da esfera
+      float nx = sen_phi * cos_theta;
+      float ny = cos_phi; // Eixo Y como eixo vertical polar
+      float nz = sen_phi * sen_theta;
+
+      Vertice v;
+      v.posicao.x = nx * raio;
+      v.posicao.y = ny * raio;
+      v.posicao.z = nz * raio;
+
+      v.uv.x = fator_f;
+      v.uv.y = 1.0f - fator_p; // Inverter o eixo V para mapeamento padrão
+
+      // Embalar a normal diretamente na cor como representação visual
+      uint32_t r_norm = (uint32_t)((nx * 0.5f + 0.5f) * 255.0f);
+      uint32_t g_norm = (uint32_t)((ny * 0.5f + 0.5f) * 255.0f);
+      uint32_t b_norm = (uint32_t)((nz * 0.5f + 0.5f) * 255.0f);
+      v.cor = (r_norm << 24) | (g_norm << 16) | (b_norm << 8) | 0xFF;
+
+      vertices_out[contagem_vertices] = v;
+      contagem_vertices++;
+    }
+  }
+
+  // 2. Gerar a Topologia da Malha (Índices dos Triângulos)
+  int contagem_indices = 0;
+  for (int p = 0; p < pilhas; ++p) {
+    for (int f = 0; f < fatias; ++f) {
+      // Determinar os quatro cantos de cada quadrilátero (quad) da malha
+      uint32_t canto_noroeste = (uint32_t)((p * (fatias + 1)) + f);
+      uint32_t canto_nordeste = canto_noroeste + 1;
+      uint32_t canto_sudoeste = canto_noroeste + (uint32_t)(fatias + 1);
+      uint32_t canto_sudeste = canto_sudoeste + 1;
+
+      // Primeiro Triângulo (Sentido dos ponteiros do relógio / Row-major convencional)
+      indices_out[contagem_indices++] = canto_noroeste;
+      indices_out[contagem_indices++] = canto_nordeste;
+      indices_out[contagem_indices++] = canto_sudoeste;
+
+      // Segundo Triângulo
+      indices_out[contagem_indices++] = canto_nordeste;
+      indices_out[contagem_indices++] = canto_sudeste;
+      indices_out[contagem_indices++] = canto_sudoeste;
+    }
+  }
+
+  return total_indices;
+}
+
+int gerar_geometria_cubo(Vertice* vertices_out, uint32_t* indices_out, float tamanho) {
+  int total_indices = 36; // 6 faces * 2 triângulos * 3 índices
+
+  if (vertices_out == nullptr || indices_out == nullptr) {
+    return total_indices;
+  }
+
+  float metade = tamanho * 0.5f;
+
+  // Definição das posições dos 8 cantos únicos do cubo
+  Vetor3D c0 = { -metade, -metade,  metade };
+  Vetor3D c1 = {  metade, -metade,  metade };
+  Vetor3D c2 = {  metade,  metade,  metade };
+  Vetor3D c3 = { -metade,  metade,  metade };
+  Vetor3D c4 = { -metade, -metade, -metade };
+  Vetor3D c5 = {  metade, -metade, -metade };
+  Vetor3D c6 = {  metade,  metade, -metade };
+  Vetor3D c7 = { -metade,  metade, -metade };
+
+  // Definição das coordenadas UV padrão para um quadrilátero
+  Vetor2D uv00 = { 0.0f, 0.0f };
+  Vetor2D uv10 = { 1.0f, 0.0f };
+  Vetor2D uv11 = { 1.0f, 1.0f };
+  Vetor2D uv01 = { 0.0f, 1.0f };
+
+  // Cores codificadas para representar a iluminação ou normais por face
+  Cor cor_padrao = 0xFFFFFFFF;
+
+  int v_idx = 0;
+  int i_idx = 0;
+
+  // Face 1: Frente (+Z)
+  vertices_out[v_idx++] = (Vertice){ .posicao = c0, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c1, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c2, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c3, .uv = uv01, .cor = cor_padrao };
+
+  // Face 2: Trás (-Z)
+  vertices_out[v_idx++] = (Vertice){ .posicao = c5, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c4, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c7, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c6, .uv = uv01, .cor = cor_padrao };
+
+  // Face 3: Cima (+Y)
+  vertices_out[v_idx++] = (Vertice){ .posicao = c3, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c2, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c6, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c7, .uv = uv01, .cor = cor_padrao };
+
+  // Face 4: Baixo (-Y)
+  vertices_out[v_idx++] = (Vertice){ .posicao = c4, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c5, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c1, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c0, .uv = uv01, .cor = cor_padrao };
+
+  // Face 5: Direita (+X)
+  vertices_out[v_idx++] = (Vertice){ .posicao = c1, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c5, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c6, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c2, .uv = uv01, .cor = cor_padrao };
+
+  // Face 6: Esquerda (-X)
+  vertices_out[v_idx++] = (Vertice){ .posicao = c4, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c0, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c3, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posicao = c7, .uv = uv01, .cor = cor_padrao };
+
+  // Gerar a topologia indexada para as 6 faces
+  for (uint32_t face = 0; face < 6; ++face) {
+    uint32_t base = face * 4;
+
+    indices_out[i_idx++] = base + 0;
+    indices_out[i_idx++] = base + 2;
+    indices_out[i_idx++] = base + 1;
+
+    indices_out[i_idx++] = base + 0;
+    indices_out[i_idx++] = base + 3;
+    indices_out[i_idx++] = base + 2;
+  }
+
+  return total_indices;
+}
+
+// Função interna para gerar um valor pseudoaleatório determinista (Hash) a partir de coordenadas inteiras
+static inline float perlin_hash_gradiente_2d(int ix, int iy, float rx, float ry) {
+  // Algoritmo de hash linear simples para misturar os bits das coordenadas discretas
+  uint32_t hash = ((uint32_t)ix * 73856093U) ^ ((uint32_t)iy * 19349663U);
+  hash = (hash ^ 61) ^ (hash >> 16);
+  hash *= 9;
+  hash = hash ^ (hash >> 4);
+  hash *= 0x27d4eb2d;
+  hash = hash ^ (hash >> 15);
+
+  // Mapear o hash para 8 direções de vetores de gradiente unitários espalhados uniformemente
+  float angulo = (float)(hash & 0x7) * (2.0f * PI / 8.0f);
+  
+  // Calcular as componentes do vetor gradiente
+  float gx = cosseno(angulo);
+  float gy = seno(angulo);
+
+  // Produto escalar entre o vetor gradiente e o vetor de distância até ao canto
+  return (gx * rx) + (gy * ry);
+}
+
+// Curva de interpolação quíntica suave de Ken Perlin: 6t^5 - 15t^4 + 10t^3
+static inline float curva_suave_perlin(float t) {
+  return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+}
+
+float ruido_perlin_2d(float x, float y) {
+  // Determinar as coordenadas inteiras da célula da grelha (Bounding Box)
+  float x_chao = chao(x);
+  float y_chao = chao(y);
+
+  int x0 = (int)x_chao;
+  int y0 = (int)y_chao;
+  int x1 = x0 + 1;
+  int y1 = y0 + 1;
+
+  // Calcular as distâncias locais relativas do ponto aos quatro cantos da célula
+  float rx0 = x - x_chao;
+  float ry0 = y - y_chao;
+  float rx1 = rx0 - 1.0f;
+  float ry1 = ry0 - 1.0f;
+
+  // Calcular a influência (produto escalar) de cada um dos 4 vetores de gradiente
+  float canto_noroeste = perlin_hash_gradiente_2d(x0, y0, rx0, ry0);
+  float canto_nordeste = perlin_hash_gradiente_2d(x1, y0, rx1, ry0);
+  float canto_sudoeste = perlin_hash_gradiente_2d(x0, y1, rx0, ry1);
+  float canto_sudeste  = perlin_hash_gradiente_2d(x1, y1, rx1, ry1);
+
+  // Calcular os fatores de atenuação/suavização para a interpolação final
+  float tx = curva_suave_perlin(rx0);
+  float ty = curva_suave_perlin(ry0);
+
+  // Interpolação linear bi-direcional (Bilinear) baseada nas curvas quânticas
+  float topo = interpolar_linear(canto_noroeste, canto_nordeste, tx);
+  float base = interpolar_linear(canto_sudoeste, canto_sudeste, tx);
+  float resultado_ruido = interpolar_linear(topo, base, ty);
+
+  // Mapear o intervalo matemático nativo [-1.0, 1.0] para o intervalo padrão [0.0, 1.0]
+  return (resultado_ruido + 1.0f) * 0.5f;
+}
+
+Cor gerar_textura_xadrez(float u, float v, Cor c1, Cor c2, float frequencia) {
+  // Multiplicar as coordenadas UV pela frequência para definir o tamanho dos quadrados
+  float u_escalado = u * frequencia;
+  float v_escalado = v * frequencia;
+
+  // Obter os índices inteiros das células da grelha tridimensional mapeada
+  int u_int = (int)chao(u_escalado);
+  int v_int = (int)chao(v_escalado);
+
+  // O padrão de xadrez alterna com base na paridade da soma dos índices discretos
+  if ((u_int + v_int) % 2 == 0) {
+    return c1;
+  }
+  
+  return c2;
+}
+
+bool inverter_matriz_4x4(float resultado[4][4], float matriz[4][4]) {
+  float adjunta[4][4];
+
+  // Elementos da matriz original organizados de forma legível por conveniência
+  float m00 = matriz[0][0], m01 = matriz[0][1], m02 = matriz[0][2], m03 = matriz[0][3];
+  float m10 = matriz[1][0], m11 = matriz[1][1], m12 = matriz[1][2], m13 = matriz[1][3];
+  float m20 = matriz[2][0], m21 = matriz[2][1], m22 = matriz[2][2], m23 = matriz[2][3];
+  float m30 = matriz[3][0], m31 = matriz[3][1], m32 = matriz[3][2], m33 = matriz[3][3];
+
+  // Calcular os cofactores para construir a matriz adjunta (já transposta)
+  adjunta[0][0] = m11 * (m22 * m33 - m23 * m32) - m12 * (m21 * m33 - m23 * m31) + m13 * (m21 * m32 - m22 * m31);
+  adjunta[1][0] = -(m10 * (m22 * m33 - m23 * m32) - m12 * (m20 * m33 - m23 * m32) + m13 * (m20 * m32 - m22 * m30));
+  adjunta[2][0] = m10 * (m21 * m33 - m23 * m31) - m11 * (m20 * m33 - m23 * m30) + m13 * (m20 * m31 - m21 * m30);
+  adjunta[3][0] = -(m10 * (m21 * m32 - m22 * m31) - m11 * (m20 * m32 - m22 * m30) + m12 * (m20 * m31 - m21 * m30));
+
+  adjunta[0][1] = -(m01 * (m22 * m33 - m23 * m32) - m02 * (m21 * m33 - m23 * m31) + m03 * (m21 * m32 - m22 * m31));
+  adjunta[1][1] = m00 * (m22 * m33 - m23 * m32) - m02 * (m20 * m33 - m23 * m30) + m03 * (m20 * m32 - m22 * m30);
+  adjunta[2][1] = -(m00 * (m21 * m33 - m23 * m31) - m01 * (m20 * m33 - m23 * m30) + m03 * (m20 * m31 - m21 * m30));
+  adjunta[3][1] = m00 * (m21 * m32 - m22 * m31) - m01 * (m20 * m32 - m22 * m30) + m02 * (m20 * m31 - m21 * m30);
+
+  adjunta[0][2] = m01 * (m12 * m33 - m13 * m32) - m02 * (m11 * m33 - m13 * m31) + m03 * (m11 * m32 - m12 * m31);
+  adjunta[1][2] = -(m00 * (m12 * m33 - m13 * m32) - m02 * (m10 * m33 - m13 * m30) + m03 * (m10 * m32 - m12 * m30));
+  adjunta[2][2] = m00 * (m11 * m33 - m13 * m31) - m01 * (m10 * m33 - m13 * m30) + m03 * (m10 * m31 - m11 * m30);
+  adjunta[3][2] = -(m00 * (m11 * m32 - m12 * m31) - m01 * (m10 * m32 - m12 * m30) + m02 * (m10 * m31 - m11 * m30));
+
+  adjunta[0][3] = -(m01 * (m12 * m23 - m13 * m22) - m02 * (m11 * m23 - m13 * m21) + m03 * (m11 * m22 - m12 * m21));
+  adjunta[1][3] = m00 * (m12 * m23 - m13 * m22) - m02 * (m10 * m23 - m13 * m20) + m03 * (m10 * m22 - m12 * m20);
+  adjunta[2][3] = -(m00 * (m11 * m23 - m13 * m21) - m01 * (m10 * m23 - m13 * m20) + m03 * (m10 * m21 - m11 * m20));
+  adjunta[3][3] = m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20);
+
+  // Calcular o determinante usando a primeira linha e a primeira coluna de cofactores
+  float determinante = m00 * adjunta[0][0] + m01 * adjunta[1][0] + m02 * adjunta[2][0] + m03 * adjunta[3][0];
+
+  // Verificar se o determinante é nulo ou excessivamente próximo de zero
+  if (absoluto(determinante) < 1e-7f) {
+    return false;
+  }
+
+  // Multiplicar a matriz adjunta pelo recíproco do determinante para obter a matriz inversa
+  float determinante_inverso = 1.0f / determinante;
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      resultado[i][j] = adjunta[i][j] * determinante_inverso;
+    }
+  }
+
+  return true;
+}
+
+void transpor_matriz_4x4(float resultado[4][4], float matriz[4][4]) {
+  // Criar uma cópia estável num buffer local para permitir operações in-place com segurança
+  float temporaria[4][4];
+
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      temporaria[i][j] = matriz[i][j];
+    }
+  }
+
+  // Permutar as linhas pelas colunas (Row-Major) no buffer de destino
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      resultado[i][j] = temporaria[j][i];
+    }
+  }
+}
+
+Quaterniao quaterniao_inverso(Quaterniao q) {
+  // Calcular a norma quadrada do quatérnio (o quadrado do seu comprimento)
+  float norma_quadrada = (q.w * q.w) + (q.x * q.x) + (q.y * q.y) + (q.z * q.z);
+
+  // Evitar divisão por zero caso o quatérnio seja nulo
+  if (norma_quadrada <= 0.00001f) {
+    return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+  }
+
+  float inverso_norma = 1.0f / norma_quadrada;
+
+  // O inverso é o conjugado (sinal oposto no eixo imaginário) dividido pela norma quadrada
+  Quaterniao resultado;
+  resultado.w = q.w * inverso_norma;
+  resultado.x = -q.x * inverso_norma;
+  resultado.y = -q.y * inverso_norma;
+  resultado.z = -q.z * inverso_norma;
+
+  return resultado;
+}
