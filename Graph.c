@@ -76,7 +76,7 @@ bool is_interval_graph(const Graph *g);
 bool has_sources(const Graph *g);
 bool has_sinks(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
-bool isKConnected(const Graph *g, unsigned k);
+bool is_k_connected(const Graph *g, unsigned k);
 bool isProperColoring(const Graph *g, const unsigned *coloring);
 bool is_proper_edge_coloring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
@@ -276,7 +276,7 @@ unsigned calculate_clique_number(const Graph *g);
 unsigned calculateTreewidth(const Graph *g);
 unsigned calculateDirectedEdgeConnectivity(const Graph *g);
 unsigned calculateDegeneracy(const Graph *g);
-unsigned calculateVertexConnectivity(const Graph *g);
+unsigned calculate_vertex_connectivity(const Graph *g);
 unsigned calculateEdgeConnectivity(const Graph *g);
 unsigned count_automorphisms(const Graph *g);
 unsigned calculateVertexFrustrationNumber(const Graph *g);
@@ -309,7 +309,7 @@ unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
 unsigned calculate_unweighted_distance(const Graph *g, unsigned u, unsigned v);
 unsigned count_matching_edges(const Graph *g, unsigned u, unsigned v);
-unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v);
+unsigned calculate_local_vertex_connectivity(const Graph *g, unsigned u, unsigned v);
 unsigned calculateLocalEdgeConnectivity(const Graph *g, unsigned u, unsigned v);
 unsigned countWalks(const Graph *g, unsigned u, unsigned v);
 unsigned countPaths(const Graph *g, unsigned u, unsigned v);
@@ -1446,8 +1446,8 @@ bool isKRegular(const Graph *g, unsigned k) {
   return true;
 }
 
-bool isKConnected(const Graph *g, unsigned k) {
-  return calculateVertexConnectivity(g) >= k;
+bool is_k_connected(const Graph *g, unsigned k) {
+  return calculate_vertex_connectivity(g) >= k;
 }
 
 bool isProperColoring(const Graph *g, const unsigned *coloring) {
@@ -2500,12 +2500,12 @@ bool *find_feedback_vertex_set(const Graph *g) {
 
 [[nodiscard]] bool *findVertexCut(const Graph *g) {
   if (!g || g->size <= 1) return nullptr;
-  unsigned global = calculateVertexConnectivity(g);
+  unsigned global = calculate_vertex_connectivity(g);
   if (global >= g->size - 1) return nullptr;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
       if (u == v || has_directed_edge(g, u, v)) continue;
-      unsigned local = calculateLocalVertexConnectivity(g, u, v);
+      unsigned local = calculate_local_vertex_connectivity(g, u, v);
       if (local == global) return getLocalVertexCut(g, u, v);
     }
   return nullptr;
@@ -4671,13 +4671,13 @@ unsigned calculateDegeneracy(const Graph *g) {
   return degeneracy;
 }
 
-unsigned calculateVertexConnectivity(const Graph *g) {
+unsigned calculate_vertex_connectivity(const Graph *g) {
   if (!g || g->size <= 1) return 0;
   unsigned minimum = g->size - 1;
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++) {
       if (u == v) continue;
-      unsigned local = calculateLocalVertexConnectivity(g, u, v);
+      unsigned local = calculate_local_vertex_connectivity(g, u, v);
       if (local < minimum) minimum = local;
     }
   return minimum;
@@ -5359,14 +5359,14 @@ unsigned count_matching_edges(const Graph *g, unsigned u, unsigned v) {
   return n;
 }
 
-unsigned calculateLocalVertexConnectivity(const Graph *g, unsigned u, unsigned v) {
+unsigned calculate_local_vertex_connectivity(const Graph *g, unsigned u, unsigned v) {
   if (!g || u >= g->size || v >= g->size || u == v) return 0;
   if (has_directed_edge(g, u, v)) return g->size - 1;
   bool *cut = getLocalVertexCut(g, u, v);
   if (!cut) return 0;
   unsigned connectivity = 0;
-  for (unsigned i = 0; i < g->size; i++)
-    if (cut[i])
+  for (unsigned w = 0; w < g->size; w++)
+    if (cut[w])
       connectivity++;
   free(cut);
   return connectivity;
@@ -8516,7 +8516,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
         row_sum += D[u][v];
     for (unsigned v = 0; v < g->size; v++)
       if (u == v)
-        LD[u][v] = row_sum; 
+        LD[u][v] = row_sum;
       else
         LD[u][v] = D[u][v] < INFINITY ? -D[u][v] : 0;
   }
