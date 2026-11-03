@@ -854,7 +854,7 @@ Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Ve
 }
 
 Cor amostrar_textura(const Tela* textura, float u, float v) {
-  if (textura == nullptr || textura->píxeis == nullptr) {
+  if (textura == nullptr || textura->píxeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
     return 0;
   }
   float u_repetido = u - chao(u);
