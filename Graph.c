@@ -427,6 +427,7 @@ double *calculate_graph_spectrum(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
 double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
 double *calculate_distance_laplacian_spectrum(const Graph *g);
+double *calculate_signless_laplacian_spectrum(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
@@ -8636,6 +8637,72 @@ static void find_minimum_fractional_vertex_cover_recursive(
     spectrum[u] = spectrum[min_w];
     spectrum[min_w] = temporary;
   }
+  return spectrum;
+}
+
+[[nodiscard]] double *calculate_signless_laplacian_spectrum(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  double *spectrum = malloc(g->size * sizeof(double));
+  if (g->size == 0 || !spectrum) return spectrum;
+  double a[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        a[u][e->destination] += e->weight;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = u + 1; v < g->size; v++) {
+      double symmetric_weight = (a[u][v] + a[v][u]) / 2;
+      a[u][v] = symmetric_weight;
+      a[v][u] = symmetric_weight;
+    }
+  for (unsigned u = 0; u < g->size; u++) {
+    double degree = 0;
+    for (unsigned v = 0; v < g->size; v++) degree += a[u][v];
+    a[u][u] += degree;
+  }
+  unsigned max_iterations = 10000;
+  double epsilon = 1e-12;
+  for (unsigned iter = 0; iter < max_iterations; ++iter) {
+    unsigned p = 0, q = 1;
+    double max_val = 0;
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = u + 1; v < g->size; v++) {
+        double val = fabs(a[u][v]);
+        if (val > max_val) {
+          max_val = val;
+          p = u;
+          q = v;
+        }
+      }
+    if (max_val < epsilon) break;
+    double app = a[p][p];
+    double aqq = a[q][q];
+    double apq = a[p][q];
+    double phi = 0.5 * atan2(2 * apq, aqq - app);
+    double c = cos(phi);
+    double s = sin(phi);
+    for (unsigned u = 0; u < g->size; u++)
+      if (u != p && u != q) {
+        double a_up = a[u][p];
+        double a_uq = a[u][q];
+        a[u][p] = c * a_up - s * a_uq;
+        a[p][u] = a[u][p];
+        a[u][q] = c * a_uq + s * a_up;
+        a[q][u] = a[u][q];
+      }
+    a[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq;
+    a[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq;
+    a[p][q] = 0;
+    a[q][p] = 0;
+  }
+  for (unsigned u = 0; u < g->size; u++) spectrum[u] = a[u][u];
+  for (unsigned u = 1; u < g->size; u++)
+    for (unsigned v = 1; v < g->size; v++)
+      if (spectrum[v - 1] > spectrum[v]) {
+        double temporary = spectrum[v - 1];
+        spectrum[v - 1] = spectrum[v];
+        spectrum[v] = temporary;
+      }
   return spectrum;
 }
 
