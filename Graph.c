@@ -423,11 +423,11 @@ double *calculate_eigenvector_centrality(const Graph *g);
 double *calculate_random_walk_betweenness_centrality(const Graph *g);
 double *calculate_coreness_centrality(const Graph *g);
 double *calculate_pagerank_centrality(const Graph *g);
-double *calculate_graph_spectrum(const Graph *g);
-double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
-double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
+double *calculate_normalized_laplacian_spectrum(const Graph *g);
 double *calculate_distance_laplacian_spectrum(const Graph *g);
 double *calculate_signless_laplacian_spectrum(const Graph *g);
+double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g);
+double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g);
 double *calculateBellmanFord(const Graph *g, unsigned v);
 double *calculateWeightedDistances(const Graph *g, unsigned v);
 
@@ -8425,10 +8425,10 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return rank;
 }
 
-[[nodiscard]] double *calculate_graph_spectrum(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return nullptr;
+[[nodiscard]] double *calculate_normalized_laplacian_spectrum(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
   double *spectrum = malloc(g->size * sizeof(double));
-  if (!spectrum) return nullptr;
+  if (g->size == 0 || !spectrum) return spectrum;
   double degrees[g->size] = {};
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
@@ -8488,84 +8488,10 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
   return spectrum;
 }
 
-static void find_minimum_fractional_vertex_cover_recursive(
-  const Graph *g, unsigned u, double *current, double sum, double *best, double *limit)
-{
-  if (sum >= *limit) return;
-  if (u >= g->size) {
-    if (is_fractional_vertex_cover(g, current)) {
-      *limit = sum;
-      for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
-    }
-    return;
-  }
-  double choices[] = {0.0, 0.5, 1.0};
-  for (int v = 0; v < 3; v++) {
-    current[u] = choices[v];
-    find_minimum_fractional_vertex_cover_recursive(g, u + 1, current, sum + choices[v], best, limit);
-  }
-}
-
-[[nodiscard]] double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g) {
-  if (!g || g->size == 0) return nullptr;
-  double *result = calloc(g->size, sizeof(double));
-  if (!result) return nullptr;
-  double local[g->size];
-  double bound = g->size + 1;
-  find_minimum_fractional_vertex_cover_recursive(g, 0, local, 0, result, &bound);
-  return result;
-}
-
-[[nodiscard]] double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return nullptr;
-  double *result = calloc(g->size, sizeof(double));
-  if (!result) return nullptr;
-  unsigned total = g->size * 2 + 2, source = total - 2, sink = total - 1;
-  int capacity[total][total] = {}, flow[total][total] = {};
-  unsigned parent[total], queue[total];
-  for (unsigned v = 0; v < g->size; v++) {
-    capacity[source][v] = 1;
-    capacity[v + g->size][sink] = 1;
-    for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size)
-        capacity[v][e->destination + g->size] = total;
-  }
-  while (true) {
-    for (unsigned index = 0; index < total; index++) parent[index] = total;
-    unsigned head = 0, tail = 0;
-    queue[tail++] = source;
-    parent[source] = source;
-    while (head < tail) {
-      unsigned current = queue[head++];
-      for (unsigned neighbor = 0; neighbor < total; neighbor++)
-        if (parent[neighbor] == total && capacity[current][neighbor] > flow[current][neighbor]) {
-          parent[neighbor] = current;
-          queue[tail++] = neighbor;
-        }
-    }
-    if (parent[sink] == total) break;
-    unsigned increment = total;
-    for (unsigned vertex = sink; vertex != source; vertex = parent[vertex]) {
-      unsigned residual = capacity[parent[vertex]][vertex] - flow[parent[vertex]][vertex];
-      if (residual < increment) increment = residual;
-    }
-    for (unsigned vertex = sink; vertex != source; vertex = parent[vertex]) {
-      flow[parent[vertex]][vertex] += increment;
-      flow[vertex][parent[vertex]] -= increment;
-    }
-  }
-  for (unsigned vertex = 0; vertex < g->size; vertex++) {
-    double left = parent[vertex] == total ? 0.5 : 0.0;
-    double right = parent[vertex + g->size] != total ? 0.5 : 0.0;
-    result[vertex] = left + right;
-  }
-  return result;
-}
-
 [[nodiscard]] double *calculate_distance_laplacian_spectrum(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return nullptr;
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
   double *spectrum = malloc(g->size * sizeof(double));
-  if (!spectrum) return nullptr;
+  if (g->size == 0 || !spectrum) return spectrum;
   double D[g->size][g->size];
   for (unsigned u = 0; u < g->size; u++)
     for (unsigned v = 0; v < g->size; v++)
@@ -8704,6 +8630,80 @@ static void find_minimum_fractional_vertex_cover_recursive(
         spectrum[v] = temporary;
       }
   return spectrum;
+}
+
+static void find_minimum_fractional_vertex_cover_recursive(
+  const Graph *g, unsigned u, double *current, double sum, double *best, double *limit)
+{
+  if (sum >= *limit) return;
+  if (u >= g->size) {
+    if (is_fractional_vertex_cover(g, current)) {
+      *limit = sum;
+      for (unsigned v = 0; v < g->size; v++) best[v] = current[v];
+    }
+    return;
+  }
+  double choices[] = {0.0, 0.5, 1.0};
+  for (int v = 0; v < 3; v++) {
+    current[u] = choices[v];
+    find_minimum_fractional_vertex_cover_recursive(g, u + 1, current, sum + choices[v], best, limit);
+  }
+}
+
+[[nodiscard]] double *find_minimum_fractional_vertex_cover_by_backtracking(const Graph *g) {
+  if (!g || g->size == 0) return nullptr;
+  double *result = calloc(g->size, sizeof(double));
+  if (!result) return nullptr;
+  double local[g->size];
+  double bound = g->size + 1;
+  find_minimum_fractional_vertex_cover_recursive(g, 0, local, 0, result, &bound);
+  return result;
+}
+
+[[nodiscard]] double *find_minimum_fractional_vertex_cover_by_bipartite_matching(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double *result = calloc(g->size, sizeof(double));
+  if (!result) return nullptr;
+  unsigned total = g->size * 2 + 2, source = total - 2, sink = total - 1;
+  int capacity[total][total] = {}, flow[total][total] = {};
+  unsigned parent[total], queue[total];
+  for (unsigned v = 0; v < g->size; v++) {
+    capacity[source][v] = 1;
+    capacity[v + g->size][sink] = 1;
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        capacity[v][e->destination + g->size] = total;
+  }
+  while (true) {
+    for (unsigned index = 0; index < total; index++) parent[index] = total;
+    unsigned head = 0, tail = 0;
+    queue[tail++] = source;
+    parent[source] = source;
+    while (head < tail) {
+      unsigned current = queue[head++];
+      for (unsigned neighbor = 0; neighbor < total; neighbor++)
+        if (parent[neighbor] == total && capacity[current][neighbor] > flow[current][neighbor]) {
+          parent[neighbor] = current;
+          queue[tail++] = neighbor;
+        }
+    }
+    if (parent[sink] == total) break;
+    unsigned increment = total;
+    for (unsigned vertex = sink; vertex != source; vertex = parent[vertex]) {
+      unsigned residual = capacity[parent[vertex]][vertex] - flow[parent[vertex]][vertex];
+      if (residual < increment) increment = residual;
+    }
+    for (unsigned vertex = sink; vertex != source; vertex = parent[vertex]) {
+      flow[parent[vertex]][vertex] += increment;
+      flow[vertex][parent[vertex]] -= increment;
+    }
+  }
+  for (unsigned vertex = 0; vertex < g->size; vertex++) {
+    double left = parent[vertex] == total ? 0.5 : 0.0;
+    double right = parent[vertex + g->size] != total ? 0.5 : 0.0;
+    result[vertex] = left + right;
+  }
+  return result;
 }
 
 [[nodiscard]] double *calculateBellmanFord(const Graph *g, unsigned v) {
