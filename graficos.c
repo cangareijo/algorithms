@@ -41,21 +41,32 @@ typedef struct {
   Vetor3D ponto;
   Vetor3D normal;
   Cor cor_material;
-} Intersecao;
+} Interseção;
 
 typedef struct {
   Vetor3D posição;
   Vetor2D uv;
   Cor cor;
-} Vertice;
+} Vértice;
 
 // Estrutura interna para representação dos nós da árvore BVH
 typedef struct {
   Vetor3D min_caixa;
   Vetor3D max_caixa;
-  unsigned indice_esquerdo;  // Se for > 0, aponta para o nó filho. Se for folha, pode ser o índice do objeto.
+  unsigned índice_esquerdo;  // Se for > 0, aponta para o nó filho. Se for folha, pode ser o índice do objeto.
   unsigned contagem_objetos; // Se for 0, é um nó interno. Se for > 0, é uma folha com N objetos.
 } NodoBVH;
+
+typedef struct {
+  Cor cor_albedo;
+  float rugosidade;
+  float metalicidade;
+  float oclusão_ambiental;
+} MaterialPBR;
+
+typedef struct {
+  Tela faces[6]; // +X, -X, +Y, -Y, +Z, -Z
+} MapaDeCubos;
 
 constexpr float PI = 3.14159265f;
 
@@ -102,7 +113,7 @@ float interpolar_linear(float a, float b, float t);
 float calcular_atenuacao_luz(float distancia, float constante, float linear, float quadratica);
 
 void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
-void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
+void desenhar_triângulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
 
 Vetor3D amostrar_mapeamento_normal(const Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente);
 float comprimento_vetor(Vetor3D v);
@@ -120,7 +131,7 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b);
 Vetor3D refletir_vetor(Vetor3D v, Vetor3D normal);
 Vetor3D interpolar_vetores(Vetor3D a, Vetor3D b, float t);
 Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
-static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, int inicio, int fim, Vetor3D* min_out, Vetor3D* max_out);
+static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* índices, int inicio, int fim, Vetor3D* min_out, Vetor3D* max_out);
 
 void criar_matriz_identidade(float matriz[static 4][4]);
 void criar_matriz_translacao(float matriz[static 4][4], float x, float y, float z);
@@ -155,19 +166,19 @@ Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float
 bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, float* t_min_out);
 Raio gerar_raio_câmara(Vetor3D posição_câmara, float matriz_inv_proj[static 4][4], int x, int y, int largura, int altura);
 
-Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor);
-Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor);
-Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor);
-Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor);
+Interseção intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor);
+Interseção intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor);
+Interseção intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor);
+Interseção intersetar_triângulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor);
 
-int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, unsigned fatias, unsigned pilhas);
-int gerar_geometria_cubo(Vertice* vertices_out, uint32_t* indices_out, float tamanho);
-Vertice interpolar_vertices(Vertice a, Vertice b, float t);
-int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_out, float plano_perto);
-void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente);
-void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
+int gerar_geometria_esfera(Vértice* vértices_out, uint32_t* índices_out, float raio, unsigned fatias, unsigned pilhas);
+int gerar_geometria_cubo(Vértice* vértices_out, uint32_t* índices_out, float tamanho);
+Vértice interpolar_vértices(Vértice a, Vértice b, float t);
+int recortar_triângulo_plano_perto(Vértice* triângulo_in, Vértice* triângulos_out, float plano_perto);
+void calcular_tangente_bitangente(Vértice* triângulo, Vetor3D* tangente, Vetor3D* bitangente);
+void desenhar_triângulo_preenchido(Tela* tela, Profundidade* pf, Vértice v1, Vértice v2, Vértice v3, Tela* textura);
 
-static int construir_bvh_recursivo(NodoBVH* nodos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, unsigned* contador_nodos);
+static int construir_bvh_recursivo(NodoBVH* nodos, int* índices, Vetor3D* centros, float* raios, int inicio, int fim, unsigned* contador_nodos);
 void construir_arvore_bvh(NodoBVH* nodos_bvh, Vetor3D* centros, float* raios, int núm_objetos);
 
 float absoluto(float x) {
@@ -913,9 +924,9 @@ void limpar_profundidade(Profundidade* pf, float valor) {
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z) {
   if (pf == nullptr || pf->profundidades == nullptr) return false;
   if (x < 0 || x >= pf->largura || y < 0 || y >= pf->altura) return false;
-  size_t indice = (size_t)y * (size_t)pf->largura + (size_t)x;
-  if (z < pf->profundidades[indice]) {
-    pf->profundidades[indice] = z;
+  size_t índice = (size_t)y * (size_t)pf->largura + (size_t)x;
+  if (z < pf->profundidades[índice]) {
+    pf->profundidades[índice] = z;
     return true;
   }
   return false;
@@ -943,7 +954,7 @@ void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
   }
 }
 
-void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
+void desenhar_triângulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr || tela->largura <= 0 || tela->altura <= 0) return;
   int min_x = (int)minimo(minimo(p1.x, p2.x), p3.x);
   int max_x = (int)maximo(maximo(p1.x, p2.x), p3.x);
@@ -1003,79 +1014,79 @@ bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direção_c
   return produto_escalar(normal_face, direção_câmara) >= 0.0f;
 }
 
-Vertice interpolar_vertices(Vertice a, Vertice b, float t) {
-  return (Vertice){
+Vértice interpolar_vértices(Vértice a, Vértice b, float t) {
+  return (Vértice){
     .posição = interpolar_vetores(a.posição, b.posição, t),
     .uv = { a.uv.x + t * (b.uv.x - a.uv.x), a.uv.y + t * (b.uv.y - a.uv.y) },
     .cor = interpolar_cores(a.cor, b.cor, t)
   };
 }
 
-int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_out, float plano_perto) {
-  Vertice vertices_dentro[3];
-  Vertice vertices_fora[3];
+int recortar_triângulo_plano_perto(Vértice* triângulo_in, Vértice* triângulos_out, float plano_perto) {
+  Vértice vértices_dentro[3];
+  Vértice vértices_fora[3];
   int contagem_dentro = 0;
   int contagem_fora = 0;
   
   for (int i = 0; i < 3; ++i) {
-    if (triangulo_in[i].posição.z >= plano_perto) {
-      vertices_dentro[contagem_dentro++] = triangulo_in[i];
+    if (triângulo_in[i].posição.z >= plano_perto) {
+      vértices_dentro[contagem_dentro++] = triângulo_in[i];
     } else {
-      vertices_fora[contagem_fora++] = triangulo_in[i];
+      vértices_fora[contagem_fora++] = triângulo_in[i];
     }
   }
   
   if (contagem_dentro == 0) return 0;
   
   if (contagem_dentro == 3) {
-    triangulos_out[0] = triangulo_in[0];
-    triangulos_out[1] = triangulo_in[1];
-    triangulos_out[2] = triangulo_in[2];
+    triângulos_out[0] = triângulo_in[0];
+    triângulos_out[1] = triângulo_in[1];
+    triângulos_out[2] = triângulo_in[2];
     return 1;
   }
   
   if (contagem_dentro == 1) {
-    triangulos_out[0] = vertices_dentro[0];
-    float t1 = (plano_perto - vertices_dentro[0].posição.z) / (vertices_fora[0].posição.z - vertices_dentro[0].posição.z);
-    triangulos_out[1] = interpolar_vertices(vertices_dentro[0], vertices_fora[0], t1);
-    float t2 = (plano_perto - vertices_dentro[0].posição.z) / (vertices_fora[1].posição.z - vertices_dentro[0].posição.z);
-    triangulos_out[2] = interpolar_vertices(vertices_dentro[0], vertices_fora[1], t2);
+    triângulos_out[0] = vértices_dentro[0];
+    float t1 = (plano_perto - vértices_dentro[0].posição.z) / (vértices_fora[0].posição.z - vértices_dentro[0].posição.z);
+    triângulos_out[1] = interpolar_vértices(vértices_dentro[0], vértices_fora[0], t1);
+    float t2 = (plano_perto - vértices_dentro[0].posição.z) / (vértices_fora[1].posição.z - vértices_dentro[0].posição.z);
+    triângulos_out[2] = interpolar_vértices(vértices_dentro[0], vértices_fora[1], t2);
     return 1;
   }
   
   if (contagem_dentro == 2) {
     int idx_fora = 0;
     for (int i = 0; i < 3; ++i) {
-      if (triangulo_in[i].posição.z < plano_perto) { 
+      if (triângulo_in[i].posição.z < plano_perto) { 
         idx_fora = i; 
         break; 
       }
     }
-    Vertice v0 = triangulo_in[idx_fora];
-    Vertice v1 = triangulo_in[(idx_fora + 1) % 3];
-    Vertice v2 = triangulo_in[(idx_fora + 2) % 3];
+    Vértice v0 = triângulo_in[idx_fora];
+    Vértice v1 = triângulo_in[(idx_fora + 1) % 3];
+    Vértice v2 = triângulo_in[(idx_fora + 2) % 3];
 
     float t1 = (plano_perto - v0.posição.z) / (v1.posição.z - v0.posição.z);
-    Vertice i1 = interpolar_vertices(v0, v1, t1);
+    Vértice i1 = interpolar_vértices(v0, v1, t1);
     float t2 = (plano_perto - v2.posição.z) / (v0.posição.z - v2.posição.z);
-    Vertice i2 = interpolar_vertices(v2, v0, t2);
+    Vértice i2 = interpolar_vértices(v2, v0, t2);
 
-    triangulos_out[0] = i1;   triangulos_out[1] = v1;   triangulos_out[2] = v2;
-    triangulos_out[3] = i1;   triangulos_out[4] = v2;   triangulos_out[5] = i2;
+    triângulos_out[0] = i1;   triângulos_out[1] = v1;   triângulos_out[2] = v2;
+    triângulos_out[3] = i1;   triângulos_out[4] = v2;   triângulos_out[5] = i2;
     return 2;
   }
   
   return 0;
 }
 
-void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente) {
-  Vetor3D delta_pos1 = subtrair_vetores(triangulo[1].posição, triangulo[0].posição);
-  Vetor3D delta_pos2 = subtrair_vetores(triangulo[2].posição, triangulo[0].posição);
+void calcular_tangente_bitangente(Vértice* triângulo, Vetor3D* tangente, Vetor3D* bitangente) {
+  Vetor3D delta_pos1 = subtrair_vetores(triângulo[1].posição, triângulo[0].posição);
+  Vetor3D delta_pos2 = subtrair_vetores(triângulo[2].posição, triângulo[0].posição);
 
-  float delta_u1 = triangulo[1].uv.x - triangulo[0].uv.x;
-  float delta_v1 = triangulo[1].uv.y - triangulo[0].uv.y;
-  float delta_u2 = triangulo[2].uv.x - triangulo[0].uv.x;
-  float delta_v2 = triangulo[2].uv.y - triangulo[0].uv.y;
+  float delta_u1 = triângulo[1].uv.x - triângulo[0].uv.x;
+  float delta_v1 = triângulo[1].uv.y - triângulo[0].uv.y;
+  float delta_u2 = triângulo[2].uv.x - triângulo[0].uv.x;
+  float delta_v2 = triângulo[2].uv.y - triângulo[0].uv.y;
 
   float det = delta_u1 * delta_v2 - delta_u2 * delta_v1;
   float r = 1.0f;
@@ -1101,7 +1112,7 @@ void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D
   }
 }
 
-void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura) {
+void desenhar_triângulo_preenchido(Tela* tela, Profundidade* pf, Vértice v1, Vértice v2, Vértice v3, Tela* textura) {
   if (tela == nullptr || pf == nullptr) return;
 
   Vetor2D p1 = { v1.posição.x, v1.posição.y };
@@ -1264,8 +1275,8 @@ Raio gerar_raio_câmara(Vetor3D posição_câmara, float matriz_inv_proj[static 
   return raio;
 }
 
-Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor) {
-  Intersecao resultado = { .intersetou = false, .t = -1.0f, .ponto = {0.0f, 0.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .cor_material = cor };
+Interseção intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor) {
+  Interseção resultado = { .intersetou = false, .t = -1.0f, .ponto = {0.0f, 0.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .cor_material = cor };
   Vetor3D l = subtrair_vetores(centro, raio.origem);
   float tca = produto_escalar(l, raio.direção);
   float d2 = produto_escalar(l, l) - tca * tca;
@@ -1290,8 +1301,8 @@ Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor c
   return resultado;
 }
 
-Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor) {
-  Intersecao resultado = { .intersetou = false, .t = -1.0f, .ponto = {0.0f, 0.0f, 0.0f}, .normal = normal_plano, .cor_material = cor };
+Interseção intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor) {
+  Interseção resultado = { .intersetou = false, .t = -1.0f, .ponto = {0.0f, 0.0f, 0.0f}, .normal = normal_plano, .cor_material = cor };
   float denominador = produto_escalar(raio.direção, normal_plano);
   if (denominador > -0.0001f && denominador < 0.0001f) return resultado;
 
@@ -1307,8 +1318,8 @@ Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano
   return resultado;
 }
 
-Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor) {
-  Intersecao resultado = {
+Interseção intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor) {
+  Interseção resultado = {
     .intersetou = false,
     .t = -1.0f,
     .ponto = {0.0f, 0.0f, 0.0f},
@@ -1392,8 +1403,8 @@ Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_c
   return resultado;
 }
 
-Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor) {
-  Intersecao resultado = {
+Interseção intersetar_triângulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor) {
+  Interseção resultado = {
     .intersetou = false,
     .t = -1.0f,
     .ponto = {0.0f, 0.0f, 0.0f},
@@ -1670,8 +1681,8 @@ bool guardar_tela_tga(const Tela* tela, const char* caminho_ficheiro) {
   // Conversão de RGBA (Top-Down) para BGRA (Bottom-Up) e escrita linha a linha
   for (int y = tela->altura - 1; y >= 0; y--) {
     for (int x = 0; x < tela->largura; x++) {
-      int indice_origem = y * tela->largura + x;
-      Cor píxel_rgba = tela->píxeis[indice_origem];
+      int índice_origem = y * tela->largura + x;
+      Cor píxel_rgba = tela->píxeis[índice_origem];
 
       // Extração analítica dos componentes RGBA
       unsigned char r = (unsigned char)((píxel_rgba >> 24) & 0xFF);
@@ -1818,8 +1829,8 @@ float calcular_fator_sombra_raster(Vetor3D ponto_espaco_luz, Profundidade* mapa_
   }
 
   // Mapeamento Row-Major para encontrar o índice no buffer de profundidade
-  int indice = (tex_y * mapa_sombras->largura) + tex_x;
-  float profundidade_armazenada = mapa_sombras->profundidades[indice];
+  int índice = (tex_y * mapa_sombras->largura) + tex_x;
+  float profundidade_armazenada = mapa_sombras->profundidades[índice];
 
   // Teste de sombra tradicional: se a profundidade atual com bias for maior
   // do que a profundidade mais próxima vista pela luz, o ponto está na sombra
@@ -1890,12 +1901,12 @@ bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_
 }
 
 // Função auxiliar interna para computar o volume envolvente (AABB) de um conjunto de esferas
-static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, int inicio, int fim, Vetor3D* min_out, Vetor3D* max_out) {
+static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* índices, int inicio, int fim, Vetor3D* min_out, Vetor3D* max_out) {
   Vetor3D minimo_ = { .x = 1e30f, .y = 1e30f, .z = 1e30f };
   Vetor3D maximo_ = { .x = -1e30f, .y = -1e30f, .z = -1e30f };
 
   for (int i = inicio; i < fim; ++i) {
-    int idx = indices[i];
+    int idx = índices[i];
     Vetor3D c = centros[idx];
     float r = raios[idx];
 
@@ -1913,20 +1924,20 @@ static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, in
 }
 
 // Função recursiva interna para construir os nós da árvore sequencialmente na memória alocada
-static int construir_bvh_recursivo(NodoBVH* nodos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, unsigned* contador_nodos) {
+static int construir_bvh_recursivo(NodoBVH* nodos, int* índices, Vetor3D* centros, float* raios, int inicio, int fim, unsigned* contador_nodos) {
   unsigned no_atual_idx = *contador_nodos;
   (*contador_nodos)++;
 
   NodoBVH* no = &nodos[no_atual_idx];
   
   // Calcular a caixa envolvente para os objetos deste nó
-  calcular_aabb_grupo(centros, raios, indices, inicio, fim, &no->min_caixa, &no->max_caixa);
+  calcular_aabb_grupo(centros, raios, índices, inicio, fim, &no->min_caixa, &no->max_caixa);
 
   int contagem = fim - inicio;
 
   // Condição de paragem: se tivermos 2 ou menos objetos, transformamos o nó numa folha
   if (contagem <= 2) {
-    no->indice_esquerdo = indices[inicio]; // Armazena o índice do primeiro objeto no array original
+    no->índice_esquerdo = índices[inicio]; // Armazena o índice do primeiro objeto no array original
     no->contagem_objetos = contagem;       // Indica que é um nó folha
     return no_atual_idx;
   }
@@ -1948,16 +1959,16 @@ static int construir_bvh_recursivo(NodoBVH* nodos, int* indices, Vetor3D* centro
   int j = fim - 1;
   while (i <= j) {
     float pos_centro = 0.0f;
-    if (eixo == 0) pos_centro = centros[indices[i]].x;
-    else if (eixo == 1) pos_centro = centros[indices[i]].y;
-    else pos_centro = centros[indices[i]].z;
+    if (eixo == 0) pos_centro = centros[índices[i]].x;
+    else if (eixo == 1) pos_centro = centros[índices[i]].y;
+    else pos_centro = centros[índices[i]].z;
 
     if (pos_centro < divisao) {
       i++;
     } else {
-      int temporario = indices[i];
-      indices[i] = indices[j];
-      indices[j] = temporario;
+      int temporario = índices[i];
+      índices[i] = índices[j];
+      índices[j] = temporario;
       j--;
     }
   }
@@ -1970,9 +1981,9 @@ static int construir_bvh_recursivo(NodoBVH* nodos, int* indices, Vetor3D* centro
 
   // Construir os nós filhos recursivamente
   no->contagem_objetos = 0; // 0 indica que é um nó interno
-  no->indice_esquerdo = construir_bvh_recursivo(nodos, indices, centros, raios, inicio, meio, contador_nodos);
+  no->índice_esquerdo = construir_bvh_recursivo(nodos, índices, centros, raios, inicio, meio, contador_nodos);
   // O filho direito estará localizado implicitamente no nó gerado logo a seguir ao ramo esquerdo
-  construir_bvh_recursivo(nodos, indices, centros, raios, meio, fim, contador_nodos);
+  construir_bvh_recursivo(nodos, índices, centros, raios, meio, fim, contador_nodos);
 
   return no_atual_idx;
 }
@@ -1983,23 +1994,23 @@ void construir_arvore_bvh(NodoBVH* nodos_bvh, Vetor3D* centros, float* raios, in
   }
 
   // Alocar dinamicamente uma tabela temporária de índices para mapeamento e ordenação espacial
-  int* indices = malloc(sizeof(int) * (size_t)núm_objetos);
-  if (indices == nullptr) {
+  int* índices = malloc(sizeof(int) * (size_t)núm_objetos);
+  if (índices == nullptr) {
     return;
   }
 
   for (int i = 0; i < núm_objetos; ++i) {
-    indices[i] = i;
+    índices[i] = i;
   }
 
   unsigned contador_nodos = 0;
   NodoBVH* array_nodos = (NodoBVH*)nodos_bvh;
 
   // Iniciar a construção recursiva a partir da raiz (índice 0)
-  construir_bvh_recursivo(array_nodos, indices, centros, raios, 0, núm_objetos, &contador_nodos);
+  construir_bvh_recursivo(array_nodos, índices, centros, raios, 0, núm_objetos, &contador_nodos);
 
   // Libertar a tabela temporária de índices
-  free(indices);
+  free(índices);
 }
 
 void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
@@ -2047,8 +2058,8 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
         if (vizinho_x < 0) vizinho_x = 0;
         if (vizinho_x >= tela->largura) vizinho_x = tela->largura - 1;
 
-        int indice_vizinho = (y * tela->largura) + vizinho_x;
-        Cor cor_vizinho = tela->píxeis[indice_vizinho];
+        int índice_vizinho = (y * tela->largura) + vizinho_x;
+        Cor cor_vizinho = tela->píxeis[índice_vizinho];
         float peso = nucleo[k + raio];
 
         r_acumulado += extrair_r(cor_vizinho) * peso;
@@ -2057,8 +2068,8 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
         a_acumulado += extrair_a(cor_vizinho) * peso;
       }
 
-      int indice_destino = (y * tela->largura) + x;
-      buffer_temporario[indice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
+      int índice_destino = (y * tela->largura) + x;
+      buffer_temporario[índice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
     }
   }
 
@@ -2073,8 +2084,8 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
         if (vizinho_y < 0) vizinho_y = 0;
         if (vizinho_y >= tela->altura) vizinho_y = tela->altura - 1;
 
-        int indice_vizinho = (vizinho_y * tela->largura) + x;
-        Cor cor_vizinho = buffer_temporario[indice_vizinho];
+        int índice_vizinho = (vizinho_y * tela->largura) + x;
+        Cor cor_vizinho = buffer_temporario[índice_vizinho];
         float peso = nucleo[k + raio];
 
         r_acumulado += extrair_r(cor_vizinho) * peso;
@@ -2083,8 +2094,8 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
         a_acumulado += extrair_a(cor_vizinho) * peso;
       }
 
-      int indice_destino = (y * tela->largura) + x;
-      tela->píxeis[indice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
+      int índice_destino = (y * tela->largura) + x;
+      tela->píxeis[índice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
     }
   }
 
@@ -2127,8 +2138,8 @@ void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
       fator_escurecimento = minimo(maximo(fator_escurecimento, 0.0f), 1.0f);
 
       // Obter o índice do píxel na estrutura Row-Major
-      int indice = (y * tela->largura) + x;
-      Cor cor_original = tela->píxeis[indice];
+      int índice = (y * tela->largura) + x;
+      Cor cor_original = tela->píxeis[índice];
 
       // Extrair os canais de cor originais
       float r = extrair_r(cor_original);
@@ -2142,7 +2153,7 @@ void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
       b *= fator_escurecimento;
 
       // Gravar o píxel processado de volta na tela
-      tela->píxeis[indice] = empacotar_rgba(r, g, b, a);
+      tela->píxeis[índice] = empacotar_rgba(r, g, b, a);
     }
   }
 }
@@ -2219,19 +2230,19 @@ Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float
   return raio_câmara;
 }
 
-int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, unsigned fatias, unsigned pilhas) {
+int gerar_geometria_esfera(Vértice* vértices_out, uint32_t* índices_out, float raio, unsigned fatias, unsigned pilhas) {
   if (fatias < 3 || pilhas < 2) {
     return 0;
   }
 
-  int total_indices = pilhas * fatias * 6;
+  int total_índices = pilhas * fatias * 6;
 
   // Se apenas pretendermos calcular a dimensão dos buffers para alocação externa
-  if (vertices_out == nullptr || indices_out == nullptr) {
-    return total_indices;
+  if (vértices_out == nullptr || índices_out == nullptr) {
+    return total_índices;
   }
 
-  int contagem_vertices = 0;
+  int contagem_vértices = 0;
 
   // 1. Gerar os Vértices, Normais e Coordenadas UV
   for (int p = 0; p <= pilhas; ++p) {
@@ -2254,7 +2265,7 @@ int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float r
       float ny = cos_phi; // Eixo Y como eixo vertical polar
       float nz = sen_phi * sen_theta;
 
-      Vertice v;
+      Vértice v;
       v.posição.x = nx * raio;
       v.posição.y = ny * raio;
       v.posição.z = nz * raio;
@@ -2268,13 +2279,13 @@ int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float r
       uint32_t b_norm = (uint32_t)((nz * 0.5f + 0.5f) * 255.0f);
       v.cor = (r_norm << 24) | (g_norm << 16) | (b_norm << 8) | 0xFF;
 
-      vertices_out[contagem_vertices] = v;
-      contagem_vertices++;
+      vértices_out[contagem_vértices] = v;
+      contagem_vértices++;
     }
   }
 
   // 2. Gerar a Topologia da Malha (Índices dos Triângulos)
-  int contagem_indices = 0;
+  int contagem_índices = 0;
   for (int p = 0; p < pilhas; ++p) {
     for (int f = 0; f < fatias; ++f) {
       // Determinar os quatro cantos de cada quadrilátero (quad) da malha
@@ -2284,25 +2295,25 @@ int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float r
       uint32_t canto_sudeste = canto_sudoeste + 1;
 
       // Primeiro Triângulo (Sentido dos ponteiros do relógio / Row-major convencional)
-      indices_out[contagem_indices++] = canto_noroeste;
-      indices_out[contagem_indices++] = canto_nordeste;
-      indices_out[contagem_indices++] = canto_sudoeste;
+      índices_out[contagem_índices++] = canto_noroeste;
+      índices_out[contagem_índices++] = canto_nordeste;
+      índices_out[contagem_índices++] = canto_sudoeste;
 
       // Segundo Triângulo
-      indices_out[contagem_indices++] = canto_nordeste;
-      indices_out[contagem_indices++] = canto_sudeste;
-      indices_out[contagem_indices++] = canto_sudoeste;
+      índices_out[contagem_índices++] = canto_nordeste;
+      índices_out[contagem_índices++] = canto_sudeste;
+      índices_out[contagem_índices++] = canto_sudoeste;
     }
   }
 
-  return total_indices;
+  return total_índices;
 }
 
-int gerar_geometria_cubo(Vertice* vertices_out, uint32_t* indices_out, float tamanho) {
-  int total_indices = 36; // 6 faces * 2 triângulos * 3 índices
+int gerar_geometria_cubo(Vértice* vértices_out, uint32_t* índices_out, float tamanho) {
+  int total_índices = 36; // 6 faces * 2 triângulos * 3 índices
 
-  if (vertices_out == nullptr || indices_out == nullptr) {
-    return total_indices;
+  if (vértices_out == nullptr || índices_out == nullptr) {
+    return total_índices;
   }
 
   float metade = tamanho * 0.5f;
@@ -2330,55 +2341,55 @@ int gerar_geometria_cubo(Vertice* vertices_out, uint32_t* indices_out, float tam
   int i_idx = 0;
 
   // Face 1: Frente (+Z)
-  vertices_out[v_idx++] = (Vertice){ .posição = c0, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c1, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c2, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c3, .uv = uv01, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c0, .uv = uv00, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c1, .uv = uv10, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c2, .uv = uv11, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c3, .uv = uv01, .cor = cor_padrao };
 
   // Face 2: Trás (-Z)
-  vertices_out[v_idx++] = (Vertice){ .posição = c5, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c4, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c7, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c6, .uv = uv01, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c5, .uv = uv00, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c4, .uv = uv10, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c7, .uv = uv11, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c6, .uv = uv01, .cor = cor_padrao };
 
   // Face 3: Cima (+Y)
-  vertices_out[v_idx++] = (Vertice){ .posição = c3, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c2, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c6, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c7, .uv = uv01, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c3, .uv = uv00, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c2, .uv = uv10, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c6, .uv = uv11, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c7, .uv = uv01, .cor = cor_padrao };
 
   // Face 4: Baixo (-Y)
-  vertices_out[v_idx++] = (Vertice){ .posição = c4, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c5, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c1, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c0, .uv = uv01, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c4, .uv = uv00, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c5, .uv = uv10, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c1, .uv = uv11, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c0, .uv = uv01, .cor = cor_padrao };
 
   // Face 5: Direita (+X)
-  vertices_out[v_idx++] = (Vertice){ .posição = c1, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c5, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c6, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c2, .uv = uv01, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c1, .uv = uv00, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c5, .uv = uv10, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c6, .uv = uv11, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c2, .uv = uv01, .cor = cor_padrao };
 
   // Face 6: Esquerda (-X)
-  vertices_out[v_idx++] = (Vertice){ .posição = c4, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c0, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c3, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posição = c7, .uv = uv01, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c4, .uv = uv00, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c0, .uv = uv10, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c3, .uv = uv11, .cor = cor_padrao };
+  vértices_out[v_idx++] = (Vértice){ .posição = c7, .uv = uv01, .cor = cor_padrao };
 
   // Gerar a topologia indexada para as 6 faces
   for (uint32_t face = 0; face < 6; ++face) {
     uint32_t base = face * 4;
 
-    indices_out[i_idx++] = base + 0;
-    indices_out[i_idx++] = base + 2;
-    indices_out[i_idx++] = base + 1;
+    índices_out[i_idx++] = base + 0;
+    índices_out[i_idx++] = base + 2;
+    índices_out[i_idx++] = base + 1;
 
-    indices_out[i_idx++] = base + 0;
-    indices_out[i_idx++] = base + 3;
-    indices_out[i_idx++] = base + 2;
+    índices_out[i_idx++] = base + 0;
+    índices_out[i_idx++] = base + 3;
+    índices_out[i_idx++] = base + 2;
   }
 
-  return total_indices;
+  return total_índices;
 }
 
 // Função interna para gerar um valor pseudoaleatório determinista (Hash) a partir de coordenadas inteiras
