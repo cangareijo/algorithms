@@ -70,7 +70,7 @@ void destruir_tela(Tela* tela);
 void aplicar_mapeamento_de_tom_reinhard(Tela* tela);
 void limpar_tela(Tela* tela, Cor cor);
 void aplicar_filtro_gamma(Tela* tela, float gama);
-void desenhar_pixel(Tela* tela, int x, int y, Cor cor);
+void desenhar_píxel(Tela* tela, unsigned x, unsigned y, Cor cor);
 bool guardar_tela_tga(const Tela* tela, const char* caminho_ficheiro);
 bool guardar_tela_ppm(const Tela* tela, const char* caminho_ficheiro);
 
@@ -84,7 +84,7 @@ static inline float perlin_hash_gradiente_2d(int ix, int iy, float rx, float ry)
 float logaritmo_natural(float x);
 float absoluto(float x);
 float truncar(float x);
-float chao(float x);
+float chão(float x);
 float raiz(float x);
 float reciproco_raiz(float x);
 float seno(float x);
@@ -96,7 +96,7 @@ float potencia_real(float base, float expoente);
 float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
-float modulo(float x, float y);
+float módulo(float x, float y);
 float ruido_perlin_2d(float x, float y);
 float interpolar_linear(float a, float b, float t);
 float calcular_atenuacao_luz(float distancia, float constante, float linear, float quadratica);
@@ -126,8 +126,8 @@ void criar_matriz_identidade(float matriz[static 4][4]);
 void criar_matriz_translacao(float matriz[static 4][4], float x, float y, float z);
 void criar_matriz_escala(float matriz[static 4][4], float sx, float sy, float sz);
 void criar_matriz_perspetiva_infinito(float matriz[static 4][4], float fov, float proporcao, float perto);
-void criar_matriz_projecao(float matriz[static 4][4], float fov, float proporcao, float perto, float longe);
-void criar_matriz_ortografica(float matriz[static 4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
+void criar_matriz_projeção(float matriz[static 4][4], float fov, float proporcao, float perto, float longe);
+void criar_matriz_ortográfica(float matriz[static 4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
 bool inverter_matriz_4x4(float resultado[static 4][4], float matriz[static 4][4]);
 void transpor_matriz_4x4(float resultado[static 4][4], float matriz[static 4][4]);
 void multiplicar_matrizes(float resultado[static 4][4], float a[static 4][4], float b[static 4][4]);
@@ -137,8 +137,8 @@ void extrair_direcoes_câmara(float matriz_vista[static 4][4], Vetor3D* direita,
 void criar_matriz_de_quaternião(float matriz[static 4][4], Quaternião q);
 void criar_matriz_quat_posição(float matriz[static 4][4], Quaternião q, Vetor3D posição);
 Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direção_luz, Cor cor_objeto, Cor cor_luz);
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int brilho);
-Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente);
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int polimento);
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int polimento, float intensidade_ambiente);
 
 Quaternião quaternião_identidade(void);
 Quaternião quaternião_de_eixo_angulo(Vetor3D eixo, float radianos);
@@ -160,15 +160,15 @@ Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano
 Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor);
 Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor);
 
-int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, int fatias, int pilhas);
+int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, unsigned fatias, unsigned pilhas);
 int gerar_geometria_cubo(Vertice* vertices_out, uint32_t* indices_out, float tamanho);
 Vertice interpolar_vertices(Vertice a, Vertice b, float t);
 int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_out, float plano_perto);
 void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente);
 void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
 
-static int construir_bvh_recursivo(NodoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos);
-void construir_arvore_bvh(NodoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos);
+static int construir_bvh_recursivo(NodoBVH* nodos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, unsigned* contador_nodos);
+void construir_arvore_bvh(NodoBVH* nodos_bvh, Vetor3D* centros, float* raios, int núm_objetos);
 
 float absoluto(float x) {
   return x >= 0.0f ? x : -x;
@@ -181,7 +181,7 @@ float truncar(float x) {
   return (float)((long long)x);
 }
 
-float chao(float x) {
+float chão(float x) {
   float y = truncar(x);
   return (x < 0.0f && x != y) ? (y - 1.0f) : y;
 }
@@ -208,7 +208,7 @@ float raiz(float x) {
   return 0.5f * (r + x / r);
 }
 
-float modulo(float x, float y) {
+float módulo(float x, float y) {
   if (y == 0.0f) return 0.0f;
   return x - truncar(x / y) * y;
 }
@@ -219,7 +219,7 @@ float seno(float x) {
     x = -x;
     sinal = -sinal;
   }
-  x = modulo(x, 2.0f * PI);
+  x = módulo(x, 2.0f * PI);
   if (x > PI) {
     x -= PI;
     sinal = -sinal;
@@ -392,7 +392,7 @@ void criar_matriz_perspetiva_infinito(float matriz[static 4][4], float fov, floa
   matriz[3][2] = -2.0f * perto;
 }
 
-void criar_matriz_projecao(float matriz[static 4][4], float fov, float proporcao, float perto, float longe) {
+void criar_matriz_projeção(float matriz[static 4][4], float fov, float proporcao, float perto, float longe) {
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
       matriz[i][j] = 0.0f;
@@ -409,7 +409,7 @@ void criar_matriz_projecao(float matriz[static 4][4], float fov, float proporcao
   matriz[3][2] = -(2.0f * longe * perto) / (longe - perto);
 }
 
-void criar_matriz_ortografica(float matriz[static 4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe) {
+void criar_matriz_ortográfica(float matriz[static 4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe) {
   for (int i = 0; i < 4; ++i) {
     for (int j = 0; j < 4; ++j) {
       matriz[i][j] = 0.0f;
@@ -770,7 +770,7 @@ Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direção_luz, Cor cor_ob
   return ((Cor)(uint8_t)res_r << 24) | ((Cor)(uint8_t)res_g << 16) | ((Cor)(uint8_t)res_b << 8) | (Cor)(uint8_t)res_a;
 }
 
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int brilho) {
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int polimento) {
   Vetor3D n = normalizar_vetor(normal);
   Vetor3D l = normalizar_vetor(direção_luz);
   Vetor3D v = normalizar_vetor(direção_olhar);
@@ -780,7 +780,7 @@ Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D
   if (dot_nh < 0.0f) dot_nh = 0.0f;
   if (produto_escalar(n, l) <= 0.0f) dot_nh = 0.0f;
 
-  float intensidade = potencia_inteira(dot_nh, brilho);
+  float intensidade = potencia_inteira(dot_nh, polimento);
   float res_cor = intensidade * 255.0f;
   if (res_cor > 255.0f) res_cor = 255.0f;
 
@@ -788,7 +788,7 @@ Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D
   return ((Cor)especular << 24) | ((Cor)especular << 16) | ((Cor)especular << 8) | (Cor)255;
 }
 
-Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente) {
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int polimento, float intensidade_ambiente) {
   Vetor3D n = normalizar_vetor(normal);
   Vetor3D l = normalizar_vetor(direção_luz);
   Vetor3D v = normalizar_vetor(direção_olhar);
@@ -832,7 +832,7 @@ Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Ve
     float cosseno_especular = produto_escalar(r_vetor, v);
     if (cosseno_especular < 0.0f) cosseno_especular = 0.0f;
 
-    float intensidade_especular = potencia_inteira(cosseno_especular, brilho);
+    float intensidade_especular = potencia_inteira(cosseno_especular, polimento);
     res_esp_r = esp_r * intensidade_especular;
     res_esp_g = esp_g * intensidade_especular;
     res_esp_b = esp_b * intensidade_especular;
@@ -853,17 +853,19 @@ Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Ve
          (Cor)(uint8_t)obj_a;
 }
 
-Cor amostrar_textura(const Tela* textura, float u, float v) {
-  if (textura == nullptr || textura->píxeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
+Cor amostrar_textura(const Tela* const textura, const float u, const float v) {
+  if (textura == nullptr || textura->largura <= 0 || textura->altura <= 0 || textura->píxeis == nullptr) {
     return 0;
   }
-  float u_repetido = u - chao(u);
-  float v_repetido = v - chao(v);
-  unsigned x = u_repetido * (float)textura->largura;
-  unsigned y = v_repetido * (float)textura->altura;
-  if (x >= textura->largura) x = textura->largura - 1;
-  if (y >= textura->altura)  y = textura->altura - 1;
-  return textura->píxeis[x + y * textura->largura];
+  const float módulo_u_1 = módulo(u, 1);
+  const float módulo_v_1 = módulo(1 - v, 1);
+  const float u_repetente = módulo_u_1 >= 0 ? módulo_u_1 : módulo_u_1 + 1;
+  const float v_repetente = módulo_v_1 >= 0 ? módulo_v_1 : módulo_v_1 + 1;
+  const unsigned x = u_repetente * textura->largura;
+  const unsigned y = v_repetente * textura->altura;
+  const unsigned x_seguro = x < textura->largura ? x : textura->largura - 1;
+  const unsigned y_seguro = y < textura->altura ? y : textura->altura - 1;
+  return textura->píxeis[x_seguro + y_seguro * textura->largura];
 }
 
 Tela criar_tela(int largura, int altura) {
@@ -893,9 +895,10 @@ void limpar_tela(Tela* tela, Cor cor) {
   }
 }
 
-void desenhar_pixel(Tela* tela, int x, int y, Cor cor) {
+void desenhar_píxel(Tela* tela, unsigned x, unsigned y, Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
-  if (x < 0 || x >= tela->largura || y < 0 || y >= tela->altura) return;
+  if (tela->largura <= 0 || tela->altura <= 0) return;
+  if (x >= tela->largura || y >= tela->altura) return;
   tela->píxeis[x + y * tela->largura] = cor;
 }
 
@@ -1154,7 +1157,7 @@ void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Ver
             float a_c = (baricentricas.x * a1 + baricentricas.y * a2 + baricentricas.z * a3) * z_atual;
             cor_final = ((uint32_t)(r_c + 0.5f) << 24) | ((uint32_t)(g_c + 0.5f) << 16) | ((uint32_t)(b_c + 0.5f) << 8) | (uint32_t)(a_c + 0.5f);
           }
-          desenhar_pixel(tela, x, y, cor_final);
+          desenhar_píxel(tela, x, y, cor_final);
         }
       }
     }
@@ -1620,7 +1623,7 @@ void aplicar_mapeamento_de_tom_reinhard(Tela* tela) {
     if (g_final < 0.0f) g_final = 0.0f;
     if (b_final < 0.0f) b_final = 0.0f;
 
-    // Recomposição do pixel no espaço binário RGBA
+    // Recomposição do píxel no espaço binário RGBA
     tela->píxeis[i] = ((Cor)(unsigned char)r_final << 24) |
                       ((Cor)(unsigned char)g_final << 16) |
                       ((Cor)(unsigned char)b_final << 8)  |
@@ -1654,7 +1657,7 @@ bool guardar_tela_tga(const Tela* tela, const char* caminho_ficheiro) {
   cabecalho[14] = (unsigned char)(tela->altura & 0xFF);
   cabecalho[15] = (unsigned char)((tela->altura >> 8) & 0xFF);
   
-  cabecalho[16] = 32; // Profundidade de cor: 32 bits por pixel (BGRA)
+  cabecalho[16] = 32; // Profundidade de cor: 32 bits por píxel (BGRA)
   cabecalho[17] = 8;  // Atributos do descritor: 8 bits de canal alfa
 
   // Escrita do cabeçalho no disco
@@ -1668,23 +1671,23 @@ bool guardar_tela_tga(const Tela* tela, const char* caminho_ficheiro) {
   for (int y = tela->altura - 1; y >= 0; y--) {
     for (int x = 0; x < tela->largura; x++) {
       int indice_origem = y * tela->largura + x;
-      Cor pixel_rgba = tela->píxeis[indice_origem];
+      Cor píxel_rgba = tela->píxeis[indice_origem];
 
       // Extração analítica dos componentes RGBA
-      unsigned char r = (unsigned char)((pixel_rgba >> 24) & 0xFF);
-      unsigned char g = (unsigned char)((pixel_rgba >> 16) & 0xFF);
-      unsigned char b = (unsigned char)((pixel_rgba >> 8)  & 0xFF);
-      unsigned char a = (unsigned char)(pixel_rgba & 0xFF);
+      unsigned char r = (unsigned char)((píxel_rgba >> 24) & 0xFF);
+      unsigned char g = (unsigned char)((píxel_rgba >> 16) & 0xFF);
+      unsigned char b = (unsigned char)((píxel_rgba >> 8)  & 0xFF);
+      unsigned char a = (unsigned char)(píxel_rgba & 0xFF);
 
       // Reorganização física para o formato binário BGRA do TGA
-      unsigned char pixel_bgra[4];
-      pixel_bgra[0] = b;
-      pixel_bgra[1] = g;
-      pixel_bgra[2] = r;
-      pixel_bgra[3] = a;
+      unsigned char píxel_bgra[4];
+      píxel_bgra[0] = b;
+      píxel_bgra[1] = g;
+      píxel_bgra[2] = r;
+      píxel_bgra[3] = a;
 
-      unsigned long bytes_pixel = fwrite(pixel_bgra, 1, 4, ficheiro);
-      if (bytes_pixel != 4) {
+      unsigned long bytes_píxel = fwrite(píxel_bgra, 1, 4, ficheiro);
+      if (bytes_píxel != 4) {
         fclose(ficheiro);
         return false;
       }
@@ -1716,13 +1719,13 @@ bool guardar_tela_ppm(const Tela* tela, const char* caminho_ficheiro) {
   int total_píxeis = tela->largura * tela->altura;
 
   for (int i = 0; i < total_píxeis; i++) {
-    Cor pixel_rgba = tela->píxeis[i];
+    Cor píxel_rgba = tela->píxeis[i];
 
     // Extração analítica dos componentes de cor a partir do formato RGBA de 32 bits
     unsigned char componentes;
-    componentes = (unsigned char)((pixel_rgba >> 24) & 0xFF); // R
-    componentes = (unsigned char)((pixel_rgba >> 16) & 0xFF); // G
-    componentes = (unsigned char)((pixel_rgba >> 8)  & 0xFF); // B
+    componentes = (unsigned char)((píxel_rgba >> 24) & 0xFF); // R
+    componentes = (unsigned char)((píxel_rgba >> 16) & 0xFF); // G
+    componentes = (unsigned char)((píxel_rgba >> 8)  & 0xFF); // B
 
     // Escrita direta do bloco RGB de 3 bytes no ficheiro
     unsigned long bytes_escritos = fwrite(&componentes, 1, 3, ficheiro);
@@ -1910,11 +1913,11 @@ static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, in
 }
 
 // Função recursiva interna para construir os nós da árvore sequencialmente na memória alocada
-static int construir_bvh_recursivo(NodoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos) {
-  int no_atual_idx = *contador_nos;
-  (*contador_nos)++;
+static int construir_bvh_recursivo(NodoBVH* nodos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, unsigned* contador_nodos) {
+  unsigned no_atual_idx = *contador_nodos;
+  (*contador_nodos)++;
 
-  NodoBVH* no = &nos[no_atual_idx];
+  NodoBVH* no = &nodos[no_atual_idx];
   
   // Calcular a caixa envolvente para os objetos deste nó
   calcular_aabb_grupo(centros, raios, indices, inicio, fim, &no->min_caixa, &no->max_caixa);
@@ -1967,33 +1970,33 @@ static int construir_bvh_recursivo(NodoBVH* nos, int* indices, Vetor3D* centros,
 
   // Construir os nós filhos recursivamente
   no->contagem_objetos = 0; // 0 indica que é um nó interno
-  no->indice_esquerdo = construir_bvh_recursivo(nos, indices, centros, raios, inicio, meio, contador_nos);
+  no->indice_esquerdo = construir_bvh_recursivo(nodos, indices, centros, raios, inicio, meio, contador_nodos);
   // O filho direito estará localizado implicitamente no nó gerado logo a seguir ao ramo esquerdo
-  construir_bvh_recursivo(nos, indices, centros, raios, meio, fim, contador_nos);
+  construir_bvh_recursivo(nodos, indices, centros, raios, meio, fim, contador_nodos);
 
   return no_atual_idx;
 }
 
-void construir_arvore_bvh(NodoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos) {
-  if (nos_bvh == nullptr || centros == nullptr || raios == nullptr || num_objetos <= 0) {
+void construir_arvore_bvh(NodoBVH* nodos_bvh, Vetor3D* centros, float* raios, int núm_objetos) {
+  if (nodos_bvh == nullptr || centros == nullptr || raios == nullptr || núm_objetos <= 0) {
     return;
   }
 
   // Alocar dinamicamente uma tabela temporária de índices para mapeamento e ordenação espacial
-  int* indices = malloc(sizeof(int) * (size_t)num_objetos);
+  int* indices = malloc(sizeof(int) * (size_t)núm_objetos);
   if (indices == nullptr) {
     return;
   }
 
-  for (int i = 0; i < num_objetos; ++i) {
+  for (int i = 0; i < núm_objetos; ++i) {
     indices[i] = i;
   }
 
-  int contador_nos = 0;
-  NodoBVH* array_nos = (NodoBVH*)nos_bvh;
+  unsigned contador_nodos = 0;
+  NodoBVH* array_nodos = (NodoBVH*)nodos_bvh;
 
   // Iniciar a construção recursiva a partir da raiz (índice 0)
-  construir_bvh_recursivo(array_nos, indices, centros, raios, 0, num_objetos, &contador_nos);
+  construir_bvh_recursivo(array_nodos, indices, centros, raios, 0, núm_objetos, &contador_nodos);
 
   // Libertar a tabela temporária de índices
   free(indices);
@@ -2216,7 +2219,7 @@ Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float
   return raio_câmara;
 }
 
-int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, int fatias, int pilhas) {
+int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, unsigned fatias, unsigned pilhas) {
   if (fatias < 3 || pilhas < 2) {
     return 0;
   }
@@ -2406,17 +2409,17 @@ static inline float curva_suave_perlin(float t) {
 
 float ruido_perlin_2d(float x, float y) {
   // Determinar as coordenadas inteiras da célula da grelha (Bounding Box)
-  float x_chao = chao(x);
-  float y_chao = chao(y);
+  float x_chão = chão(x);
+  float y_chão = chão(y);
 
-  int x0 = (int)x_chao;
-  int y0 = (int)y_chao;
+  int x0 = (int)x_chão;
+  int y0 = (int)y_chão;
   int x1 = x0 + 1;
   int y1 = y0 + 1;
 
   // Calcular as distâncias locais relativas do ponto aos quatro cantos da célula
-  float rx0 = x - x_chao;
-  float ry0 = y - y_chao;
+  float rx0 = x - x_chão;
+  float ry0 = y - y_chão;
   float rx1 = rx0 - 1.0f;
   float ry1 = ry0 - 1.0f;
 
@@ -2445,8 +2448,8 @@ Cor gerar_textura_xadrez(float u, float v, Cor c1, Cor c2, float frequencia) {
   float v_escalado = v * frequencia;
 
   // Obter os índices inteiros das células da grelha tridimensional mapeada
-  int u_int = (int)chao(u_escalado);
-  int v_int = (int)chao(v_escalado);
+  int u_int = (int)chão(u_escalado);
+  int v_int = (int)chão(v_escalado);
 
   // O padrão de xadrez alterna com base na paridade da soma dos índices discretos
   if ((u_int + v_int) % 2 == 0) {
