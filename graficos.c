@@ -7,6 +7,12 @@
 typedef uint32_t Cor;
 
 typedef struct {
+  int largura;
+  int altura;
+  Cor* pixeis;
+} Tela;
+
+typedef struct {
   float x, y;
 } Vetor2D;
 
@@ -23,12 +29,6 @@ typedef struct {
   int altura;
   float* profundidades;
 } Profundidade;
-
-typedef struct {
-  int largura;
-  int altura;
-  Cor* pixeis;
-} Tela;
 
 typedef struct {
   Vetor3D origem;
@@ -59,6 +59,28 @@ typedef struct {
 
 constexpr float PI = 3.14159265f;
 
+uint8_t extrair_r(Cor c);
+uint8_t extrair_g(Cor c);
+uint8_t extrair_b(Cor c);
+uint8_t extrair_a(Cor c);
+Cor empacotar_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+
+Tela criar_tela(int largura, int altura);
+void destruir_tela(Tela* tela);
+void aplicar_mapeamento_de_tom_reinhard(Tela* tela);
+void limpar_tela(Tela* tela, Cor cor);
+void aplicar_filtro_gamma(Tela* tela, float gama);
+void desenhar_pixel(Tela* tela, int x, int y, Cor cor);
+bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro);
+bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro);
+
+Cor multiplicar_cor(Cor cor, float intensidade);
+Cor interpolar_cores(Cor c1, Cor c2, float fator);
+Cor amostrar_textura(Tela* textura, float u, float v);
+Cor gerar_textura_xadrez(float u, float v, Cor c1, Cor c2, float frequencia);
+void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma);
+void aplicar_vinheta(Tela* tela, float intensidade, float raio);
+static inline float perlin_hash_gradiente_2d(int ix, int iy, float rx, float ry);
 float logaritmo_natural(float x);
 float absoluto(float x);
 float truncar(float x);
@@ -68,16 +90,28 @@ float reciproco_raiz(float x);
 float seno(float x);
 float cosseno(float x);
 float tangente(float x);
+static inline float curva_suave_perlin(float t);
 float potencia_inteira(float base, int expoente);
 float potencia_real(float base, float expoente);
 float minimo(float x, float y);
 float maximo(float x, float y);
 float distancia(float x, float y);
 float modulo(float x, float y);
+float ruido_perlin_2d(float x, float y);
 float interpolar_linear(float a, float b, float t);
+float calcular_atenuacao_luz(float distancia, float constante, float linear, float quadratica);
 
+void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
+void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
+
+Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente);
 float comprimento_vetor(Vetor3D v);
 float produto_escalar(Vetor3D u, Vetor3D v);
+Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Vetor2D c);
+Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
+bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
+Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vetor3D dir_foco, float corte_interno, float corte_externo);
+bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direcao_luz, float distancia_luz, Vetor3D* esferas_centros, float* esferas_raios, int num_esferas);
 Vetor3D normalizar_vetor(Vetor3D v);
 Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
 Vetor3D somar_vetores(Vetor3D a, Vetor3D b);
@@ -86,6 +120,7 @@ Vetor3D produto_vetorial(Vetor3D a, Vetor3D b);
 Vetor3D refletir_vetor(Vetor3D v, Vetor3D normal);
 Vetor3D interpolar_vetores(Vetor3D a, Vetor3D b, float t);
 Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
+static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, int inicio, int fim, Vetor3D* min_out, Vetor3D* max_out);
 
 void criar_matriz_identidade(float matriz[4][4]);
 void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
@@ -93,55 +128,47 @@ void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
 void criar_matriz_perspetiva_infinito(float matriz[4][4], float fov, float proporcao, float perto);
 void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
 void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
+bool inverter_matriz_4x4(float resultado[4][4], float matriz[4][4]);
+void transpor_matriz_4x4(float resultado[4][4], float matriz[4][4]);
 void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
 void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
 void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
 void extrair_direcoes_camara(float matriz_vista[4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente);
 void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q);
 void criar_matriz_quat_posicao(float matriz[4][4], Quaterniao q, Vetor3D posicao);
+Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente);
 
 Quaterniao quaterniao_identidade(void);
 Quaterniao quaterniao_de_eixo_angulo(Vetor3D eixo, float radianos);
 Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima);
 Quaterniao quaterniao_normalizar(Quaterniao q);
+Quaterniao quaterniao_inverso(Quaterniao q);
 Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2);
 Quaterniao quaterniao_slerp(Quaterniao q1, Quaterniao q2, float t);
 
-Cor multiplicar_cor(Cor cor, float intensidade);
-Cor interpolar_cores(Cor c1, Cor c2, float fator);
-Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
-Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente);
-Cor amostrar_textura(Tela* textura, float u, float v);
-
-Tela criar_tela(int largura, int altura);
-void destruir_tela(Tela* tela);
-void aplicar_mapeamento_de_tom_reinhard(Tela* tela);
-void limpar_tela(Tela* tela, Cor cor);
-void aplicar_filtro_gamma(Tela* tela, float gama);
-void desenhar_pixel(Tela* tela, int x, int y, Cor cor);
 void limpar_profundidade(Profundidade* pf, float valor);
-bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro);
-bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro);
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
-void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
-void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
-Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Vetor2D c);
-Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
-bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
-Vertice interpolar_vertices(Vertice a, Vertice b, float t);
-int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_out, float plano_perto);
-void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente);
-void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
-Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente);
-bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direcao_luz, float distancia_luz, Vetor3D* esferas_centros, float* esferas_raios, int num_esferas);
-
+Raio gerar_raio_camara_profundidade_campo(Vetor3D posicao, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura);
+bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, float* t_min_out);
 Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
+
 Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor);
 Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor);
 Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, Cor cor);
 Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, Cor cor);
+
+int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, int fatias, int pilhas);
+int gerar_geometria_cubo(Vertice* vertices_out, uint32_t* indices_out, float tamanho);
+Vertice interpolar_vertices(Vertice a, Vertice b, float t);
+int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_out, float plano_perto);
+void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente);
+void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
+
+static int construir_bvh_recursivo(NoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos);
+void construir_arvore_bvh(NoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos);
 
 float absoluto(float x) {
   return x >= 0.0f ? x : -x;
@@ -1974,20 +2001,6 @@ void construir_arvore_bvh(NoBVH* nos_bvh, Vetor3D* centros, float* raios, int nu
   free(indices);
 }
 
-// Funções auxiliares para manipulação dos canais RGBA de uma Cor (uint32_t)
-static inline float obter_canal_r(Cor c) { return (float)((c >> 24) & 0xFF); }
-static inline float obter_canal_g(Cor c) { return (float)((c >> 16) & 0xFF); }
-static inline float obter_canal_b(Cor c) { return (float)((c >> 8) & 0xFF); }
-static inline float obter_canal_a(Cor c) { return (float)(c & 0xFF); }
-
-static inline Cor criar_cor_rgba(float r, float g, float b, float a) {
-  uint32_t ur = (uint32_t)minimo(maximo(r, 0.0f), 255.0f);
-  uint32_t ug = (uint32_t)minimo(maximo(g, 0.0f), 255.0f);
-  uint32_t ub = (uint32_t)minimo(maximo(b, 0.0f), 255.0f);
-  uint32_t ua = (uint32_t)minimo(maximo(a, 0.0f), 255.0f);
-  return (ur << 24) | (ug << 16) | (ub << 8) | ua;
-}
-
 void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
   if (tela == nullptr || tela->pixeis == nullptr || sigma <= 0.0f) {
     return;
@@ -2037,14 +2050,14 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
         Cor cor_vizinho = tela->pixeis[indice_vizinho];
         float peso = nucleo[k + raio];
 
-        r_acumulado += obter_canal_r(cor_vizinho) * peso;
-        g_acumulado += obter_canal_g(cor_vizinho) * peso;
-        b_acumulado += obter_canal_b(cor_vizinho) * peso;
-        a_acumulado += obter_canal_a(cor_vizinho) * peso;
+        r_acumulado += extrair_r(cor_vizinho) * peso;
+        g_acumulado += extrair_g(cor_vizinho) * peso;
+        b_acumulado += extrair_b(cor_vizinho) * peso;
+        a_acumulado += extrair_a(cor_vizinho) * peso;
       }
 
       int indice_destino = (y * tela->largura) + x;
-      buffer_temporario[indice_destino] = criar_cor_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
+      buffer_temporario[indice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
     }
   }
 
@@ -2063,14 +2076,14 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
         Cor cor_vizinho = buffer_temporario[indice_vizinho];
         float peso = nucleo[k + raio];
 
-        r_acumulado += obter_canal_r(cor_vizinho) * peso;
-        g_acumulado += obter_canal_g(cor_vizinho) * peso;
-        b_acumulado += obter_canal_b(cor_vizinho) * peso;
-        a_acumulado += obter_canal_a(cor_vizinho) * peso;
+        r_acumulado += extrair_r(cor_vizinho) * peso;
+        g_acumulado += extrair_g(cor_vizinho) * peso;
+        b_acumulado += extrair_b(cor_vizinho) * peso;
+        a_acumulado += extrair_a(cor_vizinho) * peso;
       }
 
       int indice_destino = (y * tela->largura) + x;
-      tela->pixeis[indice_destino] = criar_cor_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
+      tela->pixeis[indice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
     }
   }
 
@@ -2079,17 +2092,13 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
 }
 
 // Funções auxiliares para manipulação dos canais RGBA de uma Cor (uint32_t)
-static inline float extrair_r(Cor c) { return (float)((c >> 24) & 0xFF); }
-static inline float extrair_g(Cor c) { return (float)((c >> 16) & 0xFF); }
-static inline float extrair_b(Cor c) { return (float)((c >> 8) & 0xFF); }
-static inline float extrair_a(Cor c) { return (float)(c & 0xFF); }
+uint8_t extrair_r(Cor c) { return c >> 24; }
+uint8_t extrair_g(Cor c) { return c >> 16; }
+uint8_t extrair_b(Cor c) { return c >>  8; }
+uint8_t extrair_a(Cor c) { return c      ; }
 
-static inline Cor empacotar_rgba(float r, float g, float b, float a) {
-  uint32_t ur = (uint32_t)minimo(maximo(r, 0.0f), 255.0f);
-  uint32_t ug = (uint32_t)minimo(maximo(g, 0.0f), 255.0f);
-  uint32_t ub = (uint32_t)minimo(maximo(b, 0.0f), 255.0f);
-  uint32_t ua = (uint32_t)minimo(maximo(a, 0.0f), 255.0f);
-  return (ur << 24) | (ug << 16) | (ub << 8) | ua;
+Cor empacotar_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+  return ((Cor)r << 24) | ((Cor)g << 16) | ((Cor)b << 8) | (Cor)a;
 }
 
 void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
