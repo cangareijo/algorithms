@@ -9,7 +9,7 @@ typedef uint32_t Cor;
 typedef struct {
   int largura;
   int altura;
-  Cor* pixeis;
+  Cor* píxeis;
 } Tela;
 
 typedef struct {
@@ -71,8 +71,8 @@ void aplicar_mapeamento_de_tom_reinhard(Tela* tela);
 void limpar_tela(Tela* tela, Cor cor);
 void aplicar_filtro_gamma(Tela* tela, float gama);
 void desenhar_pixel(Tela* tela, int x, int y, Cor cor);
-bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro);
-bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro);
+bool guardar_tela_tga(const Tela* tela, const char* caminho_ficheiro);
+bool guardar_tela_ppm(const Tela* tela, const char* caminho_ficheiro);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
@@ -854,7 +854,7 @@ Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Veto
 }
 
 Cor amostrar_textura(Tela* textura, float u, float v) {
-  if (textura == nullptr || textura->pixeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
+  if (textura == nullptr || textura->píxeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
     return 0;
   }
   float u_repetido = u - chao(u);
@@ -865,46 +865,46 @@ Cor amostrar_textura(Tela* textura, float u, float v) {
   if (y >= textura->altura)  y = textura->altura - 1;
   if (x < 0) x = 0;
   if (y < 0) y = 0;
-  return textura->pixeis[x + y * textura->largura];
+  return textura->píxeis[x + y * textura->largura];
 }
 
 Tela criar_tela(int largura, int altura) {
   Tela tela = {};
   if (largura <= 0 || altura <= 0) return tela;
-  Cor* memoria_pixeis = malloc((size_t)largura * (size_t)altura * sizeof(Cor));
-  if (memoria_pixeis == nullptr) return tela;
+  Cor* memoria_píxeis = malloc((size_t)largura * (size_t)altura * sizeof(Cor));
+  if (memoria_píxeis == nullptr) return tela;
   tela.largura = largura;
   tela.altura = altura;
-  tela.pixeis = memoria_pixeis;
+  tela.píxeis = memoria_píxeis;
   return tela;
 }
 
 void destruir_tela(Tela* tela) {
   if (tela == nullptr) return;
-  free(tela->pixeis);
+  free(tela->píxeis);
   tela->largura = 0;
   tela->altura = 0;
-  tela->pixeis = nullptr;
+  tela->píxeis = nullptr;
 }
 
 void limpar_tela(Tela* tela, Cor cor) {
-  if (tela == nullptr || tela->pixeis == nullptr) return;
+  if (tela == nullptr || tela->píxeis == nullptr) return;
   int area = tela->largura * tela->altura;
   for (int i = 0; i < area; ++i) {
-    tela->pixeis[i] = cor;
+    tela->píxeis[i] = cor;
   }
 }
 
 void desenhar_pixel(Tela* tela, int x, int y, Cor cor) {
-  if (tela == nullptr || tela->pixeis == nullptr) return;
+  if (tela == nullptr || tela->píxeis == nullptr) return;
   if (x < 0 || x >= tela->largura || y < 0 || y >= tela->altura) return;
-  tela->pixeis[x + y * tela->largura] = cor;
+  tela->píxeis[x + y * tela->largura] = cor;
 }
 
 void limpar_profundidade(Profundidade* pf, float valor) {
   if (pf == NULL || pf->profundidades == NULL || pf->largura <= 0 || pf->altura <= 0) return;
-  size_t total_pixeis = (size_t)pf->largura * (size_t)pf->altura;
-  for (size_t i = 0; i < total_pixeis; ++i) {
+  size_t total_píxeis = (size_t)pf->largura * (size_t)pf->altura;
+  for (size_t i = 0; i < total_píxeis; ++i) {
     pf->profundidades[i] = valor;
   }
 }
@@ -921,7 +921,7 @@ bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z) {
 }
 
 void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
-  if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) return;
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura <= 0 || tela->altura <= 0) return;
   int x0 = (int)p1.x; int y0 = (int)p1.y;
   int x1 = (int)p2.x; int y1 = (int)p2.y;
   int dx = (int)absoluto((float)(x1 - x0));
@@ -933,7 +933,7 @@ void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
   int altura = tela->altura;
   while (true) {
     if (x0 >= 0 && x0 < largura && y0 >= 0 && y0 < altura) {
-      tela->pixeis[y0 * largura + x0] = cor;
+      tela->píxeis[y0 * largura + x0] = cor;
     }
     if (x0 == x1 && y0 == y1) break;
     int erro2 = 2 * erro;
@@ -943,7 +943,7 @@ void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor) {
 }
 
 void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor) {
-  if (tela == nullptr || tela->pixeis == nullptr || tela->largura <= 0 || tela->altura <= 0) return;
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura <= 0 || tela->altura <= 0) return;
   int min_x = (int)minimo(minimo(p1.x, p2.x), p3.x);
   int max_x = (int)maximo(maximo(p1.x, p2.x), p3.x);
   int min_y = (int)minimo(minimo(p1.y, p2.y), p3.y);
@@ -970,7 +970,7 @@ void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor)
       float w1 = ((px - p3.x) * dy31 - (py - p3.y) * dx31) * sinal;
       float w2 = ((px - p1.x) * dy12 - (py - p1.y) * dx12) * sinal;
       if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f) {
-        tela->pixeis[offset_linha + x] = cor;
+        tela->píxeis[offset_linha + x] = cor;
       }
     }
   }
@@ -1145,7 +1145,7 @@ void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Ver
         float z_atual = 1.0f / interpolado_inv_z;
         if (testar_e_definir_profundidade(pf, x, y, z_atual)) {
           Cor cor_final;
-          if (textura != nullptr && textura->pixeis != nullptr) {
+          if (textura != nullptr && textura->píxeis != nullptr) {
             float u_correto = (baricentricas.x * v1.uv.x * inv_w1 + baricentricas.y * v2.uv.x * inv_w2 + baricentricas.z * v3.uv.x * inv_w3) * z_atual;
             float v_correto = (baricentricas.x * v1.uv.y * inv_w1 + baricentricas.y * v2.uv.y * inv_w2 + baricentricas.z * v3.uv.y * inv_w3) * z_atual;
             cor_final = amostrar_textura(textura, u_correto, v_correto);
@@ -1165,7 +1165,7 @@ void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Ver
 
 Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente) {
   // If no normal map is available, fallback safely to the vertex geometry normal
-  if (mapa_normais == nullptr || mapa_normais->pixeis == nullptr) {
+  if (mapa_normais == nullptr || mapa_normais->píxeis == nullptr) {
     return normalizar_vetor(normal_geometria);
   }
 
@@ -1469,15 +1469,15 @@ float interpolar_linear(float a, float b, float t) {
 }
 
 void aplicar_filtro_gamma(Tela* tela, float gama) {
-  if (tela == nullptr || tela->pixeis == nullptr || gama <= 0.0f) {
+  if (tela == nullptr || tela->píxeis == nullptr || gama <= 0.0f) {
     return;
   }
 
   float inverso_gama = 1.0f / gama;
-  int total_pixeis = tela->largura * tela->altura;
+  int total_píxeis = tela->largura * tela->altura;
 
-  for (int i = 0; i < total_pixeis; i++) {
-    Cor cor_atual = tela->pixeis[i];
+  for (int i = 0; i < total_píxeis; i++) {
+    Cor cor_atual = tela->píxeis[i];
 
     // Extração dos canais assumindo o formato RGBA de 32 bits
     float r = (float)((cor_atual >> 24) & 0xFF) / 255.0f;
@@ -1499,7 +1499,7 @@ void aplicar_filtro_gamma(Tela* tela, float gama) {
     if (b_corrigido < 0.0f) b_corrigido = 0.0f;
 
     // Reconstrução da cor final no formato RGBA
-    tela->pixeis[i] = ((Cor)(unsigned char)r_corrigido << 24) |
+    tela->píxeis[i] = ((Cor)(unsigned char)r_corrigido << 24) |
                       ((Cor)(unsigned char)g_corrigido << 16) |
                       ((Cor)(unsigned char)b_corrigido << 8)  |
                       (Cor)a;
@@ -1589,14 +1589,14 @@ float potencia_real(float base, float expoente) {
 }
 
 void aplicar_mapeamento_de_tom_reinhard(Tela* tela) {
-  if (tela == nullptr || tela->pixeis == nullptr) {
+  if (tela == nullptr || tela->píxeis == nullptr) {
     return;
   }
 
-  int total_pixeis = tela->largura * tela->altura;
+  int total_píxeis = tela->largura * tela->altura;
 
-  for (int i = 0; i < total_pixeis; i++) {
-    Cor cor_atual = tela->pixeis[i];
+  for (int i = 0; i < total_píxeis; i++) {
+    Cor cor_atual = tela->píxeis[i];
 
     // Extração dos canais normalizados [0.0, 1.0] assumindo o formato RGBA de 32 bits
     float r = (float)((cor_atual >> 24) & 0xFF) / 255.0f;
@@ -1623,15 +1623,15 @@ void aplicar_mapeamento_de_tom_reinhard(Tela* tela) {
     if (b_final < 0.0f) b_final = 0.0f;
 
     // Recomposição do pixel no espaço binário RGBA
-    tela->pixeis[i] = ((Cor)(unsigned char)r_final << 24) |
+    tela->píxeis[i] = ((Cor)(unsigned char)r_final << 24) |
                       ((Cor)(unsigned char)g_final << 16) |
                       ((Cor)(unsigned char)b_final << 8)  |
                       (Cor)a;
   }
 }
 
-bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro) {
-  if (tela == nullptr || tela->pixeis == nullptr || caminho_ficheiro == nullptr) {
+bool guardar_tela_tga(const Tela* tela, const char* caminho_ficheiro) {
+  if (tela == nullptr || tela->píxeis == nullptr || caminho_ficheiro == nullptr) {
     return false;
   }
 
@@ -1670,7 +1670,7 @@ bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro) {
   for (int y = tela->altura - 1; y >= 0; y--) {
     for (int x = 0; x < tela->largura; x++) {
       int indice_origem = y * tela->largura + x;
-      Cor pixel_rgba = tela->pixeis[indice_origem];
+      Cor pixel_rgba = tela->píxeis[indice_origem];
 
       // Extração analítica dos componentes RGBA
       unsigned char r = (unsigned char)((pixel_rgba >> 24) & 0xFF);
@@ -1697,8 +1697,8 @@ bool guardar_tela_tga(Tela* tela, char* caminho_ficheiro) {
   return true;
 }
 
-bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro) {
-  if (tela == nullptr || tela->pixeis == nullptr || caminho_ficheiro == nullptr) {
+bool guardar_tela_ppm(const Tela* tela, const char* caminho_ficheiro) {
+  if (tela == nullptr || tela->píxeis == nullptr || caminho_ficheiro == nullptr) {
     return false;
   }
 
@@ -1715,10 +1715,10 @@ bool guardar_tela_ppm(Tela* tela, char* caminho_ficheiro) {
     return false;
   }
 
-  int total_pixeis = tela->largura * tela->altura;
+  int total_píxeis = tela->largura * tela->altura;
 
-  for (int i = 0; i < total_pixeis; i++) {
-    Cor pixel_rgba = tela->pixeis[i];
+  for (int i = 0; i < total_píxeis; i++) {
+    Cor pixel_rgba = tela->píxeis[i];
 
     // Extração analítica dos componentes de cor a partir do formato RGBA de 32 bits
     unsigned char componentes;
@@ -2002,7 +2002,7 @@ void construir_arvore_bvh(NoBVH* nos_bvh, Vetor3D* centros, float* raios, int nu
 }
 
 void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
-  if (tela == nullptr || tela->pixeis == nullptr || sigma <= 0.0f) {
+  if (tela == nullptr || tela->píxeis == nullptr || sigma <= 0.0f) {
     return;
   }
 
@@ -2035,7 +2035,7 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
     return;
   }
 
-  // Passagem 1: Desfoque Horizontal (Lê de tela->pixeis, escreve em buffer_temporario)
+  // Passagem 1: Desfoque Horizontal (Lê de tela->píxeis, escreve em buffer_temporario)
   for (int y = 0; y < tela->altura; ++y) {
     for (int x = 0; x < tela->largura; ++x) {
       float r_acumulado = 0.0f, g_acumulado = 0.0f, b_acumulado = 0.0f, a_acumulado = 0.0f;
@@ -2047,7 +2047,7 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
         if (vizinho_x >= tela->largura) vizinho_x = tela->largura - 1;
 
         int indice_vizinho = (y * tela->largura) + vizinho_x;
-        Cor cor_vizinho = tela->pixeis[indice_vizinho];
+        Cor cor_vizinho = tela->píxeis[indice_vizinho];
         float peso = nucleo[k + raio];
 
         r_acumulado += extrair_r(cor_vizinho) * peso;
@@ -2061,7 +2061,7 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
     }
   }
 
-  // Passagem 2: Desfoque Vertical (Lê de buffer_temporario, escreve de volta em tela->pixeis)
+  // Passagem 2: Desfoque Vertical (Lê de buffer_temporario, escreve de volta em tela->píxeis)
   for (int y = 0; y < tela->altura; ++y) {
     for (int x = 0; x < tela->largura; ++x) {
       float r_acumulado = 0.0f, g_acumulado = 0.0f, b_acumulado = 0.0f, a_acumulado = 0.0f;
@@ -2083,7 +2083,7 @@ void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma) {
       }
 
       int indice_destino = (y * tela->largura) + x;
-      tela->pixeis[indice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
+      tela->píxeis[indice_destino] = empacotar_rgba(r_acumulado, g_acumulado, b_acumulado, a_acumulado);
     }
   }
 
@@ -2102,7 +2102,7 @@ Cor empacotar_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 }
 
 void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
-  if (tela == nullptr || tela->pixeis == nullptr || intensidade <= 0.0f || raio <= 0.0f) {
+  if (tela == nullptr || tela->píxeis == nullptr || intensidade <= 0.0f || raio <= 0.0f) {
     return;
   }
 
@@ -2127,7 +2127,7 @@ void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
 
       // Obter o índice do píxel na estrutura Row-Major
       int indice = (y * tela->largura) + x;
-      Cor cor_original = tela->pixeis[indice];
+      Cor cor_original = tela->píxeis[indice];
 
       // Extrair os canais de cor originais
       float r = extrair_r(cor_original);
@@ -2141,7 +2141,7 @@ void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
       b *= fator_escurecimento;
 
       // Gravar o píxel processado de volta na tela
-      tela->pixeis[indice] = empacotar_rgba(r, g, b, a);
+      tela->píxeis[indice] = empacotar_rgba(r, g, b, a);
     }
   }
 }
