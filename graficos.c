@@ -106,11 +106,11 @@ float potencia_inteira(float base, int expoente);
 float potencia_real(float base, float expoente);
 float minimo(float x, float y);
 float maximo(float x, float y);
-float distancia(float x, float y);
+float distância(float x, float y);
 float módulo(float x, float y);
 float ruido_perlin_2d(float x, float y);
 float interpolar_linear(float a, float b, float t);
-float calcular_atenuacao_luz(float distancia, float constante, float linear, float quadratica);
+float calcular_atenuacao_luz(float distância, float constante, float linear, float quadratica);
 
 void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
 void desenhar_triângulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
@@ -122,7 +122,7 @@ Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Veto
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direção_câmara);
 Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vetor3D dir_foco, float corte_interno, float corte_externo);
-bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, float distancia_luz, const Vetor3D* esferas_centros, const float* esferas_raios, unsigned núm_esferas);
+bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, float distância_luz, const Vetor3D* esferas_centros, const float* esferas_raios, unsigned núm_esferas);
 Vetor3D normalizar_vetor(Vetor3D v);
 Vetor3D transformar_vetor(Vetor3D v, float matriz[static 4][4]);
 Vetor3D somar_vetores(Vetor3D a, Vetor3D b);
@@ -162,7 +162,7 @@ Quaternião quaternião_slerp(Quaternião q1, Quaternião q2, float t);
 void limpar_profundidade(Profundidade* pf, float valor);
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
-Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura);
+Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float abertura, float distância_focal, int x, int y, int largura, int altura);
 bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, float* t_min_out);
 Raio gerar_raio_câmara(Vetor3D posição_câmara, float matriz_inv_proj[static 4][4], int x, int y, int largura, int altura);
 
@@ -285,7 +285,7 @@ float maximo(float x, float y) {
   return x >= y ? x : y;
 }
 
-float distancia(float x, float y) {
+float distância(float x, float y) {
   return absoluto(x - y);
 }
 
@@ -1213,7 +1213,7 @@ Vetor3D amostrar_mapeamento_normal(const Tela* mapa_normais, float u, float v, V
   return normalizar_vetor(normal_final);
 }
 
-bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, float distancia_luz, const Vetor3D* esferas_centros, const float* esferas_raios, unsigned núm_esferas) {
+bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, float distância_luz, const Vetor3D* esferas_centros, const float* esferas_raios, unsigned núm_esferas) {
   // Safe validation check for arrays and range boundaries
   if (esferas_centros == nullptr || esferas_raios == nullptr) {
     return false;
@@ -1252,7 +1252,7 @@ bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, flo
     float t0 = tca - thc;
 
     // Check if the intersection point is located between the origin and the light source
-    if (t0 > 0.0001f && t0 < distancia_luz) {
+    if (t0 > 0.0001f && t0 < distância_luz) {
       return true; // Light visibility path is completely blocked
     }
   }
@@ -1750,8 +1750,8 @@ bool guardar_tela_ppm(const Tela* tela, const char* caminho_ficheiro) {
   return true;
 }
 
-float calcular_atenuacao_luz(float distancia, float constante, float linear, float quadratica) {
-  float denominador = constante + (linear * distancia) + (quadratica * distancia * distancia);
+float calcular_atenuacao_luz(float distância, float constante, float linear, float quadratica) {
+  float denominador = constante + (linear * distância) + (quadratica * distância * distância);
   
   if (denominador <= 0.0f) {
     return 1.0f;
@@ -2158,7 +2158,7 @@ void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
   }
 }
 
-Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura) {
+Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float abertura, float distância_focal, int x, int y, int largura, int altura) {
   // 1. Configurar o sistema de coordenadas locais da câmara (Camera Frame)
   Vetor3D frente = normalizar_vetor(dir);
   Vetor3D cima_global = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
@@ -2187,7 +2187,7 @@ Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float
   dir_raio_primario = normalizar_vetor(dir_raio_primario);
 
   // 3. Determinar o ponto de focagem no plano focal
-  float t_foco = distancia_focal;
+  float t_foco = distância_focal;
   Vetor3D ponto_foco = {
     .x = posição.x + dir_raio_primario.x * t_foco,
     .y = posição.y + dir_raio_primario.y * t_foco,
