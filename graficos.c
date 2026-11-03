@@ -122,6 +122,9 @@ Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Veto
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
 bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direção_câmara);
 Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vetor3D dir_foco, float corte_interno, float corte_externo);
+Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direção_luz, Cor cor_objeto, Cor cor_luz);
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int polimento);
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int polimento, float intensidade_ambiente);
 bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, float distância_luz, const Vetor3D* esferas_centros, const float* esferas_raios, unsigned núm_esferas);
 Vetor3D normalizar_vetor(Vetor3D v);
 Vetor3D transformar_vetor(Vetor3D v, float matriz[static 4][4]);
@@ -147,9 +150,6 @@ void criar_matriz_olhar_para(float matriz[static 4][4], Vetor3D posição, Vetor
 void extrair_direcoes_câmara(float matriz_vista[static 4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente);
 void criar_matriz_de_quaternião(float matriz[static 4][4], Quaternião q);
 void criar_matriz_quat_posição(float matriz[static 4][4], Quaternião q, Vetor3D posição);
-Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direção_luz, Cor cor_objeto, Cor cor_luz);
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int polimento);
-Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int polimento, float intensidade_ambiente);
 
 Quaternião quaternião_identidade(void);
 Quaternião quaternião_de_eixo_angulo(Vetor3D eixo, float radianos);
