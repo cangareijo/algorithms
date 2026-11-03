@@ -7,8 +7,8 @@
 typedef uint32_t Cor;
 
 typedef struct {
-  int largura;
-  int altura;
+  unsigned largura;
+  unsigned altura;
   Cor* píxeis;
 } Tela;
 
@@ -22,17 +22,17 @@ typedef struct {
 
 typedef struct {
   float w, x, y, z;
-} Quaterniao;
+} Quaternião;
 
 typedef struct {
-  int largura;
-  int altura;
+  unsigned largura;
+  unsigned altura;
   float* profundidades;
 } Profundidade;
 
 typedef struct {
   Vetor3D origem;
-  Vetor3D direcao;
+  Vetor3D direção;
 } Raio;
 
 typedef struct {
@@ -44,7 +44,7 @@ typedef struct {
 } Intersecao;
 
 typedef struct {
-  Vetor3D posicao;
+  Vetor3D posição;
   Vetor2D uv;
   Cor cor;
 } Vertice;
@@ -53,9 +53,9 @@ typedef struct {
 typedef struct {
   Vetor3D min_caixa;
   Vetor3D max_caixa;
-  int indice_esquerdo;  // Se for > 0, aponta para o nó filho. Se for folha, pode ser o índice do objeto.
-  int contagem_objetos; // Se for 0, é um nó interno. Se for > 0, é uma folha com N objetos.
-} NoBVH;
+  unsigned indice_esquerdo;  // Se for > 0, aponta para o nó filho. Se for folha, pode ser o índice do objeto.
+  unsigned contagem_objetos; // Se for 0, é um nó interno. Se for > 0, é uma folha com N objetos.
+} NodoBVH;
 
 constexpr float PI = 3.14159265f;
 
@@ -76,7 +76,7 @@ bool guardar_tela_ppm(const Tela* tela, const char* caminho_ficheiro);
 
 Cor multiplicar_cor(Cor cor, float intensidade);
 Cor interpolar_cores(Cor c1, Cor c2, float fator);
-Cor amostrar_textura(Tela* textura, float u, float v);
+Cor amostrar_textura(const Tela* textura, float u, float v);
 Cor gerar_textura_xadrez(float u, float v, Cor c1, Cor c2, float frequencia);
 void aplicar_filtro_blur_gaussiano(Tela* tela, float sigma);
 void aplicar_vinheta(Tela* tela, float intensidade, float raio);
@@ -104,16 +104,16 @@ float calcular_atenuacao_luz(float distancia, float constante, float linear, flo
 void desenhar_linha(Tela* tela, Vetor2D p1, Vetor2D p2, Cor cor);
 void desenhar_triangulo(Tela* tela, Vetor2D p1, Vetor2D p2, Vetor2D p3, Cor cor);
 
-Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente);
+Vetor3D amostrar_mapeamento_normal(const Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente);
 float comprimento_vetor(Vetor3D v);
 float produto_escalar(Vetor3D u, Vetor3D v);
 Vetor3D calcular_coordenadas_baricentricas(Vetor2D p, Vetor2D a, Vetor2D b, Vetor2D c);
 Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura);
-bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara);
+bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direção_câmara);
 Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vetor3D dir_foco, float corte_interno, float corte_externo);
-bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direcao_luz, float distancia_luz, Vetor3D* esferas_centros, float* esferas_raios, int num_esferas);
+bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, float distancia_luz, const Vetor3D* esferas_centros, const float* esferas_raios, unsigned núm_esferas);
 Vetor3D normalizar_vetor(Vetor3D v);
-Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]);
+Vetor3D transformar_vetor(Vetor3D v, float matriz[static 4][4]);
 Vetor3D somar_vetores(Vetor3D a, Vetor3D b);
 Vetor3D subtrair_vetores(Vetor3D a, Vetor3D b);
 Vetor3D produto_vetorial(Vetor3D a, Vetor3D b);
@@ -122,38 +122,38 @@ Vetor3D interpolar_vetores(Vetor3D a, Vetor3D b, float t);
 Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3);
 static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, int inicio, int fim, Vetor3D* min_out, Vetor3D* max_out);
 
-void criar_matriz_identidade(float matriz[4][4]);
-void criar_matriz_translacao(float matriz[4][4], float x, float y, float z);
-void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz);
-void criar_matriz_perspetiva_infinito(float matriz[4][4], float fov, float proporcao, float perto);
-void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe);
-void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
-bool inverter_matriz_4x4(float resultado[4][4], float matriz[4][4]);
-void transpor_matriz_4x4(float resultado[4][4], float matriz[4][4]);
-void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]);
-void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo);
-void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima);
-void extrair_direcoes_camara(float matriz_vista[4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente);
-void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q);
-void criar_matriz_quat_posicao(float matriz[4][4], Quaterniao q, Vetor3D posicao);
-Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz);
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho);
-Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente);
+void criar_matriz_identidade(float matriz[static 4][4]);
+void criar_matriz_translacao(float matriz[static 4][4], float x, float y, float z);
+void criar_matriz_escala(float matriz[static 4][4], float sx, float sy, float sz);
+void criar_matriz_perspetiva_infinito(float matriz[static 4][4], float fov, float proporcao, float perto);
+void criar_matriz_projecao(float matriz[static 4][4], float fov, float proporcao, float perto, float longe);
+void criar_matriz_ortografica(float matriz[static 4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe);
+bool inverter_matriz_4x4(float resultado[static 4][4], float matriz[static 4][4]);
+void transpor_matriz_4x4(float resultado[static 4][4], float matriz[static 4][4]);
+void multiplicar_matrizes(float resultado[static 4][4], float a[static 4][4], float b[static 4][4]);
+void criar_matriz_rotacao(float matriz[static 4][4], float radianos, Vetor3D eixo);
+void criar_matriz_olhar_para(float matriz[static 4][4], Vetor3D posição, Vetor3D alvo, Vetor3D cima);
+void extrair_direcoes_câmara(float matriz_vista[static 4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente);
+void criar_matriz_de_quaternião(float matriz[static 4][4], Quaternião q);
+void criar_matriz_quat_posição(float matriz[static 4][4], Quaternião q, Vetor3D posição);
+Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direção_luz, Cor cor_objeto, Cor cor_luz);
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int brilho);
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente);
 
-Quaterniao quaterniao_identidade(void);
-Quaterniao quaterniao_de_eixo_angulo(Vetor3D eixo, float radianos);
-Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima);
-Quaterniao quaterniao_normalizar(Quaterniao q);
-Quaterniao quaterniao_inverso(Quaterniao q);
-Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2);
-Quaterniao quaterniao_slerp(Quaterniao q1, Quaterniao q2, float t);
+Quaternião quaternião_identidade(void);
+Quaternião quaternião_de_eixo_angulo(Vetor3D eixo, float radianos);
+Quaternião quaternião_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima);
+Quaternião quaternião_normalizar(Quaternião q);
+Quaternião quaternião_inverso(Quaternião q);
+Quaternião multiplicar_quaternioes(Quaternião q1, Quaternião q2);
+Quaternião quaternião_slerp(Quaternião q1, Quaternião q2, float t);
 
 void limpar_profundidade(Profundidade* pf, float valor);
 bool testar_e_definir_profundidade(Profundidade* pf, int x, int y, float z);
 
-Raio gerar_raio_camara_profundidade_campo(Vetor3D posicao, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura);
+Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura);
 bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_caixa, float* t_min_out);
-Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura);
+Raio gerar_raio_câmara(Vetor3D posição_câmara, float matriz_inv_proj[static 4][4], int x, int y, int largura, int altura);
 
 Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor);
 Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor);
@@ -167,8 +167,8 @@ int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_ou
 void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente);
 void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura);
 
-static int construir_bvh_recursivo(NoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos);
-void construir_arvore_bvh(NoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos);
+static int construir_bvh_recursivo(NodoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos);
+void construir_arvore_bvh(NodoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos);
 
 float absoluto(float x) {
   return x >= 0.0f ? x : -x;
@@ -299,7 +299,7 @@ Vetor3D normalizar_vetor(Vetor3D v) {
   };
 }
 
-Vetor3D transformar_vetor(Vetor3D v, float matriz[4][4]) {
+Vetor3D transformar_vetor(Vetor3D v, float matriz[static 4][4]) {
   // Convenção Row-Major: Multiplicação V * M. A translação reside na quarta linha (matriz[3][j])
   float x = v.x * matriz[0][0] + v.y * matriz[1][0] + v.z * matriz[2][0] + matriz[3][0];
   float y = v.x * matriz[0][1] + v.y * matriz[1][1] + v.z * matriz[2][1] + matriz[3][1];
@@ -353,7 +353,7 @@ Vetor3D calcular_normal(Vetor3D v1, Vetor3D v2, Vetor3D v3) {
   return normalizar_vetor(produto_vetorial(aresta1, aresta2));
 }
 
-void criar_matriz_identidade(float matriz[4][4]) {
+void criar_matriz_identidade(float matriz[static 4][4]) {
   for (int i = 0; i < 4; ++i) {
     for (int j = 0; j < 4; ++j) {
       matriz[i][j] = (i == j) ? 1.0f : 0.0f;
@@ -361,21 +361,21 @@ void criar_matriz_identidade(float matriz[4][4]) {
   }
 }
 
-void criar_matriz_translacao(float matriz[4][4], float x, float y, float z) {
+void criar_matriz_translacao(float matriz[static 4][4], float x, float y, float z) {
   criar_matriz_identidade(matriz);
   matriz[3][0] = x;
   matriz[3][1] = y;
   matriz[3][2] = z;
 }
 
-void criar_matriz_escala(float matriz[4][4], float sx, float sy, float sz) {
+void criar_matriz_escala(float matriz[static 4][4], float sx, float sy, float sz) {
   criar_matriz_identidade(matriz);
   matriz[0][0] = sx;
   matriz[1][1] = sy;
   matriz[2][2] = sz;
 }
 
-void criar_matriz_perspetiva_infinito(float matriz[4][4], float fov, float proporcao, float perto) {
+void criar_matriz_perspetiva_infinito(float matriz[static 4][4], float fov, float proporcao, float perto) {
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
       matriz[i][j] = 0.0f;
@@ -392,7 +392,7 @@ void criar_matriz_perspetiva_infinito(float matriz[4][4], float fov, float propo
   matriz[3][2] = -2.0f * perto;
 }
 
-void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float perto, float longe) {
+void criar_matriz_projecao(float matriz[static 4][4], float fov, float proporcao, float perto, float longe) {
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
       matriz[i][j] = 0.0f;
@@ -409,7 +409,7 @@ void criar_matriz_projecao(float matriz[4][4], float fov, float proporcao, float
   matriz[3][2] = -(2.0f * longe * perto) / (longe - perto);
 }
 
-void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe) {
+void criar_matriz_ortografica(float matriz[static 4][4], float esquerda, float direita, float baixo, float cima, float perto, float longe) {
   for (int i = 0; i < 4; ++i) {
     for (int j = 0; j < 4; ++j) {
       matriz[i][j] = 0.0f;
@@ -427,7 +427,7 @@ void criar_matriz_ortografica(float matriz[4][4], float esquerda, float direita,
   matriz[3][2] = -(longe + perto) / (longe - perto);
 }
 
-void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
+void multiplicar_matrizes(float resultado[static 4][4], float a[static 4][4], float b[static 4][4]) {
   float temporario[4][4] = {};
   for (int i = 0; i < 4; ++i) {
     for (int k = 0; k < 4; ++k) {
@@ -444,7 +444,7 @@ void multiplicar_matrizes(float resultado[4][4], float a[4][4], float b[4][4]) {
   }
 }
 
-void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
+void criar_matriz_rotacao(float matriz[static 4][4], float radianos, Vetor3D eixo) {
   criar_matriz_identidade(matriz);
   float magnitude = raiz(eixo.x * eixo.x + eixo.y * eixo.y + eixo.z * eixo.z);
   if (magnitude == 0.0f) return;
@@ -473,21 +473,21 @@ void criar_matriz_rotacao(float matriz[4][4], float radianos, Vetor3D eixo) {
   matriz[2][3] = 0.0f;
 }
 
-void criar_matriz_olhar_para(float matriz[4][4], Vetor3D posicao, Vetor3D alvo, Vetor3D cima) {
-  Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(posicao, alvo));
+void criar_matriz_olhar_para(float matriz[static 4][4], Vetor3D posição, Vetor3D alvo, Vetor3D cima) {
+  Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(posição, alvo));
   Vetor3D x_eixo = normalizar_vetor(produto_vetorial(cima, z_eixo));
   Vetor3D y_eixo = produto_vetorial(z_eixo, x_eixo);
 
   matriz[0][0] = x_eixo.x;  matriz[0][1] = y_eixo.x;  matriz[0][2] = z_eixo.x;  matriz[0][3] = 0.0f;
   matriz[1][0] = x_eixo.y;  matriz[1][1] = y_eixo.y;  matriz[1][2] = z_eixo.y;  matriz[1][3] = 0.0f;
   matriz[2][0] = x_eixo.z;  matriz[2][1] = y_eixo.z;  matriz[2][2] = z_eixo.z;  matriz[2][3] = 0.0f;
-  matriz[3][0] = -produto_escalar(x_eixo, posicao);
-  matriz[3][1] = -produto_escalar(y_eixo, posicao);
-  matriz[3][2] = -produto_escalar(z_eixo, posicao);
+  matriz[3][0] = -produto_escalar(x_eixo, posição);
+  matriz[3][1] = -produto_escalar(y_eixo, posição);
+  matriz[3][2] = -produto_escalar(z_eixo, posição);
   matriz[3][3] = 1.0f;
 }
 
-void extrair_direcoes_camara(float matriz_vista[4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente) {
+void extrair_direcoes_câmara(float matriz_vista[static 4][4], Vetor3D* direita, Vetor3D* cima, Vetor3D* frente) {
   if (direita != nullptr) {
     direita->x = matriz_vista[0][0];
     direita->y = matriz_vista[1][0];
@@ -509,7 +509,7 @@ void extrair_direcoes_camara(float matriz_vista[4][4], Vetor3D* direita, Vetor3D
   }
 }
 
-void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q) {
+void criar_matriz_de_quaternião(float matriz[static 4][4], Quaternião q) {
   float xx = q.x * q.x; float xy = q.x * q.y; float xz = q.x * q.z; float xw = q.x * q.w;
   float yy = q.y * q.y; float yz = q.y * q.z; float yw = q.y * q.w;
   float zz = q.z * q.z; float zw = q.z * q.w;
@@ -533,7 +533,7 @@ void criar_matriz_de_quaterniao(float matriz[4][4], Quaterniao q) {
   matriz[3][0] = 0.0f; matriz[3][1] = 0.0f; matriz[3][2] = 0.0f; matriz[3][3] = 1.0f;
 }
 
-void criar_matriz_quat_posicao(float matriz[4][4], Quaterniao q, Vetor3D posicao) {
+void criar_matriz_quat_posição(float matriz[static 4][4], Quaternião q, Vetor3D posição) {
   float xx = q.x * q.x; float xy = q.x * q.y; float xz = q.x * q.z; float xw = q.x * q.w;
   float yy = q.y * q.y; float yz = q.y * q.z; float yw = q.y * q.w;
   float zz = q.z * q.z; float zw = q.z * q.w;
@@ -549,21 +549,21 @@ void criar_matriz_quat_posicao(float matriz[4][4], Quaterniao q, Vetor3D posicao
   matriz[2][1] = 2.0f * (yz - xw);
   matriz[2][2] = 1.0f - 2.0f * (xx + yy);
   matriz[2][3] = 0.0f;
-  matriz[3][0] = posicao.x;
-  matriz[3][1] = posicao.y;
-  matriz[3][2] = posicao.z;
+  matriz[3][0] = posição.x;
+  matriz[3][1] = posição.y;
+  matriz[3][2] = posição.z;
   matriz[3][3] = 1.0f;
 }
 
-Quaterniao quaterniao_identidade(void) {
-  return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+Quaternião quaternião_identidade(void) {
+  return (Quaternião){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
 }
 
-Quaterniao quaterniao_de_eixo_angulo(Vetor3D axis, float radianos) {
+Quaternião quaternião_de_eixo_angulo(Vetor3D axis, float radianos) {
   Vetor3D eixo_normalizado = normalizar_vetor(axis);
   float metade_angulo = radianos * 0.5f;
   float seno_metade = seno(metade_angulo);
-  return (Quaterniao){
+  return (Quaternião){
     .w = cosseno(metade_angulo),
     .x = eixo_normalizado.x * seno_metade,
     .y = eixo_normalizado.y * seno_metade,
@@ -571,7 +571,7 @@ Quaterniao quaterniao_de_eixo_angulo(Vetor3D axis, float radianos) {
   };
 }
 
-Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
+Quaternião quaternião_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
   // 1. Calculate the forward direction vector (Z-axis) matching your view conventions
   Vetor3D z_eixo = normalizar_vetor(subtrair_vetores(origem, alvo));
   
@@ -582,12 +582,12 @@ Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
   // 3. Extract the rotation components directly from the row-major basis matrix
   // m00 = x_eixo.x, m11 = y_eixo.y, m22 = z_eixo.z
   float tr = x_eixo.x + y_eixo.y + z_eixo.z;
-  Quaterniao q;
+  Quaternião q;
 
   if (tr > 0.0f) {
     float s = raiz(tr + 1.0f) * 2.0f; // s = 4 * q.w
     if (s == 0.0f) {
-      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+      return (Quaternião){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
     }
     float inv_s = 1.0f / s;
     q.w = 0.25f * s;
@@ -597,7 +597,7 @@ Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
   } else if ((x_eixo.x > y_eixo.y) && (x_eixo.x > z_eixo.z)) {
     float s = raiz(1.0f + x_eixo.x - y_eixo.y - z_eixo.z) * 2.0f; // s = 4 * q.x
     if (s == 0.0f) {
-      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+      return (Quaternião){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
     }
     float inv_s = 1.0f / s;
     q.w = (y_eixo.z - z_eixo.y) * inv_s;
@@ -607,7 +607,7 @@ Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
   } else if (y_eixo.y > z_eixo.z) {
     float s = raiz(1.0f + y_eixo.y - x_eixo.x - z_eixo.z) * 2.0f; // s = 4 * q.y
     if (s == 0.0f) {
-      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+      return (Quaternião){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
     }
     float inv_s = 1.0f / s;
     q.w = (z_eixo.x - x_eixo.z) * inv_s;
@@ -617,7 +617,7 @@ Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
   } else {
     float s = raiz(1.0f + z_eixo.z - x_eixo.x - y_eixo.y) * 2.0f; // s = 4 * q.z
     if (s == 0.0f) {
-      return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+      return (Quaternião){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
     }
     float inv_s = 1.0f / s;
     q.w = (x_eixo.y - y_eixo.x) * inv_s;
@@ -629,13 +629,13 @@ Quaterniao quaterniao_olhar_para(Vetor3D origem, Vetor3D alvo, Vetor3D cima) {
   return q;
 }
 
-Quaterniao quaterniao_normalizar(Quaterniao q) {
+Quaternião quaternião_normalizar(Quaternião q) {
   float n_qd = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
   if (n_qd == 0.0f) {
-    return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    return (Quaternião){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
   }
   float inv_norma = reciproco_raiz(n_qd);
-  return (Quaterniao){
+  return (Quaternião){
     .w = q.w * inv_norma,
     .x = q.x * inv_norma,
     .y = q.y * inv_norma,
@@ -643,8 +643,8 @@ Quaterniao quaterniao_normalizar(Quaterniao q) {
   };
 }
 
-Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2) {
-  return (Quaterniao){
+Quaternião multiplicar_quaternioes(Quaternião q1, Quaternião q2) {
+  return (Quaternião){
     .w = q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z,
     .x = q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y,
     .y = q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x,
@@ -652,10 +652,10 @@ Quaterniao multiplicar_quaternioes(Quaterniao q1, Quaterniao q2) {
   };
 }
 
-Quaterniao quaterniao_slerp(Quaterniao q1, Quaterniao q2, float t) {
+Quaternião quaternião_slerp(Quaternião q1, Quaternião q2, float t) {
   // Ensure we operate on unit quaternions
-  Quaterniao start = quaterniao_normalizar(q1);
-  Quaterniao end = quaterniao_normalizar(q2);
+  Quaternião start = quaternião_normalizar(q1);
+  Quaternião end = quaternião_normalizar(q2);
 
   if (t <= 0.0f) return start;
   if (t >= 1.0f) return end;
@@ -700,13 +700,13 @@ Quaterniao quaterniao_slerp(Quaterniao q1, Quaterniao q2, float t) {
   }
 
   // Combine components into the final blending state
-  Quaterniao resultado;
+  Quaternião resultado;
   resultado.w = escala_start * start.w + escala_end * end.w;
   resultado.x = escala_start * start.x + escala_end * end.x;
   resultado.y = escala_start * start.y + escala_end * end.y;
   resultado.z = escala_start * start.z + escala_end * end.z;
 
-  return quaterniao_normalizar(resultado);
+  return quaternião_normalizar(resultado);
 }
 
 Cor multiplicar_cor(Cor cor, float intensidade) {
@@ -740,9 +740,9 @@ Cor interpolar_cores(Cor c1, Cor c2, float fator) {
   return (r_final << 24) | (g_final << 16) | (b_final << 8) | a_final;
 }
 
-Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_objeto, Cor cor_luz) {
+Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direção_luz, Cor cor_objeto, Cor cor_luz) {
   Vetor3D n = normalizar_vetor(normal);
-  Vetor3D l = normalizar_vetor(direcao_luz);
+  Vetor3D l = normalizar_vetor(direção_luz);
   float cosseno_fator = produto_escalar(n, l);
   if (cosseno_fator < 0.0f) cosseno_fator = 0.0f;
 
@@ -770,10 +770,10 @@ Cor calcular_iluminacao_difusa(Vetor3D normal, Vetor3D direcao_luz, Cor cor_obje
   return ((Cor)(uint8_t)res_r << 24) | ((Cor)(uint8_t)res_g << 16) | ((Cor)(uint8_t)res_b << 8) | (Cor)(uint8_t)res_a;
 }
 
-Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, int brilho) {
+Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, int brilho) {
   Vetor3D n = normalizar_vetor(normal);
-  Vetor3D l = normalizar_vetor(direcao_luz);
-  Vetor3D v = normalizar_vetor(direcao_olhar);
+  Vetor3D l = normalizar_vetor(direção_luz);
+  Vetor3D v = normalizar_vetor(direção_olhar);
   Vetor3D h = normalizar_vetor(somar_vetores(l, v));
 
   float dot_nh = produto_escalar(n, h);
@@ -788,10 +788,10 @@ Cor calcular_iluminacao_especular(Vetor3D normal, Vetor3D direcao_luz, Vetor3D d
   return ((Cor)especular << 24) | ((Cor)especular << 16) | ((Cor)especular << 8) | (Cor)255;
 }
 
-Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Vetor3D direcao_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente) {
+Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direção_luz, Vetor3D direção_olhar, Cor cor_objeto, Cor cor_difusa_luz, Cor cor_especular_luz, int brilho, float intensidade_ambiente) {
   Vetor3D n = normalizar_vetor(normal);
-  Vetor3D l = normalizar_vetor(direcao_luz);
-  Vetor3D v = normalizar_vetor(direcao_olhar);
+  Vetor3D l = normalizar_vetor(direção_luz);
+  Vetor3D v = normalizar_vetor(direção_olhar);
 
   // Extração dos canais do objeto
   float obj_r = (float)((cor_objeto >> 24) & 0xFF);
@@ -853,18 +853,16 @@ Cor calcular_iluminacao_phong_completa(Vetor3D normal, Vetor3D direcao_luz, Veto
          (Cor)(uint8_t)obj_a;
 }
 
-Cor amostrar_textura(Tela* textura, float u, float v) {
-  if (textura == nullptr || textura->píxeis == nullptr || textura->largura <= 0 || textura->altura <= 0) {
+Cor amostrar_textura(const Tela* textura, float u, float v) {
+  if (textura == nullptr || textura->píxeis == nullptr) {
     return 0;
   }
   float u_repetido = u - chao(u);
   float v_repetido = v - chao(v);
-  int x = (int)(u_repetido * (float)textura->largura);
-  int y = (int)(v_repetido * (float)textura->altura);
+  unsigned x = u_repetido * (float)textura->largura;
+  unsigned y = v_repetido * (float)textura->altura;
   if (x >= textura->largura) x = textura->largura - 1;
   if (y >= textura->altura)  y = textura->altura - 1;
-  if (x < 0) x = 0;
-  if (y < 0) y = 0;
   return textura->píxeis[x + y * textura->largura];
 }
 
@@ -997,14 +995,14 @@ Vetor2D projetar_ponto(Vetor3D ponto_3d, int largura, int altura) {
   };
 }
 
-bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direcao_camara) {
+bool orientacao_traseira(Vetor3D v1, Vetor3D v2, Vetor3D v3, Vetor3D direção_câmara) {
   Vetor3D normal_face = calcular_normal(v1, v2, v3);
-  return produto_escalar(normal_face, direcao_camara) >= 0.0f;
+  return produto_escalar(normal_face, direção_câmara) >= 0.0f;
 }
 
 Vertice interpolar_vertices(Vertice a, Vertice b, float t) {
   return (Vertice){
-    .posicao = interpolar_vetores(a.posicao, b.posicao, t),
+    .posição = interpolar_vetores(a.posição, b.posição, t),
     .uv = { a.uv.x + t * (b.uv.x - a.uv.x), a.uv.y + t * (b.uv.y - a.uv.y) },
     .cor = interpolar_cores(a.cor, b.cor, t)
   };
@@ -1017,7 +1015,7 @@ int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_ou
   int contagem_fora = 0;
   
   for (int i = 0; i < 3; ++i) {
-    if (triangulo_in[i].posicao.z >= plano_perto) {
+    if (triangulo_in[i].posição.z >= plano_perto) {
       vertices_dentro[contagem_dentro++] = triangulo_in[i];
     } else {
       vertices_fora[contagem_fora++] = triangulo_in[i];
@@ -1035,9 +1033,9 @@ int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_ou
   
   if (contagem_dentro == 1) {
     triangulos_out[0] = vertices_dentro[0];
-    float t1 = (plano_perto - vertices_dentro[0].posicao.z) / (vertices_fora[0].posicao.z - vertices_dentro[0].posicao.z);
+    float t1 = (plano_perto - vertices_dentro[0].posição.z) / (vertices_fora[0].posição.z - vertices_dentro[0].posição.z);
     triangulos_out[1] = interpolar_vertices(vertices_dentro[0], vertices_fora[0], t1);
-    float t2 = (plano_perto - vertices_dentro[0].posicao.z) / (vertices_fora[1].posicao.z - vertices_dentro[0].posicao.z);
+    float t2 = (plano_perto - vertices_dentro[0].posição.z) / (vertices_fora[1].posição.z - vertices_dentro[0].posição.z);
     triangulos_out[2] = interpolar_vertices(vertices_dentro[0], vertices_fora[1], t2);
     return 1;
   }
@@ -1045,7 +1043,7 @@ int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_ou
   if (contagem_dentro == 2) {
     int idx_fora = 0;
     for (int i = 0; i < 3; ++i) {
-      if (triangulo_in[i].posicao.z < plano_perto) { 
+      if (triangulo_in[i].posição.z < plano_perto) { 
         idx_fora = i; 
         break; 
       }
@@ -1054,9 +1052,9 @@ int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_ou
     Vertice v1 = triangulo_in[(idx_fora + 1) % 3];
     Vertice v2 = triangulo_in[(idx_fora + 2) % 3];
 
-    float t1 = (plano_perto - v0.posicao.z) / (v1.posicao.z - v0.posicao.z);
+    float t1 = (plano_perto - v0.posição.z) / (v1.posição.z - v0.posição.z);
     Vertice i1 = interpolar_vertices(v0, v1, t1);
-    float t2 = (plano_perto - v2.posicao.z) / (v0.posicao.z - v2.posicao.z);
+    float t2 = (plano_perto - v2.posição.z) / (v0.posição.z - v2.posição.z);
     Vertice i2 = interpolar_vertices(v2, v0, t2);
 
     triangulos_out[0] = i1;   triangulos_out[1] = v1;   triangulos_out[2] = v2;
@@ -1068,8 +1066,8 @@ int recortar_triangulo_plano_perto(Vertice* triangulo_in, Vertice* triangulos_ou
 }
 
 void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D* bitangente) {
-  Vetor3D delta_pos1 = subtrair_vetores(triangulo[1].posicao, triangulo[0].posicao);
-  Vetor3D delta_pos2 = subtrair_vetores(triangulo[2].posicao, triangulo[0].posicao);
+  Vetor3D delta_pos1 = subtrair_vetores(triangulo[1].posição, triangulo[0].posição);
+  Vetor3D delta_pos2 = subtrair_vetores(triangulo[2].posição, triangulo[0].posição);
 
   float delta_u1 = triangulo[1].uv.x - triangulo[0].uv.x;
   float delta_v1 = triangulo[1].uv.y - triangulo[0].uv.y;
@@ -1103,9 +1101,9 @@ void calcular_tangente_bitangente(Vertice* triangulo, Vetor3D* tangente, Vetor3D
 void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Vertice v2, Vertice v3, Tela* textura) {
   if (tela == nullptr || pf == nullptr) return;
 
-  Vetor2D p1 = { v1.posicao.x, v1.posicao.y };
-  Vetor2D p2 = { v2.posicao.x, v2.posicao.y };
-  Vetor2D p3 = { v3.posicao.x, v3.posicao.y };
+  Vetor2D p1 = { v1.posição.x, v1.posição.y };
+  Vetor2D p2 = { v2.posição.x, v2.posição.y };
+  Vetor2D p3 = { v3.posição.x, v3.posição.y };
 
   int inicio_x = (int)minimo(minimo(p1.x, p2.x), p3.x);
   int fim_x = (int)maximo(maximo(p1.x, p2.x), p3.x) + 1;
@@ -1117,9 +1115,9 @@ void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Ver
   if (inicio_y < 0) inicio_y = 0;
   if (fim_y >= tela->altura) fim_y = tela->altura - 1;
 
-  float inv_w1 = 1.0f / v1.posicao.z;
-  float inv_w2 = 1.0f / v2.posicao.z;
-  float inv_w3 = 1.0f / v3.posicao.z;
+  float inv_w1 = 1.0f / v1.posição.z;
+  float inv_w2 = 1.0f / v2.posição.z;
+  float inv_w3 = 1.0f / v3.posição.z;
 
   float r1 = (float)((v1.cor >> 24) & 0xFF) * inv_w1;
   float g1 = (float)((v1.cor >> 16) & 0xFF) * inv_w1;
@@ -1163,7 +1161,7 @@ void desenhar_triangulo_preenchido(Tela* tela, Profundidade* pf, Vertice v1, Ver
   }
 }
 
-Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente) {
+Vetor3D amostrar_mapeamento_normal(const Tela* mapa_normais, float u, float v, Vetor3D normal_geometria, Vetor3D tangente, Vetor3D bitangente) {
   // If no normal map is available, fallback safely to the vertex geometry normal
   if (mapa_normais == nullptr || mapa_normais->píxeis == nullptr) {
     return normalizar_vetor(normal_geometria);
@@ -1201,27 +1199,27 @@ Vetor3D amostrar_mapeamento_normal(Tela* mapa_normais, float u, float v, Vetor3D
   return normalizar_vetor(normal_final);
 }
 
-bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direcao_luz, float distancia_luz, Vetor3D* esferas_centros, float* esferas_raios, int num_esferas) {
+bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direção_luz, float distancia_luz, const Vetor3D* esferas_centros, const float* esferas_raios, unsigned núm_esferas) {
   // Safe validation check for arrays and range boundaries
-  if (esferas_centros == nullptr || esferas_raios == nullptr || num_esferas <= 0) {
+  if (esferas_centros == nullptr || esferas_raios == nullptr) {
     return false;
   }
 
   // Offset origin slightly along light ray vector direction to prevent self-shadowing acne
   Vetor3D origem_raio;
   float epsilon = 0.001f;
-  origem_raio.x = ponto_origem.x + direcao_luz.x * epsilon;
-  origem_raio.y = ponto_origem.y + direcao_luz.y * epsilon;
-  origem_raio.z = ponto_origem.z + direcao_luz.z * epsilon;
+  origem_raio.x = ponto_origem.x + direção_luz.x * epsilon;
+  origem_raio.y = ponto_origem.y + direção_luz.y * epsilon;
+  origem_raio.z = ponto_origem.z + direção_luz.z * epsilon;
 
   // Loop through all spatial primitives inside the cluster array
-  for (int i = 0; i < num_esferas; ++i) {
+  for (int i = 0; i < núm_esferas; ++i) {
     Vetor3D centro_esfera = esferas_centros[i];
     float raio_esfera = esferas_raios[i];
 
     // Analytical geometric check for ray-sphere contact
     Vetor3D l = subtrair_vetores(centro_esfera, origem_raio);
-    float tca = produto_escalar(l, direcao_luz);
+    float tca = produto_escalar(l, direção_luz);
     
     // If center projects behind ray origin, it cannot block the path forward
     if (tca < 0.0001f) {
@@ -1248,25 +1246,25 @@ bool verificar_sombra_bloqueada(Vetor3D ponto_origem, Vetor3D direcao_luz, float
   return false; // The visibility lane is unoccluded
 }
 
-Raio gerar_raio_camara(Vetor3D posicao_camara, float matriz_inv_proj[4][4], int x, int y, int largura, int altura) {
+Raio gerar_raio_câmara(Vetor3D posição_câmara, float matriz_inv_proj[static 4][4], int x, int y, int largura, int altura) {
   Raio raio;
-  raio.origem = posicao_camara;
+  raio.origem = posição_câmara;
   if (largura <= 0 || altura <= 0) {
-    raio.direcao = (Vetor3D){0.0f, 0.0f, 1.0f};
+    raio.direção = (Vetor3D){0.0f, 0.0f, 1.0f};
     return raio;
   }
   float ndc_x = (2.0f * ((float)x + 0.5f) / (float)largura) - 1.0f;
   float ndc_y = 1.0f - (2.0f * ((float)y + 0.5f) / (float)altura);
   Vetor3D ponto_clip = { ndc_x, ndc_y, 1.0f };
-  Vetor3D direcao_camara = transformar_vetor(ponto_clip, matriz_inv_proj);
-  raio.direcao = normalizar_vetor(direcao_camara);
+  Vetor3D direção_câmara = transformar_vetor(ponto_clip, matriz_inv_proj);
+  raio.direção = normalizar_vetor(direção_câmara);
   return raio;
 }
 
 Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor cor) {
   Intersecao resultado = { .intersetou = false, .t = -1.0f, .ponto = {0.0f, 0.0f, 0.0f}, .normal = {0.0f, 0.0f, 1.0f}, .cor_material = cor };
   Vetor3D l = subtrair_vetores(centro, raio.origem);
-  float tca = produto_escalar(l, raio.direcao);
+  float tca = produto_escalar(l, raio.direção);
   float d2 = produto_escalar(l, l) - tca * tca;
   float raio2 = raio_esfera * raio_esfera;
   if (d2 > raio2) return resultado;
@@ -1284,14 +1282,14 @@ Intersecao intersetar_esfera(Raio raio, Vetor3D centro, float raio_esfera, Cor c
   }
   resultado.intersetou = true;
   resultado.t = t_escolhido;
-  resultado.ponto = somar_vetores(raio.origem, (Vetor3D){raio.direcao.x * t_escolhido, raio.direcao.y * t_escolhido, raio.direcao.z * t_escolhido});
+  resultado.ponto = somar_vetores(raio.origem, (Vetor3D){raio.direção.x * t_escolhido, raio.direção.y * t_escolhido, raio.direção.z * t_escolhido});
   resultado.normal = normalizar_vetor(subtrair_vetores(resultado.ponto, centro));
   return resultado;
 }
 
 Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano, Cor cor) {
   Intersecao resultado = { .intersetou = false, .t = -1.0f, .ponto = {0.0f, 0.0f, 0.0f}, .normal = normal_plano, .cor_material = cor };
-  float denominador = produto_escalar(raio.direcao, normal_plano);
+  float denominador = produto_escalar(raio.direção, normal_plano);
   if (denominador > -0.0001f && denominador < 0.0001f) return resultado;
 
   float t_calculado = produto_escalar(subtrair_vetores(ponto_plano, raio.origem), normal_plano) / denominador;
@@ -1302,7 +1300,7 @@ Intersecao intersetar_plano(Raio raio, Vetor3D ponto_plano, Vetor3D normal_plano
   if (denominador > 0.0f) {
     resultado.normal = (Vetor3D){-normal_plano.x, -normal_plano.y, -normal_plano.z};
   }
-  resultado.ponto = somar_vetores(raio.origem, (Vetor3D){raio.direcao.x * t_calculado, raio.direcao.y * t_calculado, raio.direcao.z * t_calculado});
+  resultado.ponto = somar_vetores(raio.origem, (Vetor3D){raio.direção.x * t_calculado, raio.direção.y * t_calculado, raio.direção.z * t_calculado});
   return resultado;
 }
 
@@ -1319,8 +1317,8 @@ Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_c
   float t_max =  1e30f; // Approximated positive infinity
 
   // --- X-Axis Slab Check ---
-  if (raio.direcao.x != 0.0f) {
-    float inv_dx = 1.0f / raio.direcao.x;
+  if (raio.direção.x != 0.0f) {
+    float inv_dx = 1.0f / raio.direção.x;
     float t1 = (min_caixa.x - raio.origem.x) * inv_dx;
     float t2 = (max_caixa.x - raio.origem.x) * inv_dx;
     
@@ -1334,8 +1332,8 @@ Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_c
   }
 
   // --- Y-Axis Slab Check ---
-  if (raio.direcao.y != 0.0f) {
-    float inv_dy = 1.0f / raio.direcao.y;
+  if (raio.direção.y != 0.0f) {
+    float inv_dy = 1.0f / raio.direção.y;
     float t1 = (min_caixa.y - raio.origem.y) * inv_dy;
     float t2 = (max_caixa.y - raio.origem.y) * inv_dy;
     
@@ -1349,8 +1347,8 @@ Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_c
   }
 
   // --- Z-Axis Slab Check ---
-  if (raio.direcao.z != 0.0f) {
-    float inv_dz = 1.0f / raio.direcao.z;
+  if (raio.direção.z != 0.0f) {
+    float inv_dz = 1.0f / raio.direção.z;
     float t1 = (min_caixa.z - raio.origem.z) * inv_dz;
     float t2 = (max_caixa.z - raio.origem.z) * inv_dz;
     
@@ -1375,9 +1373,9 @@ Intersecao intersetar_caixa_alinhada(Raio raio, Vetor3D min_caixa, Vetor3D max_c
   resultado.t = t_escolhido;
 
   // Compute precise 3D point of contact on the box plane
-  resultado.ponto.x = raio.origem.x + raio.direcao.x * t_escolhido;
-  resultado.ponto.y = raio.origem.y + raio.direcao.y * t_escolhido;
-  resultado.ponto.z = raio.origem.z + raio.direcao.z * t_escolhido;
+  resultado.ponto.x = raio.origem.x + raio.direção.x * t_escolhido;
+  resultado.ponto.y = raio.origem.y + raio.direção.y * t_escolhido;
+  resultado.ponto.z = raio.origem.z + raio.direção.z * t_escolhido;
 
   // Derive structural surface normals dynamically depending on which slab plane was hit
   float epsilon = 0.0005f;
@@ -1405,7 +1403,7 @@ Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, C
   Vetor3D aresta2 = subtrair_vetores(v3, v1);
 
   // 2. Prepare determinants to calculate barycentric coordinates
-  Vetor3D p_vetor = produto_vetorial(raio.direcao, aresta2);
+  Vetor3D p_vetor = produto_vetorial(raio.direção, aresta2);
   float det = produto_escalar(aresta1, p_vetor);
 
   // If determinant is close to zero, ray is parallel to the triangle plane
@@ -1423,7 +1421,7 @@ Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, C
 
   // 4. Compute V barycentric coordinate and validate bounds
   Vetor3D q_vetor = produto_vetorial(t_vetor, aresta1);
-  float v = produto_escalar(raio.direcao, q_vetor) * inv_det;
+  float v = produto_escalar(raio.direção, q_vetor) * inv_det;
   if (v < 0.0f || (u + v) > 1.0f) {
     return resultado;
   }
@@ -1439,13 +1437,13 @@ Intersecao intersetar_triangulo(Raio raio, Vetor3D v1, Vetor3D v2, Vetor3D v3, C
   resultado.t = t_calculado;
   
   // Compute hit point: origin + direction * t
-  resultado.ponto.x = raio.origem.x + raio.direcao.x * t_calculado;
-  resultado.ponto.y = raio.origem.y + raio.direcao.y * t_calculado;
-  resultado.ponto.z = raio.origem.z + raio.direcao.z * t_calculado;
+  resultado.ponto.x = raio.origem.x + raio.direção.x * t_calculado;
+  resultado.ponto.y = raio.origem.y + raio.direção.y * t_calculado;
+  resultado.ponto.z = raio.origem.z + raio.direção.z * t_calculado;
 
   // Calculate face normal and ensure it opposes the ray trajectory
   Vetor3D normal_face = calcular_normal(v1, v2, v3);
-  if (produto_escalar(raio.direcao, normal_face) > 0.0f) {
+  if (produto_escalar(raio.direção, normal_face) > 0.0f) {
     resultado.normal = (Vetor3D){-normal_face.x, -normal_face.y, -normal_face.z};
   } else {
     resultado.normal = normal_face;
@@ -1750,18 +1748,18 @@ float calcular_atenuacao_luz(float distancia, float constante, float linear, flo
 
 Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vetor3D dir_foco, float corte_interno, float corte_externo) {
   // Calcular o vetor do ponto até à luz
-  Vetor3D direcao_para_luz = subtrair_vetores(pos_luz, ponto);
-  direcao_para_luz = normalizar_vetor(direcao_para_luz);
+  Vetor3D direção_para_luz = subtrair_vetores(pos_luz, ponto);
+  direção_para_luz = normalizar_vetor(direção_para_luz);
   
   // Normalizar a direção do foco da luz (garantia)
   Vetor3D dir_foco_normalizada = normalizar_vetor(dir_foco);
   
-  // O vetor do raio luminoso que sai da luz vai na direção oposta a direcao_para_luz
-  Vetor3D direcao_raio_luz = subtrair_vetores(ponto, pos_luz);
-  direcao_raio_luz = normalizar_vetor(direcao_raio_luz);
+  // O vetor do raio luminoso que sai da luz vai na direção oposta a direção_para_luz
+  Vetor3D direção_raio_luz = subtrair_vetores(ponto, pos_luz);
+  direção_raio_luz = normalizar_vetor(direção_raio_luz);
   
   // Calcular o cosseno do ângulo entre o raio da luz e a direção principal do foco
-  float cosseno_atual = produto_escalar(direcao_raio_luz, dir_foco_normalizada);
+  float cosseno_atual = produto_escalar(direção_raio_luz, dir_foco_normalizada);
   
   // No modelo row-major/padrão, os cortes recebidos já devem ser os cossenos dos ângulos.
   // Se forem ângulos em radianos, seriam calculados previamente com cosseno(angulo).
@@ -1772,7 +1770,7 @@ Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vet
   if (diferenca <= 0.0001f) {
     if (cosseno_atual >= corte_interno) {
       // Fora do cone de transição, totalmente iluminado pelo foco
-      float n_dot_l = maximo(0.0f, produto_escalar(normal, direcao_para_luz));
+      float n_dot_l = maximo(0.0f, produto_escalar(normal, direção_para_luz));
       return multiplicar_cor(0xFFFFFFFF, n_dot_l); // Retorna branco com intensidade difusa
     }
     return 0x00000000; // Totalmente escuro fora do foco
@@ -1783,7 +1781,7 @@ Cor calcular_iluminacao_foco(Vetor3D ponto, Vetor3D normal, Vetor3D pos_luz, Vet
   intensidade_foco = minimo(maximo(intensidade_foco, 0.0f), 1.0f);
   
   // Calcular o fator Lambertiano (difuso básico)
-  float fator_difuso = maximo(0.0f, produto_escalar(normal, direcao_para_luz));
+  float fator_difuso = maximo(0.0f, produto_escalar(normal, direção_para_luz));
   
   // Intensidade final combinando a orientação da superfície e o cone do foco
   float intensidade_final = fator_difuso * intensidade_foco;
@@ -1834,8 +1832,8 @@ bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_
   float t_maximo =  1e30f; // Representação prática de infinito positivo
 
   // Processamento do Eixo X
-  if (raio.direcao.x != 0.0f) {
-    float inverso_dir_x = 1.0f / raio.direcao.x;
+  if (raio.direção.x != 0.0f) {
+    float inverso_dir_x = 1.0f / raio.direção.x;
     float t1 = (min_caixa.x - raio.origem.x) * inverso_dir_x;
     float t2 = (max_caixa.x - raio.origem.x) * inverso_dir_x;
 
@@ -1846,8 +1844,8 @@ bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_
   }
 
   // Processamento do Eixo Y
-  if (raio.direcao.y != 0.0f) {
-    float inverso_dir_y = 1.0f / raio.direcao.y;
+  if (raio.direção.y != 0.0f) {
+    float inverso_dir_y = 1.0f / raio.direção.y;
     float t1 = (min_caixa.y - raio.origem.y) * inverso_dir_y;
     float t2 = (max_caixa.y - raio.origem.y) * inverso_dir_y;
 
@@ -1858,8 +1856,8 @@ bool intersetar_caixa_alinhada_rapido(Raio raio, Vetor3D min_caixa, Vetor3D max_
   }
 
   // Processamento do Eixo Z
-  if (raio.direcao.z != 0.0f) {
-    float inverso_dir_z = 1.0f / raio.direcao.z;
+  if (raio.direção.z != 0.0f) {
+    float inverso_dir_z = 1.0f / raio.direção.z;
     float t1 = (min_caixa.z - raio.origem.z) * inverso_dir_z;
     float t2 = (max_caixa.z - raio.origem.z) * inverso_dir_z;
 
@@ -1912,11 +1910,11 @@ static void calcular_aabb_grupo(Vetor3D* centros, float* raios, int* indices, in
 }
 
 // Função recursiva interna para construir os nós da árvore sequencialmente na memória alocada
-static int construir_bvh_recursivo(NoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos) {
+static int construir_bvh_recursivo(NodoBVH* nos, int* indices, Vetor3D* centros, float* raios, int inicio, int fim, int* contador_nos) {
   int no_atual_idx = *contador_nos;
   (*contador_nos)++;
 
-  NoBVH* no = &nos[no_atual_idx];
+  NodoBVH* no = &nos[no_atual_idx];
   
   // Calcular a caixa envolvente para os objetos deste nó
   calcular_aabb_grupo(centros, raios, indices, inicio, fim, &no->min_caixa, &no->max_caixa);
@@ -1976,7 +1974,7 @@ static int construir_bvh_recursivo(NoBVH* nos, int* indices, Vetor3D* centros, f
   return no_atual_idx;
 }
 
-void construir_arvore_bvh(NoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos) {
+void construir_arvore_bvh(NodoBVH* nos_bvh, Vetor3D* centros, float* raios, int num_objetos) {
   if (nos_bvh == nullptr || centros == nullptr || raios == nullptr || num_objetos <= 0) {
     return;
   }
@@ -1992,7 +1990,7 @@ void construir_arvore_bvh(NoBVH* nos_bvh, Vetor3D* centros, float* raios, int nu
   }
 
   int contador_nos = 0;
-  NoBVH* array_nos = (NoBVH*)nos_bvh;
+  NodoBVH* array_nos = (NodoBVH*)nos_bvh;
 
   // Iniciar a construção recursiva a partir da raiz (índice 0)
   construir_bvh_recursivo(array_nos, indices, centros, raios, 0, num_objetos, &contador_nos);
@@ -2146,7 +2144,7 @@ void aplicar_vinheta(Tela* tela, float intensidade, float raio) {
   }
 }
 
-Raio gerar_raio_camara_profundidade_campo(Vetor3D posicao, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura) {
+Raio gerar_raio_câmara_profundidade_campo(Vetor3D posição, Vetor3D dir, float abertura, float distancia_focal, int x, int y, int largura, int altura) {
   // 1. Configurar o sistema de coordenadas locais da câmara (Camera Frame)
   Vetor3D frente = normalizar_vetor(dir);
   Vetor3D cima_global = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
@@ -2177,9 +2175,9 @@ Raio gerar_raio_camara_profundidade_campo(Vetor3D posicao, Vetor3D dir, float ab
   // 3. Determinar o ponto de focagem no plano focal
   float t_foco = distancia_focal;
   Vetor3D ponto_foco = {
-    .x = posicao.x + dir_raio_primario.x * t_foco,
-    .y = posicao.y + dir_raio_primario.y * t_foco,
-    .z = posicao.z + dir_raio_primario.z * t_foco
+    .x = posição.x + dir_raio_primario.x * t_foco,
+    .y = posição.y + dir_raio_primario.y * t_foco,
+    .z = posição.z + dir_raio_primario.z * t_foco
   };
 
   // 4. Gerar amostragem pseudoaleatória determinista baseada no píxel para o disco da lente
@@ -2202,20 +2200,20 @@ Raio gerar_raio_camara_profundidade_campo(Vetor3D posicao, Vetor3D dir, float ab
 
   // 5. Calcular a nova origem deslocada sobre a superfície da lente
   Vetor3D nova_origem = {
-    .x = posicao.x + (direita.x * deslocamento_u) + (cima_local.x * deslocamento_v),
-    .y = posicao.y + (direita.y * deslocamento_u) + (cima_local.y * deslocamento_v),
-    .z = posicao.z + (direita.z * deslocamento_u) + (cima_local.z * deslocamento_v)
+    .x = posição.x + (direita.x * deslocamento_u) + (cima_local.x * deslocamento_v),
+    .y = posição.y + (direita.y * deslocamento_u) + (cima_local.y * deslocamento_v),
+    .z = posição.z + (direita.z * deslocamento_u) + (cima_local.z * deslocamento_v)
   };
 
   // 6. A nova direção aponta da lente para o ponto de focagem
-  Vetor3D nova_direcao = normalizar_vetor(subtrair_vetores(ponto_foco, nova_origem));
+  Vetor3D nova_direção = normalizar_vetor(subtrair_vetores(ponto_foco, nova_origem));
 
-  Raio raio_camara = {
+  Raio raio_câmara = {
     .origem = nova_origem,
-    .direcao = nova_direcao
+    .direção = nova_direção
   };
 
-  return raio_camara;
+  return raio_câmara;
 }
 
 int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float raio, int fatias, int pilhas) {
@@ -2254,9 +2252,9 @@ int gerar_geometria_esfera(Vertice* vertices_out, uint32_t* indices_out, float r
       float nz = sen_phi * sen_theta;
 
       Vertice v;
-      v.posicao.x = nx * raio;
-      v.posicao.y = ny * raio;
-      v.posicao.z = nz * raio;
+      v.posição.x = nx * raio;
+      v.posição.y = ny * raio;
+      v.posição.z = nz * raio;
 
       v.uv.x = fator_f;
       v.uv.y = 1.0f - fator_p; // Inverter o eixo V para mapeamento padrão
@@ -2329,40 +2327,40 @@ int gerar_geometria_cubo(Vertice* vertices_out, uint32_t* indices_out, float tam
   int i_idx = 0;
 
   // Face 1: Frente (+Z)
-  vertices_out[v_idx++] = (Vertice){ .posicao = c0, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c1, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c2, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c3, .uv = uv01, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c0, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c1, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c2, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c3, .uv = uv01, .cor = cor_padrao };
 
   // Face 2: Trás (-Z)
-  vertices_out[v_idx++] = (Vertice){ .posicao = c5, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c4, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c7, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c6, .uv = uv01, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c5, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c4, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c7, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c6, .uv = uv01, .cor = cor_padrao };
 
   // Face 3: Cima (+Y)
-  vertices_out[v_idx++] = (Vertice){ .posicao = c3, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c2, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c6, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c7, .uv = uv01, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c3, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c2, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c6, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c7, .uv = uv01, .cor = cor_padrao };
 
   // Face 4: Baixo (-Y)
-  vertices_out[v_idx++] = (Vertice){ .posicao = c4, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c5, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c1, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c0, .uv = uv01, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c4, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c5, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c1, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c0, .uv = uv01, .cor = cor_padrao };
 
   // Face 5: Direita (+X)
-  vertices_out[v_idx++] = (Vertice){ .posicao = c1, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c5, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c6, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c2, .uv = uv01, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c1, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c5, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c6, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c2, .uv = uv01, .cor = cor_padrao };
 
   // Face 6: Esquerda (-X)
-  vertices_out[v_idx++] = (Vertice){ .posicao = c4, .uv = uv00, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c0, .uv = uv10, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c3, .uv = uv11, .cor = cor_padrao };
-  vertices_out[v_idx++] = (Vertice){ .posicao = c7, .uv = uv01, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c4, .uv = uv00, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c0, .uv = uv10, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c3, .uv = uv11, .cor = cor_padrao };
+  vertices_out[v_idx++] = (Vertice){ .posição = c7, .uv = uv01, .cor = cor_padrao };
 
   // Gerar a topologia indexada para as 6 faces
   for (uint32_t face = 0; face < 6; ++face) {
@@ -2458,7 +2456,7 @@ Cor gerar_textura_xadrez(float u, float v, Cor c1, Cor c2, float frequencia) {
   return c2;
 }
 
-bool inverter_matriz_4x4(float resultado[4][4], float matriz[4][4]) {
+bool inverter_matriz_4x4(float resultado[static 4][4], float matriz[static 4][4]) {
   float adjunta[4][4];
 
   // Elementos da matriz original organizados de forma legível por conveniência
@@ -2507,7 +2505,7 @@ bool inverter_matriz_4x4(float resultado[4][4], float matriz[4][4]) {
   return true;
 }
 
-void transpor_matriz_4x4(float resultado[4][4], float matriz[4][4]) {
+void transpor_matriz_4x4(float resultado[static 4][4], float matriz[static 4][4]) {
   // Criar uma cópia estável num buffer local para permitir operações in-place com segurança
   float temporaria[4][4];
 
@@ -2525,19 +2523,19 @@ void transpor_matriz_4x4(float resultado[4][4], float matriz[4][4]) {
   }
 }
 
-Quaterniao quaterniao_inverso(Quaterniao q) {
+Quaternião quaternião_inverso(Quaternião q) {
   // Calcular a norma quadrada do quatérnio (o quadrado do seu comprimento)
   float norma_quadrada = (q.w * q.w) + (q.x * q.x) + (q.y * q.y) + (q.z * q.z);
 
   // Evitar divisão por zero caso o quatérnio seja nulo
   if (norma_quadrada <= 0.00001f) {
-    return (Quaterniao){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
+    return (Quaternião){ .w = 1.0f, .x = 0.0f, .y = 0.0f, .z = 0.0f };
   }
 
   float inverso_norma = 1.0f / norma_quadrada;
 
   // O inverso é o conjugado (sinal oposto no eixo imaginário) dividido pela norma quadrada
-  Quaterniao resultado;
+  Quaternião resultado;
   resultado.w = q.w * inverso_norma;
   resultado.x = -q.x * inverso_norma;
   resultado.y = -q.y * inverso_norma;
