@@ -391,6 +391,7 @@ double calculate_graph_tenacity(const Graph *g);
 double calculate_scattering_number(const Graph *g);
 double calculate_estrada_index(const Graph *g);
 double calculate_balaban_j_index(const Graph *g);
+double calculate_von_neumann_entropy(const Graph *g);
 double calculateWeightedEccentricity(const Graph *g, unsigned v);
 double getNormalizedInDegree(const Graph *g, unsigned v);
 double getNormalizedOutDegree(const Graph *g, unsigned v);
@@ -7675,6 +7676,67 @@ double calculate_balaban_j_index(const Graph *g) {
       }
   if (M + 2 <= g->size) return 0;
   return (M / (M - g->size + 2)) * sum;
+}
+
+double calculate_von_neumann_entropy(const Graph *g) {
+  if (!g || g->size <= 1 || !g->edges) return 0;
+  double L[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size && u != e->destination)
+        L[u][e->destination] += e->weight;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = u + 1; v < g->size; v++) {
+      double average = (L[u][v] + L[v][u]) / 2;
+      L[u][v] = average;
+      L[v][u] = average;
+    }
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v) {
+        L[u][u] += L[u][v];
+        L[u][v] = -L[u][v];
+      }
+  double trace_L = 0;
+  for (unsigned u = 0; u < g->size; u++) trace_L += L[u][u];
+  if (trace_L <= 1e-12) return 0;
+  double Q[g->size][g->size];
+  double R[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      L[u][v] /= trace_L;
+  for (unsigned i = 0; i < 500; i++) {
+    for (unsigned v = 0; v < g->size; v++) {
+      for (unsigned u = 0; u < g->size; u++) {
+        Q[u][v] = L[u][v];
+        R[u][v] = 0;
+      }
+      for (unsigned w = 0; w < v; w++) {
+        double dot = 0;
+        for (unsigned u = 0; u < g->size; u++) dot += L[u][v] * Q[u][w];
+        R[w][v] = dot;
+        for (unsigned u = 0; u < g->size; u++) Q[u][v] -= dot * Q[u][w];
+      }
+      double norm = 0;
+      for (unsigned u = 0; u < g->size; u++) norm += Q[u][v] * Q[u][v];
+      norm = sqrt(norm);
+      R[v][v] = norm;
+      if (norm > 1e-12)
+        for (unsigned u = 0; u < g->size; u++)
+          Q[u][v] /= norm;
+    }
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++) {
+        double sum = 0;
+        for (unsigned w = 0; w < g->size; w++) sum += R[u][w] * Q[w][v];
+        L[u][v] = sum;
+      }
+  }
+  double entropy = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    if (L[u][u] > 1e-12)
+      entropy -= L[u][u] * log(L[u][u]);
+  return entropy;
 }
 
 double calculateWeightedEccentricity(const Graph *g, unsigned v) {
