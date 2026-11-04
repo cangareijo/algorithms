@@ -1,349 +1,348 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <SDL3/SDL.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
-// Definição de estruturas básicas utilizando funcionalidades modernas de C23
-typedef struct {
-    double x;
-    double y;
-    double z;
-} Vetor3;
+#define LARGURA_ECRÃ 800
+#define ALTURA_ECRÃ 600
+#define PI 3.14159265358979323846f
 
-typedef struct {
-    Vetor3 centro;
-    double raio;
-} Esfera;
+// ============================================================================
+// 1. ESTRUTURAS DE DADOS (Com Diacríticos)
+// ============================================================================
 
 typedef struct {
-    Vetor3 posicao;
-    Vetor3 cor;
-} Luz;
+    float x, y, z;
+} Vetor3D;
 
-// Funções utilitárias para operações vetoriais
-static inline Vetor3 subtrair(Vetor3 a, Vetor3 b) {
-    return (Vetor3){a.x - b.x, a.y - b.y, a.z - b.z};
+typedef struct {
+    float m[4][4];
+} Matriz4x4;
+
+typedef struct {
+    Vetor3D vértices[3];
+} Triângulo;
+
+typedef struct {
+    Triângulo* triângulos;
+    int total_triângulos;
+} Malha3D;
+
+typedef struct {
+    Malha3D malha;
+    Vetor3D posição;
+    Vetor3D rotação;
+} InstânciaObjeto;
+
+// ============================================================================
+// 2. ÁLGEBRA LINEAR E MATEMÁTICA 3D
+// ============================================================================
+
+Vetor3D vetor3d_subtrair(Vetor3D a, Vetor3D b) {
+    return (Vetor3D){a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
-static inline double produto_escalar(Vetor3 a, Vetor3 b) {
+Vetor3D vetor3d_produto_vetorial(Vetor3D a, Vetor3D b) {
+    return (Vetor3D){
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    };
+}
+
+Vetor3D vetor3d_normalizar(Vetor3D v) {
+    float comprimento = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+    if (comprimento == 0.0f) return v;
+    return (Vetor3D){v.x / comprimento, v.y / comprimento, v.z / comprimento};
+}
+
+float vetor3d_produto_escalar(Vetor3D a, Vetor3D b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-static inline Vetor3 normalizar(Vetor3 v) {
-    double comprimento = sqrt(produto_escalar(v, v));
-    if (comprimento == 0.0) return (Vetor3){0, 0, 0};
-    return (Vetor3){v.x / comprimento, v.y / comprimento, v.z / comprimento};
+Matriz4x4 matriz4x4_identidade(void) {
+    Matriz4x4 mat = {0};
+    mat.m[0][0] = 1.0f; mat.m[1][1] = 1.0f; mat.m[2][2] = 1.0f; mat.m[3][3] = 1.0f;
+    return mat;
 }
 
-// Interseção entre um raio e uma esfera
-// Retorna a distância 't' da interseção mais próxima, ou -1.0 se não intersetar
-static double intersetar_esfera(Vetor3 origem_raio, Vetor3 direcao_raio, Esfera esfera) {
-    Vetor3 oc = subtrair(origem_raio, esfera.centro);
-    double a = produto_escalar(direcao_raio, direcao_raio);
-    double b = 2.0 * produto_escalar(oc, direcao_raio);
-    double c = produto_escalar(oc, oc) - esfera.raio * esfera.raio;
-    double discriminante = b * b - 4 * a * c;
-
-    if (discriminante < 0) {
-        return -1.0;
+Matriz4x4 matriz4x4_multiplicar(Matriz4x4 a, Matriz4x4 b) {
+    Matriz4x4 resultado = {0};
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            resultado.m[i][j] = a.m[i][0] * b.m[0][j] +
+                                a.m[i][1] * b.m[1][j] +
+                                a.m[i][2] * b.m[2][j] +
+                                a.m[i][3] * b.m[3][j];
+        }
     }
-
-    double t1 = (-b - sqrt(discriminante)) / (2.0 * a);
-    if (t1 > 0.0) return t1;
-
-    double t2 = (-b + sqrt(discriminante)) / (2.0 * a);
-    if (t2 > 0.0) return t2;
-
-    return -1.0;
+    return resultado;
 }
 
-// Função para aplicar o efeito de Flat Shading aproximado numa malha geométrica da esfera.
-// Para garantir o aspeto clássico "facetado" (Flat Shading) sem criar uma malha complexa de triângulos,
-// truncamos as coordenadas da normal do ponto de interseção para criar subdivisões discretas (faces).
-static Vetor3 calcular_normal_flat(Vetor3 ponto_intersecao, Esfera esfera) {
-    Vetor3 normal_suave = normalizar(subtrair(ponto_intersecao, esfera.centro));
+Vetor3D matriz4x4_multiplicar_vetor3d(Matriz4x4 m, Vetor3D v) {
+    float x = v.x * m.m[0][0] + v.y * m.m[1][0] + v.z * m.m[2][0] + m.m[3][0];
+    float y = v.x * m.m[0][1] + v.y * m.m[1][1] + v.z * m.m[2][1] + m.m[3][1];
+    float z = v.x * m.m[0][2] + v.y * m.m[1][2] + v.z * m.m[2][2] + m.m[3][2];
+    float w = v.x * m.m[0][3] + v.y * m.m[1][3] + v.z * m.m[2][3] + m.m[3][3];
 
-    constexpr double pi = 3.14159265358979323846;
-    // Nível de subdivisão para criar as faces planas (flat) da esfera
-    constexpr double subdivisoes = 12.0;
-
-    // Converte as coordenadas cartesianas para esféricas para discretizar os ângulos (faces)
-    double phi = atan2(normal_suave.z, normal_suave.x);
-    double theta = acos(normal_suave.y);
-
-    // Discretização (quantização) dos ângulos para simular as facetas planas
-    phi = round(phi * (subdivisoes / pi)) * (pi / subdivisoes);
-    theta = round(theta * (subdivisoes / pi)) * (pi / subdivisoes);
-
-    // Reconverte de volta para uma normal única por face
-    Vetor3 normal_flat = {
-        .x = sin(theta) * cos(phi),
-        .y = cos(theta),
-        .z = sin(theta) * sin(phi)
-    };
-
-    return normalizar(normal_flat);
-}
-
-int main(void) {
-    // Configurações da imagem de saída utilizando diretivas e constantes C23
-    constexpr int largura = 800;
-    constexpr int altura = 800;
-
-    // Inicialização de objetos usando a sintaxe limpa de C23
-    auto esfera = (Esfera){ .centro = {0.0, 0.0, -5.0}, .raio = 2.0 };
-    auto luz = (Luz){ .posicao = {5.0, 5.0, 0.0}, .cor = {1.0, 1.0, 1.0} };
-
-    Vetor3 cor_esfera = {0.2, 0.6, 1.0}; // Azul claro
-    Vetor3 cor_fundo = {0.1, 0.1, 0.15};  // Escuro azulado
-
-    // Alocação dinâmica para demonstrar que o -fsanitize=leak está ativo e validado
-    unsigned char* imagem = malloc(largura * altura * 3);
-    if (imagem == nullptr) { // Uso do novo 'nullptr' introduzido no C23
-        fprintf(stderr, "Erro ao alocar memória para a imagem.\n");
-        return EXIT_FAILURE;
+    if (w != 0.0f) {
+        x /= w; y /= w; z /= w;
     }
+    return (Vetor3D){x, y, z};
+}
 
-    Vetor3 origem_camara = {0.0, 0.0, 0.0};
+Matriz4x4 matriz4x4_rotação_y(float ângulo) {
+    Matriz4x4 mat = matriz4x4_identidade();
+    mat.m[0][0] = cosf(ângulo);
+    mat.m[0][2] = -sinf(ângulo);
+    mat.m[2][0] = sinf(ângulo);
+    mat.m[2][2] = cosf(ângulo);
+    return mat;
+}
 
-    // Renderização da cena (Ray Casting)
-    for (int y = 0; y < altura; ++y) {
-        for (int x = 0; x < largura; ++x) {
-            // Mapeia os píxeis do ecrã para o plano de projeção tridimensional
-            double px = (2.0 * ((double)x + 0.5) / largura - 1.0) * ((double)largura / altura);
-            double py = -(2.0 * ((double)y + 0.5) / altura - 1.0);
+Matriz4x4 matriz4x4_rotação_x(float ângulo) {
+    Matriz4x4 mat = matriz4x4_identidade();
+    mat.m[1][1] = cosf(ângulo);
+    mat.m[1][2] = sinf(ângulo);
+    mat.m[2][1] = -sinf(ângulo);
+    mat.m[2][2] = cosf(ângulo);
+    return mat;
+}
 
-            Vetor3 direcao_raio = normalizar((Vetor3){px, py, -1.0});
-            double t = intersetar_esfera(origem_camara, direcao_raio, esfera);
+Matriz4x4 matriz4x4_translação(float x, float y, float z) {
+    Matriz4x4 mat = matriz4x4_identidade();
+    mat.m[3][0] = x;
+    mat.m[3][1] = y;
+    mat.m[3][2] = z;
+    return mat;
+}
 
-            int pixel_index = (y * largura + x) * 3;
+Matriz4x4 matriz4x4_perspetiva(float fov, float aspeto, float próximo, float distante) {
+    Matriz4x4 mat = {0};
+    float f = 1.0f / tanf((fov * PI / 180.0f) / 2.0f);
+    mat.m[0][0] = f / aspeto;
+    mat.m[1][1] = f;
+    mat.m[2][2] = distante / (distante - próximo);
+    mat.m[2][3] = 1.0f;
+    mat.m[3][2] = (-distante * próximo) / (distante - próximo);
+    return mat;
+}
 
-            if (t > 0.0) {
-                // Ponto exato onde o raio toca a superfície da esfera
-                Vetor3 ponto_intersecao = {
-                    origem_camara.x + direcao_raio.x * t,
-                    origem_camara.y + direcao_raio.y * t,
-                    origem_camara.z + direcao_raio.z * t
-                };
+// ============================================================================
+// 3. GERAÇÃO DA GEOMETRIA (Criação da Esfera)
+// ============================================================================
 
-                // Calcula a normal facetada (Flat) correspondente a essa região
-                Vetor3 normal = calcular_normal_flat(ponto_intersecao, esfera);
-                Vetor3 direcao_luz = normalizar(subtrair(luz.posicao, ponto_intersecao));
+Malha3D malha_criar_esfera(float raio, int anéis, int segmentos) {
+    Malha3D malha;
+    int max_triângulos = anéis * segmentos * 2;
+    malha.triângulos = malloc(sizeof(Triângulo) * max_triângulos);
+    malha.total_triângulos = 0;
 
-                // Equação de sombreamento Lambertiano (Difuso) para o Flat Shading
-                double intensidade_difusa = produto_escalar(normal, direcao_luz);
-                if (intensidade_difusa < 0.0) intensidade_difusa = 0.0;
+    for (int i = 0; i < anéis; i++) {
+        float phi1 = PI * (float)i / anéis;
+        float phi2 = PI * (float)(i + 1) / anéis;
 
-                // Intensidade ambiente para evitar sombras totalmente pretas
-                constexpr double intensidade_ambiente = 0.15;
-                double iluminacao_final = intensidade_difusa + intensidade_ambiente;
-                if (iluminacao_final > 1.0) iluminacao_final = 1.0;
+        for (int j = 0; j < segmentos; j++) {
+            float theta1 = 2.0f * PI * (float)j / segmentos;
+            float theta2 = 2.0f * PI * (float)(j + 1) / segmentos;
 
-                // Aplica a iluminação calculada à cor do objeto
-                imagem[pixel_index]     = (unsigned char)(cor_esfera.x * iluminacao_final * 255.0);
-                imagem[pixel_index + 1] = (unsigned char)(cor_esfera.y * iluminacao_final * 255.0);
-                imagem[pixel_index + 2] = (unsigned char)(cor_esfera.z * iluminacao_final * 255.0);
-            } else {
-                // Desenha a cor de fundo caso não haja interseção
-                imagem[pixel_index]     = (unsigned char)(cor_fundo.x * 255.0);
-                imagem[pixel_index + 1] = (unsigned char)(cor_fundo.y * 255.0);
-                imagem[pixel_index + 2] = (unsigned char)(cor_fundo.z * 255.0);
+            Vetor3D v1 = {raio * sinf(phi1) * cosf(theta1), raio * cosf(phi1), raio * sinf(phi1) * sinf(theta1)};
+            Vetor3D v2 = {raio * sinf(phi1) * cosf(theta2), raio * cosf(phi1), raio * sinf(phi1) * sinf(theta2)};
+            Vetor3D v3 = {raio * sinf(phi2) * cosf(theta1), raio * cosf(phi2), raio * sinf(phi2) * sinf(theta1)};
+            Vetor3D v4 = {raio * sinf(phi2) * cosf(theta2), raio * cosf(phi2), raio * sinf(phi2) * sinf(theta2)};
+
+            if (i != 0) {
+                malha.triângulos[malha.total_triângulos++] = (Triângulo){{v1, v2, v3}};
+            }
+            if (i != anéis - 1) {
+                malha.triângulos[malha.total_triângulos++] = (Triângulo){{v2, v4, v3}};
             }
         }
     }
-
-    // Gravação do ficheiro PPM final
-    FILE* ficheiro = fopen("esfera.ppm", "wb");
-    if (ficheiro == nullptr) {
-        fprintf(stderr, "Erro ao criar o ficheiro de saída.\n");
-        free(imagem);
-        return EXIT_FAILURE;
-    }
-
-    // Cabeçalho obrigatório do formato PPM P6
-    fprintf(ficheiro, "P6\n%d %d\n255\n", largura, altura);
-    fwrite(imagem, sizeof(unsigned char), largura * altura * 3, ficheiro);
-    fclose(ficheiro);
-
-    printf("Demos de flat shading gerada com sucesso em 'esfera.ppm'!\n");
-
-    // Libertação explícita de memória para evitar alertas do LeakSanitizer
-    free(imagem);
-    return EXIT_SUCCESS;
+    return malha;
 }
 
-/*
+// ============================================================================
+// 4. ILUMINAÇÃO E RASTERIZAÇÃO POR SOFTWARE (Píxel a Píxel)
+// ============================================================================
 
-Compreender o Flat Shading: O Fundamento do Sombreamento Tridimensional
+SDL_Color calcular_iluminação_plana(Triângulo t, Vetor3D direção_luz, SDL_Color cor_base) {
+    Vetor3D aresta1 = vetor3d_subtrair(t.vértices[1], t.vértices[0]);
+    Vetor3D aresta2 = vetor3d_subtrair(t.vértices[2], t.vértices[0]);
+    Vetor3D normal = vetor3d_normalizar(vetor3d_produto_vetorial(aresta1, aresta2));
 
-No universo da computação gráfica 3D, a representação de objetos tridimensionais num ecrã bidimensional exige
-transformações matemáticas complexas e uma compreensão profunda de como a luz interage com a matéria. Entre as diversas
-técnicas desenvolvidas desde os primórdios da disciplina, o Flat Shading (ou sombreamento plano) destaca-se como o
-método mais simples, computacionalmente económico e historicamente relevante para dar volume a formas geométricas.
+    direção_luz = vetor3d_normalizar(direção_luz);
+    float intensidade = vetor3d_produto_escalar(normal, direção_luz);
+    if (intensidade < 0.0f) intensidade = 0.0f;
 
-Este artigo explora detalhadamente o funcionamento do Flat Shading, a sua fundamentação matemática, as suas vantagens e
-limitações, e o seu impacto cultural na estética dos videojogos e das produções digitais.
+    float ambiente = 0.15f;
+    float fator_total = ambiente + intensidade * (1.0f - ambiente);
 
-O Desafio da Projeção e da Iluminação
+    return (SDL_Color){
+        (Uint8)SDL_clamp(cor_base.r * fator_total, 0, 255),
+        (Uint8)SDL_clamp(cor_base.g * fator_total, 0, 255),
+        (Uint8)SDL_clamp(cor_base.b * fator_total, 0, 255),
+        255
+    };
+}
 
-Para compreender a utilidade do Flat Shading, imagine um cubo ou uma esfera flutuando no espaço virtual. Sem iluminação,
-se desenharmos este objeto pintando-o inteiramente com uma única cor sólida (como o azul), ele perderá toda a
-tridimensionalidade aos olhos do observador. O cubo parecerá um hexágono plano e a esfera parecerá um círculo
-bidimensional.
+void desenhar_linha_z_buffer(SDL_Renderer* renderizador, int y, float x1, float z1, float x2, float z2, float* buffer_de_profundidade) {
+    if (x1 > x2) {
+        float temp_x = x1; x1 = x2; x2 = temp_x;
+        float temp_z = z1; z1 = z2; z2 = temp_z;
+    }
 
-O cérebro humano depende das variações de luz e sombra (os gradientes e contrastes) para interpretar a profundidade, a
-curvatura e a textura dos objetos. É aqui que entram os algoritmos de sombreamento. O seu papel é calcular a cor e a
-intensidade luminosa de cada porção da superfície do objeto com base na posição das luzes na cena e na orientação da
-própria superfície.
+    int início_x = (int)ceilf(x1);
+    int fim_x = (int)ceilf(x2);
 
-O que é o Flat Shading?
+    início_x = SDL_clamp(início_x, 0, LARGURA_ECRÃ);
+    fim_x = SDL_clamp(fim_x, 0, LARGURA_ECRÃ);
 
-O Flat Shading é uma técnica de renderização onde uma única cor e intensidade de iluminação são calculadas para uma face
-poligonal inteira. Independentemente do tamanho do polígono (que geralmente é um triângulo ou um quadrilátero), todos
-os píxeis que compõem essa face recebem exatamente a mesma tonalidade.
+    for (int x = início_x; x < fim_x; x++) {
+        float t = (x1 == x2) ? 0.0f : (float)(x - x1) / (x2 - x1);
+        float z = z1 + t * (z2 - z1);
 
-Para que isto aconteça, o algoritmo avalia as propriedades físicas da face num único ponto geométrico — frequentemente o
-centro do polígono (o baricentro) ou o seu primeiro vértice. O resultado desse cálculo é estendido de forma homogénea
-por toda a superfície daquela faceta.
+        int indice = y * LARGURA_ECRÃ + x;
+        if (z < buffer_de_profundidade[indice]) {
+            buffer_de_profundidade[indice] = z;
+            SDL_RenderPoint(renderizador, (float)x, (float)y);
+        }
+    }
+}
 
-A Estética "Low Poly"
+void desenhar_triângulo_plano(SDL_Renderer* renderizador, Triângulo t, SDL_Color cor, float* buffer_de_profundidade) {
+    Vetor3D v0 = t.vértices[0]; Vetor3D v1 = t.vértices[1]; Vetor3D v2 = t.vértices[2];
 
-O resultado visual desta abordagem é um objeto com um aspeto vincadamente multifacetado, geométrico e angular. Se
-aplicarmos o Flat Shading a uma superfície que deveria ser curva (como uma esfera ou um cilindro), a aproximação
-poligonal torna-se imediatamente evidente. O objeto parecerá esculpido em blocos ou lapidado como um diamante.
+    // Ordenar os vértices por Y (v0 mais acima, v2 mais abaixo)
+    if (v0.y > v1.y) { Vetor3D tmp = v0; v0 = v1; v1 = tmp; }
+    if (v0.y > v2.y) { Vetor3D tmp = v0; v0 = v2; v2 = tmp; }
+    if (v1.y > v2.y) { Vetor3D tmp = v1; v1 = v2; v2 = tmp; }
 
-Embora esta característica tenha sido inicialmente considerada uma limitação técnica devido ao hardware do século
-passado, transformou-se ao longo dos anos numa escolha artística intencional. É a base da famosa estética Low
-Poly (baixo número de polígonos), amplamente utilizada em videojogos modernos independentes, animações estilizadas e
-design de interfaces.
+    if (v0.y == v2.y) return;
 
-A Matemática por Trás do Algoritmo
+    SDL_SetRenderDrawColor(renderizador, cor.r, cor.g, cor.b, 255);
 
-O cálculo do Flat Shading baseia-se num princípio fundamental da física ótica conhecido como a Lei de Cossenos de
-Lambert (ou Reflexão Lambertiana). Este modelo assume que a superfície do objeto é perfeitamente difusa (opaca e rugosa
-a nível microscópico), o que significa que ela reflete a luz de forma igual em todas as direções, independentemente da
-posição da câmara do observador.
+    int início_y = (int)ceilf(v0.y);
+    int fim_y = (int)ceilf(v2.y);
+    início_y = SDL_clamp(início_y, 0, ALTURA_ECRÃ);
+    fim_y = SDL_clamp(fim_y, 0, ALTURA_ECRÃ);
 
-A intensidade da luz refletida por uma face depende exclusivamente do ângulo com que os raios luminosos atingem essa
-mesma face.
+    for (int y = início_y; y < fim_y; y++) {
+        bool na_metade_superior = y < v1.y;
 
-1. O Vetor Normal da Face
+        float t_total = (float)(y - v0.y) / (v2.y - v0.y);
+        float t_segmento = na_metade_superior ? (float)(y - v0.y) / (v1.y - v0.y) : (float)(y - v1.y) / (v2.y - v1.y);
 
-O elemento mais crítico para o cálculo é o vetor normal. A normal é um vetor unitário (com comprimento igual a 1) que
-aponta perpendicularmente para fora da superfície da face.
+        if (na_metade_superior && v0.y == v1.y) continue;
+        if (!na_metade_superior && v1.y == v2.y) continue;
 
-Num polígono plano determinado por três vértices (A, B e C), a normal da face pode ser facilmente encontrada calculando
-o produto vetorial entre dois dos seus lados:
+        float ax = v0.x + t_total * (v2.x - v0.x);
+        float az = v0.z + t_total * (v2.z - v0.z);
 
-Normal = (B - A) × (C - A)
+        float bx = na_metade_superior ? v0.x + t_segmento * (v1.x - v0.x) : v1.x + t_segmento * (v2.x - v1.x);
+        float bz = na_metade_superior ? v0.z + t_segmento * (v1.z - v0.z) : v1.z + t_segmento * (v2.z - v1.z);
 
-Após este cálculo, o vetor resultante é normalizado (dividido pelo seu próprio comprimento) para garantir que representa
-apenas a direção geométrica da face.
+        desenhar_linha_z_buffer(renderizador, y, ax, az, bx, bz, buffer_de_profundidade);
+    }
+}
 
-2. O Vetor da Luz
+// ============================================================================
+// 5. CICLO PRINCIPAL DA APLICAÇÃO
+// ============================================================================
 
-O segundo elemento é o vetor de direção da luz, que aponta do ponto que está a ser sombreado (o centro da face) em
-direção à fonte de luz. Se a luz for direcional (como o Sol, cujos raios são considerados paralelos), este vetor é
-constante para toda a cena. Se for uma luz posicional (como uma lâmpada ou uma fogueira), o vetor deve ser recalculado
-subtraindo a posição do centro da face da posição da luz.
+int main(int argc, char* argv[]) {
+    (void)argc; (void)argv;
 
-3. O Produto Escalar (Dot Product)
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        return -1;
+    }
 
-A magia do sombreamento acontece através duma operação matemática linear simples: o produto escalar entre o vetor normal
-da face (N) e o vetor da direção da luz (L).
+    SDL_Window* janela = SDL_CreateWindow("Demonstração de Flat Shading em C23 (Esfera)", LARGURA_ECRÃ, ALTURA_ECRÃ, 0);
+    SDL_Renderer* renderizador = SDL_CreateRenderer(janela, NULL);
 
-Intensidade = N ⋅ L
+    float* buffer_de_profundidade = malloc(sizeof(float) * LARGURA_ECRÃ * ALTURA_ECRÃ);
 
-O produto escalar de dois vetores unitários retorna o cosseno do ângulo entre eles:
+    // Criação do objeto (Esfera com poucos segmentos para realçar o Flat Shading)
+    InstânciaObjeto objeto = {
+        .malha = malha_criar_esfera(2.0f, 16, 24),
+        .posição = {0.0f, 0.0f, 6.0f},
+        .rotação = {0.0f, 0.0f, 0.0f}
+    };
 
-• Se a luz incidir perpendicularmente sobre a face (ângulo de 0 graus), o produto escalar é 1.0. A face recebe a
-  iluminação máxima.
+    Vetor3D direção_luz = {1.0f, 1.0f, -1.0f};
+    SDL_Color cor_esfera = {0, 150, 255, 255};
+    Matriz4x4 mat_projeção = matriz4x4_perspetiva(60.0f, (float)LARGURA_ECRÃ / ALTURA_ECRÃ, 0.1f, 100.0f);
 
-• Se a luz incidir de forma oblíqua, o valor desce gradualmente em direção a 0.0.
+    bool em_execução = true;
+    SDL_Event evento;
 
-• Se o valor for igual ou inferior a 0.0, significa que a luz está a atingir a face por trás ou de raspão. Neste caso, a
-  iluminação difusa é definida como zero.
+    while (em_execução) {
+        while (SDL_PollEvent(&evento)) {
+            if (evento.type == SDL_EVENT_QUIT) {
+                em_execução = false;
+            }
+        }
 
-4. A Cor Final do Píxel
+        // Atualização da física/rotação
+        objeto.rotação.y += 0.02f;
+        objeto.rotação.x += 0.01f;
 
-Para obter a cor que será escrita no ecrã, multiplicamos a cor base do objeto pela intensidade calculada, adicionando
-frequentemente uma pequena componente de luz ambiente para garantir que as faces na sombra completa não fiquem
-totalmente pretas e invisíveis:
+        // Limpeza dos ecrãs (Preto) e Reset do Z-Buffer
+				SDL_SetRenderDrawColor(renderizador, 15, 15, 15, 255);
+				SDL_RenderClear(renderizador);
+				for (int i = 0; i < LARGURA_ECRÃ * ALTURA_ECRÃ; i++) {
+						buffer_de_profundidade[i] = INFINITY;
+				}
 
-Cor Final = (Cor do Objeto × Intensidade Difusa) + Luz Ambiente
+				// Construção das transformações do objeto (Matriz Mundo)
+				Matriz4x4 mat_rot_y = matriz4x4_rotação_y(objeto.rotação.y);
+				Matriz4x4 mat_rot_x = matriz4x4_rotação_x(objeto.rotação.x);
+				Matriz4x4 mat_trans = matriz4x4_translação(objeto.posição.x, objeto.posição.y, objeto.posição.z);
+				Matriz4x4 mat_mundo = matriz4x4_multiplicar(mat_rot_x, mat_rot_y);
+				mat_mundo = matriz4x4_multiplicar(mat_mundo, mat_trans);
 
-Como esta fórmula é aplicada apenas uma vez por polígono, o processo é extremamente veloz.
+				// Processar e desenhar cada face
+				for (int i = 0; i < objeto.malha.total_triângulos; i++) {
+						Triângulo t_original = objeto.malha.triângulos[i];
+						Triângulo t_transformado, t_projetado;
 
-Comparação Direta com Outras Técnicas de Sombreamento
+						// 1. Transformação para o Espaço do Mundo
+						for (int v = 0; v < 3; v++) {
+								t_transformado.vértices[v] = matriz4x4_multiplicar_vetor3d(mat_mundo, t_original.vértices[v]);
+						}
 
-Para contextualizar a simplicidade do Flat Shading, é útil compreender de que forma ele difere dos métodos que surgiram
-posteriormente, concebidos especificamente para resolver o problema do aspeto facetado em superfícies que deveriam
-parecer curvas.
+						// Backface Culling (Evita desenhar triângulos virados de costas)
+						Vetor3D a1 = vetor3d_subtrair(t_transformado.vértices[1], t_transformado.vértices[0]);
+						Vetor3D a2 = vetor3d_subtrair(t_transformado.vértices[2], t_transformado.vértices[0]);
+						Vetor3D normal_mundo = vetor3d_produto_vetorial(a1, a2);
+						Vetor3D raio_visão = vetor3d_subtrair(t_transformado.vértices[0], (Vetor3D){0, 0, 0});
+						if (vetor3d_produto_escalar(normal_mundo, raio_visão) < 0.0f) {
+								// 2. Calcular Iluminação Flat baseada na face do Mundo
+								SDL_Color cor_iluminada = calcular_iluminação_plana(t_transformado, direção_luz, cor_esfera);
 
-No Flat Shading, como vimos, o cálculo de iluminação é feito uma única vez por polígono, utilizando a normal geométrica
-da própria face. O resultado é uma cor uniforme em toda a extensão do polígono, gerando um custo computacional
-extremamente baixo, mas com uma transição abrupta de tons nas arestas.
+								// 3. Aplicar Projeção Perspetiva e Escalar para o Ecrã
+								for (int v = 0; v < 3; v++) {
+										t_projetado.vértices[v] = matriz4x4_multiplicar_vetor3d(mat_projeção, t_transformado.vértices[v]);
 
-No Gouraud Shading (ou sombreamento por vértices), o algoritmo adota uma abordagem diferente. Em vez de calcular a
-iluminação para a face, ele calcula os vetores normais em cada um dos vértices individuais (geralmente fazendo a média
-das normais das faces que partilham esse vértice). A iluminação é calculada em cada vértice e as cores resultantes são
-depois interpoladas linearmente ao longo da superfície do polígono. Isto suaviza o interior dos objetos e mascara as
-divisões internas, embora a silhueta exterior do modelo continue a revelar a sua natureza poligonal. O seu custo
-computacional é moderado.
+										// Escalar Coordenadas Normalizadas para Píxeis do Ecrã
+										t_projetado.vértices[v].x = (t_projetado.vértices[v].x + 1.0f) * 0.5f * LARGURA_ECRÃ;
+										t_projetado.vértices[v].y = (1.0f - (t_projetado.vértices[v].y + 1.0f) * 0.5f) * ALTURA_ECRÃ;
+								}
 
-No Phong Shading (ou sombreamento por píxel), a suavização é levada ao extremo. Em vez de interpolar as cores calculadas
-nos vértices, o algoritmo interpola os próprios vetores normais através da superfície do polígono. Isto significa que a
-fórmula de iluminação de Lambert (e outras componentes mais avançadas, como os reflexos brilhantes especulares) é
-executada individualmente para cada píxel do ecrã. O aspeto visual final em superfícies curvas é perfeitamente suave e
-realista, mas o custo computacional é substancialmente mais elevado quando comparado com os métodos anteriores.
+						// 4. Desenhar Face Rasterizada
+						desenhar_triângulo_plano(renderizador, t_projetado, cor_iluminada, buffer_de_profundidade);
+						}
+				}
 
-Vantagens do Flat Shading
+				SDL_RenderPresent(renderizador);
+				SDL_Delay(16); // Manter próximo dos 60 FPS
+		}
 
-1. Desempenho Excecional
-
-Por exigir apenas um cálculo de iluminação por polígono, o Flat Shading consome uma fração minúscula dos recursos do
-processador (CPU) ou da placa gráfica (GPU). Nos primórdios da computação gráfica, nos anos 70 e 80, esta era a única
-técnica viável para renderizar gráficos 3D em tempo real.
-
-2. Clareza de Topologia
-
-O Flat Shading expõe diretamente a estrutura geométrica do modelo (a sua malha de polígonos). Isto torna-o uma
-ferramenta indispensável para artistas digitais e modeladores 3D durante a fase de criação de ativos, pois permite
-identificar facilmente imperfeições na geometria, triângulos invertidos ou problemas de distribuição de polígonos.
-
-3. Identidade Visual Distinta
-
-Longe de ser um fóssil tecnológico, o Flat Shading goza de enorme popularidade no design contemporâneo. A sua estética
-limpa, minimalista e geométrica evoca nostalgia, mas também transmite uma sensação de modernidade e sofisticação
-artística quando combinada com paletas de cores bem selecionadas.
-
-Limitações e Desvantagens
-
-1. Falta de Realismo
-
-O Flat Shading é incapaz de simular materiais do mundo real com precisão. Superfícies polidas, metálicas, molhadas ou
-orgânicas perdem toda a sua credibilidade sob este algoritmo, uma vez que as transições abruptas de cor entre as faces
-destroem a ilusão de continuidade física.
-
-2. O Efeito das Bandas de Mach (Mach Bands)
-
-O sistema visual humano possui um mecanismo de realce de contrastes conhecido como inibição lateral. Quando duas áreas
-com tons ligeiramente diferentes de cinzento ou de cor partilham uma fronteira nítida, os nossos olhos tendem a
-exagerar a diferença na vizinhança imediata dessa linha.
-
-No Flat Shading, isto faz com que as arestas entre os polígonos pareçam ainda mais proeminentes e escuras/claras do que
-realmente são matematicamente. Este fenómeno visual (as Bandas de Mach) torna impossível disfarçar as divisões das
-facetas, mesmo que se aumente significativamente o número de polígonos do objeto.
-
-O Impacto Histórico e a Cultura Pop
-
-O Flat Shading foi o motor de arranque dos primeiros videojogos tridimensionais comerciais. Títulos pioneiros como "Star
-Fox" (1993) na Super Nintendo, ou simuladores de voo clássicos da década de 80, dependiam totalmente desta técnica para
-desenhar naves, montanhas e inimigos no ecrã a taxas de fotogramas aceitáveis.
-
-Mesmo com a rápida transição para o Gouraud Shading e texturas mapeadas na era da PlayStation original e da Nintendo 64,
-o Flat Shading nunca desapareceu. Hoje em dia, jogos aclamados como "Unturned", "Grow Home" ou "Superhot" apropriam-se
-conscientemente desta limitação do passado, provando que o sombreamento plano transcendeu a sua natureza técnica
-originária para se estabelecer como uma linguagem artística intemporal na computação gráfica.
-
-*/
+		// Libertação de recursos
+		free(objeto.malha.triângulos);
+		free(buffer_de_profundidade);
+		SDL_DestroyRenderer(renderizador);
+		SDL_DestroyWindow(janela);
+		SDL_Quit();
+		return 0;
+}
