@@ -271,7 +271,7 @@ unsigned calculateUnweightedRadius(const Graph *g);
 unsigned calculateUnweightedDiameter(const Graph *g);
 unsigned calculateMinimumVertexCut(const Graph *g);
 unsigned countSpanningTrees(const Graph *g);
-unsigned calculateChromaticNumber(const Graph *g);
+unsigned calculate_chromatic_number(const Graph *g);
 unsigned calculate_clique_number(const Graph *g);
 unsigned calculateTreewidth(const Graph *g);
 unsigned calculateDirectedEdgeConnectivity(const Graph *g);
@@ -4562,16 +4562,16 @@ unsigned countSpanningTrees(const Graph *g) {
   return (unsigned)round(determinant);
 }
 
-unsigned calculateChromaticNumber(const Graph *g) {
-  if (!g) return 0;
-  unsigned *colors = findOptimalVertexColoring(g);
-  if (!colors) return 0;
-  unsigned chromatic = 0;
+unsigned calculate_chromatic_number(const Graph *g) {
+  if (!g || g->size == 0) return 0;
+  unsigned *coloring = findOptimalVertexColoring(g);
+  if (!coloring) return 0;
+  unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
-    if (colors[v] >= chromatic)
-      chromatic = colors[v] + 1;
-  free(colors);
-  return chromatic;
+    if (coloring[v] >= maximum)
+      maximum = coloring[v];
+  free(coloring);
+  return maximum + 1;
 }
 
 unsigned calculate_clique_number(const Graph *g) {
