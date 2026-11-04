@@ -76,8 +76,6 @@ Matriz4x4 multiplicar_matrizes(Matriz4x4 a, Matriz4x4 b);
 Vetor3D aplicar_projeção_perspetiva(Vetor3D ponto, Matriz4x4 proj);
 // Cria uma matriz identidade 4x4
 Matriz4x4 criar_matriz_identidade(void);
-// Cria uma matriz de translação tridimensional
-Matriz4x4 criar_matriz_translação(float tx, float ty, float tz);
 // Cria uma matriz de escala para dimensionar objetos no espaço
 Matriz4x4 criar_matriz_escala(float sx, float sy, float sz);
 // Cria matrizes de rotação em torno dos eixos X, Y e Z respetivamente
@@ -85,7 +83,7 @@ Matriz4x4 criar_matriz_rotação_x(float radianos);
 Matriz4x4 criar_matriz_rotação_y(float radianos);
 Matriz4x4 criar_matriz_rotação_z(float radianos);
 // Cria a matriz de projeção de perspetiva com base no campo de visão (FOV) e proporção
-Matriz4x4 criar_matriz_projeção_perspetiva(float fov_graus, float proporção, float perto, float longe);
+Matriz4x4 criar_matriz_projeção_perspetiva(float fov_radianos, float proporção, float perto, float longe);
 // Multiplica uma matriz 4x4 por um vetor de 4 dimensões
 Vetor4D multiplicar_matriz_por_vetor(Matriz4x4 m, Vetor4D v);
 // Cria a matriz de visualização "LookAt" orientada para um alvo a partir de uma posição
@@ -127,7 +125,7 @@ void limpar_buffers(JanelaVirtual *janela, unsigned int cor_fundo);
 // Desenha um único píxel verificando o teste de profundidade (Z-Buffer)
 void desenhar_píxel_z_buffer(JanelaVirtual *janela, int x, int y, float profundidade, unsigned int cor);
 // Interpola valores através de coordenadas baricêntricas para preenchimento de triângulos
-void preencher_triângulo_3d(JanelaVirtual *janela, Triângulo3D t);
+void preencher_triângulo_3d(JanelaVirtual *janela, const Triângulo3D *restrict t);
 // Aplica um efeito de desfoque (Kernel Box Blur) varrendo o buffer de cor da janela
 void aplicar_desfoque_ecrã(JanelaVirtual *janela);
 // Converte toda a imagem final do ecrã para tons de cinzento (Grayscale)
@@ -182,7 +180,7 @@ typedef struct {
 } Textura2D;
 
 // Obtém a cor de uma textura com base nas coordenadas UV usando interpolação bilinear
-unsigned int amostrar_textura_bilinear(const Textura2D *textura, float u, float v);
+unsigned amostrar_textura_bilinear(const Textura2D *textura, float u, float v);
 
 typedef struct {
     Vetor4D mínimo;
