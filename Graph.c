@@ -129,7 +129,8 @@ bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length
 bool isDirectedEulerianPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isUndirectedEulerianPath(const Graph *g, const unsigned *sequence, unsigned length);
 bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length);
-bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length);
+bool is_simple_directed_cycle(const Graph *g, const unsigned *sequence, unsigned length);
+bool is_simple_undirected_cycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned length);
 bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
 bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length);
@@ -2024,21 +2025,61 @@ bool isDirectedCycle(const Graph *g, const unsigned *sequence, unsigned length) 
   return valid;
 }
 
-bool isSimpleCycle(const Graph *g, const unsigned *sequence, unsigned length) {
-  if (!g || g->size == 0 || !sequence || length == 0 || !isDirectedCycle(g, sequence, length)) return false;
-  bool *visited = calloc(g->size, sizeof(bool));
-  if (!visited) return false;
-  bool valid = true;
-  for (unsigned i = 0; i < length && valid; i++) {
-    valid = valid && !visited[sequence[i]];
-    visited[sequence[i]] = true;
-  }
-  free(visited);
-  return valid;
+bool is_simple_directed_cycle(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!g || g->size == 0 || !g->edges || !sequence || length < 2) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return false;
+  for (unsigned i = 0; i < length; i++)
+    if (sequence[i] >= g->size)
+      return false;
+  if (sequence[0] != sequence[length - 1]) return false;
+  for (unsigned i = 1; i < length; i++)
+    for (unsigned j = i + 1; j < length; j++)
+      if (sequence[i] == sequence[j])
+        return false;
+  bool adjacent[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      adjacent[v][e->destination] = true;
+  for (unsigned i = 1; i < length; i++)
+    if (!adjacent[sequence[i - 1]][sequence[i]])
+      return false;
+  return true;
+}
+
+bool is_simple_undirected_cycle(const Graph *g, const unsigned *sequence, unsigned length) {
+  if (!g || g->size == 0 || !g->edges || !sequence || length < 2) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination >= g->size)
+        return false;
+  unsigned adjacency[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      adjacency[v][e->destination]++;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (adjacency[u][v] != adjacency[v][u])
+        return false;
+  for (unsigned i = 0; i < length; i++)
+    if (sequence[i] >= g->size)
+      return false;
+  if (sequence[0] != sequence[length - 1]) return false;
+  for (unsigned i = 1; i < length; i++)
+    for (unsigned j = i + 1; j < length; j++)
+      if (sequence[i] == sequence[j])
+        return false;
+  for (unsigned i = 1; i < length; i++)
+    if (adjacency[sequence[i - 1]][sequence[i]] == 0)
+      return false;
+  if (length == 3 && adjacency[sequence[0]][sequence[1]] < 2) return false;
+  return true;
 }
 
 bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned length) {
-  return g && length == g->size && isSimpleCycle(g, sequence, length);
+  return g && length == g->size && is_simple_directed_cycle(g, sequence, length);
 }
 
 bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length) {
