@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <complex.h>
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -317,6 +318,8 @@ unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v);
 unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, double weight);
+unsigned count_unweighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e);
+unsigned count_weighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e);
 unsigned get_subset_size(const Graph *g, const bool *set);
 unsigned get_first_vertex_in_subset(const Graph *g, const bool *set);
 unsigned calculate_cut_size(const Graph *g, const bool *set);
@@ -444,6 +447,8 @@ double **calculate_resource_allocation_index(const Graph *g);
 double **create_directed_normalized_laplacian_matrix(const Graph *g);
 double **create_undirected_normalized_laplacian_matrix(const Graph *g);
 double **create_seidel_adjacency_matrix(const Graph *g);
+
+double complex *calculate_ihara_zeta_function_poles(const Graph *g, unsigned *count);
 
 int main();
 
@@ -5536,6 +5541,24 @@ unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, d
   return n;
 }
 
+unsigned count_unweighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e) {
+  if (!g || !g->edges || v >= g->size) return 0;
+  unsigned occurrence = 0;
+  for (Edge *e2 = g->edges[v]; e2 != e; e2 = e2->next)
+    if (e2->destination == e->destination)
+      occurrence++;
+  return occurrence;
+}
+
+unsigned count_weighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e) {
+  if (!g || !g->edges || v >= g->size) return 0;
+  unsigned occurrence = 0;
+  for (Edge *e2 = g->edges[v]; e2 != e; e2 = e2->next)
+    if (e2->destination == e->destination && e2->weight == e->weight)
+      occurrence++;
+  return occurrence;
+}
+
 unsigned get_subset_size(const Graph *g, const bool *set) {
   if (!g || g->size == 0 || !g->edges || !set) return UINT_MAX;
   unsigned size = 0;
@@ -9148,6 +9171,76 @@ static void find_minimum_fractional_vertex_cover_recursive(
       if (u != e->destination && e->destination < g->size)
         matrix[u][e->destination] = 1;
   return matrix;
+}
+
+
+
+[[nodiscard]] double complex *calculate_ihara_zeta_function_poles(const Graph *g, unsigned *count) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned m = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      m++;
+  if (m == 0) {
+    *count = 0;
+    return nullptr;
+  }
+  double W[m][m] = {};
+  unsigned i = 0;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e1 = g->edges[u]; e1; e1 = e1->next) {
+      unsigned j = 0;
+      for (unsigned v = 0; v < g->size; v++)
+        for (Edge *e2 = g->edges[v]; e2; e2 = e2->next) {
+          if (e1->destination == v)
+            if (e2->destination != u || (count_weighted_edge_occurrences(g, u, e1) ^ (u == v)) != count_weighted_edge_occurrences(g, v, e2))
+              W[i][j] = 1;
+          j++;
+        }
+      i++;
+    }
+  double complex c[m + 1] = {};
+  c[m] = 1;
+  double B[m][m];
+  for (unsigned i = 0; i < m; i++)
+    for (unsigned j = 0; j < m; j++)
+      B[i][j] = i == j ? 1 : 0;
+  for (unsigned step = 1; step <= m; step++) {
+    double A[m][m] = {};
+    for (unsigned i = 0; i < m; i++)
+      for (unsigned j = 0; j < m; j++)
+        for (unsigned k = 0; k < m; k++)
+          A[i][j] += W[i][k] * B[k][j];
+    double trace = 0;
+    for (unsigned i = 0; i < m; i++) trace += A[i][i];
+    c[m - step] = -trace / step;
+    for (unsigned i = 0; i < m; i++)
+      for (unsigned j = 0; j < m; j++)
+        B[i][j] = A[i][j] + (i == j ? creal(c[m - step]) : 0);
+  }
+  double complex roots[m];
+  for (unsigned i = 0; i < m; i++) roots[i] = cpow(0.4 + 0.9 * I, i);
+  for (int iter = 0; iter < 2000; iter++)
+    for (unsigned i = 0; i < m; i++) {
+      double complex num = 0;
+      for (int k = (int)m; k >= 0; k--) num = num * roots[i] + c[k];
+      double complex denom = 1;
+      for (unsigned j = 0; j < m; j++)
+        if (i != j)
+          denom *= roots[i] - roots[j];
+      roots[i] -= num / denom;
+    }
+  unsigned pole_count = 0;
+  for (unsigned i = 0; i < m; i++)
+    if (cabs(roots[i]) > 1e-5)
+      pole_count++;
+  double complex *poles = malloc(pole_count * sizeof(double complex));
+  unsigned p_idx = 0;
+  for (unsigned i = 0; i < m; i++)
+    if (cabs(roots[i]) > 1e-5)
+      poles[p_idx++] = 1 / roots[i];
+  *count = pole_count;
+  return poles;
 }
 
 
