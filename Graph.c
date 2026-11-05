@@ -318,8 +318,8 @@ unsigned countDirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countUndirectedTrails(const Graph *g, unsigned u, unsigned v);
 unsigned countSimpleCyclesThroughEdge(const Graph *g, unsigned u, unsigned v);
 unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, double weight);
-unsigned count_unweighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e);
-unsigned count_weighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e);
+unsigned get_unweighted_edge_occurrence(const Graph *g, unsigned v, const Edge *e);
+unsigned get_weighted_edge_occurrence(const Graph *g, unsigned v, const Edge *e);
 unsigned get_subset_size(const Graph *g, const bool *set);
 unsigned get_first_vertex_in_subset(const Graph *g, const bool *set);
 unsigned calculate_cut_size(const Graph *g, const bool *set);
@@ -5541,7 +5541,7 @@ unsigned count_matching_weighted_edges(const Graph *g, unsigned u, unsigned v, d
   return n;
 }
 
-unsigned count_unweighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e) {
+unsigned get_unweighted_edge_occurrence(const Graph *g, unsigned v, const Edge *e) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned occurrence = 0;
   for (Edge *e2 = g->edges[v]; e2 != e; e2 = e2->next)
@@ -5550,7 +5550,7 @@ unsigned count_unweighted_edge_occurrences(const Graph *g, unsigned v, const Edg
   return occurrence;
 }
 
-unsigned count_weighted_edge_occurrences(const Graph *g, unsigned v, const Edge *e) {
+unsigned get_weighted_edge_occurrence(const Graph *g, unsigned v, const Edge *e) {
   if (!g || !g->edges || v >= g->size) return 0;
   unsigned occurrence = 0;
   for (Edge *e2 = g->edges[v]; e2 != e; e2 = e2->next)
@@ -9193,7 +9193,7 @@ static void find_minimum_fractional_vertex_cover_recursive(
       for (unsigned v = 0; v < g->size; v++)
         for (Edge *e2 = g->edges[v]; e2; e2 = e2->next) {
           if (e1->destination == v)
-            if (e2->destination != u || (count_weighted_edge_occurrences(g, u, e1) ^ (u == v)) != count_weighted_edge_occurrences(g, v, e2))
+            if (e2->destination != u || (get_weighted_edge_occurrence(g, u, e1) ^ (u == v)) != get_weighted_edge_occurrence(g, v, e2))
               W[i][j] = 1;
           j++;
         }
