@@ -1459,7 +1459,7 @@ bool is_k_connected(const Graph *g, unsigned k) {
 }
 
 bool is_proper_coloring(const Graph *g, const unsigned *coloring) {
-  if (!g || !g->edges || !coloring) return false;
+  if (!g || (g->size > 0 && (!g->edges || !coloring))) return false;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
       if (e->destination < g->size && coloring[v] == coloring[e->destination])
