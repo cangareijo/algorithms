@@ -78,7 +78,7 @@ bool has_sources(const Graph *g);
 bool has_sinks(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool is_k_connected(const Graph *g, unsigned k);
-bool isProperColoring(const Graph *g, const unsigned *coloring);
+bool is_proper_coloring(const Graph *g, const unsigned *coloring);
 bool is_proper_edge_coloring(const Graph *g, const unsigned *coloring);
 bool hasConstantWeights(const Graph *g, double x);
 bool isDense(const Graph *g, double threshold);
@@ -335,7 +335,7 @@ unsigned *getDegrees(const Graph *g);
 unsigned *getInDegreeDistribution(const Graph *g);
 unsigned *getOutDegreeDistribution(const Graph *g);
 unsigned *findGreedyVertexColoring(const Graph *g);
-unsigned *findOptimalVertexColoring(const Graph *g);
+unsigned *find_optimal_vertex_coloring(const Graph *g);
 unsigned *findWelchPowellGraphColoring(const Graph *g);
 unsigned *find_greedy_edge_coloring(const Graph *g);
 unsigned *find_optimal_edge_coloring(const Graph *g);
@@ -1458,7 +1458,7 @@ bool is_k_connected(const Graph *g, unsigned k) {
   return calculate_vertex_connectivity(g) >= k;
 }
 
-bool isProperColoring(const Graph *g, const unsigned *coloring) {
+bool is_proper_coloring(const Graph *g, const unsigned *coloring) {
   if (!g || !g->edges || !coloring) return false;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
@@ -4611,7 +4611,7 @@ unsigned countSpanningTrees(const Graph *g) {
 
 unsigned calculate_chromatic_number(const Graph *g) {
   if (!g || g->size == 0) return 0;
-  unsigned *coloring = findOptimalVertexColoring(g);
+  unsigned *coloring = find_optimal_vertex_coloring(g);
   if (!coloring) return 0;
   unsigned maximum = 0;
   for (unsigned v = 0; v < g->size; v++)
@@ -5791,35 +5791,23 @@ unsigned calculate_layout_pathwidth(const Graph *g, const unsigned *ordering) {
   return colors;
 }
 
-static bool canBeColored(const Graph *g, unsigned v, unsigned maximum, unsigned *colors) {
-  if (v == g->size) return true;
+static bool can_be_colored(const Graph *g, unsigned *coloring, unsigned v, unsigned maximum) {
+  if (v >= g->size) return is_proper_coloring(g, coloring);
   for (unsigned c = 0; c < maximum; c++) {
-    bool colorable = true;
-    for (const Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size && colors[e->destination] == c)
-        colorable = false;
-    for (unsigned u = 0; u < g->size; u++)
-      for (const Edge *e = g->edges[u]; e; e = e->next)
-        if (e->destination == v && colors[u] == c)
-          colorable = false;
-    if (colorable) {
-      colors[v] = c;
-      if (canBeColored(g, v + 1, maximum, colors)) return true;
-      colors[v] = UINT_MAX;
-    }
+    coloring[v] = c;
+    if (can_be_colored(g, coloring, v + 1, maximum)) return true;
   }
   return false;
 }
 
-[[nodiscard]] unsigned *findOptimalVertexColoring(const Graph *g) {
+[[nodiscard]] unsigned *find_optimal_vertex_coloring(const Graph *g) {
   if (!g || !g->edges) return nullptr;
-  unsigned *colors = malloc(g->size * sizeof(unsigned));
-  if (!colors) return nullptr;
-  for (unsigned v = 0; v < g->size; v++) colors[v] = UINT_MAX;
+  unsigned *coloring = malloc(g->size * sizeof(unsigned));
+  if (!coloring) return nullptr;
   for (unsigned maximum = 0; maximum <= g->size; maximum++)
-    if (canBeColored(g, 0, maximum, colors))
-      return colors;
-  free(colors);
+    if (can_be_colored(g, coloring, 0, maximum))
+      return coloring;
+  free(coloring);
   return nullptr;
 }
 
