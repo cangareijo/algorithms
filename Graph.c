@@ -404,6 +404,7 @@ double sum_in_weights(const Graph *g, unsigned v);
 double sum_out_weights(const Graph *g, unsigned v);
 double calculate_vertex_flow_vitality(const Graph *g, unsigned v);
 double calculate_burts_constraint(const Graph *g, unsigned v);
+double calculate_local_efficiency(const Graph *g, unsigned v);
 double get_weight(const Graph *g, unsigned u, unsigned v);
 double calculate_weighted_distance(const Graph *g, unsigned u, unsigned v);
 double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
@@ -7908,6 +7909,44 @@ double calculate_burts_constraint(const Graph *g, unsigned u) {
     sum += p * p;
   }
   return sum;
+}
+
+double calculate_local_efficiency(const Graph *g, unsigned v) {
+  if (!g || !g->edges || v >= g->size) return 0;
+  bool neighbor[g->size] = {};
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination != v)
+      neighbor[e->destination] = true;
+  unsigned neighbor_count = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (neighbor[v])
+      neighbor_count++;
+  if (neighbor_count < 2) return 0;
+  unsigned i = 0;
+  unsigned neighbors[neighbor_count];
+  for (unsigned v = 0; v < g->size; v++)
+    if (neighbor[v])
+      neighbors[i++] = v;
+  double distance[neighbor_count][neighbor_count];
+  for (unsigned i = 0; i < neighbor_count; i++)
+    for (unsigned j = 0; j < neighbor_count; j++)
+      distance[i][j] = i == j ? 0 : INFINITY;
+  for (unsigned i = 0; i < neighbor_count; i++)
+    for (Edge *e = g->edges[neighbors[i]]; e; e = e->next)
+      for (unsigned j = 0; j < neighbor_count; j++)
+        if (e->destination == neighbors[j] && e->weight > 0 && e->weight < distance[i][j])
+          distance[i][j] = e->weight;
+  for (unsigned k = 0; k < neighbor_count; k++)
+    for (unsigned i = 0; i < neighbor_count; i++)
+      for (unsigned j = 0; j < neighbor_count; j++)
+        if (distance[i][k] + distance[k][j] < distance[i][j])
+          distance[i][j] = distance[i][k] + distance[k][j];
+  double efficiency_sum = 0;
+  for (unsigned i = 0; i < neighbor_count; i++)
+    for (unsigned j = 0; j < neighbor_count; j++)
+      if (distance[i][j] > 0 && distance[i][j] < INFINITY)
+        efficiency_sum += 1 / distance[i][j];
+  return efficiency_sum / neighbor_count / (neighbor_count - 1);
 }
 
 double get_weight(const Graph *g, unsigned u, unsigned v) {
