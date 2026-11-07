@@ -346,6 +346,7 @@ unsigned *findCommunities(const Graph *g);
 unsigned *findKTrusses(const Graph *g);
 unsigned *findDegeneracyOrdering(const Graph *g);
 unsigned *calculate_clique_peeling(const Graph *g);
+unsigned *calculate_unweighted_eccentricity_distribution(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -6342,6 +6343,34 @@ static void find_max_clique(
     clique_index++;
   }
   return result;
+}
+
+[[nodiscard]] unsigned *calculate_unweighted_eccentricity_distribution(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned *distribution = calloc(g->size + 1, sizeof(unsigned));
+  if (!distribution) return nullptr;
+  unsigned distance[g->size][g->size];
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      distance[u][v] = u == v ? 0 : g->size;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        distance[u][e->destination] = 1;
+  for (unsigned w = 0; w < g->size; w++)
+    for (unsigned u = 0; u < g->size; u++)
+      for (unsigned v = 0; v < g->size; v++)
+        if (distance[u][w] < g->size && distance[w][v] < g->size)
+          if (distance[u][w] + distance[w][v] < distance[u][v])
+            distance[u][v] = distance[u][w] + distance[w][v];
+  for (unsigned u = 0; u < g->size; u++) {
+    unsigned eccentricity = 0;
+    for (unsigned v = 0; v < g->size; v++)
+      if (distance[u][v] > eccentricity)
+        eccentricity = distance[u][v];
+    distribution[eccentricity]++;
+  }
+  return distribution;
 }
 
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
