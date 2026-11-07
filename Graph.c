@@ -246,12 +246,6 @@ unsigned count_directed_edges(const Graph *g);
 unsigned count_undirected_edges(const Graph *g);
 unsigned countSelfLoops(const Graph *g);
 unsigned countTriangles(const Graph *g);
-unsigned getMinimumInDegree(const Graph *g);
-unsigned getMaximumInDegree(const Graph *g);
-unsigned getMinimumOutDegree(const Graph *g);
-unsigned getMaximumOutDegree(const Graph *g);
-unsigned getMinimumDegree(const Graph *g);
-unsigned getMaximumDegree(const Graph *g);
 unsigned count_sources(const Graph *g);
 unsigned count_sinks(const Graph *g);
 unsigned countSourceLeaves(const Graph *g);
@@ -306,7 +300,7 @@ unsigned count_in_neighbors(const Graph *g, unsigned v);
 unsigned count_out_neighbors(const Graph *g, unsigned v);
 unsigned count_neighbors(const Graph *g, unsigned v);
 unsigned calculate_vertex_h_index(const Graph *g, unsigned v);
-unsigned getNeighbor(const Graph *g, unsigned v, unsigned i);
+unsigned get_neighbor(const Graph *g, unsigned v, unsigned i);
 unsigned getNeighborhoodSize(const Graph *g, unsigned v, unsigned k);
 unsigned countCommonNeighbors(const Graph *g, unsigned u, unsigned v);
 unsigned countShortestPaths(const Graph *g, unsigned u, unsigned v);
@@ -4141,72 +4135,6 @@ unsigned countTriangles(const Graph *g) {
   return n;
 }
 
-unsigned getMinimumInDegree(const Graph *g) {
-  if (!g) return UINT_MAX;
-  unsigned *degree = getInDegrees(g);
-  if (!degree) return UINT_MAX;
-  unsigned minimum = UINT_MAX;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degree[v] < minimum)
-      minimum = degree[v];
-  free(degree);
-  return minimum;
-}
-
-unsigned getMaximumInDegree(const Graph *g) {
-  if (!g) return 0;
-  unsigned *degree = getInDegrees(g);
-  if (!degree) return 0;
-  unsigned maximum = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degree[v] > maximum)
-      maximum = degree[v];
-  free(degree);
-  return maximum;
-}
-
-unsigned getMinimumOutDegree(const Graph *g) {
-  if (!g) return UINT_MAX;
-  unsigned minimum = UINT_MAX;
-  for (unsigned v = 0; v < g->size; v++)
-    if (get_out_degree(g, v) < minimum)
-      minimum = get_out_degree(g, v);
-  return minimum;
-}
-
-unsigned getMaximumOutDegree(const Graph *g) {
-  if (!g) return 0;
-  unsigned maximum = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (get_out_degree(g, v) > maximum)
-      maximum = get_out_degree(g, v);
-  return maximum;
-}
-
-unsigned getMinimumDegree(const Graph *g) {
-  if (!g) return UINT_MAX;
-  unsigned *degrees = getDegrees(g);
-  if (!degrees) return UINT_MAX;
-  unsigned minimum = UINT_MAX;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degrees[v] < minimum)
-      minimum = degrees[v];
-  free(degrees);
-  return minimum;
-}
-
-unsigned getMaximumDegree(const Graph *g) {
-  if (!g) return 0;
-  unsigned *degrees = getDegrees(g);
-  if (!degrees) return 0;
-  unsigned maximum = 0;
-  for (unsigned v = 0; v < g->size; v++)
-    if (degrees[v] > maximum)
-      maximum = degrees[v];
-  free(degrees);
-  return maximum;
-}
-
 unsigned count_sources(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return 0;
   bool has_incoming[g->size] = {};
@@ -5324,13 +5252,14 @@ unsigned calculate_vertex_h_index(const Graph *g, unsigned u) {
   return h;
 }
 
-unsigned getNeighbor(const Graph *g, unsigned v, unsigned i) {
+unsigned get_neighbor(const Graph *g, unsigned v, unsigned i) {
   if (!g || !g->edges || v >= g->size) return UINT_MAX;
   unsigned j = 0;
-  for (Edge *e = g->edges[v]; e; e = e->next) {
-    if (j == i) return e->destination;
-    j++;
-  }
+  for (unsigned u = 0; u < g->size; u++)
+    if (has_directed_edge(g, v, u)) {
+      if (j == i) return u;
+      j++;
+    }
   return UINT_MAX;
 }
 
