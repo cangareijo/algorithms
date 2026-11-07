@@ -1,5 +1,7 @@
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 typedef struct {
@@ -86,7 +88,7 @@ void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, 
 }
 
 void desenhar_retângulo_contorno(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor) {
-  if (tela == nullptr || tela->píxeis == nullptr || largura == 0 || altura == 0) return;
+  if (largura == 0 || altura == 0) return;
   const int32_t inferior_direito_x = superior_esquerdo.x + (int32_t)largura - 1;
   const int32_t inferior_direito_y = superior_esquerdo.y + (int32_t)altura  - 1;
   const Ponto2D superior_direito  = { .x =  inferior_direito_x, .y = superior_esquerdo.y };
@@ -96,6 +98,102 @@ void desenhar_retângulo_contorno(Tela *const tela, const Ponto2D superior_esque
   desenhar_linha(tela, inferior_esquerdo,  inferior_direito, cor);
   desenhar_linha(tela, superior_esquerdo, inferior_esquerdo, cor);
   desenhar_linha(tela,  superior_direito,  inferior_direito, cor);
+}
+
+void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || largura == 0 || altura == 0) return;
+  int32_t inicio_x = superior_esquerdo.x;
+  int32_t inicio_y = superior_esquerdo.y;
+  int32_t fim_x = inicio_x + (int32_t)largura;
+  int32_t fim_y = inicio_y + (int32_t)altura;
+  if (fim_x <= 0 || fim_y <= 0 || inicio_x >= (int32_t)tela->largura || inicio_y >= (int32_t)tela->altura) return;
+  if (inicio_x < 0) inicio_x = 0;
+  if (inicio_y < 0) inicio_y = 0;
+  if (fim_x > (int32_t)tela->largura) fim_x = (int32_t)tela->largura;
+  if (fim_y > (int32_t)tela->altura) fim_y = (int32_t)tela->altura;
+  for (int32_t y = inicio_y; y < fim_y; ++y) {
+    const uint32_t indice_linha = (uint32_t)y * tela->largura;
+    for (int32_t x = inicio_x; x < fim_x; ++x) tela->píxeis[indice_linha + (uint32_t)x] = cor;
+  }
+}
+
+void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  if (raio == 0) {
+    desenhar_píxel(tela, centro, cor);
+    return;
+  }
+  int32_t x = 0;
+  int32_t y = (int32_t)raio;
+  int32_t decisão = 3 - 2 * (int32_t)raio;
+  while (x <= y) {
+    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x + y, centro.y + x }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - y, centro.y + x }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x + y, centro.y - x }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - y, centro.y - x }, cor);
+    if (decisão < 0) {
+      decisão += 4 * x + 6;
+    } else {
+      decisão += 4 * (x - y) + 10;
+      y--;
+    }
+    x++;
+  }
+}
+
+void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
+  if (tela == NULL || tela->píxeis == NULL) return;
+  if (raio == 0) {
+    desenhar_píxel(tela, centro, cor);
+    return;
+  }
+  int32_t x = 0;
+  int32_t y = (int32_t)raio;
+  int32_t decisão = 3 - 2 * (int32_t)raio;
+  while (x <= y) {
+    desenhar_linha(tela, (Ponto2D){ centro.x - x, centro.y + y }, (Ponto2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_linha(tela, (Ponto2D){ centro.x - x, centro.y - y }, (Ponto2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_linha(tela, (Ponto2D){ centro.x - y, centro.y + x }, (Ponto2D){ centro.x + y, centro.y + x }, cor);
+    desenhar_linha(tela, (Ponto2D){ centro.x - y, centro.y - x }, (Ponto2D){ centro.x + y, centro.y - x }, cor);
+    if (decisão < 0) {
+      decisão += 4 * x + 6;
+    } else {
+      decisão += 4 * (x - y) + 10;
+      y--;
+    }
+    x++;
+  }
+}
+
+[[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho) {
+  if (tela == NULL || tela->píxeis == NULL || caminho == NULL) return false;
+  FILE *const ficheiro = fopen(caminho, "wb");
+  if (ficheiro == NULL) return false;
+  const int resultado_cabecalho = fprintf(ficheiro, "P6\n%u %u\n255\n", tela->largura, tela->altura);
+  if (resultado_cabecalho < 0) {
+    fclose(ficheiro);
+    return false;
+  }
+  const uint32_t área = tela->largura * tela->altura;
+  for (uint32_t i = 0; i < área; ++i) {
+    const Cor atual = tela->píxeis[i];
+    const uint8_t componentes_rgb[3] = {
+      atual.vermelho,
+      atual.verde,
+      atual.azul
+    };
+    const size_t elementos_escritos = fwrite(componentes_rgb, sizeof(uint8_t), 3, ficheiro);
+    if (elementos_escritos != 3) {
+      fclose(ficheiro);
+      return false;
+    }
+  }
+  fclose(ficheiro);
+  return true;
 }
 
 int main() {
