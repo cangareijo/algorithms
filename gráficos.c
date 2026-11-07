@@ -27,7 +27,8 @@ void desenhar_píxel(Tela *const tela, const Ponto2D ponto, const Cor cor);
 void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor);
 void desenhar_retângulo_contorno(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
-void desenhar_círculo(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
+void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
+void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 [[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
 
 [[nodiscard]] Tela criar_tela(const uint32_t largura, const uint32_t altura) {
