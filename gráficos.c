@@ -197,5 +197,28 @@ void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const 
 }
 
 int main() {
+  constexpr Cor COR_BRANCA   = { .vermelho = 255, .verde = 255, .azul = 255, .alfa = 255 };
+  constexpr Cor COR_PRETA    = { .vermelho = 0,   .verde = 0,   .azul = 0,   .alfa = 255 };
+  constexpr Cor COR_VERMELHA = { .vermelho = 255, .verde = 0,   .azul = 0,   .alfa = 255 };
+  constexpr Cor COR_VERDE    = { .vermelho = 0,   .verde = 255, .azul = 0,   .alfa = 255 };
+  constexpr Cor COR_AZUL     = { .vermelho = 0,   .verde = 0,   .azul = 255, .alfa = 255 };
+  // constexpr Cor COR_CIANO    = { .vermelho = 0,   .verde = 255, .azul = 255, .alfa = 255 };
+  constexpr Cor COR_MAGENTA  = { .vermelho = 255, .verde = 0,   .azul = 255, .alfa = 255 };
+  constexpr Cor COR_AMARELA  = { .vermelho = 255, .verde = 255, .azul = 0,   .alfa = 255 };
+  Tela tela = criar_tela(500, 500);
+  if (tela.píxeis == nullptr) return 1;
+  limpar_tela(&tela, COR_BRANCA);
+  desenhar_píxel(&tela, (Ponto2D){ 250, 250 }, COR_PRETA);
+  desenhar_linha(&tela, (Ponto2D){ 10, 10 }, (Ponto2D){ 490, 490 }, COR_VERMELHA);
+  desenhar_retângulo_contorno(&tela, (Ponto2D){ 30, 50 }, 120, 80, COR_AZUL);
+  desenhar_retângulo_preenchido(&tela, (Ponto2D){ 30, 350 }, 100, 100, COR_VERDE);
+  desenhar_círculo_contorno(&tela, (Ponto2D){ 400, 100 }, 50, COR_AMARELA);
+  desenhar_círculo_preenchido(&tela, (Ponto2D){ 400, 380 }, 60, COR_MAGENTA);
+  if (exportar_para_ficheiro(&tela, "exemplo.ppm")) {
+    printf("Imagem guardada com sucesso em 'exemplo.ppm'!\n");
+  } else {
+    printf("Erro ao exportar o ficheiro.\n");
+  }
+  destruir_tela(&tela);
   return 0;
 }
