@@ -6355,7 +6355,7 @@ static void find_max_clique(
       distance[u][v] = u == v ? 0 : g->size;
   for (unsigned u = 0; u < g->size; u++)
     for (Edge *e = g->edges[u]; e; e = e->next)
-      if (e->destination < g->size)
+      if (u != e->destination && e->destination < g->size)
         distance[u][e->destination] = 1;
   for (unsigned w = 0; w < g->size; w++)
     for (unsigned u = 0; u < g->size; u++)
