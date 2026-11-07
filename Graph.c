@@ -295,6 +295,7 @@ unsigned calculate_feedback_arc_set_number(const Graph *g);
 unsigned find_source(const Graph *g);
 unsigned find_sink(const Graph *g);
 unsigned calculate_graph_integrity(const Graph *g);
+unsigned calculate_cycle_rank(const Graph *g);
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v);
 unsigned get_out_degree(const Graph *g, unsigned v);
 unsigned getInDegree(const Graph *g, unsigned v);
@@ -1462,7 +1463,7 @@ bool is_proper_coloring(const Graph *g, const unsigned *coloring) {
   if (!g || (g->size > 0 && (!g->edges || !coloring))) return false;
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      if (e->destination < g->size && coloring[v] == coloring[e->destination])
+      if (e->destination >= g->size || coloring[v] == coloring[e->destination])
         return false;
   return true;
 }
@@ -5171,6 +5172,46 @@ unsigned calculate_graph_integrity(const Graph *g) {
   if (!g || g->size == 0) return 0;
   bool set[g->size];
   return calculate_graph_integrity_recursive(g, set, 0, 0);
+}
+static void calculate_cycle_rank_dfs1(const Graph *g, unsigned v, bool visited[g->size], unsigned order[g->size], unsigned *count) {
+  visited[v] = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (!visited[e->destination])
+      calculate_cycle_rank_dfs1(g, e->destination, visited, order, count);
+  order[(*count)++] = v;
+}
+
+static void calculate_cycle_rank_dfs2(const Graph *g, unsigned u, bool visited[g->size]) {
+  visited[u] = true;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (u == e->destination && !visited[v])
+        calculate_cycle_rank_dfs2(g, v, visited);
+}
+
+unsigned calculate_cycle_rank(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return 0;
+  unsigned total_edges = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        total_edges++;
+  bool visited[g->size] = {};
+  unsigned order[g->size];
+  unsigned count = 0;
+  for (unsigned v = 0; v < g->size; v++)
+    if (!visited[v])
+      calculate_cycle_rank_dfs1(g, v, visited, order, &count);
+  for (unsigned v = 0; v < g->size; v++) visited[v] = false;
+  unsigned scc_count = 0;
+  for (unsigned i = g->size; i > 0; i--) {
+    unsigned v = order[i - 1];
+    if (!visited[v]) {
+      scc_count++;
+      calculate_cycle_rank_dfs2(g, v, visited);
+    }
+  }
+  return total_edges + scc_count - g->size;
 }
 
 unsigned countSelfLoopsAtVertex(const Graph *g, unsigned v) {
