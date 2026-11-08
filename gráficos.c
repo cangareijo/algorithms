@@ -128,10 +128,6 @@ void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esq
 
 void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
-  if (raio == 0) {
-    desenhar_píxel(tela, centro, cor);
-    return;
-  }
   int32_t x = 0;
   int32_t y = (int32_t)raio;
   int32_t decisão = 3 - 2 * (int32_t)raio;
@@ -156,10 +152,6 @@ void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const ui
 
 void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
   if (tela == NULL || tela->píxeis == NULL) return;
-  if (raio == 0) {
-    desenhar_píxel(tela, centro, cor);
-    return;
-  }
   int32_t x = 0;
   int32_t y = (int32_t)raio;
   int32_t decisão = 3 - 2 * (int32_t)raio;
