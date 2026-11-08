@@ -219,7 +219,7 @@ void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const ui
 }
 
 void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
-  if (tela == NULL || tela->píxeis == NULL) return;
+  if (tela == nullptr || tela->píxeis == nullptr) return;
   int32_t x = 0;
   int32_t y = (int32_t)raio;
   int32_t decisão = 3 - 2 * (int32_t)raio;
@@ -239,11 +239,11 @@ void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const 
 }
 
 [[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho) {
-  if (tela == NULL || tela->píxeis == NULL || caminho == NULL) return false;
+  if (tela == nullptr || tela->píxeis == nullptr || caminho == nullptr) return false;
   FILE *const ficheiro = fopen(caminho, "wb");
-  if (ficheiro == NULL) return false;
-  const int resultado_cabecalho = fprintf(ficheiro, "P6\n%u %u\n255\n", tela->largura, tela->altura);
-  if (resultado_cabecalho < 0) {
+  if (ficheiro == nullptr) return false;
+  const int resultado_cabeçalho = fprintf(ficheiro, "P6\n%u %u\n255\n", tela->largura, tela->altura);
+  if (resultado_cabeçalho < 0) {
     fclose(ficheiro);
     return false;
   }
