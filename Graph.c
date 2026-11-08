@@ -98,7 +98,7 @@ bool has_undirected_edge(const Graph *g, unsigned u, unsigned v);
 bool hasPath(const Graph *g, unsigned u, unsigned v);
 bool have_common_neighbors(const Graph *g, unsigned u, unsigned v);
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v);
-bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v);
+bool is_undirected_bridge(const Graph *g, unsigned u, unsigned v);
 bool has_weighted_directed_edge(const Graph *g, unsigned u, unsigned v, double weight);
 bool hasWeightedUndirectedEdge(const Graph *g, unsigned u, unsigned v, double weight);
 bool isTriangle(const Graph *g, unsigned u, unsigned v, unsigned w);
@@ -1664,12 +1664,55 @@ bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
   return n > count_components(g);
 }
 
-bool isUndirectedBridge(const Graph *g, unsigned u, unsigned v) {
-  Graph *g2 = copyGraph(g);
-  deleteFirstUndirectedEdge(g2, u, v);
-  unsigned n = count_components(g2);
-  destroy_graph(g2);
-  return n > count_components(g);
+static void tarjan_dfs(
+  const Graph *g,
+  unsigned u,
+  unsigned parent_node,
+  unsigned *timer,
+  unsigned discovery[g->size],
+  unsigned low[g->size],
+  unsigned target_u,
+  unsigned target_v,
+  bool *is_bridge)
+{
+  discovery[u] = low[u] = ++(*timer);
+  bool skipped_parent = false;
+  for (Edge *e = g->edges[u]; e; e = e->next) {
+    unsigned v = e->destination;
+    if (v >= g->size) continue;
+    if (v == parent_node && !skipped_parent) {
+      skipped_parent = true;
+      continue;
+    }
+    if (discovery[v] == 0) {
+      tarjan_dfs(g, v, u, timer, discovery, low, target_u, target_v, is_bridge);
+      if (low[v] < low[u]) low[u] = low[v];
+      if (low[v] > discovery[u])
+        if ((u == target_u && v == target_v) || (u == target_v && v == target_u))
+          *is_bridge = true;
+    } else if (discovery[v] < low[u]) {
+      low[u] = discovery[v];
+    }
+  }
+}
+
+bool is_undirected_bridge(const Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return false;
+  bool edge_exists = false;
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination == v) {
+      edge_exists = true;
+      break;
+    }
+  if (!edge_exists) return false;
+  unsigned discovery[g->size] = {};
+  unsigned low[g->size] = {};
+  unsigned timer = 0;
+  bool is_bridge = false;
+  for (unsigned w = 0; w < g->size; w++)
+    if (discovery[w] == 0)
+      tarjan_dfs(g, w, g->size, &timer, discovery, low, u, v, &is_bridge);
+  return is_bridge;
 }
 
 bool has_weighted_directed_edge(const Graph *g, unsigned u, unsigned v, double weight) {
