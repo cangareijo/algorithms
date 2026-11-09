@@ -76,6 +76,7 @@ bool is_permutation_graph(const Graph *g);
 bool is_interval_graph(const Graph *g);
 bool has_sources(const Graph *g);
 bool has_sinks(const Graph *g);
+bool is_panconnected(const Graph *g);
 bool isKRegular(const Graph *g, unsigned k);
 bool is_k_connected(const Graph *g, unsigned k);
 bool is_proper_coloring(const Graph *g, const unsigned *coloring);
@@ -1440,6 +1441,38 @@ bool has_sinks(const Graph *g) {
     if (!g->edges[v])
       return true;
   return false;
+}
+
+static bool has_path_of_length(const Graph *g, unsigned current, unsigned target, unsigned k, bool *visited) {
+  if (k == 0) return current == target;
+  if (current == target) return false;
+  visited[current] = true;
+  for (Edge *e = g->edges[current]; e; e = e->next) {
+    unsigned next = e->destination;
+    if (!visited[next])
+      if (has_path_of_length(g, next, target, k - 1, visited)) {
+        visited[current] = false;
+        return true;
+      }
+  }
+  visited[current] = false;
+  return false;
+}
+
+bool is_panconnected(const Graph *g) {
+  if (!g || g->size < 2 || !g->edges) return false;
+  bool *visited = calloc(g->size, sizeof(bool));
+  if (!visited) return false;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++)
+      if (u != v)
+        for (unsigned k = 1; k < g->size; k++)
+          if (!has_path_of_length(g, u, v, k, visited)) {
+            free(visited);
+            return false;
+          }
+  free(visited);
+  return true;
 }
 
 bool isKRegular(const Graph *g, unsigned k) {
