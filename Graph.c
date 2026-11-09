@@ -138,7 +138,7 @@ bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned leng
 bool is_fractional_vertex_cover(const Graph *g, double *cover);
 bool isSubGraph(const Graph *g1, const Graph *g2);
 bool isSpanningDirectedTree(const Graph *g1, const Graph *g2);
-bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2);
+bool is_spanning_undirected_tree(const Graph *g1, const Graph *g2);
 bool isIsomorphic(const Graph *g1, const Graph *g2);
 bool is_isomorphism(const Graph *g1, const Graph *g2, const unsigned *mapping);
 
@@ -1639,7 +1639,7 @@ bool isCactus(const Graph *g) {
 }
 
 bool has_directed_edge(const Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size) return false;
+  if (!g || !g->edges || u >= g->size || v >= g->size) return false;
   for (Edge *e = g->edges[u]; e; e = e->next)
     if (e->destination == v)
       return true;
@@ -2206,9 +2206,41 @@ bool isSpanningDirectedTree(const Graph *g1, const Graph *g2) {
     isWeaklyConnected(g1) && isSubGraph(g1, g2);
 }
 
-bool isSpanningUndirectedTree(const Graph *g1, const Graph *g2) {
-  return g1 && g2 && g1->size == g2->size && g1->size > 0 && count_undirected_edges(g1) == g1->size - 1 &&
-    !hasSelfLoops(g1) && !hasParallelEdges(g1) && isWeaklyConnected(g1) && isSubGraph(g1, g2);
+static bool is_spanning_undirected_tree_check(const Graph *g, unsigned u, unsigned parent, bool *visited, unsigned *count) {
+  visited[u] = true;
+  (*count)++;
+  for (Edge *e = g->edges[u]; e; e = e->next) {
+    unsigned v = e->destination;
+    if (!visited[v]) {
+      if (!is_spanning_undirected_tree_check(g, v, u, visited, count)) return false;
+    } else if (v != parent) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool is_spanning_undirected_tree(const Graph *g1, const Graph *g2) {
+  if (!g1 || !g2 || !g1->edges || !g2->edges || g1->size != g2->size) return false;
+  unsigned vertices = g1->size;
+  if (vertices == 0) return false;
+  unsigned edges = 0;
+  for (unsigned u = 0; u < vertices; u++)
+    for (Edge *e = g1->edges[u]; e; e = e->next) {
+      unsigned v = e->destination;
+      if (v >= vertices) return false;
+      if (!has_directed_edge(g2, u, v)) return false;
+      if (!has_directed_edge(g1, v, u)) return false;
+      edges++;
+    }
+  if (edges != 2 * (vertices - 1)) return false;
+  bool *visited = calloc(vertices, sizeof(bool));
+  if (!visited) return false;
+  unsigned count = 0;
+  bool is_tree = is_spanning_undirected_tree_check(g1, 0, vertices, visited, &count);
+  bool result = is_tree && count == vertices;
+  free(visited);
+  return result;
 }
 
 static bool isIsomorphicRecursive(const Graph *g1, const Graph *g2, unsigned v1, unsigned *mapping, bool *used) {
