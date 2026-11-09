@@ -40,6 +40,7 @@ void desenhar_triângulo_contorno(Tela *const tela, const Ponto2D p1, const Pont
 void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_retângulo_contorno(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
+void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_t núm_vértices, const Cor cor);
 void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 [[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
@@ -192,6 +193,12 @@ void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esq
     const uint32_t indice_linha = (uint32_t)y * tela->largura;
     for (int32_t x = inicio_x; x < fim_x; ++x) tela->píxeis[indice_linha + (uint32_t)x] = cor;
   }
+}
+
+void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_t núm_vértices, const Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || vértices == nullptr || núm_vértices < 3) return;
+  for (size_t i = 1; i < núm_vértices; ++i) desenhar_linha(tela, vértices[i - 1], vértices[i], cor);
+  desenhar_linha(tela, vértices[núm_vértices - 1], vértices[0], cor);
 }
 
 void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
