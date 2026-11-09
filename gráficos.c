@@ -37,12 +37,12 @@ void limpar_tela(Tela *const tela, const Cor fundo);
 void desenhar_píxel(Tela *const tela, const Ponto2D ponto, const Cor cor);
 void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_fonte);
 void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor);
-void desenhar_triângulo_contorno(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
+void desenhar_triângulo(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
-void desenhar_retângulo_contorno(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
+void desenhar_retângulo(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_t núm_vértices, const Cor cor);
-void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
+void desenhar_círculo(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, const int32_t ry, const Cor cor);
 void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2D posição);
@@ -128,7 +128,7 @@ void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, 
   }
 }
 
-void desenhar_triângulo_contorno(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor) {
+void desenhar_triângulo(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   desenhar_linha(tela, p1, p2, cor);
   desenhar_linha(tela, p2, p3, cor);
@@ -194,7 +194,7 @@ void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Po
   }
 }
 
-void desenhar_retângulo_contorno(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor) {
+void desenhar_retângulo(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor) {
   if (largura == 0 || altura == 0) return;
   const int32_t inferior_direito_x = superior_esquerdo.x + (int32_t)largura - 1;
   const int32_t inferior_direito_y = superior_esquerdo.y + (int32_t)altura  - 1;
@@ -230,7 +230,7 @@ void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_
   desenhar_linha(tela, vértices[núm_vértices - 1], vértices[0], cor);
 }
 
-void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
+void desenhar_círculo(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   if (raio == 0) {
     desenhar_píxel(tela, centro, cor);
@@ -397,9 +397,9 @@ int main() {
   limpar_tela(&tela, COR_BRANCA);
   desenhar_píxel(&tela, (Ponto2D){ 250, 250 }, COR_PRETA);
   desenhar_linha(&tela, (Ponto2D){ 10, 10 }, (Ponto2D){ 490, 490 }, COR_VERMELHA);
-  desenhar_retângulo_contorno(&tela, (Ponto2D){ 30, 50 }, 120, 80, COR_AZUL);
+  desenhar_retângulo(&tela, (Ponto2D){ 30, 50 }, 120, 80, COR_AZUL);
   desenhar_retângulo_preenchido(&tela, (Ponto2D){ 30, 350 }, 100, 100, COR_VERDE);
-  desenhar_círculo_contorno(&tela, (Ponto2D){ 400, 100 }, 50, COR_AMARELA);
+  desenhar_círculo(&tela, (Ponto2D){ 400, 100 }, 50, COR_AMARELA);
   desenhar_círculo_preenchido(&tela, (Ponto2D){ 400, 380 }, 60, COR_MAGENTA);
   if (exportar_para_ficheiro(&tela, "exemplo.ppm")) {
     printf("Imagem guardada com sucesso em 'exemplo.ppm'!\n");
