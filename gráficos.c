@@ -45,6 +45,8 @@ void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_
 void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, const int32_t ry, const Cor cor);
+void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2D posição);
+void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const Ponto2D posição, const int32_t largura_nova, const int32_t altura_nova);
 [[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
 
 [[nodiscard]] Tela criar_tela(const uint32_t largura, const uint32_t altura) {
@@ -322,6 +324,42 @@ void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, c
       dx += 2 * ry_quadrado;
       dy -= 2 * rx_quadrado;
       decisão += dx - dy + rx_quadrado;
+    }
+  }
+}
+
+void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2D posição) {
+  if (destino == nullptr || destino->píxeis == nullptr || origem == nullptr || origem->píxeis == nullptr) return;
+  for (int32_t y_origem = 0; y_origem < (int32_t)origem->altura; ++y_origem) {
+    const int32_t y_destino = posição.y + y_origem;
+    if (y_destino < 0 || y_destino >= (int32_t)destino->altura) continue;
+    for (int32_t x_origem = 0; x_origem < (int32_t)origem->largura; ++x_origem) {
+      const int32_t x_destino = posição.x + x_origem;
+      if (x_destino < 0 || x_destino >= (int32_t)destino->largura) continue;
+      const size_t índice_origem = (size_t)x_origem + (size_t)y_origem * origem->largura;
+      const Cor cor_píxel = origem->píxeis[índice_origem];
+      desenhar_píxel_alfa(destino, (Ponto2D){ x_destino, y_destino }, cor_píxel);
+    }
+  }
+}
+
+void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const Ponto2D posição, const int32_t largura_nova, const int32_t altura_nova) {
+  if (destino == nullptr || destino->píxeis == nullptr) return;
+  if (origem == nullptr || origem->píxeis == nullptr) return;
+  if (largura_nova <= 0 || altura_nova <= 0) return;
+  const int32_t escala_x = ((int32_t)origem->largura << 16) / largura_nova;
+  const int32_t escala_y = ((int32_t)origem->altura << 16) / altura_nova;
+  for (int32_t y_dest = 0; y_dest < altura_nova; ++y_dest) {
+    const int32_t y_destino_real = posição.y + y_dest;
+    if (y_destino_real < 0 || y_destino_real >= (int32_t)destino->altura) continue;
+    const int32_t y_origem = (y_dest * escala_y) >> 16;
+    for (int32_t x_dest = 0; x_dest < largura_nova; ++x_dest) {
+      const int32_t x_destino_real = posição.x + x_dest;
+      if (x_destino_real < 0 || x_destino_real >= (int32_t)destino->largura) continue;
+      const int32_t x_origem = (x_dest * escala_x) >> 16;
+      const size_t índice_origem = (size_t)y_origem * origem->largura + (size_t)x_origem;
+      const Cor cor_píxel = origem->píxeis[índice_origem];
+      desenhar_píxel_alfa(destino, (Ponto2D){ x_destino_real, y_destino_real }, cor_píxel);
     }
   }
 }
