@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -31,6 +32,7 @@ typedef struct {
 [[maybe_unused]] constexpr Cor COR_MAGENTA  = { .vermelho = 255, .verde = 0,   .azul = 255, .alfa = 255 };
 [[maybe_unused]] constexpr Cor COR_AMARELA  = { .vermelho = 255, .verde = 255, .azul = 0,   .alfa = 255 };
 
+[[nodiscard]] Ponto2D rodar_ponto(const Ponto2D ponto, const Ponto2D origem, const float radianos);
 [[nodiscard]] Tela criar_tela(const uint32_t largura, const uint32_t altura);
 void destruir_tela(Tela *const tela);
 void limpar_tela(Tela *const tela, const Cor fundo);
@@ -47,7 +49,21 @@ void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const 
 void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, const int32_t ry, const Cor cor);
 void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2D posição);
 void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const Ponto2D posição, const int32_t largura_nova, const int32_t altura_nova);
-[[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
+bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
+
+[[nodiscard]] Ponto2D rodar_ponto(const Ponto2D ponto, const Ponto2D origem, const float radianos) {
+  if (radianos == 0.0f) return ponto;
+  const float cosseno = cosf(radianos);
+  const float seno = sinf(radianos);
+  const float delta_x = (float)(ponto.x - origem.x);
+  const float delta_y = (float)(ponto.y - origem.y);
+  const float novo_x = origem.x + (delta_x * cosseno) - (delta_y * seno);
+  const float novo_y = origem.y + (delta_x * seno) + (delta_y * cosseno);
+  return (Ponto2D){
+    .x = (int32_t)roundf(novo_x),
+    .y = (int32_t)roundf(novo_y)
+  };
+}
 
 [[nodiscard]] Tela criar_tela(const uint32_t largura, const uint32_t altura) {
   if (largura == 0 || altura == 0) return (Tela){};
@@ -364,7 +380,7 @@ void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const
   }
 }
 
-[[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho) {
+bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho) {
   if (tela == nullptr || tela->píxeis == nullptr || caminho == nullptr) return false;
   FILE *const ficheiro = fopen(caminho, "wb");
   if (ficheiro == nullptr) return false;
