@@ -35,6 +35,7 @@ typedef struct {
 void destruir_tela(Tela *const tela);
 void limpar_tela(Tela *const tela, const Cor fundo);
 void desenhar_píxel(Tela *const tela, const Ponto2D ponto, const Cor cor);
+void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_fonte);
 void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor);
 void desenhar_triângulo_contorno(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
@@ -74,8 +75,33 @@ void limpar_tela(Tela *const tela, const Cor fundo) {
 
 void desenhar_píxel(Tela *const tela, const Ponto2D ponto, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
-  if (ponto.x < 0 || ponto.y < 0 || ponto.x >= (int32_t)tela->largura || ponto.y >= (int32_t)tela->altura) return;
+  if (ponto.x < 0 || ponto.x >= (int32_t)tela->largura) return;
+  if (ponto.y < 0 || ponto.y >= (int32_t)tela->altura) return;
   tela->píxeis[ponto.x + ponto.y * tela->largura] = cor;
+}
+
+void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_fonte) {
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  if (ponto.x < 0 || ponto.x >= (int32_t)tela->largura) return;
+  if (ponto.y < 0 || ponto.y >= (int32_t)tela->altura) return;
+  if (cor_fonte.alfa == 0) return;
+  const size_t índice = (size_t)ponto.x + (size_t)ponto.y * tela->largura;
+  const Cor cor_destino = tela->píxeis[índice];
+  if (cor_fonte.alfa == 255) {
+    tela->píxeis[índice] = cor_fonte;
+    return;
+  }
+  const uint8_t alfa = cor_fonte.alfa;
+  const uint8_t inv_alfa = 255 - alfa;
+  const uint32_t verm_misturado = ((uint32_t)cor_fonte.vermelho * alfa) + ((uint32_t)cor_destino.vermelho * inv_alfa);
+  const uint32_t verd_misturado = ((uint32_t)cor_fonte.verde * alfa) + ((uint32_t)cor_destino.verde * inv_alfa);
+  const uint32_t azul_misturado = ((uint32_t)cor_fonte.azul * alfa) + ((uint32_t)cor_destino.azul * inv_alfa);
+  tela->píxeis[índice] = (Cor){
+    .vermelho = (uint8_t)((verm_misturado + 1 + (verm_misturado >> 8)) >> 8),
+    .verde = (uint8_t)((verd_misturado + 1 + (verd_misturado >> 8)) >> 8),
+    .azul = (uint8_t)((azul_misturado + 1 + (azul_misturado >> 8)) >> 8),
+    .alfa = 255 
+  };
 }
 
 void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor) {
@@ -181,18 +207,18 @@ void desenhar_retângulo_contorno(Tela *const tela, const Ponto2D superior_esque
 
 void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr || largura == 0 || altura == 0) return;
-  int32_t inicio_x = superior_esquerdo.x;
-  int32_t inicio_y = superior_esquerdo.y;
-  int32_t fim_x = inicio_x + (int32_t)largura;
-  int32_t fim_y = inicio_y + (int32_t)altura;
-  if (fim_x <= 0 || fim_y <= 0 || inicio_x >= (int32_t)tela->largura || inicio_y >= (int32_t)tela->altura) return;
-  if (inicio_x < 0) inicio_x = 0;
-  if (inicio_y < 0) inicio_y = 0;
+  int32_t início_x = superior_esquerdo.x;
+  int32_t início_y = superior_esquerdo.y;
+  int32_t fim_x = início_x + (int32_t)largura;
+  int32_t fim_y = início_y + (int32_t)altura;
+  if (fim_x <= 0 || fim_y <= 0 || início_x >= (int32_t)tela->largura || início_y >= (int32_t)tela->altura) return;
+  if (início_x < 0) início_x = 0;
+  if (início_y < 0) início_y = 0;
   if (fim_x > (int32_t)tela->largura) fim_x = (int32_t)tela->largura;
   if (fim_y > (int32_t)tela->altura) fim_y = (int32_t)tela->altura;
-  for (int32_t y = inicio_y; y < fim_y; ++y) {
-    const uint32_t indice_linha = (uint32_t)y * tela->largura;
-    for (int32_t x = inicio_x; x < fim_x; ++x) tela->píxeis[indice_linha + (uint32_t)x] = cor;
+  for (int32_t y = início_y; y < fim_y; ++y) {
+    const uint32_t índice_linha = (uint32_t)y * tela->largura;
+    for (int32_t x = início_x; x < fim_x; ++x) tela->píxeis[índice_linha + (uint32_t)x] = cor;
   }
 }
 
@@ -204,6 +230,10 @@ void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_
 
 void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
+  if (raio == 0) {
+    desenhar_píxel(tela, centro, cor);
+    return;
+  }
   int32_t x = 0;
   int32_t y = (int32_t)raio;
   int32_t decisão = 3 - 2 * (int32_t)raio;
@@ -228,6 +258,10 @@ void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const ui
 
 void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
+  if (raio == 0) {
+    desenhar_píxel(tela, centro, cor);
+    return;
+  }
   int32_t x = 0;
   int32_t y = (int32_t)raio;
   int32_t decisão = 3 - 2 * (int32_t)raio;
