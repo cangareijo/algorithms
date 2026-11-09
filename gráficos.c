@@ -43,6 +43,7 @@ void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esq
 void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_t núm_vértices, const Cor cor);
 void desenhar_círculo_contorno(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
 void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
+void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, const int32_t ry, const Cor cor);
 [[nodiscard]] bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
 
 [[nodiscard]] Tela criar_tela(const uint32_t largura, const uint32_t altura) {
@@ -242,6 +243,52 @@ void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const 
       y--;
     }
     x++;
+  }
+}
+
+void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, const int32_t ry, const Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || rx <= 0 || ry <= 0) return;
+  const int32_t rx_quadrado = rx * rx;
+  const int32_t ry_quadrado = ry * ry;
+  int32_t x = 0;
+  int32_t y = ry;
+  int32_t dx = 2 * ry_quadrado * x;
+  int32_t dy = 2 * rx_quadrado * y;
+  int32_t decisão = ry_quadrado - (rx_quadrado * ry) + (rx_quadrado / 4);
+  while (dx < dy) {
+    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y - y }, cor);
+    if (decisão < 0) {
+      x++;
+      dx += 2 * ry_quadrado;
+      decisão += dx + ry_quadrado;
+    } else {
+      x++;
+      y--;
+      dx += 2 * ry_quadrado;
+      dy -= 2 * rx_quadrado;
+      decisão += dx - dy + ry_quadrado;
+    }
+  }
+  decisão = (ry_quadrado * (x * x + x) + rx_quadrado * (y - 1) * (y - 1) - rx_quadrado * ry_quadrado);
+  while (y >= 0) {
+    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y - y }, cor);
+    if (decisão > 0) {
+      y--;
+      dy -= 2 * rx_quadrado;
+      decisão += rx_quadrado - dy;
+    } else {
+      y--;
+      x++;
+      dx += 2 * ry_quadrado;
+      dy -= 2 * rx_quadrado;
+      decisão += dx - dy + rx_quadrado;
+    }
   }
 }
 
