@@ -186,7 +186,7 @@ Graph *createStar(unsigned n);
 Graph *createWheel(unsigned n);
 Graph *createComplete(unsigned n);
 Graph *createRandom(unsigned n, double p, bool directed, bool weighted);
-Graph *copyGraph(const Graph *g);
+Graph *copy_graph(const Graph *g);
 Graph *createTranspose(const Graph *g);
 Graph *createUnweighted(const Graph *g);
 Graph *createUndirected(const Graph *g);
@@ -207,6 +207,7 @@ Graph *createStronglyConnectedComponentsQuotient(const Graph *g);
 Graph *createDualHypergraphProjection(const Graph *g);
 Graph *create_clique_graph(const Graph *g);
 Graph *create_gomory_hu_tree(const Graph *g);
+Graph *create_tree_decomposition(const Graph *g);
 Graph *createPower(const Graph *g, unsigned k);
 Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
@@ -230,8 +231,8 @@ void deleteIncomingEdges(Graph *g, unsigned v);
 void deleteVertex(Graph *g, unsigned v);
 void add_directed_edge(Graph *g, unsigned u, unsigned v);
 void add_undirected_edge(Graph *g, unsigned u, unsigned v);
-void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v);
-void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v);
+void delete_first_directed_edge(Graph *g, unsigned u, unsigned v);
+void delete_first_undirected_edge(Graph *g, unsigned u, unsigned v);
 void deleteMatchingEdges(Graph *g, unsigned u, unsigned v);
 void transferOutgoingEdges(Graph *g, unsigned u, unsigned v);
 void transferIncomingEdges(Graph *g, unsigned u, unsigned v);
@@ -3255,13 +3256,13 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   return g;
 }
 
-[[nodiscard]] Graph *copyGraph(const Graph *g) {
+[[nodiscard]] Graph *copy_graph(const Graph *g) {
   if (!g || (g->size > 0 && !g->edges)) return nullptr;
-  Graph *g2 = create_graph(g->size);
+  Graph *copy = create_graph(g->size);
   for (unsigned v = 0; v < g->size; v++)
     for (Edge *e = g->edges[v]; e; e = e->next)
-      add_weighted_directed_edge(g2, v, e->destination, e->weight);
-  return g2;
+      add_weighted_directed_edge(copy, v, e->destination, e->weight);
+  return copy;
 }
 
 [[nodiscard]] Graph *createTranspose(const Graph *g) {
@@ -3833,6 +3834,52 @@ static double st_min_cut(const Graph *g, unsigned s, unsigned t, bool reachable[
   return tree;
 }
 
+[[nodiscard]] Graph *create_tree_decomposition(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  bool eliminated[g->size] = {};
+  unsigned parent[g->size];
+  bool adjacent[g->size][g->size] = {};
+  for (unsigned u = 0; u < g->size; u++) parent[u] = g->size;
+  for (unsigned u = 0; u < g->size; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < g->size)
+        adjacent[u][e->destination] = true;
+  for (unsigned step = 0; step < g->size; step++) {
+    unsigned minimum_degree = g->size + 1;
+    unsigned u = g->size;
+    for (unsigned v = 0; v < g->size; v++) {
+      if (eliminated[v]) continue;
+      unsigned degree = 0;
+      for (unsigned w = 0; w < g->size; w++)
+        if (!eliminated[w] && adjacent[v][w])
+          degree++;
+      if (degree < minimum_degree) {
+        minimum_degree = degree;
+        u = v;
+      }
+    }
+    if (u == g->size) break;
+    unsigned neighbor_count = 0;
+    unsigned neighbors[g->size];
+    for (unsigned v = 0; v < g->size; v++)
+      if (!eliminated[v] && adjacent[u][v])
+        neighbors[neighbor_count++] = v;
+    for (unsigned i = 0; i < neighbor_count; i++)
+      for (unsigned j = i + 1; j < neighbor_count; j++) {
+        adjacent[neighbors[i]][neighbors[j]] = true;
+        adjacent[neighbors[j]][neighbors[i]] = true;
+      }
+    if (neighbor_count > 0) parent[u] = neighbors[0];
+    eliminated[u] = true;
+  }
+  Graph *decomposition = create_graph(g->size);
+  if (!decomposition) return nullptr;
+  for (unsigned u = 0; u < g->size; u++)
+    if (parent[u] != g->size)
+      add_undirected_edge(decomposition, u, parent[u]);
+  return decomposition;
+}
+
 [[nodiscard]] Graph *createPower(const Graph *g, unsigned k) {
   if (!g) return nullptr;
   Graph *power = create_graph(g->size);
@@ -4094,7 +4141,7 @@ void add_undirected_edge(Graph *g, unsigned u, unsigned v) {
   add_weighted_undirected_edge(g, u, v, 1);
 }
 
-void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
+void delete_first_directed_edge(Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size) return;
   Edge **e = &g->edges[u];
   while (*e) {
@@ -4108,7 +4155,7 @@ void deleteFirstDirectedEdge(Graph *g, unsigned u, unsigned v) {
   }
 }
 
-void deleteFirstUndirectedEdge(Graph *g, unsigned u, unsigned v) {
+void delete_first_undirected_edge(Graph *g, unsigned u, unsigned v) {
   deleteFirstDirectedEdge(g, u, v);
   deleteFirstDirectedEdge(g, v, u);
 }
