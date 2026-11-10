@@ -42,6 +42,8 @@ void limpar_tela(Tela *const tela, const Cor fundo);
 void desenhar_píxel(Tela *const tela, const Ponto2D ponto, const Cor cor);
 void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_fonte);
 void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor);
+void desenhar_curva_bezier_quadrática(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Cor cor);
+void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_triângulo(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_retângulo(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
@@ -175,6 +177,52 @@ void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, 
       erro += delta_x;
       atual.y += passo_y;
     }
+  }
+}
+
+void desenhar_curva_bezier_quadrática(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Cor cor)
+{
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  const uint32_t comprimento_estimado = abs(p1.x - p0.x) + abs(p1.y - p0.y) + abs(p2.x - p1.x) + abs(p2.y - p1.y);
+  const uint32_t passos = comprimento_estimado > 10 ? comprimento_estimado : 10;
+  const float delta_t = 1.0f / passos;
+  Ponto2D anterior = p0;
+  for (uint32_t i = 1; i <= passos; ++i) {
+    const float t = i * delta_t;
+    const float inv_t = 1.0f - t;
+    const float c0 = inv_t * inv_t;
+    const float c1 = 2.0f * inv_t * t;
+    const float c2 = t * t;
+    const float fx = (c0 * p0.x) + (c1 * p1.x) + (c2 * p2.x);
+    const float fy = (c0 * p0.y) + (c1 * p1.y) + (c2 * p2.y);
+    const Ponto2D atual = { .x = roundf(fx), .y = roundf(fy) };
+    desenhar_linha(tela, anterior, atual, cor);
+    anterior = atual;
+  }
+}
+
+void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor)
+{
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  const uint32_t comprimento_estimado =
+    abs(p1.x - p0.x) + abs(p1.y - p0.y) +
+    abs(p2.x - p1.x) + abs(p2.y - p1.y) +
+    abs(p3.x - p2.x) + abs(p3.y - p2.y);
+  const uint32_t passos = comprimento_estimado > 10 ? comprimento_estimado : 10;
+  const float delta_t = 1.0f / passos;
+  Ponto2D anterior = p0;
+  for (uint32_t i = 1; i <= passos; ++i) {
+    const float t = i * delta_t;
+    const float inv_t = 1.0f - t;
+    const float c0 = inv_t * inv_t * inv_t;
+    const float c1 = 3.0f * inv_t * inv_t * t;
+    const float c2 = 3.0f * inv_t * t * t;
+    const float c3 = t * t * t;
+    const float fx = (c0 * p0.x) + (c1 * p1.x) + (c2 * p2.x) + (c3 * p3.x);
+    const float fy = (c0 * p0.y) + (c1 * p1.y) + (c2 * p2.y) + (c3 * p3.y);
+    const Ponto2D atual = { .x = roundf(fx), .y = roundf(fy) };
+    desenhar_linha(tela, anterior, atual, cor);
+    anterior = atual;
   }
 }
 
@@ -746,6 +794,8 @@ int main() {
   desenhar_retângulo_preenchido(&tela, (Ponto2D){ 30, 350 }, 100, 100, COR_VERDE);
   desenhar_círculo(&tela, (Ponto2D){ 400, 100 }, 50, COR_AMARELA);
   desenhar_círculo_preenchido(&tela, (Ponto2D){ 400, 380 }, 60, COR_MAGENTA);
+  desenhar_curva_bezier_quadrática(&tela, (Ponto2D){ 200, 100 }, (Ponto2D){ 300, 50 }, (Ponto2D){ 400, 100 }, COR_VERDE);
+  desenhar_curva_bezier_cúbica(&tela, (Ponto2D){ 100, 150 }, (Ponto2D){ 150, 50 }, (Ponto2D){ 250, 250 }, (Ponto2D){ 300, 150 }, COR_VERMELHA);
   if (exportar_para_ficheiro(&tela, "exemplo.ppm")) {
     printf("Imagem guardada com sucesso em 'exemplo.ppm'!\n");
   } else {
