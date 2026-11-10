@@ -56,6 +56,7 @@ void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2
 void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const Ponto2D posição, const int32_t largura_nova, const int32_t altura_nova);
 void desenhar_imagem_rodada(Tela *const destino,  const Tela *const origem,  const Ponto2D posição,  const float radianos,  const Ponto2D pivô);
 void aplicar_desfoque_gaussiano(Tela *const tela, const uint32_t raio);
+void converter_para_tons_de_cinzento(Tela *const tela);
 void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa);
 
 bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
@@ -649,6 +650,21 @@ void aplicar_desfoque_gaussiano(Tela *const tela, const uint32_t raio) {
   }
   free(buffer_horizontal);
   free(kernel);
+}
+
+void converter_para_tons_de_cinzento(Tela *const tela) {
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  const uint32_t área = tela->largura * tela->altura;
+  for (uint32_t i = 0; i < área; ++i) {
+    const Cor atual = tela->píxeis[i];
+    const float luminância = (0.2126f * (float)atual.vermelho) + 
+                             (0.7152f * (float)atual.verde) + 
+                             (0.0722f * (float)atual.azul);
+    const uint8_t tom_cinza = (uint8_t)roundf(luminância);
+    tela->píxeis[i].vermelho = tom_cinza;
+    tela->píxeis[i].verde    = tom_cinza;
+    tela->píxeis[i].azul     = tom_cinza;
+  }
 }
 
 void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa) {
