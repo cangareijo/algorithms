@@ -1575,7 +1575,7 @@ bool canReachAll(const Graph *g, unsigned v) {
 }
 
 bool isArticulationVertex(const Graph *g, unsigned v) {
-  Graph *g2 = copyGraph(g);
+  Graph *g2 = copy_graph(g);
   deleteVertex(g2, v);
   unsigned n = count_components(g2);
   destroy_graph(g2);
@@ -1691,8 +1691,8 @@ bool have_common_neighbors(const Graph *g, unsigned u, unsigned v) {
 }
 
 bool isDirectedBridge(const Graph *g, unsigned u, unsigned v) {
-  Graph *g2 = copyGraph(g);
-  deleteFirstDirectedEdge(g2, u, v);
+  Graph *g2 = copy_graph(g);
+  delete_first_directed_edge(g2, u, v);
   unsigned n = count_components(g2);
   destroy_graph(g2);
   return n > count_components(g);
@@ -2027,11 +2027,11 @@ bool isHamiltonianPath(const Graph *g, const unsigned *sequence, unsigned length
 }
 
 bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) {
-  Graph *g2 = copyGraph(g);
+  Graph *g2 = copy_graph(g);
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (has_directed_edge(g2, sequence[i - 1], sequence[i]))
-      deleteFirstDirectedEdge(g2, sequence[i - 1], sequence[i]);
+      delete_first_directed_edge(g2, sequence[i - 1], sequence[i]);
     else
       valid = false;
   destroy_graph(g2);
@@ -2039,11 +2039,11 @@ bool isDirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) 
 }
 
 bool isUndirectedTrail(const Graph *g, const unsigned *sequence, unsigned length) {
-  Graph *copy = copyGraph(g);
+  Graph *copy = copy_graph(g);
   bool valid = sequence || length < 2;
   for (unsigned i = 1; i < length && valid; i++)
     if (has_undirected_edge(copy, sequence[i - 1], sequence[i]))
-      deleteFirstUndirectedEdge(copy, sequence[i - 1], sequence[i]);
+      delete_first_undirected_edge(copy, sequence[i - 1], sequence[i]);
     else
       valid = false;
   destroy_graph(copy);
@@ -2159,10 +2159,10 @@ bool isHamiltonianCycle(const Graph *g, const unsigned *sequence, unsigned lengt
 bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length) {
   if (!sequence || length == 0) return false;
   bool valid = true;
-  Graph *copy = copyGraph(g);
+  Graph *copy = copy_graph(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (has_directed_edge(copy, sequence[i], sequence[(i + 1) % length]))
-      deleteFirstDirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
+      delete_first_directed_edge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
   destroy_graph(copy);
@@ -2172,10 +2172,10 @@ bool isDirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length
 bool isUndirectedCircuit(const Graph *g, const unsigned *sequence, unsigned length) {
   if (!sequence || length == 0) return false;
   bool valid = true;
-  Graph *copy = copyGraph(g);
+  Graph *copy = copy_graph(g);
   for (unsigned i = 0; i < length && valid; i++)
     if (has_undirected_edge(copy, sequence[i], sequence[(i + 1) % length]))
-      deleteFirstUndirectedEdge(copy, sequence[i], sequence[(i + 1) % length]);
+      delete_first_undirected_edge(copy, sequence[i], sequence[(i + 1) % length]);
     else
       valid = false;
   destroy_graph(copy);
@@ -4156,8 +4156,8 @@ void delete_first_directed_edge(Graph *g, unsigned u, unsigned v) {
 }
 
 void delete_first_undirected_edge(Graph *g, unsigned u, unsigned v) {
-  deleteFirstDirectedEdge(g, u, v);
-  deleteFirstDirectedEdge(g, v, u);
+  delete_first_directed_edge(g, u, v);
+  delete_first_directed_edge(g, v, u);
 }
 
 void deleteMatchingEdges(Graph *g, unsigned u, unsigned v) {
@@ -4777,14 +4777,14 @@ static void calculateDirectedEdgeConnectivityRecursive(
     return;
   }
   calculateDirectedEdgeConnectivityRecursive(g, copy, v, e->next, current, minimum);
-  deleteFirstDirectedEdge(copy, v, e->destination);
+  delete_first_directed_edge(copy, v, e->destination);
   calculateDirectedEdgeConnectivityRecursive(g, copy, v, e->next, current + 1, minimum);
   add_directed_edge(copy, v, e->destination);
 }
 
 unsigned calculateDirectedEdgeConnectivity(const Graph *g) {
   if (!g || g->size <= 1) return 0;
-  Graph *copy = copyGraph(g);
+  Graph *copy = copy_graph(g);
   if (!copy) return UINT_MAX;
   unsigned minimum = UINT_MAX;
   calculateDirectedEdgeConnectivityRecursive(g, copy, 0, g->edges[0], 0, &minimum);
