@@ -557,8 +557,8 @@ void desenhar_subimagem(
   const Ponto2D pos_destino, 
   const Ponto2D pos_origem, 
   const uint32_t larg_sub, 
-  const uint32_t alt_sub
-) {
+  const uint32_t alt_sub)
+{
   if (destino == nullptr || destino->píxeis == nullptr) return;
   if (origem == nullptr || origem->píxeis == nullptr) return;
   if (larg_sub == 0 || alt_sub == 0) return;
