@@ -55,6 +55,7 @@ void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, c
 void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2D posição);
 void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const Ponto2D posição, const int32_t largura_nova, const int32_t altura_nova);
 void desenhar_imagem_rodada(Tela *const destino,  const Tela *const origem,  const Ponto2D posição,  const float radianos,  const Ponto2D pivô);
+void desenhar_subimagem(Tela *const destino, const Tela *const origem, const Ponto2D pos_destino, const Ponto2D pos_origem, const uint32_t larg_sub, const uint32_t alt_sub);
 void aplicar_desfoque_gaussiano(Tela *const tela, const uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *const tela);
 void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa);
@@ -546,6 +547,59 @@ void desenhar_imagem_rodada(Tela *const destino, const Tela *const origem, const
         const Cor cor_píxel = origem->píxeis[índice_origem];
         desenhar_píxel_alfa(destino, (Ponto2D){ x_dest, y_dest }, cor_píxel);
       }
+    }
+  }
+}
+
+void desenhar_subimagem(
+  Tela *const destino, 
+  const Tela *const origem, 
+  const Ponto2D pos_destino, 
+  const Ponto2D pos_origem, 
+  const uint32_t larg_sub, 
+  const uint32_t alt_sub
+) {
+  if (destino == nullptr || destino->píxeis == nullptr) return;
+  if (origem == nullptr || origem->píxeis == nullptr) return;
+  if (larg_sub == 0 || alt_sub == 0) return;
+  int32_t orig_início_x = pos_origem.x;
+  int32_t orig_início_y = pos_origem.y;
+  int32_t orig_fim_x = orig_início_x + (int32_t)larg_sub;
+  int32_t orig_fim_y = orig_início_y + (int32_t)alt_sub;
+  if (orig_início_x < 0) orig_início_x = 0;
+  if (orig_início_y < 0) orig_início_y = 0;
+  if (orig_fim_x > (int32_t)origem->largura) orig_fim_x = (int32_t)origem->largura;
+  if (orig_fim_y > (int32_t)origem->altura) orig_fim_y = (int32_t)origem->altura;
+  int32_t larg_efetiva = orig_fim_x - orig_início_x;
+  int32_t alt_efetiva = orig_fim_y - orig_início_y;
+  if (larg_efetiva <= 0 || alt_efetiva <= 0) return;
+  int32_t dest_início_x = pos_destino.x + (orig_início_x - pos_origem.x);
+  int32_t dest_início_y = pos_destino.y + (orig_início_y - pos_origem.y);
+  int32_t dest_fim_x = dest_início_x + larg_efetiva;
+  int32_t dest_fim_y = dest_início_y + alt_efetiva;
+  if (dest_início_x < 0) {
+    orig_início_x += (0 - dest_início_x);
+    dest_início_x = 0;
+  }
+  if (dest_início_y < 0) {
+    orig_início_y += (0 - dest_início_y);
+    dest_início_y = 0;
+  }
+  if (dest_fim_x > (int32_t)destino->largura) dest_fim_x = (int32_t)destino->largura;
+  if (dest_fim_y > (int32_t)destino->altura) dest_fim_y = (int32_t)destino->altura;
+  larg_efetiva = dest_fim_x - dest_início_x;
+  alt_efetiva = dest_fim_y - dest_início_y;
+  if (larg_efetiva <= 0 || alt_efetiva <= 0) return;
+  for (int32_t dy = 0; dy < alt_efetiva; ++dy) {
+    const int32_t y_origem = orig_início_y + dy;
+    const int32_t y_destino = dest_início_y + dy;
+    const size_t índice_linha_origem = (size_t)y_origem * origem->largura;
+    for (int32_t dx = 0; dx < larg_efetiva; ++dx) {
+      const int32_t x_origem = orig_início_x + dx;
+      const int32_t x_destino = dest_início_x + dx;
+      const size_t índice_origem = índice_linha_origem + (size_t)x_origem;
+      const Cor cor_píxel = origem->píxeis[índice_origem];
+      desenhar_píxel_alfa(destino, (Ponto2D){ x_destino, y_destino }, cor_píxel);
     }
   }
 }
