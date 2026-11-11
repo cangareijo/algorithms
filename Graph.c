@@ -214,7 +214,7 @@ Graph *createVertexSubgraph(const Graph *g, const bool *set);
 Graph *createEdgeSubgraph(const Graph *g, const bool *set);
 Graph *createUnion(const Graph *g1, const Graph *g2);
 Graph *createDisjointUnion(const Graph *g1, const Graph *g2);
-Graph *createCartesianProduct(const Graph *g1, const Graph *g2);
+Graph *create_cartesian_product(const Graph *g1, const Graph *g2);
 Graph *createTensorProduct(const Graph *g1, const Graph *g2);
 Graph *createLexicographicalProduct(const Graph *g1, const Graph *g2);
 Graph *createStrongProduct(const Graph *g1, const Graph *g2);
@@ -3965,7 +3965,7 @@ static double st_min_cut(const Graph *g, unsigned s, unsigned t, bool reachable[
   return g3;
 }
 
-[[nodiscard]] Graph *createCartesianProduct(const Graph *g1, const Graph *g2) {
+[[nodiscard]] Graph *create_cartesian_product(const Graph *g1, const Graph *g2) {
   if (!g1 || (g1->size > 0 && !g1->edges) || !g2 || (g2->size > 0 && !g2->edges)) return nullptr;
   Graph *g3 = create_graph(g1->size * g2->size);
   for (unsigned u = 0; u < g1->size; u++)
@@ -4242,7 +4242,7 @@ void subdivideEdge(Graph *g, unsigned u, unsigned v) {
 }
 
 void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight) {
-  if (!g || !g->edges || u >= g->size) return;
+  if (!g || !g->edges || u >= g->size || v >= g->size) return;
   Edge *e = malloc(sizeof(Edge));
   if (!e) return;
   e->destination = v;
