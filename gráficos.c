@@ -38,6 +38,8 @@ typedef struct {
 [[maybe_unused]] constexpr Cor COR_MAGENTA  = { .vermelho = 255, .verde = 0,   .azul = 255, .alfa = 255 };
 [[maybe_unused]] constexpr Cor COR_AMARELA  = { .vermelho = 255, .verde = 255, .azul = 0,   .alfa = 255 };
 
+int comparar_inteiros_32(const void *const a, const void *const b);
+
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], const size_t núm_pontos, const Int2D translação, const float radianos, const float escala);
 Int2D rodar_ponto(const Int2D ponto, const Int2D origem, const float radianos);
 
@@ -56,6 +58,7 @@ void desenhar_retângulo(Tela *const tela, const Int2D superior_esquerdo, const 
 void desenhar_retângulo_preenchido(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_gradiente_linear(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor_início, const Cor cor_fim, const bool vertical);
 void desenhar_polígono(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor);
+void desenhar_polígono_preenchido(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor);
 void desenhar_círculo(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor);
 void desenhar_círculo_preenchido(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor);
 void desenhar_gradiente_radial( Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor_centro, const Cor cor_periferia);
@@ -69,6 +72,12 @@ void converter_para_tons_de_cinzento(Tela *const tela);
 void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa);
 
 bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
+
+int comparar_inteiros_32(const void *const a, const void *const b) {
+  const int32_t valor_a = *(const int32_t *)a;
+  const int32_t valor_b = *(const int32_t *)b;
+  return (valor_a > valor_b) - (valor_a < valor_b);
+}
 
 void transformar_pontos(
   const Int2D pontos_origem[],
@@ -440,6 +449,49 @@ void desenhar_polígono(Tela *const tela, const Int2D vértices[], const size_t 
   if (tela == nullptr || tela->píxeis == nullptr || vértices == nullptr || núm_vértices < 3) return;
   for (size_t i = 1; i < núm_vértices; ++i) desenhar_linha(tela, vértices[i - 1], vértices[i], cor);
   desenhar_linha(tela, vértices[núm_vértices - 1], vértices[0], cor);
+}
+
+void desenhar_polígono_preenchido(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  if (tela->largura == 0 || tela->altura == 0) return;
+  if (vértices == nullptr || núm_vértices < 3) return;
+  int32_t y_mín = vértices[0].y;
+  int32_t y_máx = vértices[0].y;
+  for (size_t i = 1; i < núm_vértices; i++) {
+    if (vértices[i].y < y_mín) y_mín = vértices[i].y;
+    if (vértices[i].y > y_máx) y_máx = vértices[i].y;
+  }
+  if (y_mín < 0) y_mín = 0;
+  if (y_máx >= (int32_t)tela->altura) y_máx = (int32_t)tela->altura - 1;
+  if (y_mín > y_máx) return;
+  int32_t *interseções_x = calloc(núm_vértices, sizeof(int32_t));
+  if (interseções_x == nullptr) return;
+  for (int32_t y = y_mín; y <= y_máx; y++) {
+    size_t núm_interseções = 0;
+    size_t j = núm_vértices - 1;
+    for (size_t i = 0; i < núm_vértices; i++) {
+      const int32_t yi = vértices[i].y;
+      const int32_t yj = vértices[j].y;
+      if ((yi < y && yj >= y) || (yj < y && yi >= y)) {
+        const float xi = (float)vértices[i].x;
+        const float xj = (float)vértices[j].x;
+        const float fator = (float)(y - yi) / (float)(yj - yi);
+        interseções_x[núm_interseções++] = (int32_t)roundf(xi + fator * (xj - xi));
+      }
+      j = i;
+    }
+    if (núm_interseções > 1) qsort(interseções_x, núm_interseções, sizeof(int32_t), comparar_inteiros_32);
+    for (size_t k = 0; k + 1 < núm_interseções; k += 2) {
+      int32_t x_início = interseções_x[k];
+      int32_t x_fim = interseções_x[k + 1];
+      if (x_fim < 0 || x_início >= (int32_t)tela->largura) continue;
+      if (x_início < 0) x_início = 0;
+      if (x_fim >= (int32_t)tela->largura) x_fim = (int32_t)tela->largura - 1;
+      Cor *const linha_tela = &tela->píxeis[(size_t)y * tela->largura];
+      for (int32_t x = x_início; x <= x_fim; x++) linha_tela[x] = cor;
+    }
+  }
+  free(interseções_x);
 }
 
 void desenhar_círculo(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor) {
