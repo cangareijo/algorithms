@@ -200,6 +200,7 @@ Graph *create_directed_barycentric_subdivision(const Graph *g);
 Graph *create_undirected_barycentric_subdivision(const Graph *g);
 Graph *createTransitiveClosure(const Graph *g);
 Graph *findFeedbackArcSet(const Graph *g);
+Graph *find_undirected_unweighted_feedback_edge_set(const Graph *g);
 Graph *createCactusGraph(const Graph *g);
 Graph *createDualGraph(const Graph *g);
 Graph *createBipartiteDoubleCover(const Graph *g);
@@ -3514,6 +3515,30 @@ static void graph_to_canonical_string_recursive(const Graph *g, unsigned *permut
   free(permutation);
   free(position);
   return result;
+}
+
+static void find_undirected_unweighted_feedback_edge_set_dfs(const Graph *g, unsigned v, unsigned parent, bool *visited, Graph *fes) {
+  visited[v] = true;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination != parent && e->destination < g->size) {
+      if (visited[e->destination]) {
+        if (v < e->destination) add_undirected_edge(fes, v, e->destination);
+        else if (v == e->destination) add_directed_edge(fes, v, e->destination);
+      } else {
+        find_undirected_unweighted_feedback_edge_set_dfs(g, e->destination, v, visited, fes);
+      }
+    }
+}
+
+[[nodiscard]] Graph *find_undirected_unweighted_feedback_edge_set(const Graph *g) {
+  if (!g || (g->size > 0 && !g->edges)) return nullptr;
+  Graph *fes = create_graph(g->size);
+  if (!fes || g->size == 0) return fes;
+  bool visited[g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    if (!visited[v])
+      find_undirected_unweighted_feedback_edge_set_dfs(g, v, g->size, visited, fes);
+  return fes;
 }
 
 static void createCactusGraphDfs(
