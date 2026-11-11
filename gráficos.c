@@ -19,6 +19,11 @@ typedef struct {
 } Ponto2D;
 
 typedef struct {
+  float x;
+  float y;
+} Flut2D;
+
+typedef struct {
   uint32_t largura;
   uint32_t altura;
   Cor *píxeis;
@@ -44,6 +49,7 @@ void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_f
 void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor);
 void desenhar_curva_bezier_quadrática(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Cor cor);
 void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
+void desenhar_curva_bezier_subdivisão(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor, const float tolerância_píxeis);
 void desenhar_triângulo(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
 void desenhar_retângulo(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
@@ -224,6 +230,57 @@ void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Pon
     desenhar_linha(tela, anterior, atual, cor);
     anterior = atual;
   }
+}
+
+static void subdividir_bezier_recursivo(
+  Tela *const tela,
+  const Flut2D p0,
+  const Flut2D p1,
+  const Flut2D p2,
+  const Flut2D p3,
+  const Cor cor,
+  const float tolerância_quadrada,
+  const uint32_t profundidade
+) {
+  const float dx = p3.x - p0.x;
+  const float dy = p3.y - p0.y;
+  const float d1 = fabsf(((p1.x - p3.x) * dy) - ((p1.y - p3.y) * dx));
+  const float d2 = fabsf(((p2.x - p3.x) * dy) - ((p2.y - p3.y) * dx));
+  const float desvio_total = d1 + d2;
+  const float comprimento_quadrado = (dx * dx) + (dy * dy);
+  if ((desvio_total * desvio_total) <= (tolerância_quadrada * comprimento_quadrado) || profundidade >= 16) {
+    const Ponto2D início = { .x = roundf(p0.x), .y = roundf(p0.y) };
+    const Ponto2D fim    = { .x = roundf(p3.x), .y = roundf(p3.y) };
+    desenhar_linha(tela, início, fim, cor);
+    return;
+  }
+  const Flut2D p01 = { (p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f };
+  const Flut2D p12 = { (p1.x + p2.x) * 0.5f, (p1.y + p2.y) * 0.5f };
+  const Flut2D p23 = { (p2.x + p3.x) * 0.5f, (p2.y + p3.y) * 0.5f };
+  const Flut2D p012 = { (p01.x + p12.x) * 0.5f, (p01.y + p12.y) * 0.5f };
+  const Flut2D p123 = { (p12.x + p23.x) * 0.5f, (p12.y + p23.y) * 0.5f };
+  const Flut2D p0123 = { (p012.x + p123.x) * 0.5f, (p012.y + p123.y) * 0.5f };
+  subdividir_bezier_recursivo(tela, p0, p01, p012, p0123, cor, tolerância_quadrada, profundidade + 1);
+  subdividir_bezier_recursivo(tela, p0123, p123, p23, p3, cor, tolerância_quadrada, profundidade + 1);
+}
+
+void desenhar_curva_bezier_subdivisão(
+  Tela *const tela,
+  const Ponto2D p0,
+  const Ponto2D p1,
+  const Ponto2D p2,
+  const Ponto2D p3,
+  const Cor cor,
+  const float tolerância_píxeis
+) {
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  const float tol = tolerância_píxeis > 0.05f ? tolerância_píxeis : 0.05f;
+  const float tolerância_quadrada = tol * tol;
+  const Flut2D f0 = { (float)p0.x, (float)p0.y };
+  const Flut2D f1 = { (float)p1.x, (float)p1.y };
+  const Flut2D f2 = { (float)p2.x, (float)p2.y };
+  const Flut2D f3 = { (float)p3.x, (float)p3.y };
+  subdividir_bezier_recursivo(tela, f0, f1, f2, f3, cor, tolerância_quadrada, 0);
 }
 
 void desenhar_triângulo(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor) {
@@ -795,7 +852,8 @@ int main() {
   desenhar_círculo(&tela, (Ponto2D){ 400, 100 }, 50, COR_AMARELA);
   desenhar_círculo_preenchido(&tela, (Ponto2D){ 400, 380 }, 60, COR_MAGENTA);
   desenhar_curva_bezier_quadrática(&tela, (Ponto2D){ 200, 100 }, (Ponto2D){ 300, 50 }, (Ponto2D){ 400, 100 }, COR_VERDE);
-  desenhar_curva_bezier_cúbica(&tela, (Ponto2D){ 100, 150 }, (Ponto2D){ 150, 50 }, (Ponto2D){ 250, 250 }, (Ponto2D){ 300, 150 }, COR_VERMELHA);
+  // desenhar_curva_bezier_cúbica(&tela, (Ponto2D){ 100, 150 }, (Ponto2D){ 150, 50 }, (Ponto2D){ 250, 250 }, (Ponto2D){ 300, 150 }, COR_VERMELHA);
+  desenhar_curva_bezier_subdivisão(&tela, (Ponto2D){ 100, 150 }, (Ponto2D){ 150, 50 }, (Ponto2D){ 250, 250 }, (Ponto2D){ 300, 150 }, COR_VERDE, 1);
   if (exportar_para_ficheiro(&tela, "exemplo.ppm")) {
     printf("Imagem guardada com sucesso em 'exemplo.ppm'!\n");
   } else {
