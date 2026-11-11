@@ -657,11 +657,11 @@ void desenhar_imagem_rodada(Tela *const destino, const Tela *const origem, const
 }
 
 void desenhar_subimagem(
-  Tela *const destino, 
-  const Tela *const origem, 
-  const Ponto2D pos_destino, 
-  const Ponto2D pos_origem, 
-  const uint32_t larg_sub, 
+  Tela *const destino,
+  const Tela *const origem,
+  const Ponto2D pos_destino,
+  const Ponto2D pos_origem,
+  const uint32_t larg_sub,
   const uint32_t alt_sub)
 {
   if (destino == nullptr || destino->píxeis == nullptr) return;
@@ -816,8 +816,8 @@ void converter_para_tons_de_cinzento(Tela *const tela) {
   const uint32_t área = tela->largura * tela->altura;
   for (uint32_t i = 0; i < área; ++i) {
     const Cor atual = tela->píxeis[i];
-    const float luminância = (0.2126f * (float)atual.vermelho) + 
-                             (0.7152f * (float)atual.verde) + 
+    const float luminância = (0.2126f * (float)atual.vermelho) +
+                             (0.7152f * (float)atual.verde) +
                              (0.0722f * (float)atual.azul);
     const uint8_t tom_cinza = (uint8_t)roundf(luminância);
     tela->píxeis[i].vermelho = tom_cinza;
