@@ -16,7 +16,7 @@ typedef struct {
 typedef struct {
   int32_t x;
   int32_t y;
-} Ponto2D;
+} Int2D;
 
 typedef struct {
   float x;
@@ -38,32 +38,32 @@ typedef struct {
 [[maybe_unused]] constexpr Cor COR_MAGENTA  = { .vermelho = 255, .verde = 0,   .azul = 255, .alfa = 255 };
 [[maybe_unused]] constexpr Cor COR_AMARELA  = { .vermelho = 255, .verde = 255, .azul = 0,   .alfa = 255 };
 
-void transformar_pontos(const Ponto2D pontos_origem[], Ponto2D pontos_destino[], const size_t núm_pontos, const Ponto2D translação, const float radianos, const float escala);
-Ponto2D rodar_ponto(const Ponto2D ponto, const Ponto2D origem, const float radianos);
+void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], const size_t núm_pontos, const Int2D translação, const float radianos, const float escala);
+Int2D rodar_ponto(const Int2D ponto, const Int2D origem, const float radianos);
 
 Tela criar_tela(const uint32_t largura, const uint32_t altura);
 void destruir_tela(Tela *const tela);
 void limpar_tela(Tela *const tela, const Cor fundo);
-void desenhar_píxel(Tela *const tela, const Ponto2D ponto, const Cor cor);
-void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_fonte);
-void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor);
-void desenhar_curva_bezier_quadrática(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Cor cor);
-void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
-void desenhar_curva_bezier_subdivisão(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor, const float tolerância_píxeis);
-void desenhar_triângulo(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
-void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor);
-void desenhar_retângulo(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
-void desenhar_retângulo_preenchido(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
-void desenhar_gradiente_linear(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor_início, const Cor cor_fim, const bool vertical);
-void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_t núm_vértices, const Cor cor);
-void desenhar_círculo(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
-void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor);
-void desenhar_gradiente_radial( Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor_centro, const Cor cor_periferia);
-void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, const int32_t ry, const Cor cor);
-void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2D posição);
-void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const Ponto2D posição, const int32_t largura_nova, const int32_t altura_nova);
-void desenhar_imagem_rodada(Tela *const destino,  const Tela *const origem,  const Ponto2D posição,  const float radianos,  const Ponto2D pivô);
-void desenhar_subimagem(Tela *const destino, const Tela *const origem, const Ponto2D pos_destino, const Ponto2D pos_origem, const uint32_t larg_sub, const uint32_t alt_sub);
+void desenhar_píxel(Tela *const tela, const Int2D ponto, const Cor cor);
+void desenhar_píxel_alfa(Tela *const tela, const Int2D ponto, const Cor cor_fonte);
+void desenhar_linha(Tela *const tela, const Int2D início, const Int2D fim, const Cor cor);
+void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor);
+void desenhar_curva_bezier_cúbica(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
+void desenhar_curva_bezier_subdivisão(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor, const float tolerância_píxeis);
+void desenhar_triângulo(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
+void desenhar_triângulo_preenchido(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
+void desenhar_retângulo(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
+void desenhar_retângulo_preenchido(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
+void desenhar_gradiente_linear(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor_início, const Cor cor_fim, const bool vertical);
+void desenhar_polígono(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor);
+void desenhar_círculo(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor);
+void desenhar_círculo_preenchido(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor);
+void desenhar_gradiente_radial( Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor_centro, const Cor cor_periferia);
+void desenhar_elipse(Tela *const tela, const Int2D centro, const int32_t rx, const int32_t ry, const Cor cor);
+void desenhar_imagem(Tela *const destino, const Tela *const origem, const Int2D posição);
+void desenhar_imagem_escala(Tela *const destino, const Tela *const origem, const Int2D posição, const int32_t largura_nova, const int32_t altura_nova);
+void desenhar_imagem_rodada(Tela *const destino,  const Tela *const origem,  const Int2D posição,  const float radianos,  const Int2D pivô);
+void desenhar_subimagem(Tela *const destino, const Tela *const origem, const Int2D pos_destino, const Int2D pos_origem, const uint32_t larg_sub, const uint32_t alt_sub);
 void aplicar_desfoque_gaussiano(Tela *const tela, const uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *const tela);
 void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa);
@@ -71,10 +71,10 @@ void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa);
 bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho);
 
 void transformar_pontos(
-  const Ponto2D pontos_origem[],
-  Ponto2D pontos_destino[],
+  const Int2D pontos_origem[],
+  Int2D pontos_destino[],
   const size_t núm_pontos,
-  const Ponto2D translação,
+  const Int2D translação,
   const float radianos,
   const float escala)
 {
@@ -86,14 +86,14 @@ void transformar_pontos(
     const float y_escalado = (float)pontos_origem[i].y * escala;
     const float x_rodado = (x_escalado * cosseno) - (y_escalado * seno);
     const float y_rodado = (x_escalado * seno) + (y_escalado * cosseno);
-    pontos_destino[i] = (Ponto2D){
+    pontos_destino[i] = (Int2D){
       .x = (int32_t)roundf(x_rodado + (float)translação.x),
       .y = (int32_t)roundf(y_rodado + (float)translação.y)
     };
   }
 }
 
-[[nodiscard]] Ponto2D rodar_ponto(const Ponto2D ponto, const Ponto2D origem, const float radianos) {
+[[nodiscard]] Int2D rodar_ponto(const Int2D ponto, const Int2D origem, const float radianos) {
   if (radianos == 0.0f) return ponto;
   const float cosseno = cosf(radianos);
   const float seno = sinf(radianos);
@@ -101,7 +101,7 @@ void transformar_pontos(
   const float delta_y = (float)(ponto.y - origem.y);
   const float novo_x = origem.x + (delta_x * cosseno) - (delta_y * seno);
   const float novo_y = origem.y + (delta_x * seno) + (delta_y * cosseno);
-  return (Ponto2D){
+  return (Int2D){
     .x = (int32_t)roundf(novo_x),
     .y = (int32_t)roundf(novo_y)
   };
@@ -133,14 +133,14 @@ void limpar_tela(Tela *const tela, const Cor fundo) {
   for (uint32_t i = 0; i < área; ++i) tela->píxeis[i] = fundo;
 }
 
-void desenhar_píxel(Tela *const tela, const Ponto2D ponto, const Cor cor) {
+void desenhar_píxel(Tela *const tela, const Int2D ponto, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   if (ponto.x < 0 || ponto.x >= (int32_t)tela->largura) return;
   if (ponto.y < 0 || ponto.y >= (int32_t)tela->altura) return;
   tela->píxeis[ponto.x + ponto.y * tela->largura] = cor;
 }
 
-void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_fonte) {
+void desenhar_píxel_alfa(Tela *const tela, const Int2D ponto, const Cor cor_fonte) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   if (ponto.x < 0 || ponto.x >= (int32_t)tela->largura) return;
   if (ponto.y < 0 || ponto.y >= (int32_t)tela->altura) return;
@@ -164,13 +164,13 @@ void desenhar_píxel_alfa(Tela *const tela, const Ponto2D ponto, const Cor cor_f
   };
 }
 
-void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, const Cor cor) {
+void desenhar_linha(Tela *const tela, const Int2D início, const Int2D fim, const Cor cor) {
   const int32_t delta_x = abs(fim.x - início.x);
   const int32_t delta_y = abs(fim.y - início.y);
   const int32_t passo_x = (início.x < fim.x) ? 1 : -1;
   const int32_t passo_y = (início.y < fim.y) ? 1 : -1;
   int32_t erro = delta_x - delta_y;
-  Ponto2D atual = início;
+  Int2D atual = início;
   while (true) {
     desenhar_píxel(tela, atual, cor);
     if (atual.x == fim.x && atual.y == fim.y) break;
@@ -186,13 +186,13 @@ void desenhar_linha(Tela *const tela, const Ponto2D início, const Ponto2D fim, 
   }
 }
 
-void desenhar_curva_bezier_quadrática(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Cor cor)
+void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor)
 {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   const uint32_t comprimento_estimado = abs(p1.x - p0.x) + abs(p1.y - p0.y) + abs(p2.x - p1.x) + abs(p2.y - p1.y);
   const uint32_t passos = comprimento_estimado > 10 ? comprimento_estimado : 10;
   const float delta_t = 1.0f / passos;
-  Ponto2D anterior = p0;
+  Int2D anterior = p0;
   for (uint32_t i = 1; i <= passos; ++i) {
     const float t = i * delta_t;
     const float inv_t = 1.0f - t;
@@ -201,13 +201,13 @@ void desenhar_curva_bezier_quadrática(Tela *const tela, const Ponto2D p0, const
     const float c2 = t * t;
     const float fx = (c0 * p0.x) + (c1 * p1.x) + (c2 * p2.x);
     const float fy = (c0 * p0.y) + (c1 * p1.y) + (c2 * p2.y);
-    const Ponto2D atual = { .x = roundf(fx), .y = roundf(fy) };
+    const Int2D atual = { .x = roundf(fx), .y = roundf(fy) };
     desenhar_linha(tela, anterior, atual, cor);
     anterior = atual;
   }
 }
 
-void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor)
+void desenhar_curva_bezier_cúbica(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor)
 {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   const uint32_t comprimento_estimado =
@@ -216,7 +216,7 @@ void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Pon
     abs(p3.x - p2.x) + abs(p3.y - p2.y);
   const uint32_t passos = comprimento_estimado > 10 ? comprimento_estimado : 10;
   const float delta_t = 1.0f / passos;
-  Ponto2D anterior = p0;
+  Int2D anterior = p0;
   for (uint32_t i = 1; i <= passos; ++i) {
     const float t = i * delta_t;
     const float inv_t = 1.0f - t;
@@ -226,7 +226,7 @@ void desenhar_curva_bezier_cúbica(Tela *const tela, const Ponto2D p0, const Pon
     const float c3 = t * t * t;
     const float fx = (c0 * p0.x) + (c1 * p1.x) + (c2 * p2.x) + (c3 * p3.x);
     const float fy = (c0 * p0.y) + (c1 * p1.y) + (c2 * p2.y) + (c3 * p3.y);
-    const Ponto2D atual = { .x = roundf(fx), .y = roundf(fy) };
+    const Int2D atual = { .x = roundf(fx), .y = roundf(fy) };
     desenhar_linha(tela, anterior, atual, cor);
     anterior = atual;
   }
@@ -249,8 +249,8 @@ static void subdividir_bezier_recursivo(
   const float desvio_total = d1 + d2;
   const float comprimento_quadrado = (dx * dx) + (dy * dy);
   if ((desvio_total * desvio_total) <= (tolerância_quadrada * comprimento_quadrado) || profundidade >= 16) {
-    const Ponto2D início = { .x = roundf(p0.x), .y = roundf(p0.y) };
-    const Ponto2D fim    = { .x = roundf(p3.x), .y = roundf(p3.y) };
+    const Int2D início = { .x = roundf(p0.x), .y = roundf(p0.y) };
+    const Int2D fim    = { .x = roundf(p3.x), .y = roundf(p3.y) };
     desenhar_linha(tela, início, fim, cor);
     return;
   }
@@ -266,10 +266,10 @@ static void subdividir_bezier_recursivo(
 
 void desenhar_curva_bezier_subdivisão(
   Tela *const tela,
-  const Ponto2D p0,
-  const Ponto2D p1,
-  const Ponto2D p2,
-  const Ponto2D p3,
+  const Int2D p0,
+  const Int2D p1,
+  const Int2D p2,
+  const Int2D p3,
   const Cor cor,
   const float tolerância_píxeis
 ) {
@@ -283,22 +283,22 @@ void desenhar_curva_bezier_subdivisão(
   subdividir_bezier_recursivo(tela, f0, f1, f2, f3, cor, tolerância_quadrada, 0);
 }
 
-void desenhar_triângulo(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor) {
+void desenhar_triângulo(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   desenhar_linha(tela, p1, p2, cor);
   desenhar_linha(tela, p2, p3, cor);
   desenhar_linha(tela, p3, p1, cor);
 }
 
-static inline void ordenar_pontos_y(Ponto2D *const p1, Ponto2D *const p2) {
+static inline void ordenar_pontos_y(Int2D *const p1, Int2D *const p2) {
   if (p1->y > p2->y) {
-    const Ponto2D temporário = *p1;
+    const Int2D temporário = *p1;
     *p1 = *p2;
     *p2 = temporário;
   }
 }
 
-static void preencher_triângulo_base_plana(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor) {
+static void preencher_triângulo_base_plana(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor) {
   const int32_t altura = p2.y - p1.y;
   if (altura == 0) return;
   const int32_t dx1 = p2.x - p1.x;
@@ -308,11 +308,11 @@ static void preencher_triângulo_base_plana(Tela *const tela, const Ponto2D p1, 
     int32_t x1 = p1.x + (dy * dx1) / altura;
     int32_t x2 = p1.x + (dy * dx2) / altura;
     if (x1 > x2) { const int32_t t = x1; x1 = x2; x2 = t; }
-    desenhar_linha(tela, (Ponto2D){ x1, y }, (Ponto2D){ x2, y }, cor);
+    desenhar_linha(tela, (Int2D){ x1, y }, (Int2D){ x2, y }, cor);
   }
 }
 
-static void preencher_triângulo_topo_plano(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor) {
+static void preencher_triângulo_topo_plano(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor) {
   const int32_t altura = p3.y - p1.y;
   if (altura == 0) return;
   const int32_t dx1 = p3.x - p1.x;
@@ -322,15 +322,15 @@ static void preencher_triângulo_topo_plano(Tela *const tela, const Ponto2D p1, 
     int32_t x1 = p3.x - (dy * dx1) / altura;
     int32_t x2 = p3.x - (dy * dx2) / altura;
     if (x1 > x2) { const int32_t t = x1; x1 = x2; x2 = t; }
-    desenhar_linha(tela, (Ponto2D){ x1, y }, (Ponto2D){ x2, y }, cor);
+    desenhar_linha(tela, (Int2D){ x1, y }, (Int2D){ x2, y }, cor);
   }
 }
 
-void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Ponto2D p2, const Ponto2D p3, const Cor cor) {
+void desenhar_triângulo_preenchido(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
-  Ponto2D v1 = p1;
-  Ponto2D v2 = p2;
-  Ponto2D v3 = p3;
+  Int2D v1 = p1;
+  Int2D v2 = p2;
+  Int2D v3 = p3;
   ordenar_pontos_y(&v1, &v2);
   ordenar_pontos_y(&v1, &v3);
   ordenar_pontos_y(&v2, &v3);
@@ -340,7 +340,7 @@ void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Po
     const int32_t altura_total = v3.y - v1.y;
     const int32_t dx = v3.x - v1.x;
     const int32_t dy = v2.y - v1.y;
-    const Ponto2D v4 = {
+    const Int2D v4 = {
       .x = v1.x + (dy * dx) / altura_total,
       .y = v2.y
     };
@@ -349,13 +349,13 @@ void desenhar_triângulo_preenchido(Tela *const tela, const Ponto2D p1, const Po
   }
 }
 
-void desenhar_retângulo(Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor) {
+void desenhar_retângulo(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor) {
   if (largura == 0 || altura == 0) return;
   const int32_t inferior_direito_x = superior_esquerdo.x + (int32_t)largura - 1;
   const int32_t inferior_direito_y = superior_esquerdo.y + (int32_t)altura  - 1;
-  const Ponto2D superior_direito  = { .x =  inferior_direito_x, .y = superior_esquerdo.y };
-  const Ponto2D inferior_esquerdo = { .x = superior_esquerdo.x, .y = inferior_direito_y  };
-  const Ponto2D inferior_direito  = { .x =  inferior_direito_x, .y = inferior_direito_y  };
+  const Int2D superior_direito  = { .x =  inferior_direito_x, .y = superior_esquerdo.y };
+  const Int2D inferior_esquerdo = { .x = superior_esquerdo.x, .y = inferior_direito_y  };
+  const Int2D inferior_direito  = { .x =  inferior_direito_x, .y = inferior_direito_y  };
   desenhar_linha(tela, superior_esquerdo,  superior_direito, cor);
   desenhar_linha(tela, inferior_esquerdo,  inferior_direito, cor);
   desenhar_linha(tela, superior_esquerdo, inferior_esquerdo, cor);
@@ -363,7 +363,7 @@ void desenhar_retângulo(Tela *const tela, const Ponto2D superior_esquerdo, cons
 }
 
 void desenhar_retângulo_preenchido(
-  Tela *const tela, const Ponto2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor)
+  Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor)
 {
   if (tela == nullptr || tela->píxeis == nullptr || largura == 0 || altura == 0) return;
   int32_t início_x = superior_esquerdo.x;
@@ -383,7 +383,7 @@ void desenhar_retângulo_preenchido(
 
 void desenhar_gradiente_linear(
   Tela *const tela,
-  const Ponto2D superior_esquerdo,
+  const Int2D superior_esquerdo,
   const uint32_t largura,
   const uint32_t altura,
   const Cor cor_início,
@@ -436,13 +436,13 @@ void desenhar_gradiente_linear(
   }
 }
 
-void desenhar_polígono(Tela *const tela, const Ponto2D vértices[], const size_t núm_vértices, const Cor cor) {
+void desenhar_polígono(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr || vértices == nullptr || núm_vértices < 3) return;
   for (size_t i = 1; i < núm_vértices; ++i) desenhar_linha(tela, vértices[i - 1], vértices[i], cor);
   desenhar_linha(tela, vértices[núm_vértices - 1], vértices[0], cor);
 }
 
-void desenhar_círculo(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
+void desenhar_círculo(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   if (raio == 0) {
     desenhar_píxel(tela, centro, cor);
@@ -452,14 +452,14 @@ void desenhar_círculo(Tela *const tela, const Ponto2D centro, const uint32_t ra
   int32_t y = (int32_t)raio;
   int32_t decisão = 3 - 2 * (int32_t)raio;
   while (x <= y) {
-    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y + y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y + y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y - y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y - y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x + y, centro.y + x }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - y, centro.y + x }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x + y, centro.y - x }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - y, centro.y - x }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + y, centro.y + x }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - y, centro.y + x }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + y, centro.y - x }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - y, centro.y - x }, cor);
     if (decisão < 0) {
       decisão += 4 * x + 6;
     } else {
@@ -470,7 +470,7 @@ void desenhar_círculo(Tela *const tela, const Ponto2D centro, const uint32_t ra
   }
 }
 
-void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor) {
+void desenhar_círculo_preenchido(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr) return;
   if (raio == 0) {
     desenhar_píxel(tela, centro, cor);
@@ -480,10 +480,10 @@ void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const 
   int32_t y = (int32_t)raio;
   int32_t decisão = 3 - 2 * (int32_t)raio;
   while (x <= y) {
-    desenhar_linha(tela, (Ponto2D){ centro.x - x, centro.y + y }, (Ponto2D){ centro.x + x, centro.y + y }, cor);
-    desenhar_linha(tela, (Ponto2D){ centro.x - x, centro.y - y }, (Ponto2D){ centro.x + x, centro.y - y }, cor);
-    desenhar_linha(tela, (Ponto2D){ centro.x - y, centro.y + x }, (Ponto2D){ centro.x + y, centro.y + x }, cor);
-    desenhar_linha(tela, (Ponto2D){ centro.x - y, centro.y - x }, (Ponto2D){ centro.x + y, centro.y - x }, cor);
+    desenhar_linha(tela, (Int2D){ centro.x - x, centro.y + y }, (Int2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_linha(tela, (Int2D){ centro.x - x, centro.y - y }, (Int2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_linha(tela, (Int2D){ centro.x - y, centro.y + x }, (Int2D){ centro.x + y, centro.y + x }, cor);
+    desenhar_linha(tela, (Int2D){ centro.x - y, centro.y - x }, (Int2D){ centro.x + y, centro.y - x }, cor);
     if (decisão < 0) {
       decisão += 4 * x + 6;
     } else {
@@ -494,7 +494,7 @@ void desenhar_círculo_preenchido(Tela *const tela, const Ponto2D centro, const 
   }
 }
 
-void desenhar_gradiente_radial( Tela *const tela, const Ponto2D centro, const uint32_t raio, const Cor cor_centro, const Cor cor_periferia)
+void desenhar_gradiente_radial( Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor_centro, const Cor cor_periferia)
 {
   if (tela == nullptr || tela->píxeis == nullptr || raio == 0) return;
   if (raio == 1) {
@@ -533,7 +533,7 @@ void desenhar_gradiente_radial( Tela *const tela, const Ponto2D centro, const ui
   }
 }
 
-void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, const int32_t ry, const Cor cor) {
+void desenhar_elipse(Tela *const tela, const Int2D centro, const int32_t rx, const int32_t ry, const Cor cor) {
   if (tela == nullptr || tela->píxeis == nullptr || rx <= 0 || ry <= 0) return;
   const int32_t rx_quadrado = rx * rx;
   const int32_t ry_quadrado = ry * ry;
@@ -543,10 +543,10 @@ void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, c
   int32_t dy = 2 * rx_quadrado * y;
   int32_t decisão = ry_quadrado - (rx_quadrado * ry) + (rx_quadrado / 4);
   while (dx < dy) {
-    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y + y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y + y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y - y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - x, centro.y - y }, cor);
     if (decisão < 0) {
       x++;
       dx += 2 * ry_quadrado;
@@ -561,10 +561,10 @@ void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, c
   }
   decisão = (ry_quadrado * (x * x + x) + rx_quadrado * (y - 1) * (y - 1) - rx_quadrado * ry_quadrado);
   while (y >= 0) {
-    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y + y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y + y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x + x, centro.y - y }, cor);
-    desenhar_píxel(tela, (Ponto2D){ centro.x - x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - x, centro.y + y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x + x, centro.y - y }, cor);
+    desenhar_píxel(tela, (Int2D){ centro.x - x, centro.y - y }, cor);
     if (decisão > 0) {
       y--;
       dy -= 2 * rx_quadrado;
@@ -579,7 +579,7 @@ void desenhar_elipse(Tela *const tela, const Ponto2D centro, const int32_t rx, c
   }
 }
 
-void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2D posição) {
+void desenhar_imagem(Tela *const destino, const Tela *const origem, const Int2D posição) {
   if (destino == nullptr || destino->píxeis == nullptr || origem == nullptr || origem->píxeis == nullptr) return;
   for (int32_t y_origem = 0; y_origem < (int32_t)origem->altura; ++y_origem) {
     const int32_t y_destino = posição.y + y_origem;
@@ -589,13 +589,13 @@ void desenhar_imagem(Tela *const destino, const Tela *const origem, const Ponto2
       if (x_destino < 0 || x_destino >= (int32_t)destino->largura) continue;
       const size_t índice_origem = (size_t)x_origem + (size_t)y_origem * origem->largura;
       const Cor cor_píxel = origem->píxeis[índice_origem];
-      desenhar_píxel_alfa(destino, (Ponto2D){ x_destino, y_destino }, cor_píxel);
+      desenhar_píxel_alfa(destino, (Int2D){ x_destino, y_destino }, cor_píxel);
     }
   }
 }
 
 void desenhar_imagem_escala(
-  Tela *const destino, const Tela *const origem, const Ponto2D posição, const int32_t largura_nova, const int32_t altura_nova)
+  Tela *const destino, const Tela *const origem, const Int2D posição, const int32_t largura_nova, const int32_t altura_nova)
 {
   if (destino == nullptr || destino->píxeis == nullptr) return;
   if (origem == nullptr || origem->píxeis == nullptr) return;
@@ -612,12 +612,12 @@ void desenhar_imagem_escala(
       const int32_t x_origem = (x_dest * escala_x) >> 16;
       const size_t índice_origem = (size_t)y_origem * origem->largura + (size_t)x_origem;
       const Cor cor_píxel = origem->píxeis[índice_origem];
-      desenhar_píxel_alfa(destino, (Ponto2D){ x_destino_real, y_destino_real }, cor_píxel);
+      desenhar_píxel_alfa(destino, (Int2D){ x_destino_real, y_destino_real }, cor_píxel);
     }
   }
 }
 
-void desenhar_imagem_rodada(Tela *const destino, const Tela *const origem, const Ponto2D posição, const float radianos, const Ponto2D pivô)
+void desenhar_imagem_rodada(Tela *const destino, const Tela *const origem, const Int2D posição, const float radianos, const Int2D pivô)
 {
   if (destino == nullptr || destino->píxeis == nullptr) return;
   if (origem == nullptr || origem->píxeis == nullptr) return;
@@ -650,7 +650,7 @@ void desenhar_imagem_rodada(Tela *const destino, const Tela *const origem, const
       if (x_origem >= 0 && x_origem < (int32_t)origem->largura && y_origem >= 0 && y_origem < (int32_t)origem->altura) {
         const size_t índice_origem = (size_t)x_origem + (size_t)y_origem * origem->largura;
         const Cor cor_píxel = origem->píxeis[índice_origem];
-        desenhar_píxel_alfa(destino, (Ponto2D){ x_dest, y_dest }, cor_píxel);
+        desenhar_píxel_alfa(destino, (Int2D){ x_dest, y_dest }, cor_píxel);
       }
     }
   }
@@ -659,8 +659,8 @@ void desenhar_imagem_rodada(Tela *const destino, const Tela *const origem, const
 void desenhar_subimagem(
   Tela *const destino,
   const Tela *const origem,
-  const Ponto2D pos_destino,
-  const Ponto2D pos_origem,
+  const Int2D pos_destino,
+  const Int2D pos_origem,
   const uint32_t larg_sub,
   const uint32_t alt_sub)
 {
@@ -704,7 +704,7 @@ void desenhar_subimagem(
       const int32_t x_destino = dest_início_x + dx;
       const size_t índice_origem = índice_linha_origem + (size_t)x_origem;
       const Cor cor_píxel = origem->píxeis[índice_origem];
-      desenhar_píxel_alfa(destino, (Ponto2D){ x_destino, y_destino }, cor_píxel);
+      desenhar_píxel_alfa(destino, (Int2D){ x_destino, y_destino }, cor_píxel);
     }
   }
 }
@@ -845,15 +845,15 @@ int main() {
   Tela tela = criar_tela(500, 500);
   if (tela.píxeis == nullptr) return 1;
   limpar_tela(&tela, COR_BRANCA);
-  desenhar_píxel(&tela, (Ponto2D){ 250, 250 }, COR_PRETA);
-  desenhar_linha(&tela, (Ponto2D){ 10, 10 }, (Ponto2D){ 490, 490 }, COR_VERMELHA);
-  desenhar_retângulo(&tela, (Ponto2D){ 30, 50 }, 120, 80, COR_AZUL);
-  desenhar_retângulo_preenchido(&tela, (Ponto2D){ 30, 350 }, 100, 100, COR_VERDE);
-  desenhar_círculo(&tela, (Ponto2D){ 400, 100 }, 50, COR_AMARELA);
-  desenhar_círculo_preenchido(&tela, (Ponto2D){ 400, 380 }, 60, COR_MAGENTA);
-  desenhar_curva_bezier_quadrática(&tela, (Ponto2D){ 200, 100 }, (Ponto2D){ 300, 50 }, (Ponto2D){ 400, 100 }, COR_VERDE);
-  // desenhar_curva_bezier_cúbica(&tela, (Ponto2D){ 100, 150 }, (Ponto2D){ 150, 50 }, (Ponto2D){ 250, 250 }, (Ponto2D){ 300, 150 }, COR_VERMELHA);
-  desenhar_curva_bezier_subdivisão(&tela, (Ponto2D){ 100, 150 }, (Ponto2D){ 150, 50 }, (Ponto2D){ 250, 250 }, (Ponto2D){ 300, 150 }, COR_VERDE, 1);
+  desenhar_píxel(&tela, (Int2D){ 250, 250 }, COR_PRETA);
+  desenhar_linha(&tela, (Int2D){ 10, 10 }, (Int2D){ 490, 490 }, COR_VERMELHA);
+  desenhar_retângulo(&tela, (Int2D){ 30, 50 }, 120, 80, COR_AZUL);
+  desenhar_retângulo_preenchido(&tela, (Int2D){ 30, 350 }, 100, 100, COR_VERDE);
+  desenhar_círculo(&tela, (Int2D){ 400, 100 }, 50, COR_AMARELA);
+  desenhar_círculo_preenchido(&tela, (Int2D){ 400, 380 }, 60, COR_MAGENTA);
+  desenhar_curva_bezier_quadrática(&tela, (Int2D){ 200, 100 }, (Int2D){ 300, 50 }, (Int2D){ 400, 100 }, COR_VERDE);
+  // desenhar_curva_bezier_cúbica(&tela, (Int2D){ 100, 150 }, (Int2D){ 150, 50 }, (Int2D){ 250, 250 }, (Int2D){ 300, 150 }, COR_VERMELHA);
+  desenhar_curva_bezier_subdivisão(&tela, (Int2D){ 100, 150 }, (Int2D){ 150, 50 }, (Int2D){ 250, 250 }, (Int2D){ 300, 150 }, COR_VERDE, 1);
   if (exportar_para_ficheiro(&tela, "exemplo.ppm")) {
     printf("Imagem guardada com sucesso em 'exemplo.ppm'!\n");
   } else {
