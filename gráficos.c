@@ -40,6 +40,8 @@ typedef struct {
 
 int comparar_inteiros_32(const void *const a, const void *const b);
 
+static inline float normalizar_radianos(float ângulo);
+
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], const size_t núm_pontos, const Int2D translação, const float radianos, const float escala);
 Int2D rodar_ponto(const Int2D ponto, const Int2D origem, const float radianos);
 
@@ -66,6 +68,7 @@ void desenhar_círculo(Tela *const tela, const Int2D centro, const uint32_t raio
 void desenhar_círculo_preenchido(Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor);
 void desenhar_gradiente_radial( Tela *const tela, const Int2D centro, const uint32_t raio, const Cor cor_centro, const Cor cor_periferia);
 void desenhar_arco(Tela *const tela, const Int2D centro, const uint32_t raio, const float ângulo_início, const float ângulo_fim, const Cor cor);
+void desenhar_setor_circular(Tela *const tela, const Int2D centro, const uint32_t raio, const float ângulo_início, const float ângulo_fim, const Cor cor);
 void desenhar_elipse(Tela *const tela, const Int2D centro, const int32_t rx, const int32_t ry, const Cor cor);
 void desenhar_elipse_preenchida(Tela *const tela, const Int2D centro, const int32_t rx, const int32_t ry, const Cor cor);
 void desenhar_imagem(Tela *const destino, const Tela *const origem, const Int2D posição);
@@ -82,6 +85,13 @@ int comparar_inteiros_32(const void *const a, const void *const b) {
   const int32_t valor_a = *(const int32_t *)a;
   const int32_t valor_b = *(const int32_t *)b;
   return (valor_a > valor_b) - (valor_a < valor_b);
+}
+
+static inline float normalizar_radianos(float ângulo) {
+  constexpr float DOIS_PI = 6.28318530717958647692f;
+  ângulo = fmodf(ângulo, DOIS_PI);
+  if (ângulo < 0.0f) ângulo += DOIS_PI;
+  return ângulo;
 }
 
 void transformar_pontos(
@@ -604,13 +614,6 @@ void desenhar_gradiente_radial( Tela *const tela, const Int2D centro, const uint
   }
 }
 
-static inline float normalizar_radianos(float ângulo) {
-  constexpr float DOIS_PI = 6.28318530717958647692f;
-  ângulo = fmodf(ângulo, DOIS_PI);
-  if (ângulo < 0.0f) ângulo += DOIS_PI;
-  return ângulo;
-}
-
 static inline bool ponto_no_arco(const int32_t dx, const int32_t dy, const float início_norm, const float amplitude, const bool cruza_zero) {
   constexpr float DOIS_PI = 6.28318530717958647692f;
   if (amplitude >= DOIS_PI) return true;
@@ -658,6 +661,55 @@ void desenhar_arco(Tela *const tela, const Int2D centro, const uint32_t raio, co
       y--;
     }
     x++;
+  }
+}
+
+void desenhar_setor_circular(Tela *const tela, const Int2D centro, const uint32_t raio, const float ângulo_início, const float ângulo_fim, const Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura <= 0 || tela->altura <= 0) return;
+  constexpr float DOIS_PI = 6.28318530717958647692f;
+  const float amplitude = ângulo_fim - ângulo_início;
+  if (amplitude <= 0.0f) return;
+  if (raio == 0) {
+    desenhar_píxel(tela, centro, cor);
+    return;
+  }
+  if (amplitude >= DOIS_PI) {
+    desenhar_círculo_preenchido(tela, centro, raio, cor);
+    return;
+  }
+  const int32_t r = (int32_t)raio;
+  const int64_t raio_quadrado = (int64_t)r * (int64_t)r;
+  int32_t y_mín = centro.y - r;
+  int32_t y_máx = centro.y + r;
+  int32_t x_mín = centro.x - r;
+  int32_t x_máx = centro.x + r;
+  if (y_mín < 0) y_mín = 0;
+  if (y_máx >= (int32_t)tela->altura) y_máx = (int32_t)tela->altura - 1;
+  if (x_mín < 0) x_mín = 0;
+  if (x_máx >= (int32_t)tela->largura) x_máx = (int32_t)tela->largura - 1;
+  if (y_mín > y_máx || x_mín > x_máx) return;
+  const float início_norm = normalizar_radianos(ângulo_início);
+  const float fim_norm = início_norm + amplitude;
+  const bool cruza_zero = fim_norm >= DOIS_PI;
+  const float fim_ajustado = fim_norm - DOIS_PI;
+  for (int32_t y = y_mín; y <= y_máx; y++) {
+    const int64_t dy = (int64_t)y - (int64_t)centro.y;
+    const int64_t dy2 = dy * dy;
+    Cor *const linha_tela = &tela->píxeis[(size_t)y * tela->largura];
+    for (int32_t x = x_mín; x <= x_máx; x++) {
+      const int64_t dx = (int64_t)x - (int64_t)centro.x;
+      if ((dx * dx + dy2) > raio_quadrado) continue;
+      if (dx == 0 && dy == 0) {
+        linha_tela[x] = cor;
+        continue;
+      }
+      float ângulo = atan2f((float)dy, (float)dx);
+      if (ângulo < 0.0f) ângulo += DOIS_PI;
+      const bool dentro = !cruza_zero
+        ? (ângulo >= início_norm && ângulo <= fim_norm)
+        : (ângulo >= início_norm || ângulo <= fim_ajustado);
+      if (dentro) linha_tela[x] = cor;
+    }
   }
 }
 
