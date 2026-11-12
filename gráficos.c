@@ -6,6 +6,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef enum {
+  MISTURA_NORMAL,
+  MISTURA_ADITIVA,
+  MISTURA_MULTIPLICAR,
+  MISTURA_ECRÃ
+} ModoMistura;
+
 typedef struct {
   uint8_t vermelho;
   uint8_t verde;
@@ -76,6 +83,7 @@ void destruir_tela(Tela *tela);
 void limpar_tela(Tela *tela, Cor fundo);
 void desenhar_píxel(Tela *tela, Int2D ponto, Cor cor);
 void desenhar_píxel_alfa(Tela *tela, Int2D ponto, Cor cor_fonte);
+void desenhar_píxel_mistura(Tela *tela, Int2D ponto, Cor cor_fonte, ModoMistura modo);
 void desenhar_linha(Tela *tela, Int2D início, Int2D fim, Cor cor);
 void desenhar_linha_horizontal(Tela *tela, int32_t y, int32_t x_início, int32_t x_fim, Cor cor);
 void desenhar_linha_espessa(Tela *tela, Int2D início, Int2D fim, uint32_t espessura, Cor cor);
@@ -408,6 +416,52 @@ void desenhar_píxel_alfa(Tela *const tela, const Int2D ponto, const Cor cor_fon
     .azul = (uint8_t)((azul_misturado + 1 + (azul_misturado >> 8)) >> 8),
     .alfa = 255
   };
+}
+
+void desenhar_píxel_mistura(Tela *tela, Int2D ponto, Cor cor_fonte, ModoMistura modo) {
+  if (tela == nullptr || tela->píxeis == nullptr) return;
+  if (ponto.x < 0 || ponto.y < 0 || (uint32_t)ponto.x >= tela->largura || (uint32_t)ponto.y >= tela->altura) return;
+  if (cor_fonte.alfa == 0) return;
+  Cor *const destino = &tela->píxeis[(size_t)ponto.y * tela->largura + (size_t)ponto.x];
+  if (modo == MISTURA_NORMAL && cor_fonte.alfa == 255) {
+    *destino = cor_fonte;
+    return;
+  }
+  uint32_t r_mistura = cor_fonte.vermelho;
+  uint32_t g_mistura = cor_fonte.verde;
+  uint32_t b_mistura = cor_fonte.azul;
+  switch (modo) {
+    case MISTURA_NORMAL:
+      break;
+    case MISTURA_ADITIVA: {
+      r_mistura = (uint32_t)destino->vermelho + r_mistura;
+      g_mistura = (uint32_t)destino->verde    + g_mistura;
+      b_mistura = (uint32_t)destino->azul     + b_mistura;
+      if (r_mistura > 255) r_mistura = 255;
+      if (g_mistura > 255) g_mistura = 255;
+      if (b_mistura > 255) b_mistura = 255;
+      break;
+    }
+    case MISTURA_MULTIPLICAR: {
+      r_mistura = ((uint32_t)destino->vermelho * r_mistura + 127) / 255;
+      g_mistura = ((uint32_t)destino->verde    * g_mistura + 127) / 255;
+      b_mistura = ((uint32_t)destino->azul     * b_mistura + 127) / 255;
+      break;
+    }
+    case MISTURA_ECRÃ: {
+      r_mistura = 255 - (((255 - (uint32_t)destino->vermelho) * (255 - r_mistura) + 127) / 255);
+      g_mistura = 255 - (((255 - (uint32_t)destino->verde)    * (255 - g_mistura) + 127) / 255);
+      b_mistura = 255 - (((255 - (uint32_t)destino->azul)     * (255 - b_mistura) + 127) / 255);
+      break;
+    }
+  }
+  const uint32_t alfa = cor_fonte.alfa;
+  const uint32_t inv_alfa = 255 - alfa;
+  destino->vermelho = (uint8_t)((r_mistura * alfa + (uint32_t)destino->vermelho * inv_alfa + 127) / 255);
+  destino->verde    = (uint8_t)((g_mistura * alfa + (uint32_t)destino->verde    * inv_alfa + 127) / 255);
+  destino->azul     = (uint8_t)((b_mistura * alfa + (uint32_t)destino->azul     * inv_alfa + 127) / 255);
+  const uint32_t novo_alfa = alfa + (((uint32_t)destino->alfa * inv_alfa + 127) / 255);
+  destino->alfa = (uint8_t)(novo_alfa > 255 ? 255 : novo_alfa);
 }
 
 void desenhar_linha(Tela *const tela, const Int2D início, const Int2D fim, const Cor cor) {
