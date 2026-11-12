@@ -61,6 +61,7 @@ void desenhar_triângulo_preenchido_base_plana(Tela *const tela, const Int2D p1,
 void desenhar_triângulo_preenchido_topo_plano(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
 void desenhar_retângulo(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_retângulo_preenchido(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
+void desenhar_retângulo_arredondado(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, uint32_t raio, const Cor cor);
 void desenhar_gradiente_linear(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor_início, const Cor cor_fim, const bool vertical);
 void desenhar_polígono(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor);
 void desenhar_polígono_preenchido(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor);
@@ -416,6 +417,62 @@ void desenhar_retângulo_preenchido(
   for (int32_t y = início_y; y < fim_y; ++y) {
     const uint32_t índice_linha = (uint32_t)y * tela->largura;
     for (int32_t x = início_x; x < fim_x; ++x) tela->píxeis[índice_linha + (uint32_t)x] = cor;
+  }
+}
+
+void desenhar_retângulo_arredondado(
+  Tela *const tela,
+  const Int2D superior_esquerdo,
+  const uint32_t largura,
+  const uint32_t altura,
+  uint32_t raio,
+  const Cor cor)
+{
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) return;
+  if (largura == 0 || altura == 0) return;
+  if (raio == 0) {
+    desenhar_retângulo(tela, superior_esquerdo, largura, altura, cor);
+    return;
+  }
+  const uint32_t metade_menor = (largura < altura ? largura : altura) / 2;
+  const int32_t r = (int32_t)(raio > metade_menor ? metade_menor : raio);
+  const int32_t x0 = superior_esquerdo.x;
+  const int32_t y0 = superior_esquerdo.y;
+  const int32_t x1 = x0 + (int32_t)largura - 1;
+  const int32_t y1 = y0 + (int32_t)altura - 1;
+  const int32_t cx_esq = x0 + r;
+  const int32_t cx_dir = x1 - r;
+  const int32_t cy_sup = y0 + r;
+  const int32_t cy_inf = y1 - r;
+  if (cx_esq <= cx_dir)
+    for (int32_t x = cx_esq; x <= cx_dir; x++) {
+      desenhar_píxel(tela, (Int2D){ .x = x, .y = y0 }, cor);
+      desenhar_píxel(tela, (Int2D){ .x = x, .y = y1 }, cor);
+    }
+  if (cy_sup <= cy_inf)
+    for (int32_t y = cy_sup; y <= cy_inf; y++) {
+      desenhar_píxel(tela, (Int2D){ .x = x0, .y = y }, cor);
+      desenhar_píxel(tela, (Int2D){ .x = x1, .y = y }, cor);
+    }
+  int32_t x = 0;
+  int32_t y = r;
+  int32_t d = 1 - r;
+  while (x <= y) {
+    desenhar_píxel(tela, (Int2D){ .x = cx_esq - x, .y = cy_sup - y }, cor);
+    desenhar_píxel(tela, (Int2D){ .x = cx_esq - y, .y = cy_sup - x }, cor);
+    desenhar_píxel(tela, (Int2D){ .x = cx_dir + x, .y = cy_sup - y }, cor);
+    desenhar_píxel(tela, (Int2D){ .x = cx_dir + y, .y = cy_sup - x }, cor);
+    desenhar_píxel(tela, (Int2D){ .x = cx_esq - x, .y = cy_inf + y }, cor);
+    desenhar_píxel(tela, (Int2D){ .x = cx_esq - y, .y = cy_inf + x }, cor);
+    desenhar_píxel(tela, (Int2D){ .x = cx_dir + x, .y = cy_inf + y }, cor);
+    desenhar_píxel(tela, (Int2D){ .x = cx_dir + y, .y = cy_inf + x }, cor);
+    if (d < 0) {
+      d += 2 * x + 3;
+    } else {
+      d += 2 * (x - y) + 5;
+      y--;
+    }
+    x++;
   }
 }
 
