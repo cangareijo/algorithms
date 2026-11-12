@@ -58,6 +58,7 @@ void desenhar_polilinha(Tela *const tela, const Int2D vértices[], const size_t 
 void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor);
 void desenhar_curva_bezier_cúbica(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
 void desenhar_curva_bezier_subdivisão(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor, const float tolerância_píxeis);
+void desenhar_spline_catmull_rom(Tela *const tela, const Int2D pontos[], const size_t núm_pontos, const uint32_t subdivisões_por_segmento, const Cor cor);
 void desenhar_triângulo(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
 void desenhar_triângulo_preenchido(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
 void desenhar_triângulo_preenchido_base_plana(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
@@ -461,8 +462,8 @@ void desenhar_curva_bezier_subdivisão(
   const Int2D p2,
   const Int2D p3,
   const Cor cor,
-  const float tolerância_píxeis
-) {
+  const float tolerância_píxeis)
+{
   if (tela == nullptr || tela->píxeis == nullptr) return;
   const float tol = tolerância_píxeis > 0.05f ? tolerância_píxeis : 0.05f;
   const float tolerância_quadrada = tol * tol;
@@ -471,6 +472,61 @@ void desenhar_curva_bezier_subdivisão(
   const Flut2D f2 = { (float)p2.x, (float)p2.y };
   const Flut2D f3 = { (float)p3.x, (float)p3.y };
   subdividir_bezier_recursivo(tela, f0, f1, f2, f3, cor, tolerância_quadrada, 0);
+}
+
+static inline Int2D avaliar_catmull_rom(
+  const Int2D p0,
+  const Int2D p1,
+  const Int2D p2,
+  const Int2D p3,
+  const float t)
+{
+  const float t2 = t * t;
+  const float t3 = t2 * t;
+  const float b0 = -0.5f * t3 + t2 - 0.5f * t;
+  const float b1 =  1.5f * t3 - 2.5f * t2 + 1.0f;
+  const float b2 = -1.5f * t3 + 2.0f * t2 + 0.5f * t;
+  const float b3 =  0.5f * t3 - 0.5f * t2;
+  const float x = b0 * (float)p0.x + b1 * (float)p1.x + b2 * (float)p2.x + b3 * (float)p3.x;
+  const float y = b0 * (float)p0.y + b1 * (float)p1.y + b2 * (float)p2.y + b3 * (float)p3.y;
+  return (Int2D){
+    .x = (int32_t)roundf(x),
+    .y = (int32_t)roundf(y)
+  };
+}
+
+void desenhar_spline_catmull_rom(
+  Tela *const tela,
+  const Int2D pontos[],
+  const size_t núm_pontos,
+  const uint32_t subdivisões_por_segmento,
+  const Cor cor)
+{
+  if (tela == nullptr || tela->píxeis == nullptr || pontos == nullptr) return;
+  if (tela->largura == 0 || tela->altura == 0 || núm_pontos == 0) return;
+  if (núm_pontos == 1) {
+    desenhar_píxel(tela, pontos[0], cor);
+    return;
+  }
+  if (núm_pontos == 2) {
+    desenhar_linha(tela, pontos[0], pontos[1], cor);
+    return;
+  }
+  const uint32_t passos = (subdivisões_por_segmento > 0) ? subdivisões_por_segmento : 16;
+  const float passo_t = 1.0f / (float)passos;
+  for (size_t i = 0; i + 1 < núm_pontos; i++) {
+    const Int2D p0 = i == 0 ? pontos[i] : pontos[i - 1];
+    const Int2D p1 = pontos[i];
+    const Int2D p2 = pontos[i + 1];
+    const Int2D p3 = i + 2 < núm_pontos ? pontos[i + 2] : pontos[núm_pontos - 1];
+    Int2D anterior = p1;
+    for (uint32_t s = 1; s <= passos; s++) {
+      const float t = s == passos ? 1.0f : (float)s * passo_t;
+      const Int2D atual = avaliar_catmull_rom(p0, p1, p2, p3, t);
+      desenhar_linha(tela, anterior, atual, cor);
+      anterior = atual;
+    }
+  }
 }
 
 void desenhar_triângulo(Tela *const tela, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor) {
