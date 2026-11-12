@@ -56,6 +56,9 @@ Matriz3x3 criar_matriz_translação(float tx, float ty);
 Matriz3x3 criar_matriz_rotação(float radianos);
 Matriz3x3 criar_matriz_escala(float sx, float sy);
 Matriz3x3 multiplicar_matrizes(Matriz3x3 a, Matriz3x3 b);
+Matriz3x3 inverter_matriz(Matriz3x3 m);
+Int2D transformar_int2d_matriz(Int2D ponto, Matriz3x3 m);
+Flut2D transformar_flut2d_matriz(Flut2D ponto, Matriz3x3 m);
 
 Tela criar_tela(uint32_t largura, uint32_t altura);
 void destruir_tela(Tela *tela);
@@ -97,6 +100,7 @@ void desenhar_subimagem(Tela *destino, const Tela *origem, Int2D pos_destino, In
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *tela);
 void aplicar_modulação_alfa(Tela *tela, uint8_t alfa);
+void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m);
 
 bool exportar_para_ficheiro(const Tela *tela, const char *caminho);
 
@@ -210,6 +214,48 @@ Matriz3x3 multiplicar_matrizes(Matriz3x3 a, Matriz3x3 b) {
     }
   }
   return resultado;
+}
+
+Matriz3x3 inverter_matriz(Matriz3x3 m) {
+  const float c00 =  (m.m[1][1] * m.m[2][2] - m.m[1][2] * m.m[2][1]);
+  const float c01 = -(m.m[1][0] * m.m[2][2] - m.m[1][2] * m.m[2][0]);
+  const float c02 =  (m.m[1][0] * m.m[2][1] - m.m[1][1] * m.m[2][0]);
+  const float c10 = -(m.m[0][1] * m.m[2][2] - m.m[0][2] * m.m[2][1]);
+  const float c11 =  (m.m[0][0] * m.m[2][2] - m.m[0][2] * m.m[2][0]);
+  const float c12 = -(m.m[0][0] * m.m[2][1] - m.m[0][1] * m.m[2][0]);
+  const float c20 =  (m.m[0][1] * m.m[1][2] - m.m[0][2] * m.m[1][1]);
+  const float c21 = -(m.m[0][0] * m.m[1][2] - m.m[0][2] * m.m[1][0]);
+  const float c22 =  (m.m[0][0] * m.m[1][1] - m.m[0][1] * m.m[1][0]);
+  const float det = m.m[0][0] * c00 + m.m[0][1] * c01 + m.m[0][2] * c02;
+  if (fabsf(det) < 1e-7f) return criar_matriz_identidade();
+  const float inv_det = 1.0f / det;
+  return (Matriz3x3){
+    .m = {
+      { c00 * inv_det, c10 * inv_det, c20 * inv_det },
+      { c01 * inv_det, c11 * inv_det, c21 * inv_det },
+      { c02 * inv_det, c12 * inv_det, c22 * inv_det }
+    }
+  };
+}
+
+Int2D transformar_int2d_matriz(Int2D ponto, Matriz3x3 m) {
+  const Flut2D p_flut = { .x = (float)ponto.x, .y = (float)ponto.y };
+  const Flut2D res = transformar_flut2d_matriz(p_flut, m);
+  return (Int2D){
+    .x = (int32_t)roundf(res.x),
+    .y = (int32_t)roundf(res.y)
+  };
+}
+
+Flut2D transformar_flut2d_matriz(Flut2D ponto, Matriz3x3 m) {
+  const float x = ponto.x * m.m[0][0] + ponto.y * m.m[1][0] + m.m[2][0];
+  const float y = ponto.x * m.m[0][1] + ponto.y * m.m[1][1] + m.m[2][1];
+  const float w = ponto.x * m.m[0][2] + ponto.y * m.m[1][2] + m.m[2][2];
+  if (w != 0.0f && w != 1.0f) {
+    const float inv_w = 1.0f / w;
+    return (Flut2D){ .x = x * inv_w, .y = y * inv_w };
+  }
+  return (Flut2D){ .x = x, .y = y };
 }
 
 [[nodiscard]] Tela criar_tela(const uint32_t largura, const uint32_t altura) {
@@ -1527,6 +1573,61 @@ void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa) {
     const uint32_t alfa_atual = tela->píxeis[i].alfa;
     const uint32_t alfa_temporário = alfa_atual * (uint32_t)alfa;
     tela->píxeis[i].alfa = (uint8_t)((alfa_temporário + 1 + (alfa_temporário >> 8)) >> 8);
+  }
+}
+
+void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
+  if (destino == nullptr || destino->píxeis == nullptr || origem == nullptr || origem->píxeis == nullptr) return;
+  if (destino->largura == 0 || destino->altura == 0 || origem->largura == 0 || origem->altura == 0) return;
+  const float larg_orig = (float)origem->largura;
+  const float alt_orig  = (float)origem->altura;
+  const Flut2D cantos[4] = {
+    transformar_flut2d_matriz((Flut2D){ 0.0f,      0.0f     }, m),
+    transformar_flut2d_matriz((Flut2D){ larg_orig, 0.0f     }, m),
+    transformar_flut2d_matriz((Flut2D){ larg_orig, alt_orig }, m),
+    transformar_flut2d_matriz((Flut2D){ 0.0f,      alt_orig }, m)
+  };
+  float min_x = cantos[0].x;
+  float max_x = cantos[0].x;
+  float min_y = cantos[0].y;
+  float max_y = cantos[0].y;
+  for (size_t i = 1; i < 4; i++) {
+    if (cantos[i].x < min_x) min_x = cantos[i].x;
+    if (cantos[i].x > max_x) max_x = cantos[i].x;
+    if (cantos[i].y < min_y) min_y = cantos[i].y;
+    if (cantos[i].y > max_y) max_y = cantos[i].y;
+  }
+  int32_t x_início = (int32_t)floorf(min_x);
+  int32_t x_fim    = (int32_t)ceilf(max_x);
+  int32_t y_início = (int32_t)floorf(min_y);
+  int32_t y_fim    = (int32_t)ceilf(max_y);
+  if (x_início < 0) x_início = 0;
+  if (x_fim >= (int32_t)destino->largura) x_fim = (int32_t)destino->largura - 1;
+  if (y_início < 0) y_início = 0;
+  if (y_fim >= (int32_t)destino->altura) y_fim = (int32_t)destino->altura - 1;
+  if (x_início > x_fim || y_início > y_fim) return;
+  const Matriz3x3 inv_m = inverter_matriz(m);
+  const float dux = inv_m.m[0][0];
+  const float dvx = inv_m.m[0][1];
+  const float duy = inv_m.m[1][0];
+  const float dvy = inv_m.m[1][1];
+  float linha_u = (float)x_início * inv_m.m[0][0] + (float)y_início * inv_m.m[1][0] + inv_m.m[2][0];
+  float linha_v = (float)x_início * inv_m.m[0][1] + (float)y_início * inv_m.m[1][1] + inv_m.m[2][1];
+  for (int32_t y = y_início; y <= y_fim; y++) {
+    float u = linha_u;
+    float v = linha_v;
+    for (int32_t x = x_início; x <= x_fim; x++) {
+      const int32_t orig_x = (int32_t)floorf(u);
+      const int32_t orig_y = (int32_t)floorf(v);
+      if (orig_x >= 0 && (uint32_t)orig_x < origem->largura && orig_y >= 0 && (uint32_t)orig_y < origem->altura) {
+        const Cor cor_fonte = origem->píxeis[(size_t)orig_y * origem->largura + (size_t)orig_x];
+        if (cor_fonte.alfa > 0) desenhar_píxel_alfa(destino, (Int2D){ .x = x, .y = y }, cor_fonte);
+      }
+      u += dux;
+      v += dvx;
+    }
+    linha_u += duy;
+    linha_v += dvy;
   }
 }
 
