@@ -53,6 +53,7 @@ void desenhar_píxel_alfa(Tela *const tela, const Int2D ponto, const Cor cor_fon
 void desenhar_linha(Tela *const tela, const Int2D início, const Int2D fim, const Cor cor);
 void desenhar_linha_horizontal(Tela *const tela, const int32_t y, int32_t x_início, int32_t x_fim, const Cor cor);
 void desenhar_linha_espessa(Tela *const tela, const Int2D início, const Int2D fim, const uint32_t espessura, const Cor cor);
+void desenhar_linha_suavizada(Tela *const tela, const Int2D início, const Int2D fim, const Cor cor);
 void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor);
 void desenhar_curva_bezier_cúbica(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
 void desenhar_curva_bezier_subdivisão(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor, const float tolerância_píxeis);
@@ -275,6 +276,89 @@ void desenhar_linha_espessa(
       const float dx = px - t * abx;
       const float dy = py - t * aby;
       if (dx * dx + dy * dy <= raio_quadrado) linha_tela[x] = cor;
+    }
+  }
+}
+
+static inline void desenhar_píxel_wu(
+  Tela *const tela,
+  const int32_t x,
+  const int32_t y,
+  const Cor cor,
+  const float intensidade)
+{
+  if (intensidade <= 0.0f) return;
+  Cor cor_ajustada = cor;
+  cor_ajustada.alfa = (uint8_t)roundf((float)cor.alfa * intensidade);
+  if (cor_ajustada.alfa > 0) desenhar_píxel_alfa(tela, (Int2D){ .x = x, .y = y }, cor_ajustada);
+}
+
+void desenhar_linha_suavizada(
+  Tela *const tela,
+  const Int2D início,
+  const Int2D fim,
+  const Cor cor)
+{
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) return;
+  if (cor.alfa == 0) return;
+  float x0 = (float)início.x;
+  float y0 = (float)início.y;
+  float x1 = (float)fim.x;
+  float y1 = (float)fim.y;
+  const bool íngreme = fabsf(y1 - y0) > fabsf(x1 - x0);
+  if (íngreme) {
+    float temp = x0; x0 = y0; y0 = temp;
+    temp = x1; x1 = y1; y1 = temp;
+  }
+  if (x0 > x1) {
+    float temp = x0; x0 = x1; x1 = temp;
+    temp = y0; y0 = y1; y1 = temp;
+  }
+  const float dx = x1 - x0;
+  const float dy = y1 - y0;
+  const float declive = dx == 0.0f ? 1.0f : dy / dx;
+  float x_extremo = roundf(x0);
+  float y_extremo = y0 + declive * (x_extremo - x0);
+  float folga_x = 1.0f - ((x0 + 0.5f) - floorf(x0 + 0.5f));
+  const int32_t x_píxel_1 = (int32_t)x_extremo;
+  const int32_t y_píxel_1 = (int32_t)floorf(y_extremo);
+  const float frac_1 = y_extremo - floorf(y_extremo);
+  if (íngreme) {
+    desenhar_píxel_wu(tela, y_píxel_1,     x_píxel_1, cor, (1.0f - frac_1) * folga_x);
+    desenhar_píxel_wu(tela, y_píxel_1 + 1, x_píxel_1, cor, frac_1 * folga_x);
+  } else {
+    desenhar_píxel_wu(tela, x_píxel_1, y_píxel_1,     cor, (1.0f - frac_1) * folga_x);
+    desenhar_píxel_wu(tela, x_píxel_1, y_píxel_1 + 1, cor, frac_1 * folga_x);
+  }
+  float interseção_y = y_extremo + declive;
+  x_extremo = roundf(x1);
+  y_extremo = y1 + declive * (x_extremo - x1);
+  folga_x = (x1 + 0.5f) - floorf(x1 + 0.5f);
+  const int32_t x_píxel_2 = (int32_t)x_extremo;
+  const int32_t y_píxel_2 = (int32_t)floorf(y_extremo);
+  const float frac_2 = y_extremo - floorf(y_extremo);
+  if (íngreme) {
+    desenhar_píxel_wu(tela, y_píxel_2,     x_píxel_2, cor, (1.0f - frac_2) * folga_x);
+    desenhar_píxel_wu(tela, y_píxel_2 + 1, x_píxel_2, cor, frac_2 * folga_x);
+  } else {
+    desenhar_píxel_wu(tela, x_píxel_2, y_píxel_2,     cor, (1.0f - frac_2) * folga_x);
+    desenhar_píxel_wu(tela, x_píxel_2, y_píxel_2 + 1, cor, frac_2 * folga_x);
+  }
+  if (íngreme) {
+    for (int32_t x = x_píxel_1 + 1; x < x_píxel_2; x++) {
+      const int32_t y_inteiro = (int32_t)floorf(interseção_y);
+      const float frac = interseção_y - (float)y_inteiro;
+      desenhar_píxel_wu(tela, y_inteiro,     x, cor, 1.0f - frac);
+      desenhar_píxel_wu(tela, y_inteiro + 1, x, cor, frac);
+      interseção_y += declive;
+    }
+  } else {
+    for (int32_t x = x_píxel_1 + 1; x < x_píxel_2; x++) {
+      const int32_t y_inteiro = (int32_t)floorf(interseção_y);
+      const float frac = interseção_y - (float)y_inteiro;
+      desenhar_píxel_wu(tela, x, y_inteiro,     cor, 1.0f - frac);
+      desenhar_píxel_wu(tela, x, y_inteiro + 1, cor, frac);
+      interseção_y += declive;
     }
   }
 }
