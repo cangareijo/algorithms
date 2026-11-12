@@ -24,6 +24,10 @@ typedef struct {
 } Flut2D;
 
 typedef struct {
+  float m[3][3];
+} Matriz3x3;
+
+typedef struct {
   uint32_t largura;
   uint32_t altura;
   Cor *píxeis;
@@ -42,8 +46,16 @@ int comparar_inteiros_32(const void *a, const void *b);
 
 static inline float normalizar_radianos(float ângulo);
 
+bool cores_iguais(Cor a, Cor b);
+
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], size_t núm_pontos, Int2D translação, float radianos, float escala);
 Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
+
+Matriz3x3 criar_matriz_identidade(void);
+Matriz3x3 criar_matriz_translação(float tx, float ty);
+Matriz3x3 criar_matriz_rotação(float radianos);
+Matriz3x3 criar_matriz_escala(float sx, float sy);
+Matriz3x3 multiplicar_matrizes(Matriz3x3 a, Matriz3x3 b);
 
 Tela criar_tela(uint32_t largura, uint32_t altura);
 void destruir_tela(Tela *tela);
@@ -77,6 +89,7 @@ void desenhar_arco(Tela *tela, Int2D centro, uint32_t raio, float ângulo_iníci
 void desenhar_setor_circular(Tela *tela, Int2D centro, uint32_t raio, float ângulo_início, float ângulo_fim, Cor cor);
 void desenhar_elipse(Tela *tela, Int2D centro, int32_t rx, int32_t ry, Cor cor);
 void desenhar_elipse_preenchida(Tela *tela, Int2D centro, int32_t rx, int32_t ry, Cor cor);
+void preencher_área(Tela *tela, Int2D semente, Cor nova_cor);
 void desenhar_imagem(Tela *destino, const Tela *origem, Int2D posição);
 void desenhar_imagem_escala(Tela *destino, const Tela *origem, Int2D posição, int32_t largura_nova, int32_t altura_nova);
 void desenhar_imagem_rodada(Tela *destino,  const Tela *origem,  Int2D posição,  float radianos,  Int2D pivô);
@@ -98,6 +111,13 @@ static inline float normalizar_radianos(float ângulo) {
   ângulo = fmodf(ângulo, DOIS_PI);
   if (ângulo < 0.0f) ângulo += DOIS_PI;
   return ângulo;
+}
+
+bool cores_iguais(const Cor a, const Cor b) {
+  return a.vermelho == b.vermelho &&
+         a.verde    == b.verde    &&
+         a.azul     == b.azul     &&
+         a.alfa     == b.alfa;
 }
 
 void transformar_pontos(
@@ -135,6 +155,61 @@ void transformar_pontos(
     .x = (int32_t)roundf(novo_x),
     .y = (int32_t)roundf(novo_y)
   };
+}
+
+Matriz3x3 criar_matriz_identidade(void) {
+  return (Matriz3x3){
+    .m = {
+      { 1.0f, 0.0f, 0.0f },
+      { 0.0f, 1.0f, 0.0f },
+      { 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+Matriz3x3 criar_matriz_translação(float tx, float ty) {
+  return (Matriz3x3){
+    .m = {
+      { 1.0f, 0.0f, 0.0f },
+      { 0.0f, 1.0f, 0.0f },
+      {   tx,   ty, 1.0f }
+    }
+  };
+}
+
+Matriz3x3 criar_matriz_rotação(float radianos) {
+  const float c = cosf(radianos);
+  const float s = sinf(radianos);
+  return (Matriz3x3){
+    .m = {
+      {    c,    s, 0.0f },
+      {   -s,    c, 0.0f },
+      { 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+Matriz3x3 criar_matriz_escala(float sx, float sy) {
+  return (Matriz3x3){
+    .m = {
+      {   sx, 0.0f, 0.0f },
+      { 0.0f,   sy, 0.0f },
+      { 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+Matriz3x3 multiplicar_matrizes(Matriz3x3 a, Matriz3x3 b) {
+  Matriz3x3 resultado = {};
+  for (size_t linha = 0; linha < 3; linha++) {
+    for (size_t coluna = 0; coluna < 3; coluna++) {
+      resultado.m[linha][coluna] =
+        a.m[linha][0] * b.m[0][coluna] +
+        a.m[linha][1] * b.m[1][coluna] +
+        a.m[linha][2] * b.m[2][coluna];
+    }
+  }
+  return resultado;
 }
 
 [[nodiscard]] Tela criar_tela(const uint32_t largura, const uint32_t altura) {
@@ -1138,6 +1213,59 @@ void desenhar_elipse_preenchida(Tela *const tela, const Int2D centro, const int3
     }
   }
   desenhar_linha_horizontal(tela, centro.y, centro.x - rx, centro.x + rx, cor);
+}
+
+void preencher_área(Tela *const tela, const Int2D semente, const Cor nova_cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) return;
+  if (semente.x < 0 || semente.y < 0 || (uint32_t)semente.x >= tela->largura || (uint32_t)semente.y >= tela->altura) return;
+  const size_t largura = (size_t)tela->largura;
+  const size_t altura = (size_t)tela->altura;
+  const Cor cor_alvo = tela->píxeis[(size_t)semente.y * largura + (size_t)semente.x];
+  if (cores_iguais(cor_alvo, nova_cor)) return;
+  size_t capacidade = 1024;
+  size_t topo = 0;
+  Int2D *pilha = malloc(capacidade * sizeof(Int2D));
+  if (pilha == nullptr) return;
+  pilha[topo++] = (Int2D){ .x = semente.x, .y = semente.y };
+  while (topo > 0) {
+    const Int2D atual = pilha[--topo];
+    const int32_t y = atual.y;
+    Cor *const linha = &tela->píxeis[(size_t)y * largura];
+    if (!cores_iguais(linha[atual.x], cor_alvo)) continue;
+    int32_t x_esq = atual.x;
+    while (x_esq > 0 && cores_iguais(linha[x_esq - 1], cor_alvo)) x_esq--;
+    int32_t x_dir = atual.x;
+    while ((size_t)(x_dir + 1) < largura && cores_iguais(linha[x_dir + 1], cor_alvo)) x_dir++;
+    for (int32_t x = x_esq; x <= x_dir; x++) linha[x] = nova_cor;
+    const int32_t vizinhos_y[2] = { y - 1, y + 1 };
+    for (size_t v = 0; v < 2; v++) {
+      const int32_t vy = vizinhos_y[v];
+      if (vy < 0 || (size_t)vy >= altura) continue;
+      const Cor *const linha_vizinha = &tela->píxeis[(size_t)vy * largura];
+      bool em_segmento = false;
+      for (int32_t x = x_esq; x <= x_dir; x++) {
+        if (cores_iguais(linha_vizinha[x], cor_alvo)) {
+          if (!em_segmento) {
+            if (topo == capacidade) {
+              const size_t nova_capacidade = capacidade * 2;
+              Int2D *const nova_pilha = realloc(pilha, nova_capacidade * sizeof(Int2D));
+              if (nova_pilha == nullptr) {
+                free(pilha);
+                return;
+              }
+              pilha = nova_pilha;
+              capacidade = nova_capacidade;
+            }
+            pilha[topo++] = (Int2D){ .x = x, .y = vy };
+            em_segmento = true;
+          }
+        } else {
+          em_segmento = false;
+        }
+      }
+    }
+  }
+  free(pilha);
 }
 
 void desenhar_imagem(Tela *const destino, const Tela *const origem, const Int2D posição) {
