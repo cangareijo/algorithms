@@ -54,6 +54,7 @@ void desenhar_linha(Tela *const tela, const Int2D início, const Int2D fim, cons
 void desenhar_linha_horizontal(Tela *const tela, const int32_t y, int32_t x_início, int32_t x_fim, const Cor cor);
 void desenhar_linha_espessa(Tela *const tela, const Int2D início, const Int2D fim, const uint32_t espessura, const Cor cor);
 void desenhar_linha_suavizada(Tela *const tela, const Int2D início, const Int2D fim, const Cor cor);
+void desenhar_polilinha(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor, const bool fechada);
 void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor);
 void desenhar_curva_bezier_cúbica(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
 void desenhar_curva_bezier_subdivisão(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor, const float tolerância_píxeis);
@@ -361,6 +362,18 @@ void desenhar_linha_suavizada(
       interseção_y += declive;
     }
   }
+}
+
+void desenhar_polilinha(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor, const bool fechada)
+{
+  if (tela == nullptr || tela->píxeis == nullptr || vértices == nullptr) return;
+  if (tela->largura == 0 || tela->altura == 0 || núm_vértices == 0) return;
+  if (núm_vértices == 1) {
+    desenhar_píxel(tela, vértices[0], cor);
+    return;
+  }
+  for (size_t i = 0; i + 1 < núm_vértices; i++) desenhar_linha(tela, vértices[i], vértices[i + 1], cor);
+  if (fechada && núm_vértices >= 3) desenhar_linha(tela, vértices[núm_vértices - 1], vértices[0], cor);
 }
 
 void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor)
