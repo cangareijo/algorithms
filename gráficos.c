@@ -14,6 +14,13 @@ typedef struct {
 } Cor;
 
 typedef struct {
+  float matiz;
+  float saturação;
+  float valor;
+  uint8_t alfa;
+} CorHSV;
+
+typedef struct {
   int32_t x;
   int32_t y;
 } Int2D;
@@ -47,6 +54,10 @@ int comparar_inteiros_32(const void *a, const void *b);
 static inline float normalizar_radianos(float ângulo);
 
 bool cores_iguais(Cor a, Cor b);
+Cor interpolar_cor(Cor a, Cor b, float fator);
+
+Cor cor_de_hsv(CorHSV hsv);
+CorHSV cor_para_hsv(Cor cor);
 
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], size_t núm_pontos, Int2D translação, float radianos, float escala);
 Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
@@ -122,6 +133,90 @@ bool cores_iguais(const Cor a, const Cor b) {
          a.verde    == b.verde    &&
          a.azul     == b.azul     &&
          a.alfa     == b.alfa;
+}
+
+Cor interpolar_cor(Cor a, Cor b, float fator) {
+  if (fator <= 0.0f) return a;
+  if (fator >= 1.0f) return b;
+  const float inv = 1.0f - fator;
+  return (Cor){
+    .vermelho = (uint8_t)roundf((float)a.vermelho * inv + (float)b.vermelho * fator),
+    .verde    = (uint8_t)roundf((float)a.verde    * inv + (float)b.verde    * fator),
+    .azul     = (uint8_t)roundf((float)a.azul     * inv + (float)b.azul     * fator),
+    .alfa     = (uint8_t)roundf((float)a.alfa     * inv + (float)b.alfa     * fator)
+  };
+}
+
+Cor cor_de_hsv(CorHSV hsv) {
+  constexpr float DOIS_PI = 6.28318530717958647692f;
+  constexpr float TERÇO_PI = 1.04719755119659774615f;
+  const float s = (hsv.saturação < 0.0f) ? 0.0f : (hsv.saturação > 1.0f ? 1.0f : hsv.saturação);
+  const float v = (hsv.valor     < 0.0f) ? 0.0f : (hsv.valor     > 1.0f ? 1.0f : hsv.valor);
+  if (s <= 0.0f) {
+    const uint8_t cinza = (uint8_t)roundf(v * 255.0f);
+    return (Cor){ .vermelho = cinza, .verde = cinza, .azul = cinza, .alfa = hsv.alfa };
+  }
+  float h = fmodf(hsv.matiz, DOIS_PI);
+  if (h < 0.0f) {
+    h += DOIS_PI;
+  }
+  const float c = v * s;
+  const float setor = h / TERÇO_PI;
+  const float x = c * (1.0f - fabsf(fmodf(setor, 2.0f) - 1.0f));
+  const float m = v - c;
+  float r_flut = 0.0f;
+  float g_flut = 0.0f;
+  float b_flut = 0.0f;
+  if (setor < 1.0f) {
+    r_flut = c; g_flut = x; b_flut = 0.0f;
+  } else if (setor < 2.0f) {
+    r_flut = x; g_flut = c; b_flut = 0.0f;
+  } else if (setor < 3.0f) {
+    r_flut = 0.0f; g_flut = c; b_flut = x;
+  } else if (setor < 4.0f) {
+    r_flut = 0.0f; g_flut = x; b_flut = c;
+  } else if (setor < 5.0f) {
+    r_flut = x; g_flut = 0.0f; b_flut = c;
+  } else {
+    r_flut = c; g_flut = 0.0f; b_flut = x;
+  }
+  return (Cor){
+    .vermelho = (uint8_t)roundf((r_flut + m) * 255.0f),
+    .verde    = (uint8_t)roundf((g_flut + m) * 255.0f),
+    .azul     = (uint8_t)roundf((b_flut + m) * 255.0f),
+    .alfa     = hsv.alfa
+  };
+}
+
+CorHSV cor_para_hsv(Cor cor) {
+  constexpr float DOIS_PI = 6.28318530717958647692f;
+  constexpr float TERÇO_PI = 1.04719755119659774615f;
+  const float r = (float)cor.vermelho / 255.0f;
+  const float g = (float)cor.verde    / 255.0f;
+  const float b = (float)cor.azul     / 255.0f;
+  const float c_máx = fmaxf(r, fmaxf(g, b));
+  const float c_mín = fminf(r, fminf(g, b));
+  const float delta = c_máx - c_mín;
+  float h = 0.0f;
+  if (delta > 0.0f) {
+    if (c_máx == r) {
+      h = TERÇO_PI * fmodf((g - b) / delta, 6.0f);
+    } else if (c_máx == g) {
+      h = TERÇO_PI * (((b - r) / delta) + 2.0f);
+    } else {
+      h = TERÇO_PI * (((r - g) / delta) + 4.0f);
+    }
+    if (h < 0.0f) {
+      h += DOIS_PI;
+    }
+  }
+  const float s = (c_máx <= 0.0f) ? 0.0f : (delta / c_máx);
+  return (CorHSV){
+    .matiz     = h,
+    .saturação = s,
+    .valor     = c_máx,
+    .alfa      = cor.alfa
+  };
 }
 
 void transformar_pontos(
