@@ -52,6 +52,7 @@ void desenhar_píxel(Tela *const tela, const Int2D ponto, const Cor cor);
 void desenhar_píxel_alfa(Tela *const tela, const Int2D ponto, const Cor cor_fonte);
 void desenhar_linha(Tela *const tela, const Int2D início, const Int2D fim, const Cor cor);
 void desenhar_linha_horizontal(Tela *const tela, const int32_t y, int32_t x_início, int32_t x_fim, const Cor cor);
+void desenhar_linha_espessa(Tela *const tela, const Int2D início, const Int2D fim, const uint32_t espessura, const Cor cor);
 void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor);
 void desenhar_curva_bezier_cúbica(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor);
 void desenhar_curva_bezier_subdivisão(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Int2D p3, const Cor cor, const float tolerância_píxeis);
@@ -62,6 +63,7 @@ void desenhar_triângulo_preenchido_topo_plano(Tela *const tela, const Int2D p1,
 void desenhar_retângulo(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_retângulo_preenchido(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor);
 void desenhar_retângulo_arredondado(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, uint32_t raio, const Cor cor);
+void desenhar_retângulo_arredondado_preenchido(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const uint32_t raio, const Cor cor);
 void desenhar_gradiente_linear(Tela *const tela, const Int2D superior_esquerdo, const uint32_t largura, const uint32_t altura, const Cor cor_início, const Cor cor_fim, const bool vertical);
 void desenhar_polígono(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor);
 void desenhar_polígono_preenchido(Tela *const tela, const Int2D vértices[], const size_t núm_vértices, const Cor cor);
@@ -223,6 +225,58 @@ void desenhar_linha_horizontal(Tela *const tela, const int32_t y, int32_t x_iní
   if (x_fim >= (int32_t)tela->largura) x_fim = (int32_t)tela->largura - 1;
   Cor *const linha_tela = &tela->píxeis[(size_t)y * tela->largura];
   for (int32_t x = x_início; x <= x_fim; x++) linha_tela[x] = cor;
+}
+
+void desenhar_linha_espessa(
+  Tela *const tela,
+  const Int2D início,
+  const Int2D fim,
+  const uint32_t espessura,
+  const Cor cor)
+{
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) return;
+  if (espessura == 0) return;
+  if (espessura == 1) {
+    desenhar_linha(tela, início, fim, cor);
+    return;
+  }
+  const float raio = (float)espessura * 0.5f;
+  const float raio_quadrado = raio * raio;
+  const int32_t margem = (int32_t)ceilf(raio);
+  int32_t x_mín = (início.x < fim.x ? início.x : fim.x) - margem;
+  int32_t x_máx = (início.x > fim.x ? início.x : fim.x) + margem;
+  int32_t y_mín = (início.y < fim.y ? início.y : fim.y) - margem;
+  int32_t y_máx = (início.y > fim.y ? início.y : fim.y) + margem;
+  if (x_mín < 0) x_mín = 0;
+  if (x_máx >= (int32_t)tela->largura) x_máx = (int32_t)tela->largura - 1;
+  if (y_mín < 0) y_mín = 0;
+  if (y_máx >= (int32_t)tela->altura) y_máx = (int32_t)tela->altura - 1;
+  if (x_mín > x_máx || y_mín > y_máx) return;
+  const float ax = (float)início.x;
+  const float ay = (float)início.y;
+  const float abx = (float)fim.x - ax;
+  const float aby = (float)fim.y - ay;
+  const float comp_quadrado = abx * abx + aby * aby;
+  if (comp_quadrado == 0.0f) {
+    desenhar_círculo_preenchido(tela, início, (uint32_t)raio, cor);
+    return;
+  }
+  const float inv_comp_quadrado = 1.0f / comp_quadrado;
+  for (int32_t y = y_mín; y <= y_máx; y++) {
+    const float py = (float)y - ay;
+    Cor *const linha_tela = &tela->píxeis[(size_t)y * tela->largura];
+    for (int32_t x = x_mín; x <= x_máx; x++) {
+      const float px = (float)x - ax;
+      float t = (px * abx + py * aby) * inv_comp_quadrado;
+      if (t < 0.0f)
+        t = 0.0f;
+      else if (t > 1.0f)
+        t = 1.0f;
+      const float dx = px - t * abx;
+      const float dy = py - t * aby;
+      if (dx * dx + dy * dy <= raio_quadrado) linha_tela[x] = cor;
+    }
+  }
 }
 
 void desenhar_curva_bezier_quadrática(Tela *const tela, const Int2D p0, const Int2D p1, const Int2D p2, const Cor cor)
@@ -469,6 +523,62 @@ void desenhar_retângulo_arredondado(
     if (d < 0) {
       d += 2 * x + 3;
     } else {
+      d += 2 * (x - y) + 5;
+      y--;
+    }
+    x++;
+  }
+}
+
+void desenhar_retângulo_arredondado_preenchido(
+  Tela *const tela,
+  const Int2D superior_esquerdo,
+  const uint32_t largura,
+  const uint32_t altura,
+  const uint32_t raio,
+  const Cor cor)
+{
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) return;
+  if (largura == 0 || altura == 0) return;
+  if (raio == 0) {
+    desenhar_retângulo_preenchido(tela, superior_esquerdo, largura, altura, cor);
+    return;
+  }
+  const uint32_t metade_menor = (largura < altura ? largura : altura) / 2;
+  const int32_t r = (int32_t)(raio > metade_menor ? metade_menor : raio);
+  const int32_t x0 = superior_esquerdo.x;
+  const int32_t y0 = superior_esquerdo.y;
+  const int32_t x1 = x0 + (int32_t)largura - 1;
+  const int32_t y1 = y0 + (int32_t)altura - 1;
+  const int32_t cx_esq = x0 + r;
+  const int32_t cx_dir = x1 - r;
+  const int32_t cy_sup = y0 + r;
+  const int32_t cy_inf = y1 - r;
+  if (cy_sup <= cy_inf)
+    desenhar_retângulo_preenchido(
+      tela,
+      (Int2D){ .x = x0, .y = cy_sup },
+      largura,
+      (uint32_t)(cy_inf - cy_sup + 1),
+      cor
+    );
+  int32_t x = 0;
+  int32_t y = r;
+  int32_t d = 1 - r;
+  while (x <= y) {
+    if (x > 0 && x != y) {
+      const uint32_t larg_larga = (uint32_t)((cx_dir + y) - (cx_esq - y) + 1);
+      desenhar_retângulo_preenchido(tela, (Int2D){ .x = cx_esq - y, .y = cy_sup - x }, larg_larga, 1, cor);
+      desenhar_retângulo_preenchido(tela, (Int2D){ .x = cx_esq - y, .y = cy_inf + x }, larg_larga, 1, cor);
+    }
+    if (d < 0) {
+      d += 2 * x + 3;
+    } else {
+      if (y > 0) {
+        const uint32_t larg_estreita = (uint32_t)((cx_dir + x) - (cx_esq - x) + 1);
+        desenhar_retângulo_preenchido(tela, (Int2D){ .x = cx_esq - x, .y = cy_sup - y }, larg_estreita, 1, cor);
+        desenhar_retângulo_preenchido(tela, (Int2D){ .x = cx_esq - x, .y = cy_inf + y }, larg_estreita, 1, cor);
+      }
       d += 2 * (x - y) + 5;
       y--;
     }
