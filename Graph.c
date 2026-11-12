@@ -410,6 +410,8 @@ double calculateEdmondsKarpMaximumFlow(const Graph *g, unsigned u, unsigned v);
 double calculate_direct_investment(const Graph *g, unsigned u, unsigned v);
 double calculate_indirect_investment(const Graph *g, unsigned u, unsigned v);
 double calculate_hitting_time(const Graph *g, unsigned u, unsigned v);
+double calculate_commute_time(const Graph *g, unsigned u, unsigned v);
+double calculate_cosine_similarity(const Graph *g, unsigned u, unsigned v);
 double calculateSubgraphDensity(const Graph *g, const bool *set);
 double calculateConductance(const Graph *g, const bool *set);
 double calculateNormalizedCut(const Graph *g, const bool *set);
@@ -448,6 +450,7 @@ double **calculate_resource_allocation_index(const Graph *g);
 double **create_directed_normalized_laplacian_matrix(const Graph *g);
 double **create_undirected_normalized_laplacian_matrix(const Graph *g);
 double **create_seidel_adjacency_matrix(const Graph *g);
+double **calculate_cosine_similarity_matrix(const Graph *g);
 
 double complex *calculate_ihara_zeta_function_poles(const Graph *g, unsigned *count);
 
@@ -8263,6 +8266,28 @@ double calculate_commute_time(const Graph *g, unsigned u, unsigned v) {
   return calculate_hitting_time(g, u, v) + calculate_hitting_time(g, v, u);
 }
 
+double calculate_cosine_similarity(const Graph *g, unsigned u, unsigned v) {
+  if (!g || g->size == 0 || !g->edges || u >= g->size || v >= g->size) return NAN;
+  double prof_u[g->size] = {};
+  double prof_v[g->size] = {};
+  for (Edge *e = g->edges[u]; e; e = e->next)
+    if (e->destination < g->size)
+      prof_u[e->destination] += e->weight;
+  for (Edge *e = g->edges[v]; e; e = e->next)
+    if (e->destination < g->size)
+      prof_v[e->destination] += e->weight;
+  double dot = 0;
+  double norm_u = 0;
+  double norm_v = 0;
+  for (unsigned w = 0; w < g->size; w++) {
+    dot += prof_u[w] * prof_v[w];
+    norm_u += prof_u[w] * prof_u[w];
+    norm_v += prof_v[w] * prof_v[w];
+  }
+  double denom = sqrt(norm_u) * sqrt(norm_v);
+  return denom == 0 ? NAN : dot / denom;
+}
+
 double calculateSubgraphDensity(const Graph *g, const bool *set) {
   if (!g || !g->edges || !set) return 0;
   unsigned vertices = 0;
@@ -9418,6 +9443,31 @@ static void find_minimum_fractional_vertex_cover_recursive(
       if (u != e->destination && e->destination < g->size)
         matrix[u][e->destination] = 1;
   return matrix;
+}
+
+[[nodiscard]] double **calculate_cosine_similarity_matrix(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  double **sim = allocate_zero_matrix(g->size, g->size);
+  if (!sim) return nullptr;
+  double profiles[g->size][g->size] = {};
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e = g->edges[v]; e; e = e->next)
+      if (e->destination < g->size)
+        profiles[v][e->destination] += e->weight;
+  for (unsigned u = 0; u < g->size; u++)
+    for (unsigned v = 0; v < g->size; v++) {
+      double dot = 0;
+      double norm_u = 0;
+      double norm_v = 0;
+      for (unsigned w = 0; w < g->size; w++) {
+        dot += profiles[u][w] * profiles[v][w];
+        norm_u += profiles[u][w] * profiles[u][w];
+        norm_v += profiles[v][w] * profiles[v][w];
+      }
+      double denom = sqrt(norm_u) * sqrt(norm_v);
+      sim[u][v] = denom == 0 ? 0 : dot / denom;
+    }
+  return sim;
 }
 
 
