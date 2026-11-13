@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -68,6 +69,7 @@ CorHSV cor_para_hsv(Cor cor);
 
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], size_t núm_pontos, Int2D translação, float radianos, float escala);
 Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
+Cor obter_píxel(const Tela *tela, Int2D ponto);
 
 Matriz3x3 criar_matriz_identidade(void);
 Matriz3x3 criar_matriz_translação(float tx, float ty);
@@ -118,6 +120,7 @@ void desenhar_imagem_rodada(Tela *destino,  const Tela *origem,  Int2D posição
 void desenhar_subimagem(Tela *destino, const Tela *origem, Int2D pos_destino, Int2D pos_origem, uint32_t larg_sub, uint32_t alt_sub);
 void desenhar_imagem_mistura(Tela *destino, const Tela *origem, Int2D posição, ModoMistura modo);
 void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m);
+void aplicar_matriz_convolução(Tela *tela, Matriz3x3 núcleo, float divisor, float viés);
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *tela);
 void aplicar_modulação_alfa(Tela *tela, uint8_t alfa);
@@ -126,6 +129,7 @@ void inverter_cores(Tela *tela);
 void espelhar_tela_horizontal(Tela *tela);
 void espelhar_tela_vertical(Tela *tela);
 
+bool carregar_de_ficheiro(Tela *destino, const char *caminho);
 bool exportar_para_ficheiro(const Tela *tela, const char *caminho);
 
 int comparar_inteiros_32(const void *const a, const void *const b) {
@@ -267,6 +271,17 @@ void transformar_pontos(
     .x = (int32_t)roundf(novo_x),
     .y = (int32_t)roundf(novo_y)
   };
+}
+
+Cor obter_píxel(const Tela *tela, Int2D ponto) {
+  if (tela == nullptr || tela->píxeis == nullptr) {
+    return (Cor){ 0 };
+  }
+  if (ponto.x < 0 || ponto.y < 0 ||
+      (uint32_t)ponto.x >= tela->largura || (uint32_t)ponto.y >= tela->altura) {
+    return (Cor){ 0 };
+  }
+  return tela->píxeis[ (size_t)ponto.y * (size_t)tela->largura + (size_t)ponto.x ];
 }
 
 Matriz3x3 criar_matriz_identidade(void) {
@@ -1709,31 +1724,59 @@ void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
   }
 }
 
-bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho) {
-  if (tela == nullptr || tela->píxeis == nullptr || caminho == nullptr) return false;
-  FILE *const ficheiro = fopen(caminho, "wb");
-  if (ficheiro == nullptr) return false;
-  const int resultado_cabeçalho = fprintf(ficheiro, "P6\n%u %u\n255\n", tela->largura, tela->altura);
-  if (resultado_cabeçalho < 0) {
-    fclose(ficheiro);
-    return false;
+void aplicar_matriz_convolução(Tela *tela, Matriz3x3 núcleo, float divisor, float viés) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
   }
-  const uint32_t área = tela->largura * tela->altura;
-  for (uint32_t i = 0; i < área; ++i) {
-    const Cor atual = tela->píxeis[i];
-    const uint8_t componentes_rgb[3] = {
-      atual.vermelho,
-      atual.verde,
-      atual.azul
-    };
-    const size_t elementos_escritos = fwrite(componentes_rgb, sizeof(uint8_t), 3, ficheiro);
-    if (elementos_escritos != 3) {
-      fclose(ficheiro);
-      return false;
+  if (fabsf(divisor) < 1e-7f || isnan(divisor) || isnan(viés)) {
+    return;
+  }
+  const size_t largura = (size_t)tela->largura;
+  const size_t altura  = (size_t)tela->altura;
+  const size_t total_bytes = largura * altura * sizeof(Cor);
+  Cor *const cópia = malloc(total_bytes);
+  if (cópia == nullptr) {
+    return;
+  }
+  memcpy(cópia, tela->píxeis, total_bytes);
+  const float inv_divisor = 1.0f / divisor;
+  const int32_t larg_max = (int32_t)largura - 1;
+  const int32_t alt_max  = (int32_t)altura - 1;
+  for (int32_t y = 0; y <= alt_max; y++) {
+    Cor *const linha_destino = &tela->píxeis[ (size_t)y * largura ];
+    for (int32_t x = 0; x <= larg_max; x++) {
+      float soma_r = 0.0f;
+      float soma_g = 0.0f;
+      float soma_b = 0.0f;
+      for (int32_t ky = -1; ky <= 1; ky++) {
+        int32_t ny = y + ky;
+        if (ny < 0) ny = 0;
+        else if (ny > alt_max) ny = alt_max;
+        const Cor *const linha_vizinha = &cópia[ (size_t)ny * largura ];
+        const size_t linha_núcleo = (size_t)(ky + 1);
+        for (int32_t kx = -1; kx <= 1; kx++) {
+          int32_t nx = x + kx;
+          if (nx < 0) nx = 0;
+          else if (nx > larg_max) nx = larg_max;
+          const float peso = núcleo.m[ linha_núcleo ][ (size_t)(kx + 1) ];
+          const Cor vizinho = linha_vizinha[ nx ];
+          soma_r += (float)vizinho.vermelho * peso;
+          soma_g += (float)vizinho.verde    * peso;
+          soma_b += (float)vizinho.azul     * peso;
+        }
+      }
+      float final_r = soma_r * inv_divisor + viés;
+      float final_g = soma_g * inv_divisor + viés;
+      float final_b = soma_b * inv_divisor + viés;
+      if (final_r < 0.0f) final_r = 0.0f; else if (final_r > 255.0f) final_r = 255.0f;
+      if (final_g < 0.0f) final_g = 0.0f; else if (final_g > 255.0f) final_g = 255.0f;
+      if (final_b < 0.0f) final_b = 0.0f; else if (final_b > 255.0f) final_b = 255.0f;
+      linha_destino[ x ].vermelho = (uint8_t)roundf(final_r);
+      linha_destino[ x ].verde    = (uint8_t)roundf(final_g);
+      linha_destino[ x ].azul     = (uint8_t)roundf(final_b);
     }
   }
-  fclose(ficheiro);
-  return true;
+  free(cópia);
 }
 
 void aplicar_desfoque_gaussiano(Tela *const tela, const uint32_t raio) {
@@ -1917,6 +1960,117 @@ void espelhar_tela_vertical(Tela *tela) {
       linha_inf[x] = temp;
     }
   }
+}
+
+static void saltar_espaços_e_comentários(FILE *ficheiro) {
+  int c = fgetc(ficheiro);
+  while (c != EOF) {
+    if (isspace(c)) {
+      c = fgetc(ficheiro);
+    } else if (c == '#') {
+      while (c != EOF && c != '\n') {
+        c = fgetc(ficheiro);
+      }
+    } else {
+      ungetc(c, ficheiro);
+      break;
+    }
+  }
+}
+
+bool carregar_de_ficheiro(Tela *destino, const char *caminho) {
+  if (destino == nullptr || caminho == nullptr) {
+    return false;
+  }
+  FILE *const ficheiro = fopen(caminho, "rb");
+  if (ficheiro == nullptr) {
+    return false;
+  }
+  char mágico[ 3 ] = { 0 };
+  if (fread(mágico, 1, 2, ficheiro) != 2 || mágico[ 0 ] != 'P' || mágico[ 1 ] != '6') {
+    fclose(ficheiro);
+    return false;
+  }
+  uint32_t largura = 0;
+  uint32_t altura = 0;
+  uint32_t max_cor = 0;
+  saltar_espaços_e_comentários(ficheiro);
+  if (fscanf(ficheiro, "%u", &largura) != 1 || largura == 0) {
+    fclose(ficheiro);
+    return false;
+  }
+  saltar_espaços_e_comentários(ficheiro);
+  if (fscanf(ficheiro, "%u", &altura) != 1 || altura == 0) {
+    fclose(ficheiro);
+    return false;
+  }
+  saltar_espaços_e_comentários(ficheiro);
+  if (fscanf(ficheiro, "%u", &max_cor) != 1 || max_cor != 255) {
+    fclose(ficheiro);
+    return false;
+  }
+  const int separador = fgetc(ficheiro);
+  if (separador == EOF || !isspace(separador)) {
+    fclose(ficheiro);
+    return false;
+  }
+  const size_t total_píxeis = (size_t)largura * (size_t)altura;
+  if (total_píxeis / largura != altura || total_píxeis > SIZE_MAX / sizeof(Cor)) {
+    fclose(ficheiro);
+    return false;
+  }
+  Cor *const novos_píxeis = malloc(total_píxeis * sizeof(Cor));
+  if (novos_píxeis == nullptr) {
+    fclose(ficheiro);
+    return false;
+  }
+  uint8_t rgb[ 3 ];
+  for (size_t i = 0; i < total_píxeis; i++) {
+    if (fread(rgb, 1, 3, ficheiro) != 3) {
+      free(novos_píxeis);
+      fclose(ficheiro);
+      return false;
+    }
+    novos_píxeis[ i ] = (Cor){
+      .vermelho = rgb[ 0 ],
+      .verde    = rgb[ 1 ],
+      .azul     = rgb[ 2 ],
+      .alfa     = 255
+    };
+  }
+  fclose(ficheiro);
+  free(destino->píxeis);
+  destino->largura = largura;
+  destino->altura  = altura;
+  destino->píxeis  = novos_píxeis;
+  return true;
+}
+
+bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho) {
+  if (tela == nullptr || tela->píxeis == nullptr || caminho == nullptr) return false;
+  FILE *const ficheiro = fopen(caminho, "wb");
+  if (ficheiro == nullptr) return false;
+  const int resultado_cabeçalho = fprintf(ficheiro, "P6\n%u %u\n255\n", tela->largura, tela->altura);
+  if (resultado_cabeçalho < 0) {
+    fclose(ficheiro);
+    return false;
+  }
+  const uint32_t área = tela->largura * tela->altura;
+  for (uint32_t i = 0; i < área; ++i) {
+    const Cor atual = tela->píxeis[i];
+    const uint8_t componentes_rgb[3] = {
+      atual.vermelho,
+      atual.verde,
+      atual.azul
+    };
+    const size_t elementos_escritos = fwrite(componentes_rgb, sizeof(uint8_t), 3, ficheiro);
+    if (elementos_escritos != 3) {
+      fclose(ficheiro);
+      return false;
+    }
+  }
+  fclose(ficheiro);
+  return true;
 }
 
 int main() {
