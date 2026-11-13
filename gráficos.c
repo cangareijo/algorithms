@@ -116,6 +116,7 @@ void desenhar_imagem(Tela *destino, const Tela *origem, Int2D posição);
 void desenhar_imagem_escala(Tela *destino, const Tela *origem, Int2D posição, int32_t largura_nova, int32_t altura_nova);
 void desenhar_imagem_rodada(Tela *destino,  const Tela *origem,  Int2D posição,  float radianos,  Int2D pivô);
 void desenhar_subimagem(Tela *destino, const Tela *origem, Int2D pos_destino, Int2D pos_origem, uint32_t larg_sub, uint32_t alt_sub);
+void desenhar_imagem_mistura(Tela *destino, const Tela *origem, Int2D posição, ModoMistura modo);
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *tela);
 void aplicar_modulação_alfa(Tela *tela, uint8_t alfa);
@@ -1589,6 +1590,62 @@ void desenhar_subimagem(
       const size_t índice_origem = índice_linha_origem + (size_t)x_origem;
       const Cor cor_píxel = origem->píxeis[índice_origem];
       desenhar_píxel_alfa(destino, (Int2D){ x_destino, y_destino }, cor_píxel);
+    }
+  }
+}
+
+void desenhar_imagem_mistura(
+  Tela *destino,
+  const Tela *origem,
+  Int2D posição,
+  ModoMistura modo)
+{
+  if (destino == nullptr || destino->píxeis == nullptr || origem == nullptr || origem->píxeis == nullptr) {
+    return;
+  }
+  if (destino->largura == 0 || destino->altura == 0 || origem->largura == 0 || origem->altura == 0) {
+    return;
+  }
+  int32_t x_dest_início = posição.x;
+  int32_t y_dest_início = posição.y;
+  int32_t x_dest_fim    = posição.x + (int32_t)origem->largura;
+  int32_t y_dest_fim    = posição.y + (int32_t)origem->altura;
+  int32_t x_orig_início = 0;
+  int32_t y_orig_início = 0;
+  if (x_dest_início < 0) {
+    x_orig_início = -x_dest_início;
+    x_dest_início = 0;
+  }
+  if (y_dest_início < 0) {
+    y_orig_início = -y_dest_início;
+    y_dest_início = 0;
+  }
+  if (x_dest_fim > (int32_t)destino->largura) {
+    x_dest_fim = (int32_t)destino->largura;
+  }
+  if (y_dest_fim > (int32_t)destino->altura) {
+    y_dest_fim = (int32_t)destino->altura;
+  }
+  if (x_dest_início >= x_dest_fim || y_dest_início >= y_dest_fim) {
+    return;
+  }
+  const Cor *linha_orig = &origem->píxeis[
+    (size_t)y_orig_início * origem->largura + (size_t)x_orig_início
+  ];
+  for (int32_t dest_y = y_dest_início; dest_y < y_dest_fim; dest_y++) {
+    const Cor *píxel_orig = linha_orig;
+    for (int32_t dest_x = x_dest_início; dest_x < x_dest_fim; dest_x++, píxel_orig++) {
+      if (píxel_orig->alfa > 0) {
+        desenhar_píxel_mistura(
+          destino,
+          (Int2D){ .x = dest_x, .y = dest_y },
+          *píxel_orig,
+          modo
+        );
+      }
+    }
+    if (dest_y + 1 < y_dest_fim) {
+      linha_orig += origem->largura;
     }
   }
 }
