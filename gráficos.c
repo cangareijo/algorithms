@@ -128,7 +128,9 @@ void espelhar_tela_horizontal(Tela *tela);
 void espelhar_tela_vertical(Tela *tela);
 
 bool carregar_de_ficheiro(Tela *destino, const char *caminho);
-bool exportar_para_ficheiro(const Tela *tela, const char *caminho);
+bool exportar_para_ficheiro_ppm(const Tela *tela, const char *caminho);
+bool exportar_para_ficheiro_bmp(const Tela *tela, const char *caminho);
+bool exportar_para_ficheiro_tga(const Tela *tela, const char *caminho);
 
 
 
@@ -1588,7 +1590,7 @@ bool carregar_de_ficheiro(Tela *destino, const char *caminho) {
   return true;
 }
 
-bool exportar_para_ficheiro(const Tela *tela, const char *caminho) {
+bool exportar_para_ficheiro_tga(const Tela *tela, const char *caminho) {
   if (!tela || !tela->píxeis || !caminho || tela->largura == 0 || tela->altura == 0) {
     return false;
   }
@@ -1720,7 +1722,7 @@ int main(void) {
 
   /* 5. Exportação e Carregamento de Ficheiro */
   const char *ficheiro = "resultado_teste.tga";
-  assert(exportar_para_ficheiro(&tela, ficheiro));
+  assert(exportar_para_ficheiro_tga(&tela, ficheiro));
 
   Tela carregada = { 0 };
   assert(carregar_de_ficheiro(&carregada, ficheiro));
