@@ -117,10 +117,14 @@ void desenhar_imagem_escala(Tela *destino, const Tela *origem, Int2D posição, 
 void desenhar_imagem_rodada(Tela *destino,  const Tela *origem,  Int2D posição,  float radianos,  Int2D pivô);
 void desenhar_subimagem(Tela *destino, const Tela *origem, Int2D pos_destino, Int2D pos_origem, uint32_t larg_sub, uint32_t alt_sub);
 void desenhar_imagem_mistura(Tela *destino, const Tela *origem, Int2D posição, ModoMistura modo);
+void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m);
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *tela);
 void aplicar_modulação_alfa(Tela *tela, uint8_t alfa);
-void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m);
+void ajustar_brilho_contraste(Tela *tela, float brilho, float contraste);
+void inverter_cores(Tela *tela);
+void espelhar_tela_horizontal(Tela *tela);
+void espelhar_tela_vertical(Tela *tela);
 
 bool exportar_para_ficheiro(const Tela *tela, const char *caminho);
 
@@ -1650,6 +1654,61 @@ void desenhar_imagem_mistura(
   }
 }
 
+void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
+  if (destino == nullptr || destino->píxeis == nullptr || origem == nullptr || origem->píxeis == nullptr) return;
+  if (destino->largura == 0 || destino->altura == 0 || origem->largura == 0 || origem->altura == 0) return;
+  const float larg_orig = (float)origem->largura;
+  const float alt_orig  = (float)origem->altura;
+  const Flut2D cantos[4] = {
+    transformar_flut2d_matriz((Flut2D){ 0.0f,      0.0f     }, m),
+    transformar_flut2d_matriz((Flut2D){ larg_orig, 0.0f     }, m),
+    transformar_flut2d_matriz((Flut2D){ larg_orig, alt_orig }, m),
+    transformar_flut2d_matriz((Flut2D){ 0.0f,      alt_orig }, m)
+  };
+  float min_x = cantos[0].x;
+  float max_x = cantos[0].x;
+  float min_y = cantos[0].y;
+  float max_y = cantos[0].y;
+  for (size_t i = 1; i < 4; i++) {
+    if (cantos[i].x < min_x) min_x = cantos[i].x;
+    if (cantos[i].x > max_x) max_x = cantos[i].x;
+    if (cantos[i].y < min_y) min_y = cantos[i].y;
+    if (cantos[i].y > max_y) max_y = cantos[i].y;
+  }
+  int32_t x_início = (int32_t)floorf(min_x);
+  int32_t x_fim    = (int32_t)ceilf(max_x);
+  int32_t y_início = (int32_t)floorf(min_y);
+  int32_t y_fim    = (int32_t)ceilf(max_y);
+  if (x_início < 0) x_início = 0;
+  if (x_fim >= (int32_t)destino->largura) x_fim = (int32_t)destino->largura - 1;
+  if (y_início < 0) y_início = 0;
+  if (y_fim >= (int32_t)destino->altura) y_fim = (int32_t)destino->altura - 1;
+  if (x_início > x_fim || y_início > y_fim) return;
+  const Matriz3x3 inv_m = inverter_matriz(m);
+  const float dux = inv_m.m[0][0];
+  const float dvx = inv_m.m[0][1];
+  const float duy = inv_m.m[1][0];
+  const float dvy = inv_m.m[1][1];
+  float linha_u = (float)x_início * inv_m.m[0][0] + (float)y_início * inv_m.m[1][0] + inv_m.m[2][0];
+  float linha_v = (float)x_início * inv_m.m[0][1] + (float)y_início * inv_m.m[1][1] + inv_m.m[2][1];
+  for (int32_t y = y_início; y <= y_fim; y++) {
+    float u = linha_u;
+    float v = linha_v;
+    for (int32_t x = x_início; x <= x_fim; x++) {
+      const int32_t orig_x = (int32_t)floorf(u);
+      const int32_t orig_y = (int32_t)floorf(v);
+      if (orig_x >= 0 && (uint32_t)orig_x < origem->largura && orig_y >= 0 && (uint32_t)orig_y < origem->altura) {
+        const Cor cor_fonte = origem->píxeis[(size_t)orig_y * origem->largura + (size_t)orig_x];
+        if (cor_fonte.alfa > 0) desenhar_píxel_alfa(destino, (Int2D){ .x = x, .y = y }, cor_fonte);
+      }
+      u += dux;
+      v += dvx;
+    }
+    linha_u += duy;
+    linha_v += dvy;
+  }
+}
+
 bool exportar_para_ficheiro(const Tela *const tela, const char *const caminho) {
   if (tela == nullptr || tela->píxeis == nullptr || caminho == nullptr) return false;
   FILE *const ficheiro = fopen(caminho, "wb");
@@ -1782,58 +1841,81 @@ void aplicar_modulação_alfa(Tela *const tela, const uint8_t alfa) {
   }
 }
 
-void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
-  if (destino == nullptr || destino->píxeis == nullptr || origem == nullptr || origem->píxeis == nullptr) return;
-  if (destino->largura == 0 || destino->altura == 0 || origem->largura == 0 || origem->altura == 0) return;
-  const float larg_orig = (float)origem->largura;
-  const float alt_orig  = (float)origem->altura;
-  const Flut2D cantos[4] = {
-    transformar_flut2d_matriz((Flut2D){ 0.0f,      0.0f     }, m),
-    transformar_flut2d_matriz((Flut2D){ larg_orig, 0.0f     }, m),
-    transformar_flut2d_matriz((Flut2D){ larg_orig, alt_orig }, m),
-    transformar_flut2d_matriz((Flut2D){ 0.0f,      alt_orig }, m)
-  };
-  float min_x = cantos[0].x;
-  float max_x = cantos[0].x;
-  float min_y = cantos[0].y;
-  float max_y = cantos[0].y;
-  for (size_t i = 1; i < 4; i++) {
-    if (cantos[i].x < min_x) min_x = cantos[i].x;
-    if (cantos[i].x > max_x) max_x = cantos[i].x;
-    if (cantos[i].y < min_y) min_y = cantos[i].y;
-    if (cantos[i].y > max_y) max_y = cantos[i].y;
+void ajustar_brilho_contraste(Tela *tela, float brilho, float contraste) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
   }
-  int32_t x_início = (int32_t)floorf(min_x);
-  int32_t x_fim    = (int32_t)ceilf(max_x);
-  int32_t y_início = (int32_t)floorf(min_y);
-  int32_t y_fim    = (int32_t)ceilf(max_y);
-  if (x_início < 0) x_início = 0;
-  if (x_fim >= (int32_t)destino->largura) x_fim = (int32_t)destino->largura - 1;
-  if (y_início < 0) y_início = 0;
-  if (y_fim >= (int32_t)destino->altura) y_fim = (int32_t)destino->altura - 1;
-  if (x_início > x_fim || y_início > y_fim) return;
-  const Matriz3x3 inv_m = inverter_matriz(m);
-  const float dux = inv_m.m[0][0];
-  const float dvx = inv_m.m[0][1];
-  const float duy = inv_m.m[1][0];
-  const float dvy = inv_m.m[1][1];
-  float linha_u = (float)x_início * inv_m.m[0][0] + (float)y_início * inv_m.m[1][0] + inv_m.m[2][0];
-  float linha_v = (float)x_início * inv_m.m[0][1] + (float)y_início * inv_m.m[1][1] + inv_m.m[2][1];
-  for (int32_t y = y_início; y <= y_fim; y++) {
-    float u = linha_u;
-    float v = linha_v;
-    for (int32_t x = x_início; x <= x_fim; x++) {
-      const int32_t orig_x = (int32_t)floorf(u);
-      const int32_t orig_y = (int32_t)floorf(v);
-      if (orig_x >= 0 && (uint32_t)orig_x < origem->largura && orig_y >= 0 && (uint32_t)orig_y < origem->altura) {
-        const Cor cor_fonte = origem->píxeis[(size_t)orig_y * origem->largura + (size_t)orig_x];
-        if (cor_fonte.alfa > 0) desenhar_píxel_alfa(destino, (Int2D){ .x = x, .y = y }, cor_fonte);
-      }
-      u += dux;
-      v += dvx;
+  if (isnan(brilho) || isnan(contraste)) {
+    return;
+  }
+  if (brilho < -1.0f) brilho = -1.0f;
+  if (brilho >  1.0f) brilho =  1.0f;
+  if (contraste < 0.0f) contraste = 0.0f;
+  uint8_t tabela[256];
+  const float deslocamento_brilho = brilho * 255.0f;
+  for (size_t i = 0; i < 256; i++) {
+    float valor = (((float)i - 127.5f) * contraste) + 127.5f + deslocamento_brilho;
+    if (valor < 0.0f) {
+      valor = 0.0f;
+    } else if (valor > 255.0f) {
+      valor = 255.0f;
     }
-    linha_u += duy;
-    linha_v += dvy;
+    tabela[i] = (uint8_t)roundf(valor);
+  }
+  const size_t total_píxeis = (size_t)tela->largura * (size_t)tela->altura;
+  Cor *const píxeis = tela->píxeis;
+  for (size_t i = 0; i < total_píxeis; i++) {
+    píxeis[i].vermelho = tabela[píxeis[i].vermelho];
+    píxeis[i].verde    = tabela[píxeis[i].verde];
+    píxeis[i].azul     = tabela[píxeis[i].azul];
+  }
+}
+
+void inverter_cores(Tela *tela) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+  const size_t total_píxeis = (size_t)tela->largura * (size_t)tela->altura;
+  Cor *const píxeis = tela->píxeis;
+  for (size_t i = 0; i < total_píxeis; i++) {
+    píxeis[i].vermelho = (uint8_t)(255u - píxeis[i].vermelho);
+    píxeis[i].verde    = (uint8_t)(255u - píxeis[i].verde);
+    píxeis[i].azul     = (uint8_t)(255u - píxeis[i].azul);
+  }
+}
+
+void espelhar_tela_horizontal(Tela *tela) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura <= 1 || tela->altura == 0) {
+    return;
+  }
+  const size_t largura = (size_t)tela->largura;
+  const size_t altura  = (size_t)tela->altura;
+  const size_t metade  = largura / 2;
+  for (size_t y = 0; y < altura; y++) {
+    Cor *const linha = &tela->píxeis[y * largura];
+    for (size_t esq = 0, dir = largura - 1; esq < metade; esq++, dir--) {
+      const Cor temp = linha[esq];
+      linha[esq] = linha[dir];
+      linha[dir] = temp;
+    }
+  }
+}
+
+void espelhar_tela_vertical(Tela *tela) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura <= 1) {
+    return;
+  }
+  const size_t largura = (size_t)tela->largura;
+  const size_t altura  = (size_t)tela->altura;
+  const size_t metade  = altura / 2;
+  for (size_t sup = 0, inf = altura - 1; sup < metade; sup++, inf--) {
+    Cor *const linha_sup = &tela->píxeis[sup * largura];
+    Cor *const linha_inf = &tela->píxeis[inf * largura];
+    for (size_t x = 0; x < largura; x++) {
+      const Cor temp = linha_sup[x];
+      linha_sup[x] = linha_inf[x];
+      linha_inf[x] = temp;
+    }
   }
 }
 
@@ -1848,7 +1930,6 @@ int main() {
   desenhar_círculo(&tela, (Int2D){ 400, 100 }, 50, COR_AMARELA);
   desenhar_círculo_preenchido(&tela, (Int2D){ 400, 380 }, 60, COR_MAGENTA);
   desenhar_curva_bezier_quadrática(&tela, (Int2D){ 200, 100 }, (Int2D){ 300, 50 }, (Int2D){ 400, 100 }, COR_VERDE);
-  // desenhar_curva_bezier_cúbica(&tela, (Int2D){ 100, 150 }, (Int2D){ 150, 50 }, (Int2D){ 250, 250 }, (Int2D){ 300, 150 }, COR_VERMELHA);
   desenhar_curva_bezier_subdivisão(&tela, (Int2D){ 100, 150 }, (Int2D){ 150, 50 }, (Int2D){ 250, 250 }, (Int2D){ 300, 150 }, COR_VERDE, 1);
   if (exportar_para_ficheiro(&tela, "exemplo.ppm")) {
     printf("Imagem guardada com sucesso em 'exemplo.ppm'!\n");
