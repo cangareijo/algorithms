@@ -111,7 +111,7 @@ void desenhar_arco(Tela *tela, Int2D centro, uint32_t raio, float ângulo_iníci
 void desenhar_setor_circular(Tela *tela, Int2D centro, uint32_t raio, float ângulo_início, float ângulo_fim, Cor cor);
 void desenhar_elipse(Tela *tela, Int2D centro, uint32_t rx, uint32_t ry, Cor cor);
 void desenhar_elipse_preenchida(Tela *tela, Int2D centro, uint32_t rx, uint32_t ry, Cor cor);
-void preencher_área(Tela *tela, Int2D semente, Cor nova_cor);
+void preencher_área(Tela *tela, Int2D semente, Cor cor);
 void desenhar_imagem(Tela * destino, const Tela * origem, Int2D posição);
 void desenhar_imagem_escala(Tela * destino, const Tela * origem, Int2D posição, uint32_t largura_nova, uint32_t altura_nova);
 void desenhar_imagem_rodada(Tela * destino,  const Tela * origem,  Int2D posição,  float radianos,  Int2D pivô);
