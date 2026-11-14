@@ -368,6 +368,65 @@ bool ponto_dentro_polígono(Int2D ponto, const Int2D vértices[], size_t núm_v�
   return dentro;
 }
 
+static int comparar_int2d_lexicográfico(const void *a, const void *b) {
+  const Int2D *pa = (const Int2D *)a;
+  const Int2D *pb = (const Int2D *)b;
+
+  if (pa->x < pb->x) return -1;
+  if (pa->x > pb->x) return 1;
+  if (pa->y < pb->y) return -1;
+  if (pa->y > pb->y) return 1;
+  return 0;
+}
+
+static int64_t produto_vetorial_3pontos(Int2D o, Int2D a, Int2D b) {
+  return ((int64_t)a.x - (int64_t)o.x) * ((int64_t)b.y - (int64_t)o.y) - ((int64_t)a.y - (int64_t)o.y) * ((int64_t)b.x - (int64_t)o.x);
+}
+
+size_t calcular_envoltória_convexa(const Int2D pontos[], size_t núm_pontos, Int2D saída[]) {
+  if (pontos == nullptr || saída == nullptr || núm_pontos == 0) {
+    return 0;
+  }
+
+  if (núm_pontos == 1) {
+    saída[0] = pontos[0];
+    return 1;
+  }
+
+  Int2D *ordenados = malloc(núm_pontos * sizeof(Int2D));
+  if (ordenados == nullptr) {
+    return 0;
+  }
+
+  memcpy(ordenados, pontos, núm_pontos * sizeof(Int2D));
+  qsort(ordenados, núm_pontos, sizeof(Int2D), comparar_int2d_lexicográfico);
+
+  size_t k = 0;
+
+  /* Construir a cadeia inferior */
+  for (size_t i = 0; i < núm_pontos; ++i) {
+    while (k >= 2 && produto_vetorial_3pontos(saída[k - 2], saída[k - 1], ordenados[i]) <= 0) {
+      k--;
+    }
+    saída[k++] = ordenados[i];
+  }
+
+  /* Construir a cadeia superior */
+  const size_t t = k + 1;
+  for (size_t i = núm_pontos - 1; i > 0; --i) {
+    const size_t idx = i - 1;
+    while (k >= t && produto_vetorial_3pontos(saída[k - 2], saída[k - 1], ordenados[idx]) <= 0) {
+      k--;
+    }
+    saída[k++] = ordenados[idx];
+  }
+
+  free(ordenados);
+
+  /* Remover o último ponto pois é duplicado do primeiro */
+  return (k > 1) ? (k - 1) : k;
+}
+
 
 
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], size_t núm_pontos, Int2D translação, float radianos, float escala) {
