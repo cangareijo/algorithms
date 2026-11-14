@@ -71,6 +71,7 @@ Flut2D interpolar_flut2d(Flut2D a, Flut2D b, float fator);
 Flut2D rodar_flut2d(Flut2D ponto, Flut2D origem, float radianos);
 Flut2D int2d_para_flut2d(Int2D ponto);
 Int2D flut2d_para_int2d(Flut2D ponto);
+bool intersetar_segmentos(Flut2D a1, Flut2D a2, Flut2D b1, Flut2D b2, Flut2D *interseção);
 
 typedef struct {
   float m[3][3];
@@ -98,6 +99,11 @@ typedef struct {
   uint32_t largura;
   uint32_t altura;
 } Retângulo;
+
+bool ponto_dentro_retângulo(Int2D ponto, Retângulo ret);
+bool recortar_linha_retângulo(Int2D *início, Int2D *fim, Retângulo limites);
+bool retângulos_intersetam(Retângulo a, Retângulo b);
+bool obter_interseção_retângulos(Retângulo a, Retângulo b, Retângulo *resultado);
 
 typedef struct {
   Int2D centro;
@@ -534,6 +540,166 @@ Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m) {
   return (Flut2D){ .x = x, .y = y };
 }
 
+
+
+bool ponto_dentro_retângulo(Int2D ponto, Retângulo ret) {
+  if (ret.largura == 0 || ret.altura == 0) {
+    return false;
+  }
+
+  const int64_t px = ponto.x;
+  const int64_t py = ponto.y;
+  const int64_t rx = ret.x;
+  const int64_t ry = ret.y;
+
+  return (px >= rx) && (px < rx + (int64_t)ret.largura) && (py >= ry) && (py < ry + (int64_t)ret.altura);
+}
+
+static uint8_t calcular_código_região(double x, double y, double x_min, double y_min, double x_max, double y_max) {
+  uint8_t código = 0;
+
+  if (x < x_min) {
+    código |= 1u << 0;
+  } else if (x > x_max) {
+    código |= 1u << 1;
+  }
+
+  if (y > y_max) {
+    código |= 1u << 2;
+  } else if (y < y_min) {
+    código |= 1u << 3;
+  }
+
+  return código;
+}
+
+bool recortar_linha_retângulo(Int2D *início, Int2D *fim, Retângulo limites) {
+  if (início == nullptr || fim == nullptr || limites.largura == 0 || limites.altura == 0) {
+    return false;
+  }
+
+  constexpr uint8_t REG_ESQUERDA = 1u << 0;
+  constexpr uint8_t REG_DIREITA  = 1u << 1;
+  constexpr uint8_t REG_INFERIOR = 1u << 2;
+  constexpr uint8_t REG_SUPERIOR = 1u << 3;
+
+  const double x_min = (double)limites.x;
+  const double y_min = (double)limites.y;
+  const double x_max = (double)((int64_t)limites.x + (int64_t)limites.largura - 1);
+  const double y_max = (double)((int64_t)limites.y + (int64_t)limites.altura - 1);
+
+  double x0 = (double)início->x;
+  double y0 = (double)início->y;
+  double x1 = (double)fim->x;
+  double y1 = (double)fim->y;
+
+  uint8_t cod0 = calcular_código_região(x0, y0, x_min, y_min, x_max, y_max);
+  uint8_t cod1 = calcular_código_região(x1, y1, x_min, y_min, x_max, y_max);
+  bool aceite = false;
+
+  while (true) {
+    if ((cod0 | cod1) == 0) {
+      aceite = true;
+      break;
+    }
+
+    if ((cod0 & cod1) != 0) {
+      break;
+    }
+
+    const uint8_t cod_fora = (cod0 != 0) ? cod0 : cod1;
+    double x = 0.0;
+    double y = 0.0;
+
+    if ((cod_fora & REG_INFERIOR) != 0) {
+      x = x0 + (x1 - x0) * (y_max - y0) / (y1 - y0);
+      y = y_max;
+    } else if ((cod_fora & REG_SUPERIOR) != 0) {
+      x = x0 + (x1 - x0) * (y_min - y0) / (y1 - y0);
+      y = y_min;
+    } else if ((cod_fora & REG_DIREITA) != 0) {
+      y = y0 + (y1 - y0) * (x_max - x0) / (x1 - x0);
+      x = x_max;
+    } else if ((cod_fora & REG_ESQUERDA) != 0) {
+      y = y0 + (y1 - y0) * (x_min - x0) / (x1 - x0);
+      x = x_min;
+    }
+
+    if (cod_fora == cod0) {
+      x0 = x;
+      y0 = y;
+      cod0 = calcular_código_região(x0, y0, x_min, y_min, x_max, y_max);
+    } else {
+      x1 = x;
+      y1 = y;
+      cod1 = calcular_código_região(x1, y1, x_min, y_min, x_max, y_max);
+    }
+  }
+
+  if (aceite) {
+    início->x = (int32_t)lround(x0);
+    início->y = (int32_t)lround(y0);
+    fim->x = (int32_t)lround(x1);
+    fim->y = (int32_t)lround(y1);
+  }
+
+  return aceite;
+}
+
+bool retângulos_intersetam(Retângulo a, Retângulo b) {
+  if (a.largura == 0 || a.altura == 0 || b.largura == 0 || b.altura == 0) {
+    return false;
+  }
+
+  const int64_t a_esq = a.x;
+  const int64_t a_dir = a_esq + (int64_t)a.largura;
+  const int64_t a_sup = a.y;
+  const int64_t a_inf = a_sup + (int64_t)a.altura;
+
+  const int64_t b_esq = b.x;
+  const int64_t b_dir = b_esq + (int64_t)b.largura;
+  const int64_t b_sup = b.y;
+  const int64_t b_inf = b_sup + (int64_t)b.altura;
+
+  return (a_esq < b_dir) && (a_dir > b_esq) && (a_sup < b_inf) && (a_inf > b_sup);
+}
+
+bool obter_interseção_retângulos(Retângulo a, Retângulo b, Retângulo *resultado) {
+  if (a.largura == 0 || a.altura == 0 || b.largura == 0 || b.altura == 0) {
+    return false;
+  }
+
+  const int64_t a_esq = a.x;
+  const int64_t a_dir = a_esq + (int64_t)a.largura;
+  const int64_t a_sup = a.y;
+  const int64_t a_inf = a_sup + (int64_t)a.altura;
+
+  const int64_t b_esq = b.x;
+  const int64_t b_dir = b_esq + (int64_t)b.largura;
+  const int64_t b_sup = b.y;
+  const int64_t b_inf = b_sup + (int64_t)b.altura;
+
+  const int64_t int_esq = (a_esq > b_esq) ? a_esq : b_esq;
+  const int64_t int_dir = (a_dir < b_dir) ? a_dir : b_dir;
+  const int64_t int_sup = (a_sup > b_sup) ? a_sup : b_sup;
+  const int64_t int_inf = (a_inf < b_inf) ? a_inf : b_inf;
+
+  if (int_esq >= int_dir || int_sup >= int_inf) {
+    return false;
+  }
+
+  if (resultado != nullptr) {
+    resultado->x = (int32_t)int_esq;
+    resultado->y = (int32_t)int_sup;
+    resultado->largura = (uint32_t)(int_dir - int_esq);
+    resultado->altura = (uint32_t)(int_inf - int_sup);
+  }
+
+  return true;
+}
+
+
+
 Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m) {
   Flut2D res = transformar_flut2d_matriz((Flut2D){ (float)ponto.x, (float)ponto.y }, m);
   return (Int2D){ .x = (int32_t)roundf(res.x), .y = (int32_t)roundf(res.y) };
@@ -652,6 +818,37 @@ Flut2D int2d_para_flut2d(Int2D ponto) {
 
 Int2D flut2d_para_int2d(Flut2D ponto) {
   return (Int2D){ .x = (int32_t)lroundf(ponto.x), .y = (int32_t)lroundf(ponto.y) };
+}
+
+bool intersetar_segmentos(Flut2D a1, Flut2D a2, Flut2D b1, Flut2D b2, Flut2D *interseção) {
+  const float r_x = a2.x - a1.x;
+  const float r_y = a2.y - a1.y;
+  const float s_x = b2.x - b1.x;
+  const float s_y = b2.y - b1.y;
+
+  const float denominador = r_x * s_y - r_y * s_x;
+
+  /* Segmentos paralelos ou colineares */
+  if (fabsf(denominador) <= 1e-6f) {
+    return false;
+  }
+
+  const float qp_x = b1.x - a1.x;
+  const float qp_y = b1.y - a1.y;
+
+  const float inv_denom = 1.0f / denominador;
+  const float t = (qp_x * s_y - qp_y * s_x) * inv_denom;
+  const float u = (qp_x * r_y - qp_y * r_x) * inv_denom;
+
+  if (t >= 0.0f && t <= 1.0f && u >= 0.0f && u <= 1.0f) {
+    if (interseção != nullptr) {
+      interseção->x = a1.x + t * r_x;
+      interseção->y = a1.y + t * r_y;
+    }
+    return true;
+  }
+
+  return false;
 }
 
 
