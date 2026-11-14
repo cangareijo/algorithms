@@ -1573,14 +1573,14 @@ void desenhar_gradiente_radial(Tela *tela, Int2D centro, uint32_t raio, Cor cor_
   }
 }
 
-static bool ângulo_no_intervalo(float ang, float inicio, float fim) {
-  ang    = normalizar_radianos(ang);
-  inicio = normalizar_radianos(inicio);
+static bool ângulo_no_intervalo(float âng, float início, float fim) {
+  âng    = normalizar_radianos(âng);
+  início = normalizar_radianos(início);
   fim    = normalizar_radianos(fim);
-  if (inicio <= fim) {
-    return ang >= inicio && ang <= fim;
+  if (início <= fim) {
+    return âng >= início && âng <= fim;
   }
-  return ang >= inicio || ang <= fim;
+  return âng >= início || âng <= fim;
 }
 
 void desenhar_arco(Tela *tela, Int2D centro, uint32_t raio, float ângulo_início, float ângulo_fim, Cor cor) {
@@ -1632,8 +1632,8 @@ void desenhar_setor_circular(Tela *tela, Int2D centro, uint32_t raio, float âng
         if (dx == 0 && dy == 0) {
           desenhar_píxel(tela, centro, cor);
         } else {
-          float ang = atan2f((float)dy, (float)dx);
-          if (ângulo_no_intervalo(ang, ângulo_início, ângulo_fim)) {
+          float âng = atan2f((float)dy, (float)dx);
+          if (ângulo_no_intervalo(âng, ângulo_início, ângulo_fim)) {
             desenhar_píxel(tela, (Int2D){ centro.x + dx, centro.y + dy }, cor);
           }
         }
