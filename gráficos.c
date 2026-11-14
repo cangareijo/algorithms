@@ -7,12 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef enum {
-  MISTURA_NORMAL,
-  MISTURA_ADITIVA,
-  MISTURA_MULTIPLICAR,
-  MISTURA_ECRÃ
-} Mistura;
+int comparar_int32(const void *a, const void *b);
+
+static inline float normalizar_radianos(float ângulo);
 
 typedef struct {
   uint8_t vermelho;
@@ -20,33 +17,6 @@ typedef struct {
   uint8_t azul;
   uint8_t alfa;
 } Cor;
-
-typedef struct {
-  float matiz;
-  float saturação;
-  float valor;
-  float alfa;
-} CorHSV;
-
-typedef struct {
-  int32_t x;
-  int32_t y;
-} Int2D;
-
-typedef struct {
-  float x;
-  float y;
-} Flut2D;
-
-typedef struct {
-  float m[3][3];
-} Matriz3x3;
-
-typedef struct {
-  uint32_t largura;
-  uint32_t altura;
-  Cor *píxeis;
-} Tela;
 
 [[maybe_unused]] constexpr Cor COR_BRANCA   = { .vermelho = 255, .verde = 255, .azul = 255, .alfa = 255 };
 [[maybe_unused]] constexpr Cor COR_PRETA    = { .vermelho = 0,   .verde = 0,   .azul = 0,   .alfa = 255 };
@@ -57,19 +27,35 @@ typedef struct {
 [[maybe_unused]] constexpr Cor COR_MAGENTA  = { .vermelho = 255, .verde = 0,   .azul = 255, .alfa = 255 };
 [[maybe_unused]] constexpr Cor COR_AMARELA  = { .vermelho = 255, .verde = 255, .azul = 0,   .alfa = 255 };
 
-int comparar_int32(const void *a, const void *b);
-
-static inline float normalizar_radianos(float ângulo);
-
 bool cores_iguais(Cor a, Cor b);
 Cor interpolar_cor(Cor a, Cor b, float fator);
+
+typedef struct {
+  float matiz;
+  float saturação;
+  float valor;
+  float alfa;
+} CorHSV;
 
 Cor cor_de_hsv(CorHSV hsv);
 CorHSV cor_para_hsv(Cor cor);
 
+typedef struct {
+  int32_t x;
+  int32_t y;
+} Int2D;
+
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], size_t núm_pontos, Int2D translação, float radianos, float escala);
 Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
-Cor obter_píxel(const Tela *tela, Int2D ponto);
+bool ponto_dentro_círculo(Int2D ponto, Int2D centro, uint32_t raio);
+bool ponto_dentro_triângulo(Int2D ponto, Int2D p1, Int2D p2, Int2D p3);
+bool ponto_dentro_polígono(Int2D ponto, const Int2D vértices[], size_t núm_vértices);
+size_t calcular_envoltória_convexa(const Int2D pontos[], size_t núm_pontos, Int2D saída[]);
+
+typedef struct {
+  float x;
+  float y;
+} Flut2D;
 
 Flut2D somar_flut2d(Flut2D a, Flut2D b);
 Flut2D subtrair_flut2d(Flut2D a, Flut2D b);
@@ -86,6 +72,10 @@ Flut2D rodar_flut2d(Flut2D ponto, Flut2D origem, float radianos);
 Flut2D int2d_para_flut2d(Int2D ponto);
 Int2D flut2d_para_int2d(Flut2D ponto);
 
+typedef struct {
+  float m[3][3];
+} Matriz3x3;
+
 void criar_matriz_identidade(Matriz3x3 *destino);
 void criar_matriz_translação(Matriz3x3 *destino, float tx, float ty);
 void criar_matriz_rotação(Matriz3x3 *destino, float radianos);
@@ -95,9 +85,46 @@ bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m);
 Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m);
 Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m);
 
+typedef enum {
+  MISTURA_NORMAL,
+  MISTURA_ADITIVA,
+  MISTURA_MULTIPLICAR,
+  MISTURA_ECRÃ
+} Mistura;
+
+typedef struct {
+  int32_t x;
+  int32_t y;
+  uint32_t largura;
+  uint32_t altura;
+} Retângulo;
+
+typedef struct {
+  Int2D centro;
+  uint32_t raio;
+} Círculo;
+
+typedef struct {
+  Int2D p1;
+  Int2D p2;
+  Int2D p3;
+} Triângulo;
+
+typedef struct {
+  Int2D *vértices;
+  size_t núm_vértices;
+} Polígono;
+
+typedef struct {
+  uint32_t largura;
+  uint32_t altura;
+  Cor *píxeis;
+} Tela;
+
 Tela criar_tela(uint32_t largura, uint32_t altura);
 void destruir_tela(Tela *tela);
 void limpar_tela(Tela *tela, Cor fundo);
+Cor obter_píxel(const Tela *tela, Int2D ponto);
 void desenhar_píxel(Tela *tela, Int2D ponto, Cor cor);
 void desenhar_píxel_alfa(Tela *tela, Int2D ponto, Cor cor_fonte);
 void desenhar_píxel_mistura(Tela *tela, Int2D ponto, Cor cor_fonte, Mistura modo);
@@ -266,6 +293,83 @@ Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos) {
   };
 }
 
+bool ponto_dentro_círculo(Int2D ponto, Int2D centro, uint32_t raio) {
+  const int64_t dx = (int64_t)ponto.x - (int64_t)centro.x;
+  const int64_t dy = (int64_t)ponto.y - (int64_t)centro.y;
+  const uint64_t dist_quadrada = (uint64_t)(dx * dx + dy * dy);
+  const uint64_t raio_quadrado = (uint64_t)raio * (uint64_t)raio;
+
+  return dist_quadrada <= raio_quadrado;
+}
+
+bool ponto_dentro_triângulo(Int2D ponto, Int2D p1, Int2D p2, Int2D p3) {
+  const int64_t d1 = ((int64_t)ponto.x - (int64_t)p2.x) * ((int64_t)p1.y - (int64_t)p2.y) -
+                     ((int64_t)p1.x - (int64_t)p2.x) * ((int64_t)ponto.y - (int64_t)p2.y);
+
+  const int64_t d2 = ((int64_t)ponto.x - (int64_t)p3.x) * ((int64_t)p2.y - (int64_t)p3.y) -
+                     ((int64_t)p2.x - (int64_t)p3.x) * ((int64_t)ponto.y - (int64_t)p3.y);
+
+  const int64_t d3 = ((int64_t)ponto.x - (int64_t)p1.x) * ((int64_t)p3.y - (int64_t)p1.y) -
+                     ((int64_t)p3.x - (int64_t)p1.x) * ((int64_t)ponto.y - (int64_t)p1.y);
+
+  const bool tem_negativo = (d1 < 0) || (d2 < 0) || (d3 < 0);
+  const bool tem_positivo = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+  return !(tem_negativo && tem_positivo);
+}
+
+bool ponto_dentro_polígono(Int2D ponto, const Int2D vértices[], size_t núm_vértices) {
+  if (vértices == nullptr || núm_vértices < 3) {
+    return false;
+  }
+
+  bool dentro = false;
+  const int64_t px = ponto.x;
+  const int64_t py = ponto.y;
+
+  for (size_t i = 0, j = núm_vértices - 1; i < núm_vértices; j = i++) {
+    const int64_t xi = vértices[i].x;
+    const int64_t yi = vértices[i].y;
+    const int64_t xj = vértices[j].x;
+    const int64_t yj = vértices[j].y;
+
+    const int64_t dx = xj - xi;
+    const int64_t dy = yj - yi;
+    const int64_t prod_vetorial = (px - xi) * dy - (py - yi) * dx;
+
+    if (prod_vetorial == 0) {
+      const int64_t min_x = (xi < xj) ? xi : xj;
+      const int64_t max_x = (xi > xj) ? xi : xj;
+      const int64_t min_y = (yi < yj) ? yi : yj;
+      const int64_t max_y = (yi > yj) ? yi : yj;
+
+      if (px >= min_x && px <= max_x && py >= min_y && py <= max_y) {
+        return true;
+      }
+    }
+
+    const bool cruza_y = (yi > py) != (yj > py);
+    if (cruza_y) {
+      const int64_t lado_esquerdo = (px - xi) * dy;
+      const int64_t lado_direito = (py - yi) * dx;
+
+      if (dy > 0) {
+        if (lado_esquerdo < lado_direito) {
+          dentro = !dentro;
+        }
+      } else {
+        if (lado_esquerdo > lado_direito) {
+          dentro = !dentro;
+        }
+      }
+    }
+  }
+
+  return dentro;
+}
+
+
+
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], size_t núm_pontos, Int2D translação, float radianos, float escala) {
   if (!pontos_origem || !pontos_destino) return;
   float s = sinf(radianos) * escala;
@@ -413,13 +517,6 @@ static inline bool ponto_dentro_tela(const Tela *tela, Int2D p) {
          (uint32_t)p.y < tela->altura;
 }
 
-Cor obter_píxel(const Tela *tela, Int2D ponto) {
-  if (!ponto_dentro_tela(tela, ponto)) {
-    return (Cor){ 0, 0, 0, 0 };
-  }
-  return tela->píxeis[(size_t)ponto.y * tela->largura + (size_t)ponto.x];
-}
-
 
 
 Flut2D somar_flut2d(Flut2D a, Flut2D b) {
@@ -499,6 +596,13 @@ Int2D flut2d_para_int2d(Flut2D ponto) {
 }
 
 
+
+Cor obter_píxel(const Tela *tela, Int2D ponto) {
+  if (!ponto_dentro_tela(tela, ponto)) {
+    return (Cor){ 0, 0, 0, 0 };
+  }
+  return tela->píxeis[(size_t)ponto.y * tela->largura + (size_t)ponto.x];
+}
 
 void desenhar_píxel(Tela *tela, Int2D ponto, Cor cor) {
   if (!ponto_dentro_tela(tela, ponto)) return;
