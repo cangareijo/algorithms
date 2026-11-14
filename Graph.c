@@ -234,15 +234,19 @@ void add_directed_edge(Graph *g, unsigned u, unsigned v);
 void add_undirected_edge(Graph *g, unsigned u, unsigned v);
 void delete_first_directed_edge(Graph *g, unsigned u, unsigned v);
 void delete_first_undirected_edge(Graph *g, unsigned u, unsigned v);
-void deleteMatchingEdges(Graph *g, unsigned u, unsigned v);
-void transferOutgoingEdges(Graph *g, unsigned u, unsigned v);
-void transferIncomingEdges(Graph *g, unsigned u, unsigned v);
-void contractVertices(Graph *g, unsigned u, unsigned v);
+void delete_matching_directed_edges(Graph *g, unsigned u, unsigned v);
+void delete_matching_undirected_edges(Graph *g, unsigned u, unsigned v);
+void transfer_outgoing_edges(Graph *g, unsigned u, unsigned v);
+void transfer_incoming_edges(Graph *g, unsigned u, unsigned v);
+void transfer_undirected_edges(Graph *g, unsigned u, unsigned v);
+void contract_vertices(Graph *g, unsigned u, unsigned v);
 void subdivideEdge(Graph *g, unsigned u, unsigned v);
 void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight);
 void add_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight);
-void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight);
+void delete_first_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight);
 void delete_first_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight);
+void delete_matching_weighted_directed_edges(Graph *g, unsigned u, unsigned v, double weight);
+void delete_matching_weighted_undirected_edges(Graph *g, unsigned u, unsigned v, double weight);
 
 unsigned getSize(const Graph *g);
 unsigned count_directed_edges(const Graph *g);
@@ -4086,7 +4090,7 @@ void addVertex(Graph *g) {
 void deleteSelfLoops(Graph *g) {
   if (!g) return;
   for (unsigned v = 0; v < g->size; v++)
-    deleteMatchingEdges(g, v, v);
+    delete_matching_directed_edges(g, v, v);
 }
 
 void deleteInvalidEdges(Graph *g) {
@@ -4145,7 +4149,7 @@ void deleteOutgoingEdges(Graph *g, unsigned v) {
 void deleteIncomingEdges(Graph *g, unsigned v) {
   if (!g) return;
   for (unsigned u = 0; u < g->size; u++)
-    deleteMatchingEdges(g, u, v);
+    delete_matching_directed_edges(g, u, v);
 }
 
 void deleteVertex(Graph *g, unsigned v) {
@@ -4188,64 +4192,70 @@ void delete_first_undirected_edge(Graph *g, unsigned u, unsigned v) {
   delete_first_directed_edge(g, v, u);
 }
 
-void deleteMatchingEdges(Graph *g, unsigned u, unsigned v) {
+void delete_matching_directed_edges(Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size || v >= g->size) return;
   Edge **e = &g->edges[u];
-  while (*e) {
-    Edge *temporary = *e;
-    if (temporary->destination == v) {
-      *e = temporary->next;
+  while (*e)
+    if ((*e)->destination == v) {
+      Edge *temporary = *e;
+      *e = (*e)->next;
       free(temporary);
     } else {
-      e = &temporary->next;
+      e = &(*e)->next;
     }
+}
+
+void delete_matching_undirected_edges(Graph *g, unsigned u, unsigned v) {
+  delete_matching_directed_edges(g, u, v);
+  delete_matching_directed_edges(g, v, u);
+}
+
+void transfer_outgoing_edges(Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return;
+  while (g->edges[v]) {
+    Edge *e = g->edges[v];
+    g->edges[v] = e->next;
+    e->next = g->edges[u];
+    g->edges[u] = e;
   }
 }
 
-void transferOutgoingEdges(Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return;
-  while (g->edges[u]) {
-    Edge *e = g->edges[u];
-    g->edges[u] = e->next;
-    e->next = g->edges[v];
-    g->edges[v] = e;
-  }
-}
-
-void transferIncomingEdges(Graph *g, unsigned u, unsigned v) {
-  if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return;
+void transfer_incoming_edges(Graph *g, unsigned u, unsigned v) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return;
   for (unsigned w = 0; w < g->size; w++)
     for (Edge *e = g->edges[w]; e; e = e->next)
-      if (e->destination == u)
-        e->destination = v;
+      if (e->destination == v)
+        e->destination = u;
 }
 
-void contractVertices(Graph *g, unsigned u, unsigned v) {
+void transfer_undirected_edges(Graph *g, unsigned u, unsigned v) {
+  transfer_outgoing_edges(g, u, v);
+  transfer_incoming_edges(g, u, v);
+}
+
+void contract_vertices(Graph *g, unsigned u, unsigned v) {
   if (!g || !g->edges || u >= g->size || v >= g->size || u == v) return;
-  deleteMatchingEdges(g, u, v);
-  deleteMatchingEdges(g, v, u);
-  transferOutgoingEdges(g, u, v);
-  transferIncomingEdges(g, u, v);
-  for (unsigned w = 0; w < g->size; w++)
-    for (Edge *e = g->edges[w]; e; e = e->next)
-      if (e->destination > u)
-        e->destination--;
-  for (unsigned w = u + 1; w < g->size; w++)
-    g->edges[w - 1] = g->edges[w];
+  delete_matching_undirected_edges(g, v, u);
+  transfer_undirected_edges(g, u, v);
+  for (unsigned w = v + 1; w < g->size; w++) g->edges[w - 1] = g->edges[w];
   g->size--;
+  for (unsigned w = 0; w < g->size; w++)
+    for (Edge *e = g->edges[w]; e; e = e->next)
+      if (e->destination > v)
+        e->destination--;
 }
 
 void subdivideEdge(Graph *g, unsigned u, unsigned v) {
   if (!g) return;
   double weight = get_weight(g, u, v);
-  deleteFirstWeightedDirectedEdge(g, u, v, weight);
+  delete_first_weighted_directed_edge(g, u, v, weight);
   addVertex(g);
   add_weighted_directed_edge(g, u, g->size - 1, weight / 2);
   add_weighted_directed_edge(g, g->size - 1, v, weight / 2);
 }
 
 void add_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight) {
-  if (!g || !g->edges || u >= g->size || v >= g->size) return;
+  if (!g || !g->edges || u >= g->size || v >= g->size || isnan(weight)) return;
   Edge *e = malloc(sizeof(Edge));
   if (!e) return;
   e->destination = v;
@@ -4259,8 +4269,8 @@ void add_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weigh
   add_weighted_directed_edge(g, v, u, weight);
 }
 
-void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double weight) {
-  if (!g || !g->edges || u >= g->size) return;
+void delete_first_weighted_directed_edge(Graph *g, unsigned u, unsigned v, double weight) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return;
   Edge **e = &g->edges[u];
   while (*e)
     if ((*e)->destination == v && (*e)->weight == weight) {
@@ -4274,8 +4284,26 @@ void deleteFirstWeightedDirectedEdge(Graph *g, unsigned u, unsigned v, double we
 }
 
 void delete_first_weighted_undirected_edge(Graph *g, unsigned u, unsigned v, double weight) {
-  deleteFirstWeightedDirectedEdge(g, u, v, weight);
-  deleteFirstWeightedDirectedEdge(g, v, u, weight);
+  delete_first_weighted_directed_edge(g, u, v, weight);
+  delete_first_weighted_directed_edge(g, v, u, weight);
+}
+
+void delete_matching_weighted_directed_edges(Graph *g, unsigned u, unsigned v, double weight) {
+  if (!g || !g->edges || u >= g->size || v >= g->size) return;
+  Edge **e = &g->edges[u];
+  while (*e)
+    if ((*e)->destination == v && (*e)->weight == weight) {
+      Edge *temporary = *e;
+      *e = (*e)->next;
+      free(temporary);
+    } else {
+      e = &(*e)->next;
+    }
+}
+
+void delete_matching_weighted_undirected_edges(Graph *g, unsigned u, unsigned v, double weight) {
+  delete_matching_weighted_directed_edges(g, u, v, weight);
+  delete_matching_weighted_directed_edges(g, v, u, weight);
 }
 
 
