@@ -74,6 +74,12 @@ Int2D flut2d_para_int2d(Flut2D ponto);
 bool intersetar_segmentos(Flut2D a1, Flut2D a2, Flut2D b1, Flut2D b2, Flut2D *interseção);
 
 typedef struct {
+  Flut2D posição;
+  Flut2D uv;
+  Cor cor;
+} Vértice2D;
+
+typedef struct {
   float m[3][3];
 } Matriz3x3;
 
@@ -94,6 +100,11 @@ typedef enum {
 } Mistura;
 
 typedef struct {
+  Int2D *início;
+  Int2D *fim;
+} Linha;
+
+typedef struct {
   int32_t x;
   int32_t y;
   uint32_t largura;
@@ -102,6 +113,7 @@ typedef struct {
 
 bool ponto_dentro_retângulo(Int2D ponto, Retângulo ret);
 bool recortar_linha_retângulo(Int2D *início, Int2D *fim, Retângulo limites);
+size_t recortar_polígono_retângulo(const Int2D entrada[], size_t núm_entrada, Int2D saída[], size_t cap_saída, Retângulo limites);
 bool retângulos_intersetam(Retângulo a, Retângulo b);
 bool obter_interseção_retângulos(Retângulo a, Retângulo b, Retângulo *resultado);
 
@@ -165,6 +177,7 @@ void desenhar_imagem_escala(Tela * destino, const Tela * origem, Int2D posição
 void desenhar_imagem_rodada(Tela * destino,  const Tela * origem,  Int2D posição,  float radianos,  Int2D pivô);
 void desenhar_subimagem(Tela * destino, const Tela * origem, Int2D pos_destino, Int2D pos_origem, uint32_t larg_sub, uint32_t alt_sub);
 void desenhar_imagem_mistura(Tela * destino, const Tela * origem, Int2D posição, Mistura modo);
+void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3);
 void desenhar_imagem_matriz(Tela * destino, const Tela * origem, Matriz3x3 m);
 void aplicar_matriz_convolução(Tela *tela, Matriz3x3 núcleo, float divisor, float viés);
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
@@ -644,6 +657,121 @@ bool recortar_linha_retângulo(Int2D *início, Int2D *fim, Retângulo limites) {
   }
 
   return aceite;
+}
+
+typedef enum {
+  BORDA_ESQUERDA,
+  BORDA_DIREITA,
+  BORDA_SUPERIOR,
+  BORDA_INFERIOR
+} BordaRecorte;
+
+static bool ponto_dentro_borda(Flut2D p, BordaRecorte borda, float x_min, float x_max, float y_min, float y_max) {
+  switch (borda) {
+    case BORDA_ESQUERDA: return p.x >= x_min;
+    case BORDA_DIREITA:  return p.x <= x_max;
+    case BORDA_SUPERIOR: return p.y >= y_min;
+    case BORDA_INFERIOR: return p.y <= y_max;
+  }
+  return false;
+}
+
+static Flut2D intersetar_borda(Flut2D a, Flut2D b, BordaRecorte borda, float x_min, float x_max, float y_min, float y_max) {
+  const float dx = b.x - a.x;
+  const float dy = b.y - a.y;
+
+  switch (borda) {
+    case BORDA_ESQUERDA:
+      return (Flut2D){ .x = x_min, .y = a.y + dy * (x_min - a.x) / dx };
+    case BORDA_DIREITA:
+      return (Flut2D){ .x = x_max, .y = a.y + dy * (x_max - a.x) / dx };
+    case BORDA_SUPERIOR:
+      return (Flut2D){ .x = a.x + dx * (y_min - a.y) / dy, .y = y_min };
+    case BORDA_INFERIOR:
+      return (Flut2D){ .x = a.x + dx * (y_max - a.y) / dy, .y = y_max };
+  }
+  return a;
+}
+
+size_t recortar_polígono_retângulo(const Int2D entrada[], size_t núm_entrada, Int2D saída[], size_t cap_saída, Retângulo limites) {
+  if (entrada == nullptr || saída == nullptr || núm_entrada < 3 || cap_saída == 0 || limites.largura == 0 || limites.altura == 0) {
+    return 0;
+  }
+
+  /* Um polígono recortado contra 4 arestas pode ganhar no máximo 1 vértice por aresta */
+  const size_t cap_máx = núm_entrada + 4;
+  Flut2D *buf_a = malloc(cap_máx * sizeof(Flut2D));
+  Flut2D *buf_b = malloc(cap_máx * sizeof(Flut2D));
+
+  if (buf_a == nullptr || buf_b == nullptr) {
+    free(buf_a);
+    free(buf_b);
+    return 0;
+  }
+
+  for (size_t i = 0; i < núm_entrada; ++i) {
+    buf_a[i] = (Flut2D){ .x = (float)entrada[i].x, .y = (float)entrada[i].y };
+  }
+
+  const float x_min = (float)limites.x;
+  const float y_min = (float)limites.y;
+  const float x_max = (float)((int64_t)limites.x + (int64_t)limites.largura - 1);
+  const float y_max = (float)((int64_t)limites.y + (int64_t)limites.altura - 1);
+
+  constexpr BordaRecorte bordas[4] = {
+    BORDA_ESQUERDA,
+    BORDA_DIREITA,
+    BORDA_SUPERIOR,
+    BORDA_INFERIOR
+  };
+
+  size_t contagem = núm_entrada;
+  Flut2D *atual = buf_a;
+  Flut2D *próximo = buf_b;
+
+  for (size_t b = 0; b < 4; ++b) {
+    if (contagem == 0) {
+      break;
+    }
+
+    const BordaRecorte borda = bordas[b];
+    size_t nova_contagem = 0;
+
+    for (size_t i = 0; i < contagem; ++i) {
+      const Flut2D p1 = atual[i];
+      const Flut2D p2 = atual[(i + 1) % contagem];
+
+      const bool p1_dentro = ponto_dentro_borda(p1, borda, x_min, x_max, y_min, y_max);
+      const bool p2_dentro = ponto_dentro_borda(p2, borda, x_min, x_max, y_min, y_max);
+
+      if (p1_dentro && p2_dentro) {
+        próximo[nova_contagem++] = p2;
+      } else if (p1_dentro && !p2_dentro) {
+        próximo[nova_contagem++] = intersetar_borda(p1, p2, borda, x_min, x_max, y_min, y_max);
+      } else if (!p1_dentro && p2_dentro) {
+        próximo[nova_contagem++] = intersetar_borda(p1, p2, borda, x_min, x_max, y_min, y_max);
+        próximo[nova_contagem++] = p2;
+      }
+    }
+
+    contagem = nova_contagem;
+    Flut2D *temp = atual;
+    atual = próximo;
+    próximo = temp;
+  }
+
+  const size_t total_final = (contagem < cap_saída) ? contagem : cap_saída;
+  for (size_t i = 0; i < total_final; ++i) {
+    saída[i] = (Int2D){
+      .x = (int32_t)lroundf(atual[i].x),
+      .y = (int32_t)lroundf(atual[i].y)
+    };
+  }
+
+  free(buf_a);
+  free(buf_b);
+
+  return total_final;
 }
 
 bool retângulos_intersetam(Retângulo a, Retângulo b) {
@@ -1717,6 +1845,76 @@ void desenhar_imagem_mistura(Tela *destino, const Tela *origem, Int2D posição,
   }
 }
 
+static float produto_vetorial_arestas(Flut2D a, Flut2D b, Flut2D c) {
+  return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
+}
+
+void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  const float área = produto_vetorial_arestas(v1.posição, v2.posição, v3.posição);
+  if (fabsf(área) <= 1e-6f) {
+    return;
+  }
+
+  const float inv_área = 1.0f / área;
+  const float sinal = (área > 0.0f) ? 1.0f : -1.0f;
+
+  /* Calcular caixa envolvente e recortar aos limites da tela */
+  const float min_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
+  const float max_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
+  const float min_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
+  const float max_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
+
+  int32_t min_x = (int32_t)floorf(min_xf);
+  int32_t max_x = (int32_t)ceilf(max_xf);
+  int32_t min_y = (int32_t)floorf(min_yf);
+  int32_t max_y = (int32_t)ceilf(max_yf);
+
+  if (min_x < 0) min_x = 0;
+  if (min_y < 0) min_y = 0;
+  if (max_x >= (int32_t)tela->largura) max_x = (int32_t)tela->largura - 1;
+  if (max_y >= (int32_t)tela->altura)  max_y = (int32_t)tela->altura - 1;
+
+  if (min_x > max_x || min_y > max_y) {
+    return;
+  }
+
+  for (int32_t y = min_y; y <= max_y; ++y) {
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int32_t x = min_x; x <= max_x; ++x) {
+      /* Amostragem no centro do píxel */
+      const Flut2D p = { .x = (float)x + 0.5f, .y = (float)y + 0.5f };
+
+      const float e1 = produto_vetorial_arestas(v2.posição, v3.posição, p);
+      const float e2 = produto_vetorial_arestas(v3.posição, v1.posição, p);
+      const float e3 = produto_vetorial_arestas(v1.posição, v2.posição, p);
+
+      /* Verifica se o ponto está dentro do triângulo (independentemente da orientação) */
+      if ((e1 * sinal >= 0.0f) && (e2 * sinal >= 0.0f) && (e3 * sinal >= 0.0f)) {
+        const float w1 = e1 * inv_área;
+        const float w2 = e2 * inv_área;
+        const float w3 = e3 * inv_área;
+
+        const float r = w1 * (float)v1.cor.vermelho + w2 * (float)v2.cor.vermelho + w3 * (float)v3.cor.vermelho;
+        const float g = w1 * (float)v1.cor.verde    + w2 * (float)v2.cor.verde    + w3 * (float)v3.cor.verde;
+        const float b = w1 * (float)v1.cor.azul     + w2 * (float)v2.cor.azul     + w3 * (float)v3.cor.azul;
+        const float a = w1 * (float)v1.cor.alfa     + w2 * (float)v2.cor.alfa     + w3 * (float)v3.cor.alfa;
+
+        linha[x] = (Cor){
+          .vermelho = (uint8_t)lroundf(fminf(fmaxf(r, 0.0f), 255.0f)),
+          .verde    = (uint8_t)lroundf(fminf(fmaxf(g, 0.0f), 255.0f)),
+          .azul     = (uint8_t)lroundf(fminf(fmaxf(b, 0.0f), 255.0f)),
+          .alfa     = (uint8_t)lroundf(fminf(fmaxf(a, 0.0f), 255.0f))
+        };
+      }
+    }
+  }
+}
+
 void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
   if (!destino || !destino->píxeis || !origem || !origem->píxeis) return;
 
@@ -2043,6 +2241,157 @@ bool carregar_de_ficheiro(Tela *destino, const char *caminho) {
   destino->píxeis = píxeis;
 
   return true;
+}
+
+bool exportar_para_ficheiro_ppm(const Tela *tela, const char *caminho) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 || caminho == nullptr) {
+    return false;
+  }
+
+  FILE *ficheiro = fopen(caminho, "wb");
+  if (ficheiro == nullptr) {
+    return false;
+  }
+
+  if (fprintf(ficheiro, "P6\n%u %u\n255\n", tela->largura, tela->altura) < 0) {
+    fclose(ficheiro);
+    return false;
+  }
+
+  const size_t bytes_por_linha = (size_t)tela->largura * 3;
+  uint8_t *linha_rgb = malloc(bytes_por_linha);
+  if (linha_rgb == nullptr) {
+    fclose(ficheiro);
+    return false;
+  }
+
+  bool sucesso = true;
+  for (uint32_t y = 0; y < tela->altura; ++y) {
+    const Cor *linha_píxeis = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (uint32_t x = 0; x < tela->largura; ++x) {
+      const size_t idx = (size_t)x * 3;
+      linha_rgb[idx + 0] = linha_píxeis[x].vermelho;
+      linha_rgb[idx + 1] = linha_píxeis[x].verde;
+      linha_rgb[idx + 2] = linha_píxeis[x].azul;
+    }
+
+    if (fwrite(linha_rgb, 1, bytes_por_linha, ficheiro) != bytes_por_linha) {
+      sucesso = false;
+      break;
+    }
+  }
+
+  free(linha_rgb);
+  if (fclose(ficheiro) != 0) {
+    sucesso = false;
+  }
+
+  return sucesso;
+}
+
+static void escrever_u16_le(uint8_t *destino, uint16_t valor) {
+  destino[0] = (uint8_t)(valor & 0xFFu);
+  destino[1] = (uint8_t)((valor >> 8) & 0xFFu);
+}
+
+static void escrever_u32_le(uint8_t *destino, uint32_t valor) {
+  destino[0] = (uint8_t)(valor & 0xFFu);
+  destino[1] = (uint8_t)((valor >> 8) & 0xFFu);
+  destino[2] = (uint8_t)((valor >> 16) & 0xFFu);
+  destino[3] = (uint8_t)((valor >> 24) & 0xFFu);
+}
+
+bool exportar_para_ficheiro_bmp(const Tela *tela, const char *caminho) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 || caminho == nullptr) {
+    return false;
+  }
+
+  constexpr uint32_t TAM_CABEÇALHO_FICHEIRO = 14;
+  constexpr uint32_t TAM_CABEÇALHO_DIB = 108; /* BITMAPV4HEADER para suporte RGBA */
+  constexpr uint32_t DESLOCAMENTO_DADOS = TAM_CABEÇALHO_FICHEIRO + TAM_CABEÇALHO_DIB;
+
+  const uint64_t tamanho_imagem_64 = (uint64_t)tela->largura * (uint64_t)tela->altura * 4u;
+  if (tamanho_imagem_64 > (uint64_t)UINT32_MAX - DESLOCAMENTO_DADOS) {
+    return false;
+  }
+
+  const uint32_t tamanho_imagem = (uint32_t)tamanho_imagem_64;
+  const uint32_t tamanho_ficheiro = DESLOCAMENTO_DADOS + tamanho_imagem;
+
+  FILE *ficheiro = fopen(caminho, "wb");
+  if (ficheiro == nullptr) {
+    return false;
+  }
+
+  uint8_t cabeçalho[DESLOCAMENTO_DADOS] = { 0 };
+
+  /* Cabeçalho do ficheiro BMP (14 bytes) */
+  cabeçalho[0] = 'B';
+  cabeçalho[1] = 'M';
+  escrever_u32_le(&cabeçalho[2], tamanho_ficheiro);
+  escrever_u32_le(&cabeçalho[10], DESLOCAMENTO_DADOS);
+
+  /* Cabeçalho DIB BITMAPV4HEADER (108 bytes) */
+  escrever_u32_le(&cabeçalho[14], TAM_CABEÇALHO_DIB);
+  escrever_u32_le(&cabeçalho[18], tela->largura);
+  /* Altura negativa indica orientação top-down (de cima para baixo) */
+  escrever_u32_le(&cabeçalho[22], (uint32_t)(-(int32_t)tela->altura));
+  escrever_u16_le(&cabeçalho[26], 1);          /* Planos de cor */
+  escrever_u16_le(&cabeçalho[28], 32);         /* 32 bits por píxel */
+  escrever_u32_le(&cabeçalho[30], 3);          /* BI_BITFIELDS */
+  escrever_u32_le(&cabeçalho[34], tamanho_imagem);
+  escrever_u32_le(&cabeçalho[38], 2835);       /* Resolução horizontal (~72 DPI) */
+  escrever_u32_le(&cabeçalho[42], 2835);       /* Resolução vertical (~72 DPI) */
+
+  /* Máscaras de canais BGRA (little-endian) */
+  escrever_u32_le(&cabeçalho[54], 0x00FF0000u); /* Máscara Vermelho */
+  escrever_u32_le(&cabeçalho[58], 0x0000FF00u); /* Máscara Verde */
+  escrever_u32_le(&cabeçalho[62], 0x000000FFu); /* Máscara Azul */
+  escrever_u32_le(&cabeçalho[66], 0xFF000000u); /* Máscara Alfa */
+
+  /* Espaço de cor LCS_sRGB ("sRGB") */
+  cabeçalho[70] = 'B';
+  cabeçalho[71] = 'G';
+  cabeçalho[72] = 'R';
+  cabeçalho[73] = 's';
+
+  if (fwrite(cabeçalho, 1, DESLOCAMENTO_DADOS, ficheiro) != DESLOCAMENTO_DADOS) {
+    fclose(ficheiro);
+    return false;
+  }
+
+  const size_t bytes_por_linha = (size_t)tela->largura * 4;
+  uint8_t *linha_bgra = malloc(bytes_por_linha);
+  if (linha_bgra == nullptr) {
+    fclose(ficheiro);
+    return false;
+  }
+
+  bool sucesso = true;
+  for (uint32_t y = 0; y < tela->altura; ++y) {
+    const Cor *linha_píxeis = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (uint32_t x = 0; x < tela->largura; ++x) {
+      const size_t idx = (size_t)x * 4;
+      linha_bgra[idx + 0] = linha_píxeis[x].azul;
+      linha_bgra[idx + 1] = linha_píxeis[x].verde;
+      linha_bgra[idx + 2] = linha_píxeis[x].vermelho;
+      linha_bgra[idx + 3] = linha_píxeis[x].alfa;
+    }
+
+    if (fwrite(linha_bgra, 1, bytes_por_linha, ficheiro) != bytes_por_linha) {
+      sucesso = false;
+      break;
+    }
+  }
+
+  free(linha_bgra);
+  if (fclose(ficheiro) != 0) {
+    sucesso = false;
+  }
+
+  return sucesso;
 }
 
 bool exportar_para_ficheiro_tga(const Tela *tela, const char *caminho) {
