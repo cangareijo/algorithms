@@ -142,43 +142,53 @@ typedef struct {
 Tela criar_tela(uint32_t largura, uint32_t altura);
 void destruir_tela(Tela *tela);
 void limpar_tela(Tela *tela, Cor fundo);
+
 Cor obter_píxel(const Tela *tela, Int2D ponto);
 void desenhar_píxel(Tela *tela, Int2D ponto, Cor cor);
 void desenhar_píxel_alfa(Tela *tela, Int2D ponto, Cor cor_fonte);
 void desenhar_píxel_mistura(Tela *tela, Int2D ponto, Cor cor_fonte, Mistura modo);
+
 void desenhar_linha(Tela *tela, Int2D início, Int2D fim, Cor cor);
 void desenhar_linha_horizontal(Tela *tela, int32_t y, int32_t x_início, int32_t x_fim, Cor cor);
 void desenhar_linha_espessa(Tela *tela, Int2D início, Int2D fim, uint32_t espessura, Cor cor);
 void desenhar_linha_suavizada(Tela *tela, Int2D início, Int2D fim, Cor cor);
 void desenhar_polilinha(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor, bool fechada);
+
 void desenhar_curva_bezier_quadrática(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Cor cor);
 void desenhar_curva_bezier_cúbica(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Int2D p3, Cor cor);
 void desenhar_curva_bezier_adaptativa(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Int2D p3, Cor cor, float tolerância_píxeis);
 void desenhar_spline_catmull_rom(Tela *tela, const Int2D pontos[], size_t núm_pontos, uint32_t subdivisões_por_segmento, Cor cor);
+
 void desenhar_triângulo(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Cor cor);
 void desenhar_triângulo_preenchido(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Cor cor);
+void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3);
+
 void desenhar_retângulo(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor);
 void desenhar_retângulo_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor);
 void desenhar_retângulo_arredondado(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor);
 void desenhar_retângulo_arredondado_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor);
 void desenhar_gradiente_linear(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor_início, Cor cor_fim, bool vertical);
+
 void desenhar_polígono(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor);
 void desenhar_polígono_preenchido(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor);
+
 void desenhar_círculo(Tela *tela, Int2D centro, uint32_t raio, Cor cor);
 void desenhar_círculo_preenchido(Tela *tela, Int2D centro, uint32_t raio, Cor cor);
 void desenhar_gradiente_radial(Tela *tela, Int2D centro, uint32_t raio, Cor cor_centro, Cor cor_periferia);
 void desenhar_arco(Tela *tela, Int2D centro, uint32_t raio, float ângulo_início, float ângulo_fim, Cor cor);
 void desenhar_setor_circular(Tela *tela, Int2D centro, uint32_t raio, float ângulo_início, float ângulo_fim, Cor cor);
+
 void desenhar_elipse(Tela *tela, Int2D centro, uint32_t rx, uint32_t ry, Cor cor);
 void desenhar_elipse_preenchida(Tela *tela, Int2D centro, uint32_t rx, uint32_t ry, Cor cor);
-void preencher_área(Tela *tela, Int2D semente, Cor cor);
+
 void desenhar_imagem(Tela * destino, const Tela * origem, Int2D posição);
 void desenhar_imagem_escala(Tela * destino, const Tela * origem, Int2D posição, uint32_t largura_nova, uint32_t altura_nova);
 void desenhar_imagem_rodada(Tela * destino,  const Tela * origem,  Int2D posição,  float radianos,  Int2D pivô);
 void desenhar_subimagem(Tela * destino, const Tela * origem, Int2D pos_destino, Int2D pos_origem, uint32_t larg_sub, uint32_t alt_sub);
 void desenhar_imagem_mistura(Tela * destino, const Tela * origem, Int2D posição, Mistura modo);
-void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3);
 void desenhar_imagem_matriz(Tela * destino, const Tela * origem, Matriz3x3 m);
+
+void preencher_área(Tela *tela, Int2D semente, Cor cor);
 void aplicar_matriz_convolução(Tela *tela, Matriz3x3 núcleo, float divisor, float viés);
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *tela);
@@ -1340,6 +1350,76 @@ void desenhar_triângulo_preenchido(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Co
   }
 }
 
+static float produto_vetorial_arestas(Flut2D a, Flut2D b, Flut2D c) {
+  return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
+}
+
+void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  const float área = produto_vetorial_arestas(v1.posição, v2.posição, v3.posição);
+  if (fabsf(área) <= 1e-6f) {
+    return;
+  }
+
+  const float inv_área = 1.0f / área;
+  const float sinal = (área > 0.0f) ? 1.0f : -1.0f;
+
+  /* Calcular caixa envolvente e recortar aos limites da tela */
+  const float min_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
+  const float max_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
+  const float min_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
+  const float max_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
+
+  int32_t min_x = (int32_t)floorf(min_xf);
+  int32_t max_x = (int32_t)ceilf(max_xf);
+  int32_t min_y = (int32_t)floorf(min_yf);
+  int32_t max_y = (int32_t)ceilf(max_yf);
+
+  if (min_x < 0) min_x = 0;
+  if (min_y < 0) min_y = 0;
+  if (max_x >= (int32_t)tela->largura) max_x = (int32_t)tela->largura - 1;
+  if (max_y >= (int32_t)tela->altura)  max_y = (int32_t)tela->altura - 1;
+
+  if (min_x > max_x || min_y > max_y) {
+    return;
+  }
+
+  for (int32_t y = min_y; y <= max_y; ++y) {
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int32_t x = min_x; x <= max_x; ++x) {
+      /* Amostragem no centro do píxel */
+      const Flut2D p = { .x = (float)x + 0.5f, .y = (float)y + 0.5f };
+
+      const float e1 = produto_vetorial_arestas(v2.posição, v3.posição, p);
+      const float e2 = produto_vetorial_arestas(v3.posição, v1.posição, p);
+      const float e3 = produto_vetorial_arestas(v1.posição, v2.posição, p);
+
+      /* Verifica se o ponto está dentro do triângulo (independentemente da orientação) */
+      if ((e1 * sinal >= 0.0f) && (e2 * sinal >= 0.0f) && (e3 * sinal >= 0.0f)) {
+        const float w1 = e1 * inv_área;
+        const float w2 = e2 * inv_área;
+        const float w3 = e3 * inv_área;
+
+        const float r = w1 * (float)v1.cor.vermelho + w2 * (float)v2.cor.vermelho + w3 * (float)v3.cor.vermelho;
+        const float g = w1 * (float)v1.cor.verde    + w2 * (float)v2.cor.verde    + w3 * (float)v3.cor.verde;
+        const float b = w1 * (float)v1.cor.azul     + w2 * (float)v2.cor.azul     + w3 * (float)v3.cor.azul;
+        const float a = w1 * (float)v1.cor.alfa     + w2 * (float)v2.cor.alfa     + w3 * (float)v3.cor.alfa;
+
+        linha[x] = (Cor){
+          .vermelho = (uint8_t)lroundf(fminf(fmaxf(r, 0.0f), 255.0f)),
+          .verde    = (uint8_t)lroundf(fminf(fmaxf(g, 0.0f), 255.0f)),
+          .azul     = (uint8_t)lroundf(fminf(fmaxf(b, 0.0f), 255.0f)),
+          .alfa     = (uint8_t)lroundf(fminf(fmaxf(a, 0.0f), 255.0f))
+        };
+      }
+    }
+  }
+}
+
 void desenhar_retângulo(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor) {
   if (!tela || largura == 0 || altura == 0) return;
   int32_t x0 = superior_esquerdo.x;
@@ -1730,34 +1810,6 @@ void desenhar_elipse_preenchida(Tela *tela, Int2D centro, uint32_t rx, uint32_t 
   }
 }
 
-void preencher_área(Tela *tela, Int2D semente, Cor nova_cor) {
-  if (!ponto_dentro_tela(tela, semente)) return;
-  Cor cor_alvo = obter_píxel(tela, semente);
-  if (cores_iguais(cor_alvo, nova_cor)) return;
-
-  size_t cap = (size_t)tela->largura * (size_t)tela->altura;
-  Int2D *pilha = malloc(cap * sizeof(Int2D));
-  if (!pilha) return;
-
-  size_t topo = 0;
-  pilha[topo++] = semente;
-
-  while (topo > 0) {
-    Int2D p = pilha[--topo];
-    if (!ponto_dentro_tela(tela, p)) continue;
-    if (!cores_iguais(obter_píxel(tela, p), cor_alvo)) continue;
-
-    desenhar_píxel(tela, p, nova_cor);
-
-    if (p.x + 1 < (int32_t)tela->largura)  pilha[topo++] = (Int2D){ p.x + 1, p.y };
-    if (p.x > 0)                           pilha[topo++] = (Int2D){ p.x - 1, p.y };
-    if (p.y + 1 < (int32_t)tela->altura)   pilha[topo++] = (Int2D){ p.x, p.y + 1 };
-    if (p.y > 0)                           pilha[topo++] = (Int2D){ p.x, p.y - 1 };
-  }
-
-  free(pilha);
-}
-
 void desenhar_imagem(Tela *destino, const Tela *origem, Int2D posição) {
   if (!destino || !destino->píxeis || !origem || !origem->píxeis) return;
 
@@ -1845,76 +1897,6 @@ void desenhar_imagem_mistura(Tela *destino, const Tela *origem, Int2D posição,
   }
 }
 
-static float produto_vetorial_arestas(Flut2D a, Flut2D b, Flut2D c) {
-  return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
-}
-
-void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3) {
-  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
-    return;
-  }
-
-  const float área = produto_vetorial_arestas(v1.posição, v2.posição, v3.posição);
-  if (fabsf(área) <= 1e-6f) {
-    return;
-  }
-
-  const float inv_área = 1.0f / área;
-  const float sinal = (área > 0.0f) ? 1.0f : -1.0f;
-
-  /* Calcular caixa envolvente e recortar aos limites da tela */
-  const float min_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
-  const float max_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
-  const float min_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
-  const float max_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
-
-  int32_t min_x = (int32_t)floorf(min_xf);
-  int32_t max_x = (int32_t)ceilf(max_xf);
-  int32_t min_y = (int32_t)floorf(min_yf);
-  int32_t max_y = (int32_t)ceilf(max_yf);
-
-  if (min_x < 0) min_x = 0;
-  if (min_y < 0) min_y = 0;
-  if (max_x >= (int32_t)tela->largura) max_x = (int32_t)tela->largura - 1;
-  if (max_y >= (int32_t)tela->altura)  max_y = (int32_t)tela->altura - 1;
-
-  if (min_x > max_x || min_y > max_y) {
-    return;
-  }
-
-  for (int32_t y = min_y; y <= max_y; ++y) {
-    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
-
-    for (int32_t x = min_x; x <= max_x; ++x) {
-      /* Amostragem no centro do píxel */
-      const Flut2D p = { .x = (float)x + 0.5f, .y = (float)y + 0.5f };
-
-      const float e1 = produto_vetorial_arestas(v2.posição, v3.posição, p);
-      const float e2 = produto_vetorial_arestas(v3.posição, v1.posição, p);
-      const float e3 = produto_vetorial_arestas(v1.posição, v2.posição, p);
-
-      /* Verifica se o ponto está dentro do triângulo (independentemente da orientação) */
-      if ((e1 * sinal >= 0.0f) && (e2 * sinal >= 0.0f) && (e3 * sinal >= 0.0f)) {
-        const float w1 = e1 * inv_área;
-        const float w2 = e2 * inv_área;
-        const float w3 = e3 * inv_área;
-
-        const float r = w1 * (float)v1.cor.vermelho + w2 * (float)v2.cor.vermelho + w3 * (float)v3.cor.vermelho;
-        const float g = w1 * (float)v1.cor.verde    + w2 * (float)v2.cor.verde    + w3 * (float)v3.cor.verde;
-        const float b = w1 * (float)v1.cor.azul     + w2 * (float)v2.cor.azul     + w3 * (float)v3.cor.azul;
-        const float a = w1 * (float)v1.cor.alfa     + w2 * (float)v2.cor.alfa     + w3 * (float)v3.cor.alfa;
-
-        linha[x] = (Cor){
-          .vermelho = (uint8_t)lroundf(fminf(fmaxf(r, 0.0f), 255.0f)),
-          .verde    = (uint8_t)lroundf(fminf(fmaxf(g, 0.0f), 255.0f)),
-          .azul     = (uint8_t)lroundf(fminf(fmaxf(b, 0.0f), 255.0f)),
-          .alfa     = (uint8_t)lroundf(fminf(fmaxf(a, 0.0f), 255.0f))
-        };
-      }
-    }
-  }
-}
-
 void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
   if (!destino || !destino->píxeis || !origem || !origem->píxeis) return;
 
@@ -1960,6 +1942,36 @@ void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
       }
     }
   }
+}
+
+
+
+void preencher_área(Tela *tela, Int2D semente, Cor nova_cor) {
+  if (!ponto_dentro_tela(tela, semente)) return;
+  Cor cor_alvo = obter_píxel(tela, semente);
+  if (cores_iguais(cor_alvo, nova_cor)) return;
+
+  size_t cap = (size_t)tela->largura * (size_t)tela->altura;
+  Int2D *pilha = malloc(cap * sizeof(Int2D));
+  if (!pilha) return;
+
+  size_t topo = 0;
+  pilha[topo++] = semente;
+
+  while (topo > 0) {
+    Int2D p = pilha[--topo];
+    if (!ponto_dentro_tela(tela, p)) continue;
+    if (!cores_iguais(obter_píxel(tela, p), cor_alvo)) continue;
+
+    desenhar_píxel(tela, p, nova_cor);
+
+    if (p.x + 1 < (int32_t)tela->largura)  pilha[topo++] = (Int2D){ p.x + 1, p.y };
+    if (p.x > 0)                           pilha[topo++] = (Int2D){ p.x - 1, p.y };
+    if (p.y + 1 < (int32_t)tela->altura)   pilha[topo++] = (Int2D){ p.x, p.y + 1 };
+    if (p.y > 0)                           pilha[topo++] = (Int2D){ p.x, p.y - 1 };
+  }
+
+  free(pilha);
 }
 
 void aplicar_matriz_convolução(Tela *tela, Matriz3x3 núcleo, float divisor, float viés) {
