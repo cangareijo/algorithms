@@ -71,6 +71,21 @@ void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], siz
 Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
 Cor obter_píxel(const Tela *tela, Int2D ponto);
 
+Flut2D somar_flut2d(Flut2D a, Flut2D b);
+Flut2D subtrair_flut2d(Flut2D a, Flut2D b);
+Flut2D escalar_flut2d(Flut2D v, float fator);
+float comprimento_flut2d(Flut2D v);
+float comprimento_quadrado_flut2d(Flut2D v);
+Flut2D normalizar_flut2d(Flut2D v);
+float produto_escalar_flut2d(Flut2D a, Flut2D b);
+float produto_vetorial_flut2d(Flut2D a, Flut2D b);
+float distância_flut2d(Flut2D a, Flut2D b);
+float ângulo_entre_flut2d(Flut2D a, Flut2D b);
+Flut2D interpolar_flut2d(Flut2D a, Flut2D b, float fator);
+Flut2D rodar_flut2d(Flut2D ponto, Flut2D origem, float radianos);
+Flut2D int2d_para_flut2d(Int2D ponto);
+Int2D flut2d_para_int2d(Flut2D ponto);
+
 void criar_matriz_identidade(Matriz3x3 *destino);
 void criar_matriz_translação(Matriz3x3 *destino, float tx, float ty);
 void criar_matriz_rotação(Matriz3x3 *destino, float radianos);
@@ -404,6 +419,86 @@ Cor obter_píxel(const Tela *tela, Int2D ponto) {
   }
   return tela->píxeis[(size_t)ponto.y * tela->largura + (size_t)ponto.x];
 }
+
+
+
+Flut2D somar_flut2d(Flut2D a, Flut2D b) {
+  return (Flut2D){ .x = a.x + b.x, .y = a.y + b.y };
+}
+
+Flut2D subtrair_flut2d(Flut2D a, Flut2D b) {
+  return (Flut2D){ .x = a.x - b.x, .y = a.y - b.y };
+}
+
+Flut2D escalar_flut2d(Flut2D v, float fator) {
+  return (Flut2D){ .x = v.x * fator, .y = v.y * fator };
+}
+
+float comprimento_flut2d(Flut2D v) {
+  return sqrtf(v.x * v.x + v.y * v.y);
+}
+
+float comprimento_quadrado_flut2d(Flut2D v) {
+  return v.x * v.x + v.y * v.y;
+}
+
+Flut2D normalizar_flut2d(Flut2D v) {
+  const float comp = sqrtf(v.x * v.x + v.y * v.y);
+  if (comp <= 1e-6f) {
+    return (Flut2D){ .x = 0.0f, .y = 0.0f };
+  }
+  const float inv = 1.0f / comp;
+  return (Flut2D){ .x = v.x * inv, .y = v.y * inv };
+}
+
+float produto_escalar_flut2d(Flut2D a, Flut2D b) {
+  return a.x * b.x + a.y * b.y;
+}
+
+float produto_vetorial_flut2d(Flut2D a, Flut2D b) {
+  return a.x * b.y - a.y * b.x;
+}
+
+float distância_flut2d(Flut2D a, Flut2D b) {
+  const float dx = b.x - a.x;
+  const float dy = b.y - a.y;
+  return sqrtf(dx * dx + dy * dy);
+}
+
+float ângulo_entre_flut2d(Flut2D a, Flut2D b) {
+  const float vetorial = a.x * b.y - a.y * b.x;
+  const float escalar = a.x * b.x + a.y * b.y;
+  return atan2f(vetorial, escalar);
+}
+
+Flut2D interpolar_flut2d(Flut2D a, Flut2D b, float fator) {
+  return (Flut2D){
+    .x = a.x + (b.x - a.x) * fator,
+    .y = a.y + (b.y - a.y) * fator
+  };
+}
+
+Flut2D rodar_flut2d(Flut2D ponto, Flut2D origem, float radianos) {
+  const float seno = sinf(radianos);
+  const float cosseno = cosf(radianos);
+  const float dx = ponto.x - origem.x;
+  const float dy = ponto.y - origem.y;
+
+  return (Flut2D){
+    .x = origem.x + (dx * cosseno - dy * seno),
+    .y = origem.y + (dx * seno + dy * cosseno)
+  };
+}
+
+Flut2D int2d_para_flut2d(Int2D ponto) {
+  return (Flut2D){ .x = (float)ponto.x, .y = (float)ponto.y };
+}
+
+Int2D flut2d_para_int2d(Flut2D ponto) {
+  return (Int2D){ .x = (int32_t)lroundf(ponto.x), .y = (int32_t)lroundf(ponto.y) };
+}
+
+
 
 void desenhar_píxel(Tela *tela, Int2D ponto, Cor cor) {
   if (!ponto_dentro_tela(tela, ponto)) return;
