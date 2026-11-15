@@ -152,6 +152,7 @@ void desenhar_linha(Tela *tela, Int2D início, Int2D fim, Cor cor);
 void desenhar_linha_horizontal(Tela *tela, int32_t y, int32_t x_início, int32_t x_fim, Cor cor);
 void desenhar_linha_espessa(Tela *tela, Int2D início, Int2D fim, uint32_t espessura, Cor cor);
 void desenhar_cápsula(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
+void desenhar_cápsula_sdf(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
 void desenhar_cápsula_preenchida(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
 void desenhar_linha_suavizada(Tela *tela, Int2D início, Int2D fim, Cor cor);
 void desenhar_polilinha(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor, bool fechada);
@@ -1202,6 +1203,81 @@ void desenhar_cápsula(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor) {
 
   desenhar_arco(tela, p2, raio, ângulo_eixo - MEIO_PI, ângulo_eixo + MEIO_PI, cor);
   desenhar_arco(tela, p1, raio, ângulo_eixo + MEIO_PI, ângulo_eixo + 3.0f * MEIO_PI, cor);
+}
+
+static inline bool píxel_dentro_cápsula(float px, float py, float ax, float ay, float ab_x, float ab_y, float inv_ab_comp_quad, float raio_quadrado) {
+  const float ap_x = px - ax;
+  const float ap_y = py - ay;
+
+  float t = (ap_x * ab_x + ap_y * ab_y) * inv_ab_comp_quad;
+  if (t < 0.0f) {
+    t = 0.0f;
+  } else if (t > 1.0f) {
+    t = 1.0f;
+  }
+
+  const float dx = ap_x - t * ab_x;
+  const float dy = ap_y - t * ab_y;
+
+  return (dx * dx + dy * dy) <= raio_quadrado;
+}
+
+void desenhar_cápsula_sdf(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  if (raio == 0) {
+    desenhar_linha(tela, p1, p2, cor);
+    return;
+  }
+
+  const int64_t r = (int64_t)raio;
+  const float raio_quadrado = (float)((uint64_t)raio * (uint64_t)raio);
+
+  const int64_t min_x_seg = (p1.x < p2.x) ? p1.x : p2.x;
+  const int64_t max_x_seg = (p1.x > p2.x) ? p1.x : p2.x;
+  const int64_t min_y_seg = (p1.y < p2.y) ? p1.y : p2.y;
+  const int64_t max_y_seg = (p1.y > p2.y) ? p1.y : p2.y;
+
+  const int64_t x0 = (min_x_seg - r > 0) ? (min_x_seg - r) : 0;
+  const int64_t y0 = (min_y_seg - r > 0) ? (min_y_seg - r) : 0;
+  const int64_t x1 = (max_x_seg + r < (int64_t)tela->largura - 1) ? (max_x_seg + r) : ((int64_t)tela->largura - 1);
+  const int64_t y1 = (max_y_seg + r < (int64_t)tela->altura - 1)  ? (max_y_seg + r) : ((int64_t)tela->altura - 1);
+
+  if (x0 > x1 || y0 > y1) {
+    return;
+  }
+
+  const float ax = (float)p1.x;
+  const float ay = (float)p1.y;
+  const float ab_x = (float)((int64_t)p2.x - (int64_t)p1.x);
+  const float ab_y = (float)((int64_t)p2.y - (int64_t)p1.y);
+  const float ab_comp_quad = ab_x * ab_x + ab_y * ab_y;
+  const float inv_ab_comp_quad = (ab_comp_quad > 1e-6f) ? (1.0f / ab_comp_quad) : 0.0f;
+
+  for (int64_t y = y0; y <= y1; ++y) {
+    const float fy = (float)y;
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int64_t x = x0; x <= x1; ++x) {
+      const float fx = (float)x;
+
+      if (!píxel_dentro_cápsula(fx, fy, ax, ay, ab_x, ab_y, inv_ab_comp_quad, raio_quadrado)) {
+        continue;
+      }
+
+      /* Se algum vizinho ortogonal estiver fora, este píxel faz parte da fronteira exata */
+      const bool esq_fora = !píxel_dentro_cápsula(fx - 1.0f, fy, ax, ay, ab_x, ab_y, inv_ab_comp_quad, raio_quadrado);
+      const bool dir_fora = !píxel_dentro_cápsula(fx + 1.0f, fy, ax, ay, ab_x, ab_y, inv_ab_comp_quad, raio_quadrado);
+      const bool cim_fora = !píxel_dentro_cápsula(fx, fy - 1.0f, ax, ay, ab_x, ab_y, inv_ab_comp_quad, raio_quadrado);
+      const bool bai_fora = !píxel_dentro_cápsula(fx, fy + 1.0f, ax, ay, ab_x, ab_y, inv_ab_comp_quad, raio_quadrado);
+
+      if (esq_fora || dir_fora || cim_fora || bai_fora) {
+        linha[x] = cor;
+      }
+    }
+  }
 }
 
 void desenhar_cápsula_preenchida(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor) {
