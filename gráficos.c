@@ -151,6 +151,8 @@ void desenhar_píxel_mistura(Tela *tela, Int2D ponto, Cor cor_fonte, Mistura mod
 void desenhar_linha(Tela *tela, Int2D início, Int2D fim, Cor cor);
 void desenhar_linha_horizontal(Tela *tela, int32_t y, int32_t x_início, int32_t x_fim, Cor cor);
 void desenhar_linha_espessa(Tela *tela, Int2D início, Int2D fim, uint32_t espessura, Cor cor);
+void desenhar_cápsula(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
+void desenhar_cápsula_preenchida(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
 void desenhar_linha_suavizada(Tela *tela, Int2D início, Int2D fim, Cor cor);
 void desenhar_polilinha(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor, bool fechada);
 
@@ -180,6 +182,8 @@ void desenhar_círculo_preenchido(Tela *tela, Int2D centro, uint32_t raio, Cor c
 void desenhar_gradiente_radial(Tela *tela, Int2D centro, uint32_t raio, Cor cor_centro, Cor cor_periferia);
 void desenhar_arco(Tela *tela, Int2D centro, uint32_t raio, float ângulo_início, float ângulo_fim, Cor cor);
 void desenhar_setor_circular(Tela *tela, Int2D centro, uint32_t raio, float ângulo_início, float ângulo_fim, Cor cor);
+void desenhar_gradiente_angular(Tela *tela, Int2D centro, uint32_t raio, Cor cor_início, Cor cor_fim, float ângulo_início);
+void desenhar_anel_preenchido(Tela *tela, Int2D centro, uint32_t raio_interno, uint32_t raio_externo, Cor cor);
 
 void desenhar_elipse(Tela *tela, Int2D centro, uint32_t rx, uint32_t ry, Cor cor);
 void desenhar_elipse_preenchida(Tela *tela, Int2D centro, uint32_t rx, uint32_t ry, Cor cor);
@@ -1152,6 +1156,118 @@ void desenhar_linha_espessa(Tela *tela, Int2D início, Int2D fim, uint32_t espes
   desenhar_círculo_preenchido(tela, fim, raio, cor);
 }
 
+void desenhar_cápsula(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  /* Se o raio for nulo, a cápsula degenera num segmento de reta simples */
+  if (raio == 0) {
+    desenhar_linha(tela, p1, p2, cor);
+    return;
+  }
+
+  const float dx = (float)((int64_t)p2.x - (int64_t)p1.x);
+  const float dy = (float)((int64_t)p2.y - (int64_t)p1.y);
+  const float comprimento = hypotf(dx, dy);
+
+  /* Se os dois centros coincidirem, a cápsula degenera num círculo */
+  if (comprimento <= 1e-6f) {
+    desenhar_círculo(tela, p1, raio, cor);
+    return;
+  }
+
+  constexpr float MEIO_PI = 1.57079632679489661923f;
+  const float r = (float)raio;
+
+  /* Vetor normal unitário perpendicular ao segmento (rodado -90 graus) */
+  const float nx = dy / comprimento;
+  const float ny = -dx / comprimento;
+
+  const int32_t desl_x = (int32_t)lroundf(nx * r);
+  const int32_t desl_y = (int32_t)lroundf(ny * r);
+
+  /* Desenhar as duas arestas laterais paralelas ao eixo central */
+  const Int2D lado1_início = { .x = p1.x + desl_x, .y = p1.y + desl_y };
+  const Int2D lado1_fim    = { .x = p2.x + desl_x, .y = p2.y + desl_y };
+
+  const Int2D lado2_início = { .x = p1.x - desl_x, .y = p1.y - desl_y };
+  const Int2D lado2_fim    = { .x = p2.x - desl_x, .y = p2.y - desl_y };
+
+  desenhar_linha(tela, lado1_início, lado1_fim, cor);
+  desenhar_linha(tela, lado2_início, lado2_fim, cor);
+
+  /* Desenhar os dois semicírculos nas extremidades em torno de p1 e p2 */
+  const float ângulo_eixo = atan2f(dy, dx);
+
+  desenhar_arco(tela, p2, raio, ângulo_eixo - MEIO_PI, ângulo_eixo + MEIO_PI, cor);
+  desenhar_arco(tela, p1, raio, ângulo_eixo + MEIO_PI, ângulo_eixo + 3.0f * MEIO_PI, cor);
+}
+
+void desenhar_cápsula_preenchida(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  /* Se o raio for nulo, a cápsula degenera numa linha simples */
+  if (raio == 0) {
+    desenhar_linha(tela, p1, p2, cor);
+    return;
+  }
+
+  const int64_t r = (int64_t)raio;
+  const float raio_quadrado = (float)((uint64_t)raio * (uint64_t)raio);
+
+  /* Calcular caixa envolvente dos dois círculos extremos e recortar à tela */
+  const int64_t min_x_seg = (p1.x < p2.x) ? p1.x : p2.x;
+  const int64_t max_x_seg = (p1.x > p2.x) ? p1.x : p2.x;
+  const int64_t min_y_seg = (p1.y < p2.y) ? p1.y : p2.y;
+  const int64_t max_y_seg = (p1.y > p2.y) ? p1.y : p2.y;
+
+  const int64_t x0 = (min_x_seg - r > 0) ? (min_x_seg - r) : 0;
+  const int64_t y0 = (min_y_seg - r > 0) ? (min_y_seg - r) : 0;
+  const int64_t x1 = (max_x_seg + r < (int64_t)tela->largura - 1) ? (max_x_seg + r) : ((int64_t)tela->largura - 1);
+  const int64_t y1 = (max_y_seg + r < (int64_t)tela->altura - 1)  ? (max_y_seg + r) : ((int64_t)tela->altura - 1);
+
+  if (x0 > x1 || y0 > y1) {
+    return;
+  }
+
+  const float ax = (float)p1.x;
+  const float ay = (float)p1.y;
+  const float ab_x = (float)((int64_t)p2.x - (int64_t)p1.x);
+  const float ab_y = (float)((int64_t)p2.y - (int64_t)p1.y);
+  const float ab_comp_quad = ab_x * ab_x + ab_y * ab_y;
+  const float inv_ab_comp_quad = (ab_comp_quad > 1e-6f) ? (1.0f / ab_comp_quad) : 0.0f;
+
+  for (int64_t y = y0; y <= y1; ++y) {
+    const float ap_y = (float)y - ay;
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int64_t x = x0; x <= x1; ++x) {
+      const float ap_x = (float)x - ax;
+
+      /* Projetar o píxel sobre o segmento e limitar t ao intervalo [0.0f, 1.0f] */
+      float t = (ap_x * ab_x + ap_y * ab_y) * inv_ab_comp_quad;
+      if (t < 0.0f) {
+        t = 0.0f;
+      } else if (t > 1.0f) {
+        t = 1.0f;
+      }
+
+      const float proj_x = ax + t * ab_x;
+      const float proj_y = ay + t * ab_y;
+
+      const float dx = (float)x - proj_x;
+      const float dy = (float)y - proj_y;
+
+      if ((dx * dx + dy * dy) <= raio_quadrado) {
+        linha[x] = cor;
+      }
+    }
+  }
+}
+
 static void desenhar_píxel_wu(Tela *tela, int32_t x, int32_t y, Cor cor, float brilho) {
   if (brilho <= 0.0f) return;
   Cor c = cor;
@@ -1980,6 +2096,102 @@ void desenhar_setor_circular(Tela *tela, Int2D centro, uint32_t raio, float âng
     }
   }
 }
+
+void desenhar_gradiente_angular(Tela *tela, Int2D centro, uint32_t raio, Cor cor_início, Cor cor_fim, float ângulo_início) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 || raio == 0) {
+    return;
+  }
+
+  constexpr float DOIS_PI = 6.28318530717958647692f;
+  constexpr float INV_DOIS_PI = 1.0f / DOIS_PI;
+
+  const int64_t cx = centro.x;
+  const int64_t cy = centro.y;
+  const int64_t r = (int64_t)raio;
+  const uint64_t raio_quadrado = (uint64_t)raio * (uint64_t)raio;
+
+  /* Recortar caixa envolvente aos limites da tela */
+  const int64_t x0 = (cx - r > 0) ? (cx - r) : 0;
+  const int64_t y0 = (cy - r > 0) ? (cy - r) : 0;
+  const int64_t x1 = (cx + r < (int64_t)tela->largura - 1) ? (cx + r) : ((int64_t)tela->largura - 1);
+  const int64_t y1 = (cy + r < (int64_t)tela->altura - 1)  ? (cy + r) : ((int64_t)tela->altura - 1);
+
+  if (x0 > x1 || y0 > y1) {
+    return;
+  }
+
+  for (int64_t y = y0; y <= y1; ++y) {
+    const int64_t dy = y - cy;
+    const uint64_t dy2 = (uint64_t)(dy * dy);
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int64_t x = x0; x <= x1; ++x) {
+      const int64_t dx = x - cx;
+      const uint64_t dist2 = (uint64_t)(dx * dx) + dy2;
+
+      if (dist2 <= raio_quadrado) {
+        float ângulo = atan2f((float)dy, (float)dx) - ângulo_início;
+        ângulo = fmodf(ângulo, DOIS_PI);
+        if (ângulo < 0.0f) {
+          ângulo += DOIS_PI;
+        }
+
+        const float fator = ângulo * INV_DOIS_PI;
+
+        linha[x] = (Cor){
+          .vermelho = (uint8_t)lroundf((float)cor_início.vermelho + ((float)cor_fim.vermelho - (float)cor_início.vermelho) * fator),
+          .verde    = (uint8_t)lroundf((float)cor_início.verde    + ((float)cor_fim.verde    - (float)cor_início.verde)    * fator),
+          .azul     = (uint8_t)lroundf((float)cor_início.azul     + ((float)cor_fim.azul     - (float)cor_início.azul)     * fator),
+          .alfa     = (uint8_t)lroundf((float)cor_início.alfa     + ((float)cor_fim.alfa     - (float)cor_início.alfa)     * fator)
+        };
+      }
+    }
+  }
+}
+
+void desenhar_anel_preenchido(Tela *tela, Int2D centro, uint32_t raio_interno, uint32_t raio_externo, Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  if (raio_externo == 0 || raio_interno > raio_externo) {
+    return;
+  }
+
+  const int64_t cx = centro.x;
+  const int64_t cy = centro.y;
+  const int64_t r_ext = (int64_t)raio_externo;
+
+  const uint64_t r_int_quad = (uint64_t)raio_interno * (uint64_t)raio_interno;
+  const uint64_t r_ext_quad = (uint64_t)raio_externo * (uint64_t)raio_externo;
+
+  /* Recortar caixa envolvente do raio externo aos limites da tela */
+  const int64_t x0 = (cx - r_ext > 0) ? (cx - r_ext) : 0;
+  const int64_t y0 = (cy - r_ext > 0) ? (cy - r_ext) : 0;
+  const int64_t x1 = (cx + r_ext < (int64_t)tela->largura - 1) ? (cx + r_ext) : ((int64_t)tela->largura - 1);
+  const int64_t y1 = (cy + r_ext < (int64_t)tela->altura - 1)  ? (cy + r_ext) : ((int64_t)tela->altura - 1);
+
+  if (x0 > x1 || y0 > y1) {
+    return;
+  }
+
+  for (int64_t y = y0; y <= y1; ++y) {
+    const int64_t dy = y - cy;
+    const uint64_t dy2 = (uint64_t)(dy * dy);
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int64_t x = x0; x <= x1; ++x) {
+      const int64_t dx = x - cx;
+      const uint64_t dist2 = (uint64_t)(dx * dx) + dy2;
+
+      if (dist2 >= r_int_quad && dist2 <= r_ext_quad) {
+        linha[x] = cor;
+      }
+    }
+  }
+}
+
+
 
 void desenhar_elipse(Tela *tela, Int2D centro, uint32_t rx, uint32_t ry, Cor cor) {
   if (!tela || !tela->píxeis) return;
