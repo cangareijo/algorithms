@@ -162,15 +162,18 @@ void desenhar_spline_catmull_rom(Tela *tela, const Int2D pontos[], size_t núm_p
 void desenhar_triângulo(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Cor cor);
 void desenhar_triângulo_preenchido(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Cor cor);
 void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3);
+void desenhar_triângulo_texturizado(Tela *tela, const Tela *textura, Vértice2D v1, Vértice2D v2, Vértice2D v3);
 
 void desenhar_retângulo(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor);
 void desenhar_retângulo_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor);
 void desenhar_retângulo_arredondado(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor);
 void desenhar_retângulo_arredondado_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor);
 void desenhar_gradiente_linear(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor_início, Cor cor_fim, bool vertical);
+void desenhar_retângulo_mosaico(Tela *tela, Retângulo área, const Tela *padrão, Int2D deslocamento);
 
 void desenhar_polígono(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor);
 void desenhar_polígono_preenchido(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor);
+void desenhar_polígono_texturizado(Tela *tela, const Tela *textura, const Vértice2D vértices[], size_t núm_vértices);
 
 void desenhar_círculo(Tela *tela, Int2D centro, uint32_t raio, Cor cor);
 void desenhar_círculo_preenchido(Tela *tela, Int2D centro, uint32_t raio, Cor cor);
@@ -1420,6 +1423,93 @@ void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vért
   }
 }
 
+void desenhar_triângulo_texturizado(Tela *tela, const Tela *textura, Vértice2D v1, Vértice2D v2, Vértice2D v3) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  if (textura == nullptr || textura->píxeis == nullptr || textura->largura == 0 || textura->altura == 0) {
+    return;
+  }
+
+  const float área = produto_vetorial_arestas(v1.posição, v2.posição, v3.posição);
+  if (fabsf(área) <= 1e-6f) {
+    return;
+  }
+
+  const float inv_área = 1.0f / área;
+  const float sinal = (área > 0.0f) ? 1.0f : -1.0f;
+
+  /* Calcular caixa envolvente e recortar aos limites da tela */
+  const float min_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
+  const float max_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
+  const float min_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
+  const float max_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
+
+  int32_t min_x = (int32_t)floorf(min_xf);
+  int32_t max_x = (int32_t)ceilf(max_xf);
+  int32_t min_y = (int32_t)floorf(min_yf);
+  int32_t max_y = (int32_t)ceilf(max_yf);
+
+  if (min_x < 0) min_x = 0;
+  if (min_y < 0) min_y = 0;
+  if (max_x >= (int32_t)tela->largura) max_x = (int32_t)tela->largura - 1;
+  if (max_y >= (int32_t)tela->altura)  max_y = (int32_t)tela->altura - 1;
+
+  if (min_x > max_x || min_y > max_y) {
+    return;
+  }
+
+  const float max_u_tex = (float)(textura->largura - 1);
+  const float max_v_tex = (float)(textura->altura - 1);
+
+  for (int32_t y = min_y; y <= max_y; ++y) {
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int32_t x = min_x; x <= max_x; ++x) {
+      /* Amostragem no centro do píxel */
+      const Flut2D p = { .x = (float)x + 0.5f, .y = (float)y + 0.5f };
+
+      const float e1 = produto_vetorial_arestas(v2.posição, v3.posição, p);
+      const float e2 = produto_vetorial_arestas(v3.posição, v1.posição, p);
+      const float e3 = produto_vetorial_arestas(v1.posição, v2.posição, p);
+
+      if ((e1 * sinal >= 0.0f) && (e2 * sinal >= 0.0f) && (e3 * sinal >= 0.0f)) {
+        const float w1 = e1 * inv_área;
+        const float w2 = e2 * inv_área;
+        const float w3 = e3 * inv_área;
+
+        /* Interpolar coordenadas UV e limitar ao intervalo [0.0f, 1.0f] */
+        const float u = fminf(fmaxf(w1 * v1.uv.x + w2 * v2.uv.x + w3 * v3.uv.x, 0.0f), 1.0f);
+        const float v = fminf(fmaxf(w1 * v1.uv.y + w2 * v2.uv.y + w3 * v3.uv.y, 0.0f), 1.0f);
+
+        const uint32_t tex_x = (uint32_t)lroundf(u * max_u_tex);
+        const uint32_t tex_y = (uint32_t)lroundf(v * max_v_tex);
+        const Cor texel = textura->píxeis[(size_t)tex_y * textura->largura + tex_x];
+
+        /* Interpolar cor dos vértices para modulação (tinting) */
+        const float r_vert = w1 * (float)v1.cor.vermelho + w2 * (float)v2.cor.vermelho + w3 * (float)v3.cor.vermelho;
+        const float g_vert = w1 * (float)v1.cor.verde    + w2 * (float)v2.cor.verde    + w3 * (float)v3.cor.verde;
+        const float b_vert = w1 * (float)v1.cor.azul     + w2 * (float)v2.cor.azul     + w3 * (float)v3.cor.azul;
+        const float a_vert = w1 * (float)v1.cor.alfa     + w2 * (float)v2.cor.alfa     + w3 * (float)v3.cor.alfa;
+
+        constexpr float inv_255 = 1.0f / 255.0f;
+        const float r_final = (float)texel.vermelho * (r_vert * inv_255);
+        const float g_final = (float)texel.verde    * (g_vert * inv_255);
+        const float b_final = (float)texel.azul     * (b_vert * inv_255);
+        const float a_final = (float)texel.alfa     * (a_vert * inv_255);
+
+        linha[x] = (Cor){
+          .vermelho = (uint8_t)lroundf(fminf(fmaxf(r_final, 0.0f), 255.0f)),
+          .verde    = (uint8_t)lroundf(fminf(fmaxf(g_final, 0.0f), 255.0f)),
+          .azul     = (uint8_t)lroundf(fminf(fmaxf(b_final, 0.0f), 255.0f)),
+          .alfa     = (uint8_t)lroundf(fminf(fmaxf(a_final, 0.0f), 255.0f))
+        };
+      }
+    }
+  }
+}
+
 void desenhar_retângulo(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor) {
   if (!tela || largura == 0 || altura == 0) return;
   int32_t x0 = superior_esquerdo.x;
@@ -1541,6 +1631,54 @@ void desenhar_gradiente_linear(Tela *tela, Int2D superior_esquerdo, uint32_t lar
   }
 }
 
+static inline uint32_t módulo_positivo(int64_t valor, uint32_t divisor) {
+  const int64_t d = (int64_t)divisor;
+  int64_t resto = valor % d;
+  if (resto < 0) {
+    resto += d;
+  }
+  return (uint32_t)resto;
+}
+
+void desenhar_retângulo_mosaico(Tela *tela, Retângulo área, const Tela *padrão, Int2D deslocamento) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  if (padrão == nullptr || padrão->píxeis == nullptr || padrão->largura == 0 || padrão->altura == 0) {
+    return;
+  }
+
+  if (área.largura == 0 || área.altura == 0) {
+    return;
+  }
+
+  /* Calcular limites recortados à tela em 64 bits para evitar overflows */
+  const int64_t x0 = (área.x > 0) ? (int64_t)área.x : 0;
+  const int64_t y0 = (área.y > 0) ? (int64_t)área.y : 0;
+
+  const int64_t área_dir = (int64_t)área.x + (int64_t)área.largura;
+  const int64_t área_inf = (int64_t)área.y + (int64_t)área.altura;
+
+  const int64_t x1 = (área_dir < (int64_t)tela->largura) ? área_dir : (int64_t)tela->largura;
+  const int64_t y1 = (área_inf < (int64_t)tela->altura)  ? área_inf : (int64_t)tela->altura;
+
+  if (x0 >= x1 || y0 >= y1) {
+    return;
+  }
+
+  for (int64_t y = y0; y < y1; ++y) {
+    const uint32_t pat_y = módulo_positivo((y - (int64_t)área.y) + (int64_t)deslocamento.y, padrão->altura);
+    const Cor *linha_padrão = &padrão->píxeis[(size_t)pat_y * padrão->largura];
+    Cor *linha_destino = &tela->píxeis[(size_t)y * tela->largura];
+
+    for (int64_t x = x0; x < x1; ++x) {
+      const uint32_t pat_x = módulo_positivo((x - (int64_t)área.x) + (int64_t)deslocamento.x, padrão->largura);
+      linha_destino[x] = linha_padrão[pat_x];
+    }
+  }
+}
+
 void desenhar_polígono(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor) {
   desenhar_polilinha(tela, vértices, núm_vértices, cor, true);
 }
@@ -1582,6 +1720,127 @@ void desenhar_polígono_preenchido(Tela *tela, const Int2D vértices[], size_t n
   }
 
   free(nós);
+}
+
+static float área_assinada_polígono_v2d(const Vértice2D vértices[], size_t núm_vértices) {
+  float soma = 0.0f;
+  for (size_t i = 0; i < núm_vértices; ++i) {
+    const Flut2D atual = vértices[i].posição;
+    const Flut2D seg = vértices[(i + 1) % núm_vértices].posição;
+    soma += (atual.x * seg.y) - (seg.x * atual.y);
+  }
+  return soma * 0.5f;
+}
+
+static bool ponto_flut_em_triângulo(Flut2D p, Flut2D a, Flut2D b, Flut2D c) {
+  const float d1 = (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+  const float d2 = (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y);
+  const float d3 = (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y);
+
+  const bool tem_neg = (d1 < 0.0f) || (d2 < 0.0f) || (d3 < 0.0f);
+  const bool tem_pos = (d1 > 0.0f) || (d2 > 0.0f) || (d3 > 0.0f);
+
+  return !(tem_neg && tem_pos);
+}
+
+void desenhar_polígono_texturizado(Tela *tela, const Tela *textura, const Vértice2D vértices[], size_t núm_vértices) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  if (textura == nullptr || textura->píxeis == nullptr || textura->largura == 0 || textura->altura == 0) {
+    return;
+  }
+
+  if (vértices == nullptr || núm_vértices < 3) {
+    return;
+  }
+
+  /* Caso trivial de 3 vértices */
+  if (núm_vértices == 3) {
+    desenhar_triângulo_texturizado(tela, textura, vértices[0], vértices[1], vértices[2]);
+    return;
+  }
+
+  const float área_total = área_assinada_polígono_v2d(vértices, núm_vértices);
+  if (fabsf(área_total) <= 1e-6f) {
+    return;
+  }
+
+  const float sinal_orientação = (área_total > 0.0f) ? 1.0f : -1.0f;
+
+  size_t *índices = malloc(núm_vértices * sizeof(size_t));
+  if (índices == nullptr) {
+    return;
+  }
+
+  for (size_t i = 0; i < núm_vértices; ++i) {
+    índices[i] = i;
+  }
+
+  size_t restantes = núm_vértices;
+  size_t tentativas_sem_corte = 0;
+  size_t i = 0;
+
+  while (restantes > 3 && tentativas_sem_corte < restantes) {
+    const size_t idx_ant = índices[(i + restantes - 1) % restantes];
+    const size_t idx_cur = índices[i % restantes];
+    const size_t idx_seg = índices[(i + 1) % restantes];
+
+    const Vértice2D v_ant = vértices[idx_ant];
+    const Vértice2D v_cur = vértices[idx_cur];
+    const Vértice2D v_seg = vértices[idx_seg];
+
+    const float prod_vetorial = (v_cur.posição.x - v_ant.posição.x) * (v_seg.posição.y - v_ant.posição.y) -
+                                (v_cur.posição.y - v_ant.posição.y) * (v_seg.posição.x - v_ant.posição.x);
+
+    /* Verificar se o vértice atual forma um ângulo convexo */
+    if (prod_vetorial * sinal_orientação > 1e-6f) {
+      bool contém_outro_vértice = false;
+
+      for (size_t j = 0; j < restantes; ++j) {
+        const size_t idx_teste = índices[j];
+        if (idx_teste == idx_ant || idx_teste == idx_cur || idx_teste == idx_seg) {
+          continue;
+        }
+
+        if (ponto_flut_em_triângulo(vértices[idx_teste].posição, v_ant.posição, v_cur.posição, v_seg.posição)) {
+          contém_outro_vértice = true;
+          break;
+        }
+      }
+
+      if (!contém_outro_vértice) {
+        desenhar_triângulo_texturizado(tela, textura, v_ant, v_cur, v_seg);
+
+        /* Remover o vértice atual da lista de índices ativos */
+        const size_t pos_remover = i % restantes;
+        for (size_t k = pos_remover; k + 1 < restantes; ++k) {
+          índices[k] = índices[k + 1];
+        }
+
+        restantes--;
+        tentativas_sem_corte = 0;
+        continue;
+      }
+    }
+
+    i++;
+    tentativas_sem_corte++;
+  }
+
+  /* Desenhar o último triângulo restante */
+  if (restantes == 3) {
+    desenhar_triângulo_texturizado(
+      tela,
+      textura,
+      vértices[índices[0]],
+      vértices[índices[1]],
+      vértices[índices[2]]
+    );
+  }
+
+  free(índices);
 }
 
 void desenhar_círculo(Tela *tela, Int2D centro, uint32_t raio, Cor cor) {
