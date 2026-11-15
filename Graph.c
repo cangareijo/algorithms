@@ -455,6 +455,7 @@ double **create_directed_normalized_laplacian_matrix(const Graph *g);
 double **create_undirected_normalized_laplacian_matrix(const Graph *g);
 double **create_seidel_adjacency_matrix(const Graph *g);
 double **calculate_cosine_similarity_matrix(const Graph *g);
+double **calculate_lewis_weights(const Graph *g);
 
 double complex *calculate_ihara_zeta_function_poles(const Graph *g, unsigned *count);
 
@@ -9496,6 +9497,64 @@ static void find_minimum_fractional_vertex_cover_recursive(
       sim[u][v] = denom == 0 ? 0 : dot / denom;
     }
   return sim;
+}
+
+static void solve(unsigned n, double A[n][n], double b[n], double x[n]) {
+  for (unsigned i = 0; i < n; i++)
+    for (unsigned r = i + 1; r < n; r++) {
+      double f = A[r][i] / A[i][i];
+      for (unsigned c = i; c < n; c++) A[r][c] -= f * A[i][c];
+      b[r] -= f * b[i];
+    }
+  for (int i = (int)n - 1; i >= 0; i--) {
+    double sum = b[i];
+    for (unsigned c = i + 1; c < n; c++) sum -= A[i][c] * x[c];
+    x[i] = sum / A[i][i];
+  }
+}
+
+[[nodiscard]] double **calculate_lewis_weights(const Graph *g) {
+  if (!g) return nullptr;
+  unsigned n = g->size;
+  if (n > 0 && !g->edges) return nullptr;
+  double **w = malloc(n * sizeof(double *));
+  for (unsigned u = 0; u < n; u++) {
+    w[u] = calloc(n, sizeof(double));
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < n)
+        w[u][e->destination] = 1;
+  }
+  for (unsigned iter = 0; iter < 100; iter++) {
+    double L[n][n] = {};
+    for (unsigned u = 0; u < n; u++) L[u][u] = 1e-12;
+    for (unsigned u = 0; u < n; u++)
+      for (Edge *e = g->edges[u]; e; e = e->next) {
+        unsigned v = e->destination;
+        if (u < v && e->weight > 0) {
+          double c = (e->weight * e->weight) / w[u][v];
+          L[u][u] += c;
+          L[v][v] += c;
+          L[u][v] -= c;
+          L[v][u] -= c;
+        }
+      }
+    for (unsigned u = 0; u < n; u++)
+      for (Edge *e = g->edges[u]; e; e = e->next) {
+        unsigned v = e->destination;
+        if (u < v && e->weight > 0) {
+          double A[n][n], b[n] = {}, x[n] = {};
+          for (unsigned r = 0; r < n; r++)
+            for (unsigned c = 0; c < n; c++)
+              A[r][c] = L[r][c];
+          b[u] = 1;
+          b[v] = -1;
+          solve(n, A, b, x);
+          double r_eff = fmax(0.0, x[u] - x[v]);
+          w[u][v] = w[v][u] = e->weight * sqrt(r_eff);
+        }
+      }
+    }
+  return w;
 }
 
 
