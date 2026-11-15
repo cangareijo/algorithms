@@ -121,11 +121,6 @@ typedef enum {
 } Mistura;
 
 typedef struct {
-  Int2D início;
-  Int2D fim;
-} Linha;
-
-typedef struct {
   int32_t x;
   int32_t y;
   uint32_t largura;
@@ -137,22 +132,6 @@ bool recortar_linha_retângulo(Int2D *início, Int2D *fim, Retângulo limites);
 size_t recortar_polígono_retângulo(const Int2D entrada[], size_t núm_entrada, Int2D saída[], size_t cap_saída, Retângulo limites);
 bool retângulos_intersetam(Retângulo a, Retângulo b);
 bool obter_interseção_retângulos(Retângulo a, Retângulo b, Retângulo *resultado);
-
-typedef struct {
-  Int2D centro;
-  uint32_t raio;
-} Círculo;
-
-typedef struct {
-  Int2D p1;
-  Int2D p2;
-  Int2D p3;
-} Triângulo;
-
-typedef struct {
-  Int2D *vértices;
-  size_t núm_vértices;
-} Polígono;
 
 typedef struct {
   uint32_t largura;
