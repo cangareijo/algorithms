@@ -1,11 +1,14 @@
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <SDL3/SDL.h>
 
 int comparar_int32(const void *a, const void *b);
 
@@ -92,6 +95,24 @@ bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m);
 Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m);
 Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m);
 
+typedef struct {
+  float x;
+  float y;
+  float z;
+} Flut3D;
+
+Flut3D somar_flut3d(Flut3D a, Flut3D b);
+Flut3D subtrair_flut3d(Flut3D a, Flut3D b);
+Flut3D escalar_flut3d(Flut3D v, float fator);
+float comprimento_flut3d(Flut3D v);
+float comprimento_quadrado_flut3d(Flut3D v);
+Flut3D normalizar_flut3d(Flut3D v);
+float produto_escalar_flut3d(Flut3D a, Flut3D b);
+Flut3D produto_vetorial_flut3d(Flut3D a, Flut3D b);
+float distância_flut3d(Flut3D a, Flut3D b);
+Flut3D interpolar_flut3d(Flut3D a, Flut3D b, float fator);
+Flut3D refletir_flut3d(Flut3D incidente, Flut3D normal);
+
 typedef enum {
   MISTURA_NORMAL,
   MISTURA_ADITIVA,
@@ -100,8 +121,8 @@ typedef enum {
 } Mistura;
 
 typedef struct {
-  Int2D *início;
-  Int2D *fim;
+  Int2D início;
+  Int2D fim;
 } Linha;
 
 typedef struct {
@@ -215,6 +236,11 @@ Tela extrair_canal_vermelho(const Tela *origem);
 Tela extrair_canal_verde(const Tela *origem);
 Tela extrair_canal_azul(const Tela *origem);
 Tela extrair_canal_alfa(const Tela *origem);
+void substituir_cor(Tela *tela, Cor alvo, Cor nova, uint8_t tolerância);
+
+bool atualizar_textura_sdl(SDL_Texture *textura, const Tela *tela);
+SDL_Texture *criar_textura_sdl_de_tela(SDL_Renderer *renderizador, const Tela *tela);
+bool capturar_renderizador_sdl(SDL_Renderer *renderizador, Tela *destino);
 
 bool carregar_de_ficheiro(Tela *destino, const char *caminho);
 bool exportar_para_ficheiro_ppm(const Tela *tela, const char *caminho);
@@ -579,6 +605,83 @@ Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m) {
     y /= w;
   }
   return (Flut2D){ .x = x, .y = y };
+}
+
+
+
+Flut3D somar_flut3d(Flut3D a, Flut3D b) {
+  return (Flut3D){
+    .x = a.x + b.x,
+    .y = a.y + b.y,
+    .z = a.z + b.z
+  };
+}
+
+Flut3D subtrair_flut3d(Flut3D a, Flut3D b) {
+  return (Flut3D){
+    .x = a.x - b.x,
+    .y = a.y - b.y,
+    .z = a.z - b.z
+  };
+}
+
+Flut3D escalar_flut3d(Flut3D v, float fator) {
+  return (Flut3D){
+    .x = v.x * fator,
+    .y = v.y * fator,
+    .z = v.z * fator
+  };
+}
+
+float comprimento_flut3d(Flut3D v) {
+  return sqrtf(comprimento_quadrado_flut3d(v));
+}
+
+float comprimento_quadrado_flut3d(Flut3D v) {
+  return produto_escalar_flut3d(v, v);
+}
+
+Flut3D normalizar_flut3d(Flut3D v) {
+  const float comprimento = comprimento_flut3d(v);
+  if (comprimento <= 0.0f) {
+    return (Flut3D){ .x = 0.0f, .y = 0.0f, .z = 0.0f };
+  }
+
+  const float inverso = 1.0f / comprimento;
+  return (Flut3D){
+    .x = v.x * inverso,
+    .y = v.y * inverso,
+    .z = v.z * inverso
+  };
+}
+
+float produto_escalar_flut3d(Flut3D a, Flut3D b) {
+  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
+Flut3D produto_vetorial_flut3d(Flut3D a, Flut3D b) {
+  return (Flut3D){
+    .x = (a.y * b.z) - (a.z * b.y),
+    .y = (a.z * b.x) - (a.x * b.z),
+    .z = (a.x * b.y) - (a.y * b.x)
+  };
+}
+
+float distância_flut3d(Flut3D a, Flut3D b) {
+  return comprimento_flut3d(subtrair_flut3d(b, a));
+}
+
+Flut3D interpolar_flut3d(Flut3D a, Flut3D b, float fator) {
+  return (Flut3D){
+    .x = a.x + ((b.x - a.x) * fator),
+    .y = a.y + ((b.y - a.y) * fator),
+    .z = a.z + ((b.z - a.z) * fator)
+  };
+}
+
+Flut3D refletir_flut3d(Flut3D incidente, Flut3D normal) {
+  const float escalar = 2.0f * produto_escalar_flut3d(incidente, normal);
+  return subtrair_flut3d(incidente, escalar_flut3d(normal, escalar));
 }
 
 
@@ -1727,13 +1830,13 @@ void desenhar_retângulo(Tela *tela, Int2D superior_esquerdo, uint32_t largura, 
 
 void desenhar_retângulo_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor) {
   if (!tela || !tela->píxeis || largura == 0 || altura == 0) return;
-  int32_t x_ini = superior_esquerdo.x;
-  int32_t y_ini = superior_esquerdo.y;
-  int32_t x_fim = x_ini + (int32_t)largura - 1;
-  int32_t y_fim = y_ini + (int32_t)altura - 1;
+  int32_t x_iní = superior_esquerdo.x;
+  int32_t y_iní = superior_esquerdo.y;
+  int32_t x_fim = x_iní + (int32_t)largura - 1;
+  int32_t y_fim = y_iní + (int32_t)altura - 1;
 
-  for (int32_t y = y_ini; y <= y_fim; y++) {
-    desenhar_linha_horizontal(tela, y, x_ini, x_fim, cor);
+  for (int32_t y = y_iní; y <= y_fim; y++) {
+    desenhar_linha_horizontal(tela, y, x_iní, x_fim, cor);
   }
 }
 
@@ -3112,6 +3215,126 @@ Tela extrair_canal_alfa(const Tela *origem) {
   }
 
   return resultado;
+}
+
+void substituir_cor(Tela *tela, Cor alvo, Cor nova, uint8_t tolerância) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  const size_t total_píxeis = (size_t)tela->largura * (size_t)tela->altura;
+
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const Cor atual = tela->píxeis[i];
+
+    const int32_t dr = abs((int32_t)atual.vermelho - (int32_t)alvo.vermelho);
+    const int32_t dg = abs((int32_t)atual.verde    - (int32_t)alvo.verde);
+    const int32_t db = abs((int32_t)atual.azul     - (int32_t)alvo.azul);
+    const int32_t da = abs((int32_t)atual.alfa     - (int32_t)alvo.alfa);
+
+    if (dr <= (int32_t)tolerância &&
+        dg <= (int32_t)tolerância &&
+        db <= (int32_t)tolerância &&
+        da <= (int32_t)tolerância) {
+      tela->píxeis[i] = nova;
+    }
+  }
+}
+
+
+
+bool atualizar_textura_sdl(SDL_Texture *textura, const Tela *tela) {
+  if (textura == nullptr || tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return false;
+  }
+
+  const uint64_t bytes_por_linha = (uint64_t)tela->largura * sizeof(Cor);
+  if (bytes_por_linha > (uint64_t)INT_MAX) {
+    return false;
+  }
+
+  return SDL_UpdateTexture(textura, nullptr, tela->píxeis, (int)bytes_por_linha);
+}
+
+SDL_Texture *criar_textura_sdl_de_tela(SDL_Renderer *renderizador, const Tela *tela) {
+  if (renderizador == nullptr || tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return nullptr;
+  }
+
+  if (tela->largura > (uint32_t)INT_MAX || tela->altura > (uint32_t)INT_MAX) {
+    return nullptr;
+  }
+
+  SDL_Texture *textura = SDL_CreateTexture(
+    renderizador,
+    SDL_PIXELFORMAT_RGBA32,
+    SDL_TEXTUREACCESS_STREAMING,
+    (int)tela->largura,
+    (int)tela->altura
+  );
+
+  if (textura == nullptr) {
+    return nullptr;
+  }
+
+  if (!atualizar_textura_sdl(textura, tela)) {
+    SDL_DestroyTexture(textura);
+    return nullptr;
+  }
+
+  return textura;
+}
+
+bool capturar_renderizador_sdl(SDL_Renderer *renderizador, Tela *destino) {
+  if (renderizador == nullptr || destino == nullptr) {
+    return false;
+  }
+
+  SDL_Surface *superfície = SDL_RenderReadPixels(renderizador, nullptr);
+  if (superfície == nullptr) {
+    return false;
+  }
+
+  if (superfície->format != SDL_PIXELFORMAT_RGBA32) {
+    SDL_Surface *convertida = SDL_ConvertSurface(superfície, SDL_PIXELFORMAT_RGBA32);
+    SDL_DestroySurface(superfície);
+    if (convertida == nullptr) {
+      return false;
+    }
+    superfície = convertida;
+  }
+
+  if (superfície->w <= 0 || superfície->h <= 0 || superfície->pixels == nullptr) {
+    SDL_DestroySurface(superfície);
+    return false;
+  }
+
+  const uint32_t largura = (uint32_t)superfície->w;
+  const uint32_t altura = (uint32_t)superfície->h;
+
+  /* Reutilizar a memória se o destino já tiver as dimensões exatas */
+  if (destino->píxeis == nullptr || destino->largura != largura || destino->altura != altura) {
+    destruir_tela(destino);
+    *destino = criar_tela(largura, altura);
+    if (destino->píxeis == nullptr) {
+      SDL_DestroySurface(superfície);
+      return false;
+    }
+  }
+
+  const size_t bytes_por_linha = (size_t)largura * sizeof(Cor);
+  const uint8_t *origem_bytes = (const uint8_t *)superfície->pixels;
+
+  for (uint32_t y = 0; y < altura; ++y) {
+    memcpy(
+      &destino->píxeis[(size_t)y * largura],
+      origem_bytes + ((size_t)y * (size_t)superfície->pitch),
+      bytes_por_linha
+    );
+  }
+
+  SDL_DestroySurface(superfície);
+  return true;
 }
 
 
