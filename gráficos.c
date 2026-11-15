@@ -205,6 +205,16 @@ void ajustar_brilho_contraste(Tela *tela, float brilho, float contraste);
 void inverter_cores(Tela *tela);
 void espelhar_tela_horizontal(Tela *tela);
 void espelhar_tela_vertical(Tela *tela);
+void aplicar_sépia(Tela *tela);
+void aplicar_limiar(Tela *tela, uint8_t limiar);
+void aplicar_pontilhismo_bayer(Tela *tela, uint8_t níveis_por_canal);
+void aplicar_deteção_bordas_sobel(Tela *tela);
+void aplicar_nitidez(Tela *tela, float intensidade);
+void aplicar_máscara_alfa(Tela *destino, const Tela *máscara, Int2D posição);
+Tela extrair_canal_vermelho(const Tela *origem);
+Tela extrair_canal_verde(const Tela *origem);
+Tela extrair_canal_azul(const Tela *origem);
+Tela extrair_canal_alfa(const Tela *origem);
 
 bool carregar_de_ficheiro(Tela *destino, const char *caminho);
 bool exportar_para_ficheiro_ppm(const Tela *tela, const char *caminho);
@@ -2714,6 +2724,397 @@ void espelhar_tela_vertical(Tela *tela) {
 
   free(buffer_linha);
 }
+
+void aplicar_sépia(Tela *tela) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  const size_t total_píxeis = (size_t)tela->largura * (size_t)tela->altura;
+
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const Cor orig = tela->píxeis[i];
+    const float r = (float)orig.vermelho;
+    const float g = (float)orig.verde;
+    const float b = (float)orig.azul;
+
+    const float novo_r = (r * 0.393f) + (g * 0.769f) + (b * 0.189f);
+    const float novo_g = (r * 0.349f) + (g * 0.686f) + (b * 0.168f);
+    const float novo_b = (r * 0.272f) + (g * 0.534f) + (b * 0.131f);
+
+    tela->píxeis[i] = (Cor){
+      .vermelho = (novo_r > 255.0f) ? 255u : (uint8_t)lroundf(novo_r),
+      .verde    = (novo_g > 255.0f) ? 255u : (uint8_t)lroundf(novo_g),
+      .azul     = (novo_b > 255.0f) ? 255u : (uint8_t)lroundf(novo_b),
+      .alfa     = orig.alfa
+    };
+  }
+}
+
+void aplicar_limiar(Tela *tela, uint8_t limiar) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  const size_t total_píxeis = (size_t)tela->largura * (size_t)tela->altura;
+
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const Cor orig = tela->píxeis[i];
+
+    /* Luminância perceptual aproximada (0.299 R + 0.587 G + 0.114 B) em inteiros */
+    const uint32_t luminância = ((uint32_t)orig.vermelho * 77u +
+                                 (uint32_t)orig.verde    * 150u +
+                                 (uint32_t)orig.azul     * 29u) >> 8;
+
+    const uint8_t valor = (luminância >= (uint32_t)limiar) ? 255u : 0u;
+
+    tela->píxeis[i] = (Cor){
+      .vermelho = valor,
+      .verde    = valor,
+      .azul     = valor,
+      .alfa     = orig.alfa
+    };
+  }
+}
+
+static inline uint8_t quantizar_canal_bayer(uint8_t valor, float deslocamento_bayer, float escala_degrau, float fator_nível) {
+  const float norm = (float)valor / 255.0f;
+  const float ajustado = norm + (deslocamento_bayer * escala_degrau);
+  const float limitado = fminf(fmaxf(ajustado, 0.0f), 1.0f);
+  const float quantizado = roundf(limitado * fator_nível) / fator_nível;
+
+  return (uint8_t)lroundf(quantizado * 255.0f);
+}
+
+void aplicar_pontilhismo_bayer(Tela *tela, uint8_t níveis_por_canal) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  /* São necessários pelo menos 2 níveis por canal (ex.: 0 e 255) */
+  if (níveis_por_canal < 2) {
+    níveis_por_canal = 2;
+  }
+
+  /* Matriz de Bayer 4x4 (valores de 0 a 15) */
+  static constexpr float MATRIZ_BAYER_4X4[4][4] = {
+    {  0.0f / 16.0f,  8.0f / 16.0f,  2.0f / 16.0f, 10.0f / 16.0f },
+    { 12.0f / 16.0f,  4.0f / 16.0f, 14.0f / 16.0f,  6.0f / 16.0f },
+    {  3.0f / 16.0f, 11.0f / 16.0f,  1.0f / 16.0f,  9.0f / 16.0f },
+    { 15.0f / 16.0f,  7.0f / 16.0f, 13.0f / 16.0f,  5.0f / 16.0f }
+  };
+
+  const float fator_nível = (float)(níveis_por_canal - 1);
+  const float escala_degrau = 1.0f / fator_nível;
+
+  for (uint32_t y = 0; y < tela->altura; ++y) {
+    Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
+    const uint32_t by = y & 3u;
+
+    for (uint32_t x = 0; x < tela->largura; ++x) {
+      const uint32_t bx = x & 3u;
+      /* Centrar o limiar em torno de zero [-0.5f, +0.4375f] para não escurecer nem aclarar a imagem */
+      const float deslocamento = MATRIZ_BAYER_4X4[by][bx] - 0.5f;
+      const Cor orig = linha[x];
+
+      linha[x] = (Cor){
+        .vermelho = quantizar_canal_bayer(orig.vermelho, deslocamento, escala_degrau, fator_nível),
+        .verde    = quantizar_canal_bayer(orig.verde,    deslocamento, escala_degrau, fator_nível),
+        .azul     = quantizar_canal_bayer(orig.azul,     deslocamento, escala_degrau, fator_nível),
+        .alfa     = orig.alfa
+      };
+    }
+  }
+}
+
+void aplicar_deteção_bordas_sobel(Tela *tela) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  const size_t largura = (size_t)tela->largura;
+  const size_t altura = (size_t)tela->altura;
+  const size_t total_píxeis = largura * altura;
+
+  uint8_t *luminância = malloc(total_píxeis * sizeof(uint8_t));
+  if (luminância == nullptr) {
+    return;
+  }
+
+  /* Pré-calcular luminância perceptual em inteiros (0.299 R + 0.587 G + 0.114 B) */
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const Cor c = tela->píxeis[i];
+    luminância[i] = (uint8_t)(((uint32_t)c.vermelho * 77u +
+                               (uint32_t)c.verde    * 150u +
+                               (uint32_t)c.azul     * 29u) >> 8);
+  }
+
+  for (size_t y = 0; y < altura; ++y) {
+    const size_t y_ant = (y > 0) ? (y - 1) : 0;
+    const size_t y_seg = (y + 1 < altura) ? (y + 1) : (altura - 1);
+
+    const uint8_t *linha_sup = &luminância[y_ant * largura];
+    const uint8_t *linha_med = &luminância[y * largura];
+    const uint8_t *linha_inf = &luminância[y_seg * largura];
+    Cor *linha_destino = &tela->píxeis[y * largura];
+
+    for (size_t x = 0; x < largura; ++x) {
+      const size_t x_ant = (x > 0) ? (x - 1) : 0;
+      const size_t x_seg = (x + 1 < largura) ? (x + 1) : (largura - 1);
+
+      const int32_t p00 = linha_sup[x_ant];
+      const int32_t p01 = linha_sup[x];
+      const int32_t p02 = linha_sup[x_seg];
+
+      const int32_t p10 = linha_med[x_ant];
+      const int32_t p12 = linha_med[x_seg];
+
+      const int32_t p20 = linha_inf[x_ant];
+      const int32_t p21 = linha_inf[x];
+      const int32_t p22 = linha_inf[x_seg];
+
+      /* Gradiente horizontal Gx: [-1 0 +1; -2 0 +2; -1 0 +1] */
+      const int32_t gx = -p00 + p02 - (2 * p10) + (2 * p12) - p20 + p22;
+
+      /* Gradiente vertical Gy: [-1 -2 -1; 0 0 0; +1 +2 +1] */
+      const int32_t gy = -p00 - (2 * p01) - p02 + p20 + (2 * p21) + p22;
+
+      const float mag = hypotf((float)gx, (float)gy);
+      const uint8_t intensidade = (mag > 255.0f) ? 255u : (uint8_t)lroundf(mag);
+
+      linha_destino[x] = (Cor){
+        .vermelho = intensidade,
+        .verde    = intensidade,
+        .azul     = intensidade,
+        .alfa     = linha_destino[x].alfa
+      };
+    }
+  }
+
+  free(luminância);
+}
+
+static inline uint8_t limitar_u8_flut(float valor) {
+  if (valor <= 0.0f) {
+    return 0u;
+  }
+  if (valor >= 255.0f) {
+    return 255u;
+  }
+  return (uint8_t)lroundf(valor);
+}
+
+void aplicar_nitidez(Tela *tela, float intensidade) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+    return;
+  }
+
+  if (intensidade <= 0.0f) {
+    return;
+  }
+
+  const size_t largura = (size_t)tela->largura;
+  const size_t altura = (size_t)tela->altura;
+  const size_t total_bytes = largura * altura * sizeof(Cor);
+
+  Cor *cópia = malloc(total_bytes);
+  if (cópia == nullptr) {
+    return;
+  }
+
+  memcpy(cópia, tela->píxeis, total_bytes);
+
+  /* Núcleo 3x3: centro = 1 + 4 * intensidade, vizinhos ortogonais = -intensidade */
+  const float peso_centro = 1.0f + 4.0f * intensidade;
+  const float peso_vizinho = -intensidade;
+
+  for (size_t y = 0; y < altura; ++y) {
+    const size_t y_ant = (y > 0) ? (y - 1) : 0;
+    const size_t y_seg = (y + 1 < altura) ? (y + 1) : (altura - 1);
+
+    const Cor *linha_sup = &cópia[y_ant * largura];
+    const Cor *linha_med = &cópia[y * largura];
+    const Cor *linha_inf = &cópia[y_seg * largura];
+    Cor *linha_destino = &tela->píxeis[y * largura];
+
+    for (size_t x = 0; x < largura; ++x) {
+      const size_t x_ant = (x > 0) ? (x - 1) : 0;
+      const size_t x_seg = (x + 1 < largura) ? (x + 1) : (largura - 1);
+
+      const Cor c_centro = linha_med[x];
+      const Cor c_cima   = linha_sup[x];
+      const Cor c_baixo  = linha_inf[x];
+      const Cor c_esq    = linha_med[x_ant];
+      const Cor c_dir    = linha_med[x_seg];
+
+      const float soma_viz_r = (float)c_cima.vermelho + (float)c_baixo.vermelho + (float)c_esq.vermelho + (float)c_dir.vermelho;
+      const float soma_viz_g = (float)c_cima.verde    + (float)c_baixo.verde    + (float)c_esq.verde    + (float)c_dir.verde;
+      const float soma_viz_b = (float)c_cima.azul     + (float)c_baixo.azul     + (float)c_esq.azul     + (float)c_dir.azul;
+
+      const float novo_r = (float)c_centro.vermelho * peso_centro + soma_viz_r * peso_vizinho;
+      const float novo_g = (float)c_centro.verde    * peso_centro + soma_viz_g * peso_vizinho;
+      const float novo_b = (float)c_centro.azul     * peso_centro + soma_viz_b * peso_vizinho;
+
+      linha_destino[x] = (Cor){
+        .vermelho = limitar_u8_flut(novo_r),
+        .verde    = limitar_u8_flut(novo_g),
+        .azul     = limitar_u8_flut(novo_b),
+        .alfa     = c_centro.alfa
+      };
+    }
+  }
+
+  free(cópia);
+}
+
+void aplicar_máscara_alfa(Tela *destino, const Tela *máscara, Int2D posição) {
+  if (destino == nullptr || destino->píxeis == nullptr || destino->largura == 0 || destino->altura == 0) {
+    return;
+  }
+
+  if (máscara == nullptr || máscara->píxeis == nullptr || máscara->largura == 0 || máscara->altura == 0) {
+    return;
+  }
+
+  /* Calcular limites da interseção no destino em 64 bits para evitar overflows */
+  const int64_t dest_x0 = (posição.x > 0) ? (int64_t)posição.x : 0;
+  const int64_t dest_y0 = (posição.y > 0) ? (int64_t)posição.y : 0;
+
+  const int64_t masc_dir = (int64_t)posição.x + (int64_t)máscara->largura;
+  const int64_t masc_inf = (int64_t)posição.y + (int64_t)máscara->altura;
+
+  const int64_t dest_x1 = (masc_dir < (int64_t)destino->largura) ? masc_dir : (int64_t)destino->largura;
+  const int64_t dest_y1 = (masc_inf < (int64_t)destino->altura)  ? masc_inf : (int64_t)destino->altura;
+
+  if (dest_x0 >= dest_x1 || dest_y0 >= dest_y1) {
+    return;
+  }
+
+  for (int64_t dy = dest_y0; dy < dest_y1; ++dy) {
+    const size_t my = (size_t)(dy - (int64_t)posição.y);
+    const Cor *linha_máscara = &máscara->píxeis[my * máscara->largura];
+    Cor *linha_destino = &destino->píxeis[(size_t)dy * destino->largura];
+
+    for (int64_t dx = dest_x0; dx < dest_x1; ++dx) {
+      const size_t mx = (size_t)(dx - (int64_t)posição.x);
+      const Cor m = linha_máscara[mx];
+
+      /* Luminância perceptual aproximada (0.299 R + 0.587 G + 0.114 B) em inteiros */
+      const uint32_t lum = ((uint32_t)m.vermelho * 77u +
+                            (uint32_t)m.verde    * 150u +
+                            (uint32_t)m.azul     * 29u) >> 8;
+
+      /* Combinar luminância com o próprio canal alfa da máscara */
+      const uint32_t fator_máscara = (lum * (uint32_t)m.alfa + 127u) / 255u;
+
+      /* Modular o alfa atual do destino preservando a transparência prévia */
+      const uint32_t novo_alfa = ((uint32_t)linha_destino[dx].alfa * fator_máscara + 127u) / 255u;
+      linha_destino[dx].alfa = (uint8_t)novo_alfa;
+    }
+  }
+}
+
+Tela extrair_canal_vermelho(const Tela *origem) {
+  if (origem == nullptr || origem->píxeis == nullptr || origem->largura == 0 || origem->altura == 0) {
+    return (Tela){ .largura = 0, .altura = 0, .píxeis = nullptr };
+  }
+
+  Tela resultado = criar_tela(origem->largura, origem->altura);
+  if (resultado.píxeis == nullptr) {
+    return resultado;
+  }
+
+  const size_t total_píxeis = (size_t)origem->largura * (size_t)origem->altura;
+
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const uint8_t valor = origem->píxeis[i].vermelho;
+    resultado.píxeis[i] = (Cor){
+      .vermelho = valor,
+      .verde    = valor,
+      .azul     = valor,
+      .alfa     = 255u
+    };
+  }
+
+  return resultado;
+}
+
+Tela extrair_canal_verde(const Tela *origem) {
+  if (origem == nullptr || origem->píxeis == nullptr || origem->largura == 0 || origem->altura == 0) {
+    return (Tela){ .largura = 0, .altura = 0, .píxeis = nullptr };
+  }
+
+  Tela resultado = criar_tela(origem->largura, origem->altura);
+  if (resultado.píxeis == nullptr) {
+    return resultado;
+  }
+
+  const size_t total_píxeis = (size_t)origem->largura * (size_t)origem->altura;
+
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const uint8_t valor = origem->píxeis[i].verde;
+    resultado.píxeis[i] = (Cor){
+      .vermelho = valor,
+      .verde    = valor,
+      .azul     = valor,
+      .alfa     = 255u
+    };
+  }
+
+  return resultado;
+}
+
+Tela extrair_canal_azul(const Tela *origem) {
+  if (origem == nullptr || origem->píxeis == nullptr || origem->largura == 0 || origem->altura == 0) {
+    return (Tela){ .largura = 0, .altura = 0, .píxeis = nullptr };
+  }
+
+  Tela resultado = criar_tela(origem->largura, origem->altura);
+  if (resultado.píxeis == nullptr) {
+    return resultado;
+  }
+
+  const size_t total_píxeis = (size_t)origem->largura * (size_t)origem->altura;
+
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const uint8_t valor = origem->píxeis[i].azul;
+    resultado.píxeis[i] = (Cor){
+      .vermelho = valor,
+      .verde    = valor,
+      .azul     = valor,
+      .alfa     = 255u
+    };
+  }
+
+  return resultado;
+}
+
+Tela extrair_canal_alfa(const Tela *origem) {
+  if (origem == nullptr || origem->píxeis == nullptr || origem->largura == 0 || origem->altura == 0) {
+    return (Tela){ .largura = 0, .altura = 0, .píxeis = nullptr };
+  }
+
+  Tela resultado = criar_tela(origem->largura, origem->altura);
+  if (resultado.píxeis == nullptr) {
+    return resultado;
+  }
+
+  const size_t total_píxeis = (size_t)origem->largura * (size_t)origem->altura;
+
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    const uint8_t valor = origem->píxeis[i].alfa;
+    resultado.píxeis[i] = (Cor){
+      .vermelho = valor,
+      .verde    = valor,
+      .azul     = valor,
+      .alfa     = 255u
+    };
+  }
+
+  return resultado;
+}
+
+
 
 bool carregar_de_ficheiro(Tela *destino, const char *caminho) {
   if (!destino || !caminho) {
