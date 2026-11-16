@@ -267,6 +267,16 @@ bool exportar_para_ficheiro_ppm(const Tela *tela, const char *caminho);
 bool exportar_para_ficheiro_bmp(const Tela *tela, const char *caminho);
 bool exportar_para_ficheiro_tga(const Tela *tela, const char *caminho);
 
+typedef struct {
+  uint32_t largura;
+  uint32_t altura;
+  float *valores;
+} BufferProfundidade;
+
+BufferProfundidade criar_buffer_profundidade(uint32_t largura, uint32_t altura);
+void destruir_buffer_profundidade(BufferProfundidade *buffer);
+void limpar_buffer_profundidade(BufferProfundidade *buffer, float valor_inicial);
+
 
 
 #ifndef M_PI
@@ -4040,6 +4050,54 @@ bool exportar_para_ficheiro_tga(const Tela *tela, const char *caminho) {
 
   return true;
 }
+
+
+
+BufferProfundidade criar_buffer_profundidade(uint32_t largura, uint32_t altura) {
+  if (largura == 0 || altura == 0) {
+    return (BufferProfundidade){ .largura = 0, .altura = 0, .valores = nullptr };
+  }
+
+  const size_t total_píxeis = (size_t)largura * (size_t)altura;
+  if (total_píxeis > SIZE_MAX / sizeof(float)) {
+    return (BufferProfundidade){ .largura = 0, .altura = 0, .valores = nullptr };
+  }
+
+  float *valores = malloc(total_píxeis * sizeof(float));
+  if (valores == nullptr) {
+    return (BufferProfundidade){ .largura = 0, .altura = 0, .valores = nullptr };
+  }
+
+  return (BufferProfundidade){
+    .largura = largura,
+    .altura = altura,
+    .valores = valores
+  };
+}
+
+void destruir_buffer_profundidade(BufferProfundidade *buffer) {
+  if (buffer == nullptr) {
+    return;
+  }
+
+  free(buffer->valores);
+  buffer->valores = nullptr;
+  buffer->largura = 0;
+  buffer->altura = 0;
+}
+
+void limpar_buffer_profundidade(BufferProfundidade *buffer, float valor_inicial) {
+  if (buffer == nullptr || buffer->valores == nullptr) {
+    return;
+  }
+
+  const size_t total_píxeis = (size_t)buffer->largura * (size_t)buffer->altura;
+  for (size_t i = 0; i < total_píxeis; ++i) {
+    buffer->valores[i] = valor_inicial;
+  }
+}
+
+
 
 int main(void) {
   printf("A iniciar testes essenciais da biblioteca gráfica...\n");
