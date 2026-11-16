@@ -83,19 +83,6 @@ typedef struct {
 } Vértice2D;
 
 typedef struct {
-  float m[3][3];
-} Matriz3x3;
-
-void criar_matriz_identidade(Matriz3x3 *destino);
-void criar_matriz_translação(Matriz3x3 *destino, float tx, float ty);
-void criar_matriz_rotação(Matriz3x3 *destino, float radianos);
-void criar_matriz_escala(Matriz3x3 *destino, float sx, float sy);
-void multiplicar_matrizes(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x3 *b);
-bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m);
-Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m);
-Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m);
-
-typedef struct {
   float x;
   float y;
   float z;
@@ -112,6 +99,33 @@ Flut3D produto_vetorial_flut3d(Flut3D a, Flut3D b);
 float distância_flut3d(Flut3D a, Flut3D b);
 Flut3D interpolar_flut3d(Flut3D a, Flut3D b, float fator);
 Flut3D refletir_flut3d(Flut3D incidente, Flut3D normal);
+
+typedef struct {
+  float x;
+  float y;
+  float z;
+  float w;
+} Quaternião;
+
+Quaternião criar_quaternião_identidade(void);
+Quaternião criar_quaternião_eixo_ângulo(Flut3D eixo, float radianos);
+Quaternião multiplicar_quaterniões(Quaternião a, Quaternião b);
+Quaternião normalizar_quaternião(Quaternião q);
+Quaternião interpolar_quaternião_slerp(Quaternião a, Quaternião b, float fator);
+Flut3D rodar_flut3d_quaternião(Flut3D v, Quaternião q);
+
+typedef struct {
+  float m[3][3];
+} Matriz3x3;
+
+void criar_matriz_identidade(Matriz3x3 *destino);
+void criar_matriz_translação(Matriz3x3 *destino, float tx, float ty);
+void criar_matriz_rotação(Matriz3x3 *destino, float radianos);
+void criar_matriz_escala(Matriz3x3 *destino, float sx, float sy);
+void multiplicar_matrizes(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x3 *b);
+bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m);
+Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m);
+Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m);
 
 typedef enum {
   MISTURA_NORMAL,
@@ -494,6 +508,179 @@ void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], siz
   }
 }
 
+
+
+Flut3D somar_flut3d(Flut3D a, Flut3D b) {
+  return (Flut3D){
+    .x = a.x + b.x,
+    .y = a.y + b.y,
+    .z = a.z + b.z
+  };
+}
+
+Flut3D subtrair_flut3d(Flut3D a, Flut3D b) {
+  return (Flut3D){
+    .x = a.x - b.x,
+    .y = a.y - b.y,
+    .z = a.z - b.z
+  };
+}
+
+Flut3D escalar_flut3d(Flut3D v, float fator) {
+  return (Flut3D){
+    .x = v.x * fator,
+    .y = v.y * fator,
+    .z = v.z * fator
+  };
+}
+
+float comprimento_flut3d(Flut3D v) {
+  return sqrtf(comprimento_quadrado_flut3d(v));
+}
+
+float comprimento_quadrado_flut3d(Flut3D v) {
+  return produto_escalar_flut3d(v, v);
+}
+
+Flut3D normalizar_flut3d(Flut3D v) {
+  const float comprimento = comprimento_flut3d(v);
+  if (comprimento <= 0.0f) {
+    return (Flut3D){ .x = 0.0f, .y = 0.0f, .z = 0.0f };
+  }
+
+  const float inverso = 1.0f / comprimento;
+  return (Flut3D){
+    .x = v.x * inverso,
+    .y = v.y * inverso,
+    .z = v.z * inverso
+  };
+}
+
+float produto_escalar_flut3d(Flut3D a, Flut3D b) {
+  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
+Flut3D produto_vetorial_flut3d(Flut3D a, Flut3D b) {
+  return (Flut3D){
+    .x = (a.y * b.z) - (a.z * b.y),
+    .y = (a.z * b.x) - (a.x * b.z),
+    .z = (a.x * b.y) - (a.y * b.x)
+  };
+}
+
+float distância_flut3d(Flut3D a, Flut3D b) {
+  return comprimento_flut3d(subtrair_flut3d(b, a));
+}
+
+Flut3D interpolar_flut3d(Flut3D a, Flut3D b, float fator) {
+  return (Flut3D){
+    .x = a.x + ((b.x - a.x) * fator),
+    .y = a.y + ((b.y - a.y) * fator),
+    .z = a.z + ((b.z - a.z) * fator)
+  };
+}
+
+Flut3D refletir_flut3d(Flut3D incidente, Flut3D normal) {
+  const float escalar = 2.0f * produto_escalar_flut3d(incidente, normal);
+  return subtrair_flut3d(incidente, escalar_flut3d(normal, escalar));
+}
+
+
+
+Quaternião criar_quaternião_identidade(void) {
+  return (Quaternião){
+    .x = 0.0f,
+    .y = 0.0f,
+    .z = 0.0f,
+    .w = 1.0f
+  };
+}
+
+Quaternião criar_quaternião_eixo_ângulo(Flut3D eixo, float radianos) {
+  const Flut3D eixo_norm = normalizar_flut3d(eixo);
+  const float meio_ângulo = radianos * 0.5f;
+  const float seno = sinf(meio_ângulo);
+  const float cosseno = cosf(meio_ângulo);
+
+  return (Quaternião){
+    .x = eixo_norm.x * seno,
+    .y = eixo_norm.y * seno,
+    .z = eixo_norm.z * seno,
+    .w = cosseno
+  };
+}
+
+Quaternião multiplicar_quaterniões(Quaternião a, Quaternião b) {
+  return (Quaternião){
+    .x = (a.w * b.x) + (a.x * b.w) + (a.y * b.z) - (a.z * b.y),
+    .y = (a.w * b.y) - (a.x * b.z) + (a.y * b.w) + (a.z * b.x),
+    .z = (a.w * b.z) + (a.x * b.y) - (a.y * b.x) + (a.z * b.w),
+    .w = (a.w * b.w) - (a.x * b.x) - (a.y * b.y) - (a.z * b.z)
+  };
+}
+
+Quaternião normalizar_quaternião(Quaternião q) {
+  const float comprimento_quad = (q.x * q.x) + (q.y * q.y) + (q.z * q.z) + (q.w * q.w);
+  if (comprimento_quad <= 0.0f) {
+    return criar_quaternião_identidade();
+  }
+
+  const float inverso = 1.0f / sqrtf(comprimento_quad);
+  return (Quaternião){
+    .x = q.x * inverso,
+    .y = q.y * inverso,
+    .z = q.z * inverso,
+    .w = q.w * inverso
+  };
+}
+
+Quaternião interpolar_quaternião_slerp(Quaternião a, Quaternião b, float fator) {
+  float produto = (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w);
+
+  /* Garante o caminho mais curto na hiperesfera */
+  if (produto < 0.0f) {
+    b.x = -b.x;
+    b.y = -b.y;
+    b.z = -b.z;
+    b.w = -b.w;
+    produto = -produto;
+  }
+
+  /* Se os quaterniões estiverem muito próximos, usa interpolação linear normalizada (NLERP) */
+  if (produto > 0.9995f) {
+    const Quaternião resultado = {
+      .x = a.x + ((b.x - a.x) * fator),
+      .y = a.y + ((b.y - a.y) * fator),
+      .z = a.z + ((b.z - a.z) * fator),
+      .w = a.w + ((b.w - a.w) * fator)
+    };
+    return normalizar_quaternião(resultado);
+  }
+
+  const float ângulo = acosf(produto);
+  const float seno_ângulo = sinf(ângulo);
+  const float peso_a = sinf((1.0f - fator) * ângulo) / seno_ângulo;
+  const float peso_b = sinf(fator * ângulo) / seno_ângulo;
+
+  return (Quaternião){
+    .x = (a.x * peso_a) + (b.x * peso_b),
+    .y = (a.y * peso_a) + (b.y * peso_b),
+    .z = (a.z * peso_a) + (b.z * peso_b),
+    .w = (a.w * peso_a) + (b.w * peso_b)
+  };
+}
+
+Flut3D rodar_flut3d_quaternião(Flut3D v, Quaternião q) {
+  /* Fórmula otimizada de Rodrigues para quaterniões unitários: v' = v + 2 * (q_xyz × (q_xyz × v + w * v)) */
+  const Flut3D q_vec = { .x = q.x, .y = q.y, .z = q.z };
+  const Flut3D t = escalar_flut3d(produto_vetorial_flut3d(q_vec, v), 2.0f);
+
+  const Flut3D parcela_w = escalar_flut3d(t, q.w);
+  const Flut3D parcela_vetorial = produto_vetorial_flut3d(q_vec, t);
+
+  return somar_flut3d(v, somar_flut3d(parcela_w, parcela_vetorial));
+}
+
 void criar_matriz_identidade(Matriz3x3 *destino) {
   if (!destino) return;
   *destino = (Matriz3x3){
@@ -584,83 +771,6 @@ Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m) {
     y /= w;
   }
   return (Flut2D){ .x = x, .y = y };
-}
-
-
-
-Flut3D somar_flut3d(Flut3D a, Flut3D b) {
-  return (Flut3D){
-    .x = a.x + b.x,
-    .y = a.y + b.y,
-    .z = a.z + b.z
-  };
-}
-
-Flut3D subtrair_flut3d(Flut3D a, Flut3D b) {
-  return (Flut3D){
-    .x = a.x - b.x,
-    .y = a.y - b.y,
-    .z = a.z - b.z
-  };
-}
-
-Flut3D escalar_flut3d(Flut3D v, float fator) {
-  return (Flut3D){
-    .x = v.x * fator,
-    .y = v.y * fator,
-    .z = v.z * fator
-  };
-}
-
-float comprimento_flut3d(Flut3D v) {
-  return sqrtf(comprimento_quadrado_flut3d(v));
-}
-
-float comprimento_quadrado_flut3d(Flut3D v) {
-  return produto_escalar_flut3d(v, v);
-}
-
-Flut3D normalizar_flut3d(Flut3D v) {
-  const float comprimento = comprimento_flut3d(v);
-  if (comprimento <= 0.0f) {
-    return (Flut3D){ .x = 0.0f, .y = 0.0f, .z = 0.0f };
-  }
-
-  const float inverso = 1.0f / comprimento;
-  return (Flut3D){
-    .x = v.x * inverso,
-    .y = v.y * inverso,
-    .z = v.z * inverso
-  };
-}
-
-float produto_escalar_flut3d(Flut3D a, Flut3D b) {
-  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
-}
-
-Flut3D produto_vetorial_flut3d(Flut3D a, Flut3D b) {
-  return (Flut3D){
-    .x = (a.y * b.z) - (a.z * b.y),
-    .y = (a.z * b.x) - (a.x * b.z),
-    .z = (a.x * b.y) - (a.y * b.x)
-  };
-}
-
-float distância_flut3d(Flut3D a, Flut3D b) {
-  return comprimento_flut3d(subtrair_flut3d(b, a));
-}
-
-Flut3D interpolar_flut3d(Flut3D a, Flut3D b, float fator) {
-  return (Flut3D){
-    .x = a.x + ((b.x - a.x) * fator),
-    .y = a.y + ((b.y - a.y) * fator),
-    .z = a.z + ((b.z - a.z) * fator)
-  };
-}
-
-Flut3D refletir_flut3d(Flut3D incidente, Flut3D normal) {
-  const float escalar = 2.0f * produto_escalar_flut3d(incidente, normal);
-  return subtrair_flut3d(incidente, escalar_flut3d(normal, escalar));
 }
 
 
