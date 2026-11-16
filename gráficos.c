@@ -83,6 +83,19 @@ typedef struct {
 } Vértice2D;
 
 typedef struct {
+  int32_t x;
+  int32_t y;
+  uint32_t largura;
+  uint32_t altura;
+} Retângulo;
+
+bool ponto_dentro_retângulo(Int2D ponto, Retângulo ret);
+bool recortar_linha_retângulo(Int2D *início, Int2D *fim, Retângulo limites);
+size_t recortar_polígono_retângulo(const Int2D entrada[], size_t núm_entrada, Int2D saída[], size_t cap_saída, Retângulo limites);
+bool retângulos_intersetam(Retângulo a, Retângulo b);
+bool obter_interseção_retângulos(Retângulo a, Retângulo b, Retângulo *resultado);
+
+typedef struct {
   float x;
   float y;
   float z;
@@ -106,6 +119,11 @@ typedef struct {
   Flut2D uv;
   Cor cor;
 } Vértice3D;
+
+typedef struct {
+  Flut3D mínimo;
+  Flut3D máximo;
+} CaixaDelimitadora3D;
 
 typedef struct {
   float x;
@@ -167,19 +185,6 @@ typedef enum {
   MISTURA_MULTIPLICAR,
   MISTURA_ECRÃ
 } Mistura;
-
-typedef struct {
-  int32_t x;
-  int32_t y;
-  uint32_t largura;
-  uint32_t altura;
-} Retângulo;
-
-bool ponto_dentro_retângulo(Int2D ponto, Retângulo ret);
-bool recortar_linha_retângulo(Int2D *início, Int2D *fim, Retângulo limites);
-size_t recortar_polígono_retângulo(const Int2D entrada[], size_t núm_entrada, Int2D saída[], size_t cap_saída, Retângulo limites);
-bool retângulos_intersetam(Retângulo a, Retângulo b);
-bool obter_interseção_retângulos(Retângulo a, Retângulo b, Retângulo *resultado);
 
 typedef struct {
   uint32_t largura;
@@ -287,6 +292,7 @@ Malha3D criar_malha_esfera(float raio, uint32_t fatias, uint32_t pilhas);
 Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões);
 bool carregar_malha_obj(Malha3D *destino, const char *caminho);
 void calcular_normais_malha(Malha3D *malha);
+CaixaDelimitadora3D calcular_caixa_delimitadora_malha(const Malha3D *malha);
 
 typedef struct {
   uint32_t largura;
@@ -4490,6 +4496,37 @@ void calcular_normais_malha(Malha3D *malha) {
   for (size_t i = 0; i < malha->núm_vértices; ++i) {
     malha->vértices[i].normal = normalizar_flut3d(malha->vértices[i].normal);
   }
+}
+
+
+
+CaixaDelimitadora3D calcular_caixa_delimitadora_malha(const Malha3D *malha) {
+  if (malha == nullptr || malha->vértices == nullptr || malha->núm_vértices == 0) {
+    return (CaixaDelimitadora3D){
+      .mínimo = { .x = 0.0f, .y = 0.0f, .z = 0.0f },
+      .máximo = { .x = 0.0f, .y = 0.0f, .z = 0.0f }
+    };
+  }
+
+  Flut3D mínimo = malha->vértices[0].posição;
+  Flut3D máximo = malha->vértices[0].posição;
+
+  for (size_t i = 1; i < malha->núm_vértices; ++i) {
+    const Flut3D pos = malha->vértices[i].posição;
+
+    if (pos.x < mínimo.x) mínimo.x = pos.x;
+    if (pos.y < mínimo.y) mínimo.y = pos.y;
+    if (pos.z < mínimo.z) mínimo.z = pos.z;
+
+    if (pos.x > máximo.x) máximo.x = pos.x;
+    if (pos.y > máximo.y) máximo.y = pos.y;
+    if (pos.z > máximo.z) máximo.z = pos.z;
+  }
+
+  return (CaixaDelimitadora3D){
+    .mínimo = mínimo,
+    .máximo = máximo
+  };
 }
 
 
