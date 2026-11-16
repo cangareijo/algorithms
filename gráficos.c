@@ -105,6 +105,13 @@ typedef struct {
   float y;
   float z;
   float w;
+} Flut4D;
+
+typedef struct {
+  float x;
+  float y;
+  float z;
+  float w;
 } Quaternião;
 
 Quaternião criar_quaternião_identidade(void);
@@ -126,6 +133,26 @@ void multiplicar_matrizes(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x
 bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m);
 Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m);
 Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m);
+
+typedef struct {
+  float m[4][4];
+} Matriz4x4;
+
+void criar_matriz4x4_identidade(Matriz4x4 *destino);
+void criar_matriz4x4_translação(Matriz4x4 *destino, float tx, float ty, float tz);
+void criar_matriz4x4_escala(Matriz4x4 *destino, float sx, float sy, float sz);
+void criar_matriz4x4_rotação_x(Matriz4x4 *destino, float radianos);
+void criar_matriz4x4_rotação_y(Matriz4x4 *destino, float radianos);
+void criar_matriz4x4_rotação_z(Matriz4x4 *destino, float radianos);
+void criar_matriz4x4_rotação_eixo(Matriz4x4 *destino, Flut3D eixo, float radianos);
+void criar_matriz4x4_visão(Matriz4x4 *destino, Flut3D posição_olho, Flut3D alvo, Flut3D cima);
+void criar_matriz4x4_perspetiva(Matriz4x4 *destino, float fov_radianos, float aspeto, float plano_próximo, float plano_distante);
+void criar_matriz4x4_ortográfica(Matriz4x4 *destino, float esquerda, float direita, float baixo, float cima, float plano_próximo, float plano_distante);
+void multiplicar_matrizes4x4(Matriz4x4 *destino, const Matriz4x4 *a, const Matriz4x4 *b);
+bool inverter_matriz4x4(Matriz4x4 *destino, const Matriz4x4 *m);
+Flut3D transformar_flut3d_matriz4x4(Flut3D ponto, const Matriz4x4 *m);
+Flut4D transformar_flut4d_matriz4x4(Flut4D ponto, const Matriz4x4 *m);
+void quaternião_para_matriz4x4(Matriz4x4 *destino, Quaternião q);
 
 typedef enum {
   MISTURA_NORMAL,
@@ -771,6 +798,283 @@ Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m) {
     y /= w;
   }
   return (Flut2D){ .x = x, .y = y };
+}
+
+
+
+void criar_matriz4x4_identidade(Matriz4x4 *destino) {
+  assert(destino != nullptr);
+  *destino = (Matriz4x4){
+    .m = {
+      { 1.0f, 0.0f, 0.0f, 0.0f },
+      { 0.0f, 1.0f, 0.0f, 0.0f },
+      { 0.0f, 0.0f, 1.0f, 0.0f },
+      { 0.0f, 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_translação(Matriz4x4 *destino, float tx, float ty, float tz) {
+  assert(destino != nullptr);
+  *destino = (Matriz4x4){
+    .m = {
+      { 1.0f, 0.0f, 0.0f, 0.0f },
+      { 0.0f, 1.0f, 0.0f, 0.0f },
+      { 0.0f, 0.0f, 1.0f, 0.0f },
+      { tx,   ty,   tz,   1.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_escala(Matriz4x4 *destino, float sx, float sy, float sz) {
+  assert(destino != nullptr);
+  *destino = (Matriz4x4){
+    .m = {
+      { sx,   0.0f, 0.0f, 0.0f },
+      { 0.0f, sy,   0.0f, 0.0f },
+      { 0.0f, 0.0f, sz,   0.0f },
+      { 0.0f, 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_rotação_x(Matriz4x4 *destino, float radianos) {
+  assert(destino != nullptr);
+  const float c = cosf(radianos);
+  const float s = sinf(radianos);
+
+  *destino = (Matriz4x4){
+    .m = {
+      { 1.0f, 0.0f, 0.0f, 0.0f },
+      { 0.0f, c,    s,    0.0f },
+      { 0.0f, -s,   c,    0.0f },
+      { 0.0f, 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_rotação_y(Matriz4x4 *destino, float radianos) {
+  assert(destino != nullptr);
+  const float c = cosf(radianos);
+  const float s = sinf(radianos);
+
+  *destino = (Matriz4x4){
+    .m = {
+      { c,    0.0f, -s,   0.0f },
+      { 0.0f, 1.0f, 0.0f, 0.0f },
+      { s,    0.0f, c,    0.0f },
+      { 0.0f, 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_rotação_z(Matriz4x4 *destino, float radianos) {
+  assert(destino != nullptr);
+  const float c = cosf(radianos);
+  const float s = sinf(radianos);
+
+  *destino = (Matriz4x4){
+    .m = {
+      { c,    s,    0.0f, 0.0f },
+      { -s,   c,    0.0f, 0.0f },
+      { 0.0f, 0.0f, 1.0f, 0.0f },
+      { 0.0f, 0.0f, 0.0f, 1.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_rotação_eixo(Matriz4x4 *destino, Flut3D eixo, float radianos) {
+  assert(destino != nullptr);
+  const Flut3D u = normalizar_flut3d(eixo);
+  const float c = cosf(radianos);
+  const float s = sinf(radianos);
+  const float t = 1.0f - c;
+
+  *destino = (Matriz4x4){
+    .m = {
+      { (t * u.x * u.x) + c,         (t * u.x * u.y) + (s * u.z), (t * u.x * u.z) - (s * u.y), 0.0f },
+      { (t * u.x * u.y) - (s * u.z), (t * u.y * u.y) + c,         (t * u.y * u.z) + (s * u.x), 0.0f },
+      { (t * u.x * u.z) + (s * u.y), (t * u.y * u.z) - (s * u.x), (t * u.z * u.z) + c,         0.0f },
+      { 0.0f,                        0.0f,                        0.0f,                        1.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_visão(Matriz4x4 *destino, Flut3D posição_olho, Flut3D alvo, Flut3D cima) {
+  assert(destino != nullptr);
+  /* Sistema de coordenadas mão direita (Right-Handed): câmara olha para -Z */
+  const Flut3D frente = normalizar_flut3d(subtrair_flut3d(alvo, posição_olho));
+  const Flut3D direita = normalizar_flut3d(produto_vetorial_flut3d(frente, cima));
+  const Flut3D cima_real = produto_vetorial_flut3d(direita, frente);
+
+  *destino = (Matriz4x4){
+    .m = {
+      { direita.x,  cima_real.x, -frente.x, 0.0f },
+      { direita.y,  cima_real.y, -frente.y, 0.0f },
+      { direita.z,  cima_real.z, -frente.z, 0.0f },
+      {
+        -produto_escalar_flut3d(direita, posição_olho),
+        -produto_escalar_flut3d(cima_real, posição_olho),
+        produto_escalar_flut3d(frente, posição_olho),
+        1.0f
+      }
+    }
+  };
+}
+
+void criar_matriz4x4_perspetiva(Matriz4x4 *destino, float fov_radianos, float aspeto, float plano_próximo, float plano_distante) {
+  assert(destino != nullptr);
+  assert(aspeto > 0.0f);
+  assert(plano_próximo > 0.0f && plano_distante > plano_próximo);
+
+  const float escala_y = 1.0f / tanf(fov_radianos * 0.5f);
+  const float escala_x = escala_y / aspeto;
+  const float inv_profundidade = 1.0f / (plano_próximo - plano_distante);
+
+  /* Mapeia Z para [0, 1] (estilo DirectX/Vulkan) em sistema mão direita */
+  *destino = (Matriz4x4){
+    .m = {
+      { escala_x, 0.0f,     0.0f,                                         0.0f  },
+      { 0.0f,     escala_y, 0.0f,                                         0.0f  },
+      { 0.0f,     0.0f,     plano_distante * inv_profundidade,            -1.0f },
+      { 0.0f,     0.0f,     plano_próximo * plano_distante * inv_profundidade, 0.0f }
+    }
+  };
+}
+
+void criar_matriz4x4_ortográfica(Matriz4x4 *destino, float esquerda, float direita, float baixo, float cima, float plano_próximo, float plano_distante) {
+  assert(destino != nullptr);
+  const float inv_largura = 1.0f / (direita - esquerda);
+  const float inv_altura = 1.0f / (cima - baixo);
+  const float inv_profundidade = 1.0f / (plano_próximo - plano_distante);
+
+  *destino = (Matriz4x4){
+    .m = {
+      { 2.0f * inv_largura,                 0.0f,                                 0.0f,                             0.0f },
+      { 0.0f,                               2.0f * inv_altura,                    0.0f,                             0.0f },
+      { 0.0f,                               0.0f,                                 inv_profundidade,                 0.0f },
+      { -(direita + esquerda) * inv_largura, -(cima + baixo) * inv_altura,        plano_próximo * inv_profundidade, 1.0f }
+    }
+  };
+}
+
+void multiplicar_matrizes4x4(Matriz4x4 *destino, const Matriz4x4 *a, const Matriz4x4 *b) {
+  assert(destino != nullptr && a != nullptr && b != nullptr);
+  Matriz4x4 temp = { 0 };
+
+  for (size_t linha = 0; linha < 4; ++linha) {
+    for (size_t coluna = 0; coluna < 4; ++coluna) {
+      temp.m[linha][coluna] =
+        (a->m[linha][0] * b->m[0][coluna]) +
+        (a->m[linha][1] * b->m[1][coluna]) +
+        (a->m[linha][2] * b->m[2][coluna]) +
+        (a->m[linha][3] * b->m[3][coluna]);
+    }
+  }
+
+  *destino = temp;
+}
+
+bool inverter_matriz4x4(Matriz4x4 *destino, const Matriz4x4 *m) {
+  assert(destino != nullptr && m != nullptr);
+  const float *src = &m->m[0][0];
+  float inv[16];
+
+  inv[0] =  src[5] * src[10] * src[15] - src[5] * src[11] * src[14] - src[9] * src[6] * src[15] +
+            src[9] * src[7]  * src[14] + src[13] * src[6] * src[11] - src[13] * src[7] * src[10];
+  inv[4] = -src[4] * src[10] * src[15] + src[4] * src[11] * src[14] + src[8] * src[6] * src[15] -
+            src[8] * src[7]  * src[14] - src[12] * src[6] * src[11] + src[12] * src[7] * src[10];
+  inv[8] =  src[4] * src[9]  * src[15] - src[4] * src[11] * src[13] - src[8] * src[5] * src[15] +
+            src[8] * src[7]  * src[13] + src[12] * src[5] * src[11] - src[12] * src[7] * src[9];
+  inv[12] = -src[4] * src[9] * src[14] + src[4] * src[10] * src[13] + src[8] * src[5] * src[14] -
+             src[8] * src[6] * src[13] - src[12] * src[5] * src[10] + src[12] * src[6] * src[9];
+
+  inv[1] = -src[1] * src[10] * src[15] + src[1] * src[11] * src[14] + src[9] * src[2] * src[15] -
+            src[9] * src[3]  * src[14] - src[13] * src[2] * src[11] + src[13] * src[3] * src[10];
+  inv[5] =  src[0] * src[10] * src[15] - src[0] * src[11] * src[14] - src[8] * src[2] * src[15] +
+            src[8] * src[3]  * src[14] + src[12] * src[2] * src[11] - src[12] * src[3] * src[10];
+  inv[9] = -src[0] * src[9]  * src[15] + src[0] * src[11] * src[13] + src[8] * src[1] * src[15] -
+            src[8] * src[3]  * src[13] - src[12] * src[1] * src[11] + src[12] * src[3] * src[9];
+  inv[13] =  src[0] * src[9] * src[14] - src[0] * src[10] * src[13] - src[8] * src[1] * src[14] +
+             src[8] * src[2] * src[13] + src[12] * src[1] * src[10] - src[12] * src[2] * src[9];
+
+  inv[2] =  src[1] * src[6] * src[15] - src[1] * src[7] * src[14] - src[5] * src[2] * src[15] +
+            src[5] * src[3] * src[14] + src[13] * src[2] * src[7] - src[13] * src[3] * src[6];
+  inv[6] = -src[0] * src[6] * src[15] + src[0] * src[7] * src[14] + src[4] * src[2] * src[15] -
+            src[4] * src[3] * src[14] - src[12] * src[2] * src[7] + src[12] * src[3] * src[6];
+  inv[10] =  src[0] * src[5] * src[15] - src[0] * src[7] * src[13] - src[4] * src[1] * src[15] +
+             src[4] * src[3] * src[13] + src[12] * src[1] * src[7] - src[12] * src[3] * src[5];
+  inv[14] = -src[0] * src[5] * src[14] + src[0] * src[6] * src[13] + src[4] * src[1] * src[14] -
+             src[4] * src[2] * src[13] - src[12] * src[1] * src[6] + src[12] * src[2] * src[5];
+
+  inv[3] = -src[1] * src[6] * src[11] + src[1] * src[7] * src[10] + src[5] * src[2] * src[11] -
+            src[5] * src[3] * src[10] - src[9] * src[2] * src[7] + src[9] * src[3] * src[6];
+  inv[7] =  src[0] * src[6] * src[11] - src[0] * src[7] * src[10] - src[4] * src[2] * src[11] +
+            src[4] * src[3] * src[10] + src[8] * src[2] * src[7] - src[8] * src[3] * src[6];
+  inv[11] = -src[0] * src[5] * src[11] + src[0] * src[7] * src[9] + src[4] * src[1] * src[11] -
+             src[4] * src[3] * src[9] - src[8] * src[1] * src[7] + src[8] * src[3] * src[5];
+  inv[15] =  src[0] * src[5] * src[10] - src[0] * src[6] * src[9] - src[4] * src[1] * src[10] +
+             src[4] * src[2] * src[9] + src[8] * src[1] * src[6] - src[8] * src[2] * src[5];
+
+  const float det = (src[0] * inv[0]) + (src[1] * inv[4]) + (src[2] * inv[8]) + (src[3] * inv[12]);
+  if (fabsf(det) < 1e-8f) {
+    return false;
+  }
+
+  const float inv_det = 1.0f / det;
+  float *dst = &destino->m[0][0];
+  for (size_t i = 0; i < 16; ++i) {
+    dst[i] = inv[i] * inv_det;
+  }
+
+  return true;
+}
+
+Flut3D transformar_flut3d_matriz4x4(Flut3D ponto, const Matriz4x4 *m) {
+  assert(m != nullptr);
+  const float x = (ponto.x * m->m[0][0]) + (ponto.y * m->m[1][0]) + (ponto.z * m->m[2][0]) + m->m[3][0];
+  const float y = (ponto.x * m->m[0][1]) + (ponto.y * m->m[1][1]) + (ponto.z * m->m[2][1]) + m->m[3][1];
+  const float z = (ponto.x * m->m[0][2]) + (ponto.y * m->m[1][2]) + (ponto.z * m->m[2][2]) + m->m[3][2];
+  const float w = (ponto.x * m->m[0][3]) + (ponto.y * m->m[1][3]) + (ponto.z * m->m[2][3]) + m->m[3][3];
+
+  if (w != 0.0f && w != 1.0f) {
+    const float inv_w = 1.0f / w;
+    return (Flut3D){ .x = x * inv_w, .y = y * inv_w, .z = z * inv_w };
+  }
+
+  return (Flut3D){ .x = x, .y = y, .z = z };
+}
+
+Flut4D transformar_flut4d_matriz4x4(Flut4D ponto, const Matriz4x4 *m) {
+  assert(m != nullptr);
+  return (Flut4D){
+    .x = (ponto.x * m->m[0][0]) + (ponto.y * m->m[1][0]) + (ponto.z * m->m[2][0]) + (ponto.w * m->m[3][0]),
+    .y = (ponto.x * m->m[0][1]) + (ponto.y * m->m[1][1]) + (ponto.z * m->m[2][1]) + (ponto.w * m->m[3][1]),
+    .z = (ponto.x * m->m[0][2]) + (ponto.y * m->m[1][2]) + (ponto.z * m->m[2][2]) + (ponto.w * m->m[3][2]),
+    .w = (ponto.x * m->m[0][3]) + (ponto.y * m->m[1][3]) + (ponto.z * m->m[2][3]) + (ponto.w * m->m[3][3])
+  };
+}
+
+void quaternião_para_matriz4x4(Matriz4x4 *destino, Quaternião q) {
+  assert(destino != nullptr);
+  const float xx = q.x * q.x;
+  const float yy = q.y * q.y;
+  const float zz = q.z * q.z;
+  const float xy = q.x * q.y;
+  const float xz = q.x * q.z;
+  const float yz = q.y * q.z;
+  const float wx = q.w * q.x;
+  const float wy = q.w * q.y;
+  const float wz = q.w * q.z;
+
+  *destino = (Matriz4x4){
+    .m = {
+      { 1.0f - 2.0f * (yy + zz), 2.0f * (xy + wz),        2.0f * (xz - wy),        0.0f },
+      { 2.0f * (xy - wz),        1.0f - 2.0f * (xx + zz), 2.0f * (yz + wx),        0.0f },
+      { 2.0f * (xz + wy),        2.0f * (yz - wx),        1.0f - 2.0f * (xx + yy), 0.0f },
+      { 0.0f,                    0.0f,                    0.0f,                    1.0f }
+    }
+  };
 }
 
 
