@@ -101,6 +101,13 @@ Flut3D interpolar_flut3d(Flut3D a, Flut3D b, float fator);
 Flut3D refletir_flut3d(Flut3D incidente, Flut3D normal);
 
 typedef struct {
+  Flut3D posição;
+  Flut3D normal;
+  Flut2D uv;
+  Cor cor;
+} Vértice3D;
+
+typedef struct {
   float x;
   float y;
   float z;
@@ -266,6 +273,20 @@ bool carregar_de_ficheiro(Tela *destino, const char *caminho);
 bool exportar_para_ficheiro_ppm(const Tela *tela, const char *caminho);
 bool exportar_para_ficheiro_bmp(const Tela *tela, const char *caminho);
 bool exportar_para_ficheiro_tga(const Tela *tela, const char *caminho);
+
+typedef struct {
+  Vértice3D *vértices;
+  size_t núm_vértices;
+  uint32_t *índices;
+  size_t núm_índices;
+} Malha3D;
+
+void destruir_malha3d(Malha3D *malha);
+Malha3D criar_malha_cubo(float lado);
+Malha3D criar_malha_esfera(float raio, uint32_t fatias, uint32_t pilhas);
+Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões);
+bool carregar_malha_obj(Malha3D *destino, const char *caminho);
+void calcular_normais_malha(Malha3D *malha);
 
 typedef struct {
   uint32_t largura;
@@ -4049,6 +4070,426 @@ bool exportar_para_ficheiro_tga(const Tela *tela, const char *caminho) {
   fclose(ficheiro);
 
   return true;
+}
+
+
+
+void destruir_malha3d(Malha3D *malha) {
+  if (malha == nullptr) {
+    return;
+  }
+
+  free(malha->vértices);
+  free(malha->índices);
+  malha->vértices = nullptr;
+  malha->índices = nullptr;
+  malha->núm_vértices = 0;
+  malha->núm_índices = 0;
+}
+
+Malha3D criar_malha_cubo(float lado) {
+  constexpr size_t núm_vértices = 24;
+  constexpr size_t núm_índices = 36;
+
+  Vértice3D *vértices = malloc(núm_vértices * sizeof(Vértice3D));
+  uint32_t *índices = malloc(núm_índices * sizeof(uint32_t));
+  if (vértices == nullptr || índices == nullptr) {
+    free(vértices);
+    free(índices);
+    return (Malha3D){ 0 };
+  }
+
+  const float m = lado * 0.5f;
+
+  /* 6 faces * 4 vértices cada (para normais e UVs nítidos por face) */
+  const Vértice3D dados_vértices[24] = {
+    /* Frente (+Z) */
+    { .posição = { -m, -m,  m }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m, -m,  m }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m,  m,  m }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0f, 0.0f }, .cor = COR_BRANCA },
+    { .posição = { -m,  m,  m }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0f, 0.0f }, .cor = COR_BRANCA },
+    /* Trás (-Z) */
+    { .posição = {  m, -m, -m }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = { -m, -m, -m }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = { -m,  m, -m }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0f, 0.0f }, .cor = COR_BRANCA },
+    { .posição = {  m,  m, -m }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0f, 0.0f }, .cor = COR_BRANCA },
+    /* Direita (+X) */
+    { .posição = {  m, -m,  m }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m, -m, -m }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m,  m, -m }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0f, 0.0f }, .cor = COR_BRANCA },
+    { .posição = {  m,  m,  m }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0f, 0.0f }, .cor = COR_BRANCA },
+    /* Esquerda (-X) */
+    { .posição = { -m, -m, -m }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = { -m, -m,  m }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = { -m,  m,  m }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0f, 0.0f }, .cor = COR_BRANCA },
+    { .posição = { -m,  m, -m }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0f, 0.0f }, .cor = COR_BRANCA },
+    /* Topo (+Y) */
+    { .posição = { -m,  m,  m }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m,  m,  m }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m,  m, -m }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0f, 0.0f }, .cor = COR_BRANCA },
+    { .posição = { -m,  m, -m }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0f, 0.0f }, .cor = COR_BRANCA },
+    /* Base (-Y) */
+    { .posição = { -m, -m, -m }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m, -m, -m }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0f, 1.0f }, .cor = COR_BRANCA },
+    { .posição = {  m, -m,  m }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0f, 0.0f }, .cor = COR_BRANCA },
+    { .posição = { -m, -m,  m }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0f, 0.0f }, .cor = COR_BRANCA }
+  };
+
+  memcpy(vértices, dados_vértices, sizeof(dados_vértices));
+
+  for (uint32_t face = 0; face < 6; ++face) {
+    const uint32_t base_v = face * 4;
+    const uint32_t base_i = face * 6;
+    índices[base_i + 0] = base_v + 0;
+    índices[base_i + 1] = base_v + 1;
+    índices[base_i + 2] = base_v + 2;
+    índices[base_i + 3] = base_v + 0;
+    índices[base_i + 4] = base_v + 2;
+    índices[base_i + 5] = base_v + 3;
+  }
+
+  return (Malha3D){
+    .vértices = vértices,
+    .núm_vértices = núm_vértices,
+    .índices = índices,
+    .núm_índices = núm_índices
+  };
+}
+
+Malha3D criar_malha_esfera(float raio, uint32_t fatias, uint32_t pilhas) {
+  if (fatias < 3 || pilhas < 2) {
+    return (Malha3D){ 0 };
+  }
+
+  constexpr float pi = 3.14159265358979323846f;
+  const size_t núm_vértices = (size_t)(pilhas + 1) * (size_t)(fatias + 1);
+  const size_t núm_índices = (size_t)pilhas * (size_t)fatias * 6;
+
+  Vértice3D *vértices = malloc(núm_vértices * sizeof(Vértice3D));
+  uint32_t *índices = malloc(núm_índices * sizeof(uint32_t));
+  if (vértices == nullptr || índices == nullptr) {
+    free(vértices);
+    free(índices);
+    return (Malha3D){ 0 };
+  }
+
+  size_t idx_v = 0;
+  for (uint32_t p = 0; p <= pilhas; ++p) {
+    const float v = (float)p / (float)pilhas;
+    const float phi = v * pi;
+    const float sin_phi = sinf(phi);
+    const float cos_phi = cosf(phi);
+
+    for (uint32_t f = 0; f <= fatias; ++f) {
+      const float u = (float)f / (float)fatias;
+      const float theta = u * 2.0f * pi;
+      const float sin_theta = sinf(theta);
+      const float cos_theta = cosf(theta);
+
+      const Flut3D normal = {
+        .x = cos_theta * sin_phi,
+        .y = cos_phi,
+        .z = sin_theta * sin_phi
+      };
+
+      vértices[idx_v++] = (Vértice3D){
+        .posição = escalar_flut3d(normal, raio),
+        .normal = normal,
+        .uv = { .x = u, .y = v },
+        .cor = COR_BRANCA
+      };
+    }
+  }
+
+  size_t idx_i = 0;
+  const uint32_t passo_anel = fatias + 1;
+  for (uint32_t p = 0; p < pilhas; ++p) {
+    for (uint32_t f = 0; f < fatias; ++f) {
+      const uint32_t a = (p * passo_anel) + f;
+      const uint32_t b = a + passo_anel;
+      const uint32_t c = a + 1;
+      const uint32_t d = b + 1;
+
+      /* Sentido anti-horário (CCW) visto de fora */
+      índices[idx_i++] = a;
+      índices[idx_i++] = c;
+      índices[idx_i++] = b;
+
+      índices[idx_i++] = c;
+      índices[idx_i++] = d;
+      índices[idx_i++] = b;
+    }
+  }
+
+  return (Malha3D){
+    .vértices = vértices,
+    .núm_vértices = núm_vértices,
+    .índices = índices,
+    .núm_índices = núm_índices
+  };
+}
+
+Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões) {
+  const uint32_t segs = (subdivisões == 0) ? 1 : subdivisões;
+  const size_t núm_vértices = (size_t)(segs + 1) * (size_t)(segs + 1);
+  const size_t núm_índices = (size_t)segs * (size_t)segs * 6;
+
+  Vértice3D *vértices = malloc(núm_vértices * sizeof(Vértice3D));
+  uint32_t *índices = malloc(núm_índices * sizeof(uint32_t));
+  if (vértices == nullptr || índices == nullptr) {
+    free(vértices);
+    free(índices);
+    return (Malha3D){ 0 };
+  }
+
+  const float meia_larg = largura * 0.5f;
+  const float meia_prof = profundidade * 0.5f;
+
+  size_t idx_v = 0;
+  for (uint32_t z = 0; z <= segs; ++z) {
+    const float v = (float)z / (float)segs;
+    const float pos_z = -meia_prof + (v * profundidade);
+
+    for (uint32_t x = 0; x <= segs; ++x) {
+      const float u = (float)x / (float)segs;
+      const float pos_x = -meia_larg + (u * largura);
+
+      vértices[idx_v++] = (Vértice3D){
+        .posição = { .x = pos_x, .y = 0.0f, .z = pos_z },
+        .normal = { .x = 0.0f, .y = 1.0f, .z = 0.0f },
+        .uv = { .x = u, .y = v },
+        .cor = COR_BRANCA
+      };
+    }
+  }
+
+  size_t idx_i = 0;
+  const uint32_t passo_linha = segs + 1;
+  for (uint32_t z = 0; z < segs; ++z) {
+    for (uint32_t x = 0; x < segs; ++x) {
+      const uint32_t sup_esq = (z * passo_linha) + x;
+      const uint32_t sup_dir = sup_esq + 1;
+      const uint32_t inf_esq = sup_esq + passo_linha;
+      const uint32_t inf_dir = inf_esq + 1;
+
+      índices[idx_i++] = sup_esq;
+      índices[idx_i++] = inf_esq;
+      índices[idx_i++] = sup_dir;
+
+      índices[idx_i++] = sup_dir;
+      índices[idx_i++] = inf_esq;
+      índices[idx_i++] = inf_dir;
+    }
+  }
+
+  return (Malha3D){
+    .vértices = vértices,
+    .núm_vértices = núm_vértices,
+    .índices = índices,
+    .núm_índices = núm_índices
+  };
+}
+
+bool carregar_malha_obj(Malha3D *destino, const char *caminho) {
+  if (destino == nullptr || caminho == nullptr) {
+    return false;
+  }
+
+  FILE *ficheiro = fopen(caminho, "r");
+  if (ficheiro == nullptr) {
+    return false;
+  }
+
+  Flut3D *posições = nullptr;
+  size_t núm_pos = 0, cap_pos = 0;
+
+  Flut2D *uvs = nullptr;
+  size_t núm_uvs = 0, cap_uvs = 0;
+
+  Flut3D *normais = nullptr;
+  size_t núm_norm = 0, cap_norm = 0;
+
+  Vértice3D *vértices = nullptr;
+  size_t núm_vértices = 0, cap_vértices = 0;
+
+  uint32_t *índices = nullptr;
+  size_t núm_índices = 0, cap_índices = 0;
+
+  bool sucesso = true;
+  bool tem_normais = false;
+  char linha[512];
+
+  while (fgets(linha, sizeof(linha), ficheiro) != nullptr && sucesso) {
+    char *p = linha;
+    while (*p == ' ' || *p == '\t') {
+      ++p;
+    }
+
+    if (strncmp(p, "v ", 2) == 0) {
+      Flut3D pos = { 0 };
+      if (sscanf(p + 2, "%f %f %f", &pos.x, &pos.y, &pos.z) == 3) {
+        if (núm_pos == cap_pos) {
+          const size_t nova_cap = (cap_pos == 0) ? 128 : cap_pos * 2;
+          Flut3D *tmp = realloc(posições, nova_cap * sizeof(Flut3D));
+          if (tmp == nullptr) { sucesso = false; break; }
+          posições = tmp;
+          cap_pos = nova_cap;
+        }
+        posições[núm_pos++] = pos;
+      }
+    } else if (strncmp(p, "vt ", 3) == 0) {
+      Flut2D uv = { 0 };
+      if (sscanf(p + 3, "%f %f", &uv.x, &uv.y) >= 2) {
+        uv.y = 1.0f - uv.y; /* Converte UV OpenGL (baixo=0) para Tela (topo=0) */
+        if (núm_uvs == cap_uvs) {
+          const size_t nova_cap = (cap_uvs == 0) ? 128 : cap_uvs * 2;
+          Flut2D *tmp = realloc(uvs, nova_cap * sizeof(Flut2D));
+          if (tmp == nullptr) { sucesso = false; break; }
+          uvs = tmp;
+          cap_uvs = nova_cap;
+        }
+        uvs[núm_uvs++] = uv;
+      }
+    } else if (strncmp(p, "vn ", 3) == 0) {
+      Flut3D norm = { 0 };
+      if (sscanf(p + 3, "%f %f %f", &norm.x, &norm.y, &norm.z) == 3) {
+        if (núm_norm == cap_norm) {
+          const size_t nova_cap = (cap_norm == 0) ? 128 : cap_norm * 2;
+          Flut3D *tmp = realloc(normais, nova_cap * sizeof(Flut3D));
+          if (tmp == nullptr) { sucesso = false; break; }
+          normais = tmp;
+          cap_norm = nova_cap;
+        }
+        normais[núm_norm++] = normalizar_flut3d(norm);
+        tem_normais = true;
+      }
+    } else if (strncmp(p, "f ", 2) == 0) {
+      uint32_t vértices_face[32];
+      size_t count_face = 0;
+
+      char *token = strtok(p + 2, " \t\r\n");
+      while (token != nullptr && count_face < 32) {
+        int32_t iv = 0, ivt = 0, ivn = 0;
+
+        if (sscanf(token, "%d/%d/%d", &iv, &ivt, &ivn) == 3) {
+          /* v/vt/vn */
+        } else if (sscanf(token, "%d//%d", &iv, &ivn) == 2) {
+          ivt = 0;
+        } else if (sscanf(token, "%d/%d", &iv, &ivt) == 2) {
+          ivn = 0;
+        } else if (sscanf(token, "%d", &iv) == 1) {
+          ivt = 0;
+          ivn = 0;
+        } else {
+          token = strtok(nullptr, " \t\r\n");
+          continue;
+        }
+
+        if (iv < 0) iv = (int32_t)núm_pos + iv + 1;
+        if (ivt < 0) ivt = (int32_t)núm_uvs + ivt + 1;
+        if (ivn < 0) ivn = (int32_t)núm_norm + ivn + 1;
+
+        if (iv <= 0 || (size_t)iv > núm_pos) {
+          sucesso = false;
+          break;
+        }
+
+        Vértice3D novo_v = {
+          .posição = posições[iv - 1],
+          .normal = (ivn > 0 && (size_t)ivn <= núm_norm) ? normais[ivn - 1] : (Flut3D){ 0.0f, 1.0f, 0.0f },
+          .uv = (ivt > 0 && (size_t)ivt <= núm_uvs) ? uvs[ivt - 1] : (Flut2D){ 0.0f, 0.0f },
+          .cor = COR_BRANCA
+        };
+
+        if (núm_vértices == cap_vértices) {
+          const size_t nova_cap = (cap_vértices == 0) ? 256 : cap_vértices * 2;
+          Vértice3D *tmp = realloc(vértices, nova_cap * sizeof(Vértice3D));
+          if (tmp == nullptr) { sucesso = false; break; }
+          vértices = tmp;
+          cap_vértices = nova_cap;
+        }
+
+        vértices_face[count_face++] = (uint32_t)núm_vértices;
+        vértices[núm_vértices++] = novo_v;
+
+        token = strtok(nullptr, " \t\r\n");
+      }
+
+      /* Triangulação em leque (triangle fan) para faces com 3 ou mais vértices */
+      for (size_t i = 1; i + 1 < count_face && sucesso; ++i) {
+        if (núm_índices + 3 > cap_índices) {
+          const size_t nova_cap = (cap_índices == 0) ? 512 : cap_índices * 2;
+          uint32_t *tmp = realloc(índices, nova_cap * sizeof(uint32_t));
+          if (tmp == nullptr) { sucesso = false; break; }
+          índices = tmp;
+          cap_índices = nova_cap;
+        }
+        índices[núm_índices++] = vértices_face[0];
+        índices[núm_índices++] = vértices_face[i];
+        índices[núm_índices++] = vértices_face[i + 1];
+      }
+    }
+  }
+
+  fclose(ficheiro);
+  free(posições);
+  free(uvs);
+  free(normais);
+
+  if (!sucesso || núm_vértices == 0 || núm_índices == 0) {
+    free(vértices);
+    free(índices);
+    return false;
+  }
+
+  *destino = (Malha3D){
+    .vértices = vértices,
+    .núm_vértices = núm_vértices,
+    .índices = índices,
+    .núm_índices = núm_índices
+  };
+
+  if (!tem_normais) {
+    calcular_normais_malha(destino);
+  }
+
+  return true;
+}
+
+void calcular_normais_malha(Malha3D *malha) {
+  if (malha == nullptr || malha->vértices == nullptr || malha->índices == nullptr) {
+    return;
+  }
+
+  for (size_t i = 0; i < malha->núm_vértices; ++i) {
+    malha->vértices[i].normal = (Flut3D){ 0.0f, 0.0f, 0.0f };
+  }
+
+  for (size_t i = 0; i + 2 < malha->núm_índices; i += 3) {
+    const uint32_t i0 = malha->índices[i + 0];
+    const uint32_t i1 = malha->índices[i + 1];
+    const uint32_t i2 = malha->índices[i + 2];
+
+    if (i0 >= malha->núm_vértices || i1 >= malha->núm_vértices || i2 >= malha->núm_vértices) {
+      continue;
+    }
+
+    const Flut3D p0 = malha->vértices[i0].posição;
+    const Flut3D p1 = malha->vértices[i1].posição;
+    const Flut3D p2 = malha->vértices[i2].posição;
+
+    const Flut3D aresta1 = subtrair_flut3d(p1, p0);
+    const Flut3D aresta2 = subtrair_flut3d(p2, p0);
+    const Flut3D normal_face = produto_vetorial_flut3d(aresta1, aresta2);
+
+    malha->vértices[i0].normal = somar_flut3d(malha->vértices[i0].normal, normal_face);
+    malha->vértices[i1].normal = somar_flut3d(malha->vértices[i1].normal, normal_face);
+    malha->vértices[i2].normal = somar_flut3d(malha->vértices[i2].normal, normal_face);
+  }
+
+  for (size_t i = 0; i < malha->núm_vértices; ++i) {
+    malha->vértices[i].normal = normalizar_flut3d(malha->vértices[i].normal);
+  }
 }
 
 
