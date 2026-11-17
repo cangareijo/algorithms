@@ -214,7 +214,7 @@ void desenhar_linha_espessa(Tela *tela, Int2D início, Int2D fim, uint32_t espes
 void desenhar_cápsula(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
 void desenhar_cápsula_sdf(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
 void desenhar_cápsula_preenchida(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor cor);
-void desenhar_linha_suavizada(Tela *tela, Int2D início, Int2D fim, Cor cor);
+void desenhar_linha_suavizada(Tela *tela, Flut2D início, Flut2D fim, Cor cor);
 void desenhar_polilinha(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor, bool fechada);
 
 void desenhar_curva_bezier_quadrática(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Cor cor);
@@ -2072,49 +2072,108 @@ void desenhar_cápsula_preenchida(Tela *tela, Int2D p1, Int2D p2, uint32_t raio,
   }
 }
 
-static void desenhar_píxel_wu(Tela *tela, int32_t x, int32_t y, Cor cor, float brilho) {
-  if (brilho <= 0.0f) return;
-  Cor c = cor;
-  c.alfa = (uint8_t)roundf((float)cor.alfa * limitar_flut(brilho, 0.0f, 1.0f));
-  desenhar_píxel_alfa(tela, (Int2D){ x, y }, c);
+static inline void desenhar_píxel_wu(Tela *tela, int32_t x, int32_t y, Cor cor, float intensidade) {
+  if (intensidade <= 0.0f) {
+    return;
+  }
+  if (intensidade > 1.0f) {
+    intensidade = 1.0f;
+  }
+  Cor cor_final = cor;
+  cor_final.alfa = (uint8_t)lroundf((float)cor.alfa * intensidade);
+  if (cor_final.alfa > 0) {
+    desenhar_píxel_alfa(tela, (Int2D){ .x = x, .y = y }, cor_final);
+  }
 }
 
-void desenhar_linha_suavizada(Tela *tela, Int2D início, Int2D fim, Cor cor) {
-  if (!tela || !tela->píxeis) return;
-  float x0 = (float)início.x, y0 = (float)início.y;
-  float x1 = (float)fim.x,    y1 = (float)fim.y;
+void desenhar_linha_suavizada(Tela *tela, Flut2D início, Flut2D fim, Cor cor) {
+  assert(tela != nullptr);
 
-  bool íngreme = fabsf(y1 - y0) > fabsf(x1 - x0);
-  if (íngreme) {
-    float t;
-    t = x0; x0 = y0; y0 = t;
-    t = x1; x1 = y1; y1 = t;
+  if (tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 || cor.alfa == 0) {
+    return;
   }
+
+  float x0 = início.x;
+  float y0 = início.y;
+  float x1 = fim.x;
+  float y1 = fim.y;
+
+  const bool inclinada = fabsf(y1 - y0) > fabsf(x1 - x0);
+  if (inclinada) {
+    float temp_x0 = x0;
+    x0 = y0;
+    y0 = temp_x0;
+
+    float temp_x1 = x1;
+    x1 = y1;
+    y1 = temp_x1;
+  }
+
   if (x0 > x1) {
-    float t;
-    t = x0; x0 = x1; x1 = t;
-    t = y0; y0 = y1; y1 = t;
+    float temp_x = x0;
+    x0 = x1;
+    x1 = temp_x;
+
+    float temp_y = y0;
+    y0 = y1;
+    y1 = temp_y;
   }
 
-  float dx = x1 - x0;
-  float dy = y1 - y0;
-  float gradiente = (fabsf(dx) < 1e-6f) ? 1.0f : (dy / dx);
+  const float dx = x1 - x0;
+  const float dy = y1 - y0;
+  const float gradiente = (dx < 1e-6f) ? 1.0f : (dy / dx);
 
-  int32_t xpxl1 = (int32_t)roundf(x0);
-  int32_t xpxl2 = (int32_t)roundf(x1);
-  float intery = y0 + gradiente * ((float)xpxl1 - x0);
+  /* Primeiro extremo */
+  float x_fim_1 = roundf(x0);
+  float y_fim_1 = y0 + gradiente * (x_fim_1 - x0);
+  float x_lacuna_1 = 1.0f - ((x0 + 0.5f) - floorf(x0 + 0.5f));
+  const int32_t x_píxel_1 = (int32_t)x_fim_1;
+  const int32_t y_píxel_1 = (int32_t)floorf(y_fim_1);
+  const float frac_y1 = y_fim_1 - floorf(y_fim_1);
 
-  for (int32_t x = xpxl1; x <= xpxl2; x++) {
-    int32_t iy = (int32_t)floorf(intery);
-    float frac = intery - (float)iy;
-    if (íngreme) {
-      desenhar_píxel_wu(tela, iy,     x, cor, 1.0f - frac);
-      desenhar_píxel_wu(tela, iy + 1, x, cor, frac);
-    } else {
-      desenhar_píxel_wu(tela, x, iy,     cor, 1.0f - frac);
-      desenhar_píxel_wu(tela, x, iy + 1, cor, frac);
+  if (inclinada) {
+    desenhar_píxel_wu(tela, y_píxel_1, x_píxel_1, cor, (1.0f - frac_y1) * x_lacuna_1);
+    desenhar_píxel_wu(tela, y_píxel_1 + 1, x_píxel_1, cor, frac_y1 * x_lacuna_1);
+  } else {
+    desenhar_píxel_wu(tela, x_píxel_1, y_píxel_1, cor, (1.0f - frac_y1) * x_lacuna_1);
+    desenhar_píxel_wu(tela, x_píxel_1, y_píxel_1 + 1, cor, frac_y1 * x_lacuna_1);
+  }
+
+  float intery = y_fim_1 + gradiente;
+
+  /* Segundo extremo */
+  float x_fim_2 = roundf(x1);
+  float y_fim_2 = y1 + gradiente * (x_fim_2 - x1);
+  float x_lacuna_2 = (x1 + 0.5f) - floorf(x1 + 0.5f);
+  const int32_t x_píxel_2 = (int32_t)x_fim_2;
+  const int32_t y_píxel_2 = (int32_t)floorf(y_fim_2);
+  const float frac_y2 = y_fim_2 - floorf(y_fim_2);
+
+  if (inclinada) {
+    desenhar_píxel_wu(tela, y_píxel_2, x_píxel_2, cor, (1.0f - frac_y2) * x_lacuna_2);
+    desenhar_píxel_wu(tela, y_píxel_2 + 1, x_píxel_2, cor, frac_y2 * x_lacuna_2);
+  } else {
+    desenhar_píxel_wu(tela, x_píxel_2, y_píxel_2, cor, (1.0f - frac_y2) * x_lacuna_2);
+    desenhar_píxel_wu(tela, x_píxel_2, y_píxel_2 + 1, cor, frac_y2 * x_lacuna_2);
+  }
+
+  /* Ciclo principal entre os dois extremos */
+  if (inclinada) {
+    for (int32_t x = x_píxel_1 + 1; x < x_píxel_2; ++x) {
+      const int32_t y_int = (int32_t)floorf(intery);
+      const float frac = intery - (float)y_int;
+      desenhar_píxel_wu(tela, y_int, x, cor, 1.0f - frac);
+      desenhar_píxel_wu(tela, y_int + 1, x, cor, frac);
+      intery += gradiente;
     }
-    intery += gradiente;
+  } else {
+    for (int32_t x = x_píxel_1 + 1; x < x_píxel_2; ++x) {
+      const int32_t y_int = (int32_t)floorf(intery);
+      const float frac = intery - (float)y_int;
+      desenhar_píxel_wu(tela, x, y_int, cor, 1.0f - frac);
+      desenhar_píxel_wu(tela, x, y_int + 1, cor, frac);
+      intery += gradiente;
+    }
   }
 }
 
@@ -5552,7 +5611,7 @@ int main(void) {
   assert(cores_iguais(obter_píxel(&tela, (Int2D){ 5, 5 }), COR_BRANCA));
 
   desenhar_píxel_mistura(&tela, (Int2D){ 5, 5 }, COR_VERMELHA, MISTURA_MULTIPLICAR);
-  desenhar_linha_suavizada(&tela, (Int2D){ 10, 10 }, (Int2D){ 200, 30 }, COR_CIANO);
+  desenhar_linha_suavizada(&tela, (Flut2D){ 10, 10 }, (Flut2D){ 200, 30 }, COR_CIANO);
   desenhar_curva_bezier_cúbica(&tela, (Int2D){ 10, 50 }, (Int2D){ 80, 10 }, (Int2D){ 160, 90 }, (Int2D){ 240, 50 }, COR_MAGENTA);
 
   desenhar_triângulo_preenchido(&tela, (Int2D){ 30, 80 }, (Int2D){ 70, 80 }, (Int2D){ 50, 120 }, COR_VERDE);
