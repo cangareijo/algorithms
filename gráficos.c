@@ -352,6 +352,8 @@ typedef struct {
 } Luz3D;
 
 void desenhar_triângulo_3d_zbuffer(Tela *tela, BufferProfundidade *zbuffer, Vértice3D v1, Vértice3D v2, Vértice3D v3, const Material3D *material, ModoSombreamento modo);
+void desenhar_malha_3d(Tela *tela, BufferProfundidade *zbuffer, const Malha3D *malha, const Matriz4x4 *modelo, const Câmara3D *câmara, const Material3D *material, const Luz3D luzes[], size_t núm_luzes, ModoSombreamento modo);
+void aplicar_nevoeiro_profundidade(Tela *tela, const BufferProfundidade *zbuffer, Cor cor_nevoeiro, float início, float fim);
 
 
 
@@ -4913,7 +4915,7 @@ static Cor modular_cores(Cor a, Cor b) {
   };
 }
 
-static Cor calcular_iluminação_vértice(Flut3D pos_mundo, Flut3D normal_mundo, Cor cor_vértice, const Luz3D luzes[], size_t núm_luzes) {
+static Cor calcular_iluminação_vértice_v2(Flut3D pos_mundo, Flut3D normal_mundo, Cor cor_vértice, const Luz3D luzes[], size_t núm_luzes) {
   if (luzes == nullptr || núm_luzes == 0) {
     return cor_vértice;
   }
@@ -5093,7 +5095,7 @@ static void desenhar_triângulo_3d_interno(
           .y = (b1 * v1.normal.y) + (b2 * v2.normal.y) + (b3 * v3.normal.y),
           .z = (b1 * v1.normal.z) + (b2 * v2.normal.z) + (b3 * v3.normal.z)
         });
-        cor_base = calcular_iluminação_vértice(pos_píxel, norm_píxel, cor_base, luzes, núm_luzes);
+        cor_base = calcular_iluminação_vértice_v2(pos_píxel, norm_píxel, cor_base, luzes, núm_luzes);
       }
 
       tela->píxeis[idx] = cor_base;
@@ -5104,6 +5106,315 @@ static void desenhar_triângulo_3d_interno(
 void desenhar_triângulo_3d_zbuffer(Tela *tela, BufferProfundidade *zbuffer, Vértice3D v1, Vértice3D v2, Vértice3D v3, const Material3D *material, ModoSombreamento modo) {
   const ModoSombreamento modo_efetivo = (modo == SOMBREAMENTO_PHONG) ? SOMBREAMENTO_GOURAUD : modo;
   desenhar_triângulo_3d_interno(tela, zbuffer, v1, v2, v3, nullptr, material, nullptr, 0, modo_efetivo);
+}
+
+static inline uint8_t flut_para_u8(float valor) {
+  float limitado = limitar_flut(valor, 0.0f, 1.0f);
+  return (uint8_t)lroundf(limitado * 255.0f);
+}
+
+static void transpor_matriz4x4(Matriz4x4 *destino, const Matriz4x4 *origem) {
+  Matriz4x4 temp;
+  for (size_t i = 0; i < 4; ++i) {
+    for (size_t j = 0; j < 4; ++j) {
+      temp.m[i][j] = origem->m[j][i];
+    }
+  }
+  *destino = temp;
+}
+
+static Flut3D transformar_normal_matriz4x4(Flut3D normal, const Matriz4x4 *matriz_normal) {
+  Flut3D resultado = {
+    .x = normal.x * matriz_normal->m[0][0] + normal.y * matriz_normal->m[1][0] + normal.z * matriz_normal->m[2][0],
+    .y = normal.x * matriz_normal->m[0][1] + normal.y * matriz_normal->m[1][1] + normal.z * matriz_normal->m[2][1],
+    .z = normal.x * matriz_normal->m[0][2] + normal.y * matriz_normal->m[1][2] + normal.z * matriz_normal->m[2][2]
+  };
+  return normalizar_flut3d(resultado);
+}
+
+static Cor calcular_iluminação_vértice(
+  Flut3D pos_mundo,
+  Flut3D normal_mundo,
+  Cor cor_vértice,
+  Flut3D pos_câmara,
+  const Material3D *material,
+  const Luz3D luzes[],
+  size_t núm_luzes
+) {
+  float mat_amb_r = (float)material->cor_ambiente.vermelho / 255.0f;
+  float mat_amb_g = (float)material->cor_ambiente.verde    / 255.0f;
+  float mat_amb_b = (float)material->cor_ambiente.azul     / 255.0f;
+
+  float mat_dif_r = ((float)material->cor_difusa.vermelho / 255.0f) * ((float)cor_vértice.vermelho / 255.0f);
+  float mat_dif_g = ((float)material->cor_difusa.verde    / 255.0f) * ((float)cor_vértice.verde    / 255.0f);
+  float mat_dif_b = ((float)material->cor_difusa.azul     / 255.0f) * ((float)cor_vértice.azul     / 255.0f);
+
+  float mat_esp_r = (float)material->cor_especular.vermelho / 255.0f;
+  float mat_esp_g = (float)material->cor_especular.verde    / 255.0f;
+  float mat_esp_b = (float)material->cor_especular.azul     / 255.0f;
+
+  float acum_r = mat_amb_r * 0.15f;
+  float acum_g = mat_amb_g * 0.15f;
+  float acum_b = mat_amb_b * 0.15f;
+
+  Flut3D dir_vista = normalizar_flut3d(subtrair_flut3d(pos_câmara, pos_mundo));
+
+  for (size_t i = 0; i < núm_luzes; ++i) {
+    const Luz3D *luz = &luzes[i];
+    if (luz->intensidade <= 0.0f) continue;
+
+    Flut3D dir_luz = { 0.0f, 0.0f, 0.0f };
+    float atenuação = luz->intensidade;
+
+    if (luz->tipo == LUZ_DIRECIONAL) {
+      dir_luz = normalizar_flut3d(escalar_flut3d(luz->direção, -1.0f));
+    } else {
+      Flut3D vetor_para_luz = subtrair_flut3d(luz->posição, pos_mundo);
+      float dist = comprimento_flut3d(vetor_para_luz);
+
+      if (luz->alcance > 0.0f && dist > luz->alcance) {
+        continue;
+      }
+
+      dir_luz = (dist > 1e-6f) ? escalar_flut3d(vetor_para_luz, 1.0f / dist) : (Flut3D){ 0.0f, 1.0f, 0.0f };
+
+      if (luz->alcance > 0.0f) {
+        float fator_dist = limitar_flut(1.0f - (dist / luz->alcance), 0.0f, 1.0f);
+        atenuação *= fator_dist * fator_dist;
+      }
+
+      if (luz->tipo == LUZ_HOLOFOTE) {
+        Flut3D dir_foco = normalizar_flut3d(luz->direção);
+        Flut3D luz_para_ponto = escalar_flut3d(dir_luz, -1.0f);
+        float cosseno_ângulo = produto_escalar_flut3d(dir_foco, luz_para_ponto);
+        float cosseno_limite = cosf(luz->ângulo_cone_radianos * 0.5f);
+
+        if (cosseno_ângulo < cosseno_limite) {
+          continue;
+        }
+        float borda_suave = limitar_flut((cosseno_ângulo - cosseno_limite) / (1.0f - cosseno_limite + 1e-5f), 0.0f, 1.0f);
+        atenuação *= borda_suave;
+      }
+    }
+
+    float fator_difuso = fmaxf(produto_escalar_flut3d(normal_mundo, dir_luz), 0.0f);
+    if (fator_difuso <= 0.0f) continue;
+
+    float luz_r = ((float)luz->cor.vermelho / 255.0f) * atenuação;
+    float luz_g = ((float)luz->cor.verde    / 255.0f) * atenuação;
+    float luz_b = ((float)luz->cor.azul     / 255.0f) * atenuação;
+
+    acum_r += mat_dif_r * luz_r * fator_difuso;
+    acum_g += mat_dif_g * luz_g * fator_difuso;
+    acum_b += mat_dif_b * luz_b * fator_difuso;
+
+    if (material->brilho_especular > 0.0f) {
+      Flut3D meio_vetor = normalizar_flut3d(somar_flut3d(dir_luz, dir_vista));
+      float n_dot_h = fmaxf(produto_escalar_flut3d(normal_mundo, meio_vetor), 0.0f);
+      float fator_especular = powf(n_dot_h, material->brilho_especular);
+
+      acum_r += mat_esp_r * luz_r * fator_especular;
+      acum_g += mat_esp_g * luz_g * fator_especular;
+      acum_b += mat_esp_b * luz_b * fator_especular;
+    }
+  }
+
+  float alfa_final = ((float)material->cor_difusa.alfa / 255.0f) * ((float)cor_vértice.alfa / 255.0f);
+
+  return (Cor){
+    .vermelho = flut_para_u8(acum_r),
+    .verde    = flut_para_u8(acum_g),
+    .azul     = flut_para_u8(acum_b),
+    .alfa     = flut_para_u8(alfa_final)
+  };
+}
+
+void desenhar_malha_3d(
+  Tela *tela,
+  BufferProfundidade *zbuffer,
+  const Malha3D *malha,
+  const Matriz4x4 *modelo,
+  const Câmara3D *câmara,
+  const Material3D *material,
+  const Luz3D luzes[],
+  size_t núm_luzes,
+  ModoSombreamento modo
+) {
+  if (!tela || !tela->píxeis || !malha || !malha->vértices || !malha->índices || !câmara) {
+    return;
+  }
+  if (tela->largura == 0 || tela->altura == 0 || malha->núm_índices < 3) {
+    return;
+  }
+
+  Matriz4x4 mat_modelo;
+  if (modelo) {
+    mat_modelo = *modelo;
+  } else {
+    criar_matriz4x4_identidade(&mat_modelo);
+  }
+
+  Matriz4x4 mat_inversa;
+  Matriz4x4 mat_normal;
+  if (inverter_matriz4x4(&mat_inversa, &mat_modelo)) {
+    transpor_matriz4x4(&mat_normal, &mat_inversa);
+  } else {
+    mat_normal = mat_modelo;
+  }
+
+  CaixaDelimitadora3D caixa_local = calcular_caixa_delimitadora_malha(malha);
+  Flut3D cantos_locais[8] = {
+    { caixa_local.mínimo.x, caixa_local.mínimo.y, caixa_local.mínimo.z },
+    { caixa_local.máximo.x, caixa_local.mínimo.y, caixa_local.mínimo.z },
+    { caixa_local.mínimo.x, caixa_local.máximo.y, caixa_local.mínimo.z },
+    { caixa_local.máximo.x, caixa_local.máximo.y, caixa_local.mínimo.z },
+    { caixa_local.mínimo.x, caixa_local.mínimo.y, caixa_local.máximo.z },
+    { caixa_local.máximo.x, caixa_local.mínimo.y, caixa_local.máximo.z },
+    { caixa_local.mínimo.x, caixa_local.máximo.y, caixa_local.máximo.z },
+    { caixa_local.máximo.x, caixa_local.máximo.y, caixa_local.máximo.z }
+  };
+
+  CaixaDelimitadora3D caixa_mundo = {
+    .mínimo = {  INFINITY,  INFINITY,  INFINITY },
+    .máximo = { -INFINITY, -INFINITY, -INFINITY }
+  };
+
+  for (size_t i = 0; i < 8; ++i) {
+    Flut3D canto_mundo = transformar_flut3d_matriz4x4(cantos_locais[i], &mat_modelo);
+    caixa_mundo.mínimo.x = fminf(caixa_mundo.mínimo.x, canto_mundo.x);
+    caixa_mundo.mínimo.y = fminf(caixa_mundo.mínimo.y, canto_mundo.y);
+    caixa_mundo.mínimo.z = fminf(caixa_mundo.mínimo.z, canto_mundo.z);
+    caixa_mundo.máximo.x = fmaxf(caixa_mundo.máximo.x, canto_mundo.x);
+    caixa_mundo.máximo.y = fmaxf(caixa_mundo.máximo.y, canto_mundo.y);
+    caixa_mundo.máximo.z = fmaxf(caixa_mundo.máximo.z, canto_mundo.z);
+  }
+
+  Matriz4x4 mat_visão;
+  Flut3D alvo_câmara = somar_flut3d(câmara->posição, câmara->direção);
+  criar_matriz4x4_visão(&mat_visão, câmara->posição, alvo_câmara, câmara->cima);
+
+  Matriz4x4 mat_projeção;
+  float aspeto = (float)tela->largura / (float)tela->altura;
+  criar_matriz4x4_perspetiva(&mat_projeção, câmara->fov_radianos, aspeto, câmara->plano_próximo, câmara->plano_distante);
+
+  Matriz4x4 mat_visão_projeção;
+  multiplicar_matrizes4x4(&mat_visão_projeção, &mat_visão, &mat_projeção);
+
+  if (!caixa_dentro_frusto(caixa_mundo, &mat_visão_projeção)) {
+    return;
+  }
+
+  Material3D material_padrão = {
+    .cor_ambiente     = COR_BRANCA,
+    .cor_difusa       = COR_BRANCA,
+    .cor_especular    = COR_PRETA,
+    .brilho_especular = 0.0f,
+    .textura_difusa   = nullptr
+  };
+  const Material3D *mat_ativo = material ? material : &material_padrão;
+
+  for (size_t i = 0; i + 2 < malha->núm_índices; i += 3) {
+    uint32_t idx0 = malha->índices[i];
+    uint32_t idx1 = malha->índices[i + 1];
+    uint32_t idx2 = malha->índices[i + 2];
+
+    if (idx0 >= malha->núm_vértices || idx1 >= malha->núm_vértices || idx2 >= malha->núm_vértices) {
+      continue;
+    }
+
+    const Vértice3D *orig[3] = {
+      &malha->vértices[idx0],
+      &malha->vértices[idx1],
+      &malha->vértices[idx2]
+    };
+
+    Flut3D pos_mundo[3];
+    Flut3D norm_mundo[3];
+    for (size_t v = 0; v < 3; ++v) {
+      pos_mundo[v]  = transformar_flut3d_matriz4x4(orig[v]->posição, &mat_modelo);
+      norm_mundo[v] = transformar_normal_matriz4x4(orig[v]->normal, &mat_normal);
+    }
+
+    Flut3D aresta1 = subtrair_flut3d(pos_mundo[1], pos_mundo[0]);
+    Flut3D aresta2 = subtrair_flut3d(pos_mundo[2], pos_mundo[0]);
+    Flut3D normal_face = normalizar_flut3d(produto_vetorial_flut3d(aresta1, aresta2));
+
+    Flut3D centroide = escalar_flut3d(somar_flut3d(somar_flut3d(pos_mundo[0], pos_mundo[1]), pos_mundo[2]), 1.0f / 3.0f);
+    Flut3D dir_para_câmara = subtrair_flut3d(câmara->posição, centroide);
+
+    if (modo != SOMBREAMENTO_ARAME && produto_escalar_flut3d(normal_face, dir_para_câmara) <= 0.0f) {
+      continue;
+    }
+
+    Vértice3D tri_mundo[3];
+    for (size_t v = 0; v < 3; ++v) {
+      tri_mundo[v] = (Vértice3D){
+        .posição = pos_mundo[v],
+        .normal  = norm_mundo[v],
+        .uv      = orig[v]->uv,
+        .cor     = orig[v]->cor
+      };
+    }
+
+    if (modo == SOMBREAMENTO_PLANO) {
+      Cor cor_média = {
+        .vermelho = (uint8_t)(((uint32_t)orig[0]->cor.vermelho + orig[1]->cor.vermelho + orig[2]->cor.vermelho) / 3),
+        .verde    = (uint8_t)(((uint32_t)orig[0]->cor.verde    + orig[1]->cor.verde    + orig[2]->cor.verde)    / 3),
+        .azul     = (uint8_t)(((uint32_t)orig[0]->cor.azul     + orig[1]->cor.azul     + orig[2]->cor.azul)     / 3),
+        .alfa     = (uint8_t)(((uint32_t)orig[0]->cor.alfa     + orig[1]->cor.alfa     + orig[2]->cor.alfa)     / 3)
+      };
+      Cor cor_iluminada = calcular_iluminação_vértice(
+        centroide, normal_face, cor_média, câmara->posição, mat_ativo, luzes, núm_luzes
+      );
+      for (size_t v = 0; v < 3; ++v) {
+        tri_mundo[v].normal = normal_face;
+        tri_mundo[v].cor    = cor_iluminada;
+      }
+    } else if (modo == SOMBREAMENTO_GOURAUD || modo == SOMBREAMENTO_PHONG) {
+      for (size_t v = 0; v < 3; ++v) {
+        tri_mundo[v].cor = calcular_iluminação_vértice(
+          pos_mundo[v], norm_mundo[v], orig[v]->cor, câmara->posição, mat_ativo, luzes, núm_luzes
+        );
+      }
+    }
+
+    Vértice3D tri_vista[3];
+    for (size_t v = 0; v < 3; ++v) {
+      tri_vista[v]         = tri_mundo[v];
+      tri_vista[v].posição = transformar_flut3d_matriz4x4(tri_mundo[v].posição, &mat_visão);
+    }
+
+    Vértice3D recortados[4];
+    size_t núm_recortados = recortar_triângulo_plano_próximo(tri_vista, recortados, câmara->plano_próximo);
+    if (núm_recortados < 3) {
+      continue;
+    }
+
+    Vértice3D projetados[4];
+    for (size_t v = 0; v < núm_recortados; ++v) {
+      Flut4D homogéneo = {
+        .x = recortados[v].posição.x,
+        .y = recortados[v].posição.y,
+        .z = recortados[v].posição.z,
+        .w = 1.0f
+      };
+      Flut4D recorte = transformar_flut4d_matriz4x4(homogéneo, &mat_projeção);
+      Flut3D ecrã    = projetar_para_ecrã(recorte, tela->largura, tela->altura);
+
+      projetados[v] = (Vértice3D){
+        .posição = ecrã,
+        .normal  = recortados[v].normal,
+        .uv      = recortados[v].uv,
+        .cor     = recortados[v].cor
+      };
+    }
+
+    for (size_t t = 1; t + 1 < núm_recortados; ++t) {
+      desenhar_triângulo_3d_zbuffer(
+        tela, zbuffer, projetados[0], projetados[t], projetados[t + 1], mat_ativo, modo
+      );
+    }
+  }
 }
 
 
