@@ -227,11 +227,11 @@ void desenhar_triângulo_preenchido(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Co
 void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vértice2D v3);
 void desenhar_triângulo_texturizado(Tela *tela, const Tela *textura, Vértice2D v1, Vértice2D v2, Vértice2D v3);
 
-void desenhar_retângulo(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor);
-void desenhar_retângulo_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor);
-void desenhar_retângulo_arredondado(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor);
-void desenhar_retângulo_arredondado_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor);
-void desenhar_gradiente_linear(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor_início, Cor cor_fim, bool vertical);
+void desenhar_retângulo(Tela *tela, Retângulo ret, Cor cor);
+void desenhar_retângulo_preenchido(Tela *tela, Retângulo ret, Cor cor);
+void desenhar_retângulo_arredondado(Tela *tela, Retângulo ret, uint32_t raio, Cor cor);
+void desenhar_retângulo_arredondado_preenchido(Tela *tela, Retângulo ret, uint32_t raio, Cor cor);
+void desenhar_gradiente_linear(Tela *tela, Retângulo ret, Cor cor_início, Cor cor_fim, bool vertical);
 void desenhar_retângulo_mosaico(Tela *tela, Retângulo área, const Tela *padrão, Int2D deslocamento);
 
 void desenhar_polígono(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor);
@@ -2536,134 +2536,297 @@ void desenhar_triângulo_texturizado(Tela *tela, const Tela *textura, Vértice2D
   }
 }
 
-void desenhar_retângulo(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor) {
-  if (!tela || largura == 0 || altura == 0) return;
-  int32_t x0 = superior_esquerdo.x;
-  int32_t y0 = superior_esquerdo.y;
-  int32_t x1 = x0 + (int32_t)largura - 1;
-  int32_t y1 = y0 + (int32_t)altura - 1;
+
+
+void desenhar_retângulo(Tela *tela, Retângulo ret, Cor cor) {
+  assert(tela != nullptr);
+
+  if (tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 ||
+      ret.largura == 0 || ret.altura == 0 || cor.alfa == 0) {
+    return;
+  }
+
+  const int32_t x0 = ret.x;
+  const int32_t y0 = ret.y;
+  const int32_t x1 = ret.x + (int32_t)ret.largura - 1;
+  const int32_t y1 = ret.y + (int32_t)ret.altura - 1;
 
   desenhar_linha_horizontal(tela, y0, x0, x1, cor);
-  desenhar_linha_horizontal(tela, y1, x0, x1, cor);
-  desenhar_linha(tela, (Int2D){ x0, y0 }, (Int2D){ x0, y1 }, cor);
-  desenhar_linha(tela, (Int2D){ x1, y0 }, (Int2D){ x1, y1 }, cor);
-}
-
-void desenhar_retângulo_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor) {
-  if (!tela || !tela->píxeis || largura == 0 || altura == 0) return;
-  int32_t x_iní = superior_esquerdo.x;
-  int32_t y_iní = superior_esquerdo.y;
-  int32_t x_fim = x_iní + (int32_t)largura - 1;
-  int32_t y_fim = y_iní + (int32_t)altura - 1;
-
-  for (int32_t y = y_iní; y <= y_fim; y++) {
-    desenhar_linha_horizontal(tela, y, x_iní, x_fim, cor);
-  }
-}
-
-void desenhar_retângulo_arredondado(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor) {
-  if (!tela || largura == 0 || altura == 0) return;
-  uint32_t max_r = (largura < altura ? largura : altura) / 2;
-  if (raio > max_r) raio = max_r;
-  if (raio == 0) {
-    desenhar_retângulo(tela, superior_esquerdo, largura, altura, cor);
-    return;
+  if (y1 > y0) {
+    desenhar_linha_horizontal(tela, y1, x0, x1, cor);
   }
 
-  int32_t x0 = superior_esquerdo.x;
-  int32_t y0 = superior_esquerdo.y;
-  int32_t x1 = x0 + (int32_t)largura - 1;
-  int32_t y1 = y0 + (int32_t)altura - 1;
-  int32_t r  = (int32_t)raio;
-
-  desenhar_linha_horizontal(tela, y0, x0 + r, x1 - r, cor);
-  desenhar_linha_horizontal(tela, y1, x0 + r, x1 - r, cor);
-  desenhar_linha(tela, (Int2D){ x0, y0 + r }, (Int2D){ x0, y1 - r }, cor);
-  desenhar_linha(tela, (Int2D){ x1, y0 + r }, (Int2D){ x1, y1 - r }, cor);
-
-  int32_t x = r, y = 0, err = 1 - r;
-  while (x >= y) {
-    desenhar_píxel(tela, (Int2D){ x0 + r - x, y0 + r - y }, cor);
-    desenhar_píxel(tela, (Int2D){ x0 + r - y, y0 + r - x }, cor);
-    desenhar_píxel(tela, (Int2D){ x1 - r + x, y0 + r - y }, cor);
-    desenhar_píxel(tela, (Int2D){ x1 - r + y, y0 + r - x }, cor);
-    desenhar_píxel(tela, (Int2D){ x0 + r - x, y1 - r + y }, cor);
-    desenhar_píxel(tela, (Int2D){ x0 + r - y, y1 - r + x }, cor);
-    desenhar_píxel(tela, (Int2D){ x1 - r + x, y1 - r + y }, cor);
-    desenhar_píxel(tela, (Int2D){ x1 - r + y, y1 - r + x }, cor);
-    y++;
-    if (err < 0) {
-      err += 2 * y + 1;
-    } else {
-      x--;
-      err += 2 * (y - x) + 1;
+  for (int32_t y = y0 + 1; y < y1; ++y) {
+    desenhar_píxel_alfa(tela, (Int2D){ .x = x0, .y = y }, cor);
+    if (x1 > x0) {
+      desenhar_píxel_alfa(tela, (Int2D){ .x = x1, .y = y }, cor);
     }
   }
 }
 
-void desenhar_retângulo_arredondado_preenchido(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, uint32_t raio, Cor cor) {
-  if (!tela || largura == 0 || altura == 0) return;
-  uint32_t max_r = (largura < altura ? largura : altura) / 2;
-  if (raio > max_r) raio = max_r;
-  if (raio == 0) {
-    desenhar_retângulo_preenchido(tela, superior_esquerdo, largura, altura, cor);
+void desenhar_retângulo_preenchido(Tela *tela, Retângulo ret, Cor cor) {
+  assert(tela != nullptr);
+
+  if (tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 ||
+      ret.largura == 0 || ret.altura == 0 || cor.alfa == 0) {
     return;
   }
 
-  int32_t x0 = superior_esquerdo.x;
-  int32_t y0 = superior_esquerdo.y;
-  int32_t x1 = x0 + (int32_t)largura - 1;
-  int32_t y1 = y0 + (int32_t)altura - 1;
-  int32_t r  = (int32_t)raio;
+  const Retângulo limites_tela = {
+    .x = 0,
+    .y = 0,
+    .largura = tela->largura,
+    .altura = tela->altura
+  };
 
-  for (int32_t y = y0 + r; y <= y1 - r; y++) {
-    desenhar_linha_horizontal(tela, y, x0, x1, cor);
+  Retângulo área_visível;
+  if (!obter_interseção_retângulos(ret, limites_tela, &área_visível)) {
+    return;
   }
 
-  int32_t x = r, y = 0, err = 1 - r;
-  while (x >= y) {
-    desenhar_linha_horizontal(tela, y0 + r - y, x0 + r - x, x1 - r + x, cor);
-    desenhar_linha_horizontal(tela, y0 + r - x, x0 + r - y, x1 - r + y, cor);
-    desenhar_linha_horizontal(tela, y1 - r + y, x0 + r - x, x1 - r + x, cor);
-    desenhar_linha_horizontal(tela, y1 - r + x, x0 + r - y, x1 - r + y, cor);
-    y++;
-    if (err < 0) {
-      err += 2 * y + 1;
-    } else {
-      x--;
-      err += 2 * (y - x) + 1;
-    }
-  }
-}
+  const size_t largura_tela = (size_t)tela->largura;
+  const int32_t x_início = área_visível.x;
+  const int32_t x_fim = área_visível.x + (int32_t)área_visível.largura;
+  const int32_t y_início = área_visível.y;
+  const int32_t y_fim = área_visível.y + (int32_t)área_visível.altura;
 
-void desenhar_gradiente_linear(Tela *tela, Int2D superior_esquerdo, uint32_t largura, uint32_t altura, Cor cor_início, Cor cor_fim, bool vertical) {
-  if (!tela || !tela->píxeis || largura == 0 || altura == 0) return;
-
-  if (vertical) {
-    for (uint32_t dy = 0; dy < altura; dy++) {
-      float t = (altura > 1) ? ((float)dy / (float)(altura - 1)) : 0.0f;
-      Cor c = interpolar_cor(cor_início, cor_fim, t);
-      desenhar_linha_horizontal(tela, superior_esquerdo.y + (int32_t)dy, superior_esquerdo.x, superior_esquerdo.x + (int32_t)largura - 1, c);
+  if (cor.alfa == 255) {
+    for (int32_t y = y_início; y < y_fim; ++y) {
+      Cor *linha = tela->píxeis + (size_t)y * largura_tela;
+      for (int32_t x = x_início; x < x_fim; ++x) {
+        linha[x] = cor;
+      }
     }
   } else {
-    for (uint32_t dx = 0; dx < largura; dx++) {
-      float t = (largura > 1) ? ((float)dx / (float)(largura - 1)) : 0.0f;
-      Cor c = interpolar_cor(cor_início, cor_fim, t);
-      int32_t x = superior_esquerdo.x + (int32_t)dx;
-      for (uint32_t dy = 0; dy < altura; dy++) {
-        desenhar_píxel(tela, (Int2D){ x, superior_esquerdo.y + (int32_t)dy }, c);
+    for (int32_t y = y_início; y < y_fim; ++y) {
+      for (int32_t x = x_início; x < x_fim; ++x) {
+        desenhar_píxel_alfa(tela, (Int2D){ .x = x, .y = y }, cor);
       }
     }
   }
 }
 
-static inline uint32_t módulo_positivo(int64_t valor, uint32_t divisor) {
-  const int64_t d = (int64_t)divisor;
-  int64_t resto = valor % d;
-  if (resto < 0) {
-    resto += d;
+void desenhar_retângulo_arredondado(Tela *tela, Retângulo ret, uint32_t raio, Cor cor) {
+  assert(tela != nullptr);
+
+  if (tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 ||
+      ret.largura == 0 || ret.altura == 0 || cor.alfa == 0) {
+    return;
   }
-  return (uint32_t)resto;
+
+  const uint32_t menor_lado = (ret.largura < ret.altura) ? ret.largura : ret.altura;
+  const uint32_t raio_máximo = menor_lado / 2;
+  const int32_t r = (int32_t)((raio > raio_máximo) ? raio_máximo : raio);
+
+  if (r <= 0) {
+    desenhar_retângulo(tela, ret, cor);
+    return;
+  }
+
+  const int32_t x0 = ret.x;
+  const int32_t y0 = ret.y;
+  const int32_t x1 = ret.x + (int32_t)ret.largura - 1;
+  const int32_t y1 = ret.y + (int32_t)ret.altura - 1;
+
+  /* Segmentos retos horizontais e verticais */
+  if (x0 + r <= x1 - r) {
+    desenhar_linha_horizontal(tela, y0, x0 + r, x1 - r, cor);
+    desenhar_linha_horizontal(tela, y1, x0 + r, x1 - r, cor);
+  }
+
+  for (int32_t y = y0 + r; y <= y1 - r; ++y) {
+    desenhar_píxel_alfa(tela, (Int2D){ .x = x0, .y = y }, cor);
+    desenhar_píxel_alfa(tela, (Int2D){ .x = x1, .y = y }, cor);
+  }
+
+  /* Quatro cantos pelo algoritmo do ponto médio de Bresenham */
+  const int32_t cx_esq = x0 + r;
+  const int32_t cx_dir = x1 - r;
+  const int32_t cy_sup = y0 + r;
+  const int32_t cy_inf = y1 - r;
+
+  int32_t dx = 0;
+  int32_t dy = r;
+  int32_t d = 1 - r;
+
+  while (dx <= dy) {
+    /* Canto superior esquerdo */
+    desenhar_píxel_alfa(tela, (Int2D){ .x = cx_esq - dx, .y = cy_sup - dy }, cor);
+    if (dx != dy) {
+      desenhar_píxel_alfa(tela, (Int2D){ .x = cx_esq - dy, .y = cy_sup - dx }, cor);
+    }
+
+    /* Canto superior direito */
+    desenhar_píxel_alfa(tela, (Int2D){ .x = cx_dir + dx, .y = cy_sup - dy }, cor);
+    if (dx != dy) {
+      desenhar_píxel_alfa(tela, (Int2D){ .x = cx_dir + dy, .y = cy_sup - dx }, cor);
+    }
+
+    /* Canto inferior esquerdo */
+    desenhar_píxel_alfa(tela, (Int2D){ .x = cx_esq - dx, .y = cy_inf + dy }, cor);
+    if (dx != dy) {
+      desenhar_píxel_alfa(tela, (Int2D){ .x = cx_esq - dy, .y = cy_inf + dx }, cor);
+    }
+
+    /* Canto inferior direito */
+    desenhar_píxel_alfa(tela, (Int2D){ .x = cx_dir + dx, .y = cy_inf + dy }, cor);
+    if (dx != dy) {
+      desenhar_píxel_alfa(tela, (Int2D){ .x = cx_dir + dy, .y = cy_inf + dx }, cor);
+    }
+
+    if (d < 0) {
+      d += 2 * dx + 3;
+    } else {
+      d += 2 * (dx - dy) + 5;
+      --dy;
+    }
+    ++dx;
+  }
+}
+
+void desenhar_retângulo_arredondado_preenchido(Tela *tela, Retângulo ret, uint32_t raio, Cor cor) {
+  assert(tela != nullptr);
+
+  if (tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 ||
+      ret.largura == 0 || ret.altura == 0 || cor.alfa == 0) {
+    return;
+  }
+
+  const uint32_t menor_lado = (ret.largura < ret.altura) ? ret.largura : ret.altura;
+  const uint32_t raio_máximo = menor_lado / 2;
+  const int32_t r = (int32_t)((raio > raio_máximo) ? raio_máximo : raio);
+
+  if (r <= 0) {
+    desenhar_retângulo_preenchido(tela, ret, cor);
+    return;
+  }
+
+  const int32_t x0 = ret.x;
+  const int32_t y0 = ret.y;
+  const int32_t x1 = ret.x + (int32_t)ret.largura - 1;
+  const int32_t y1 = ret.y + (int32_t)ret.altura - 1;
+
+  const int32_t cx_esq = x0 + r;
+  const int32_t cx_dir = x1 - r;
+  const int32_t cy_sup = y0 + r;
+  const int32_t cy_inf = y1 - r;
+
+  /* Corpo central retangular entre os arcos */
+  const int32_t altura_meio = (cy_inf - cy_sup) + 1;
+  if (altura_meio > 0) {
+    desenhar_retângulo_preenchido(tela, (Retângulo){
+      .x = x0,
+      .y = cy_sup,
+      .largura = ret.largura,
+      .altura = (uint32_t)altura_meio
+    }, cor);
+  }
+
+  /* Preenchimento por linhas horizontais das tampas superior e inferior */
+  int32_t dx = 0;
+  int32_t dy = r;
+  int32_t d = 1 - r;
+  int32_t último_dy = -1;
+
+  while (dx <= dy) {
+    if (dy != último_dy && dy > 0) {
+      desenhar_linha_horizontal(tela, cy_sup - dy, cx_esq - dx, cx_dir + dx, cor);
+      desenhar_linha_horizontal(tela, cy_inf + dy, cx_esq - dx, cx_dir + dx, cor);
+      último_dy = dy;
+    }
+
+    if (dx > 0 && dx != dy) {
+      desenhar_linha_horizontal(tela, cy_sup - dx, cx_esq - dy, cx_dir + dy, cor);
+      desenhar_linha_horizontal(tela, cy_inf + dx, cx_esq - dy, cx_dir + dy, cor);
+    }
+
+    if (d < 0) {
+      d += 2 * dx + 3;
+    } else {
+      d += 2 * (dx - dy) + 5;
+      --dy;
+    }
+    ++dx;
+  }
+}
+
+void desenhar_gradiente_linear(Tela *tela, Retângulo ret, Cor cor_início, Cor cor_fim, bool vertical) {
+  assert(tela != nullptr);
+
+  if (tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 ||
+      ret.largura == 0 || ret.altura == 0) {
+    return;
+  }
+
+  const Retângulo limites_tela = {
+    .x = 0,
+    .y = 0,
+    .largura = tela->largura,
+    .altura = tela->altura
+  };
+
+  Retângulo área_visível;
+  if (!obter_interseção_retângulos(ret, limites_tela, &área_visível)) {
+    return;
+  }
+
+  const size_t largura_tela = (size_t)tela->largura;
+  const int32_t x_início = área_visível.x;
+  const int32_t x_fim = área_visível.x + (int32_t)área_visível.largura;
+  const int32_t y_início = área_visível.y;
+  const int32_t y_fim = área_visível.y + (int32_t)área_visível.altura;
+
+  if (vertical) {
+    const float inv_altura = (ret.altura > 1) ? (1.0f / (float)(ret.altura - 1)) : 0.0f;
+
+    for (int32_t y = y_início; y < y_fim; ++y) {
+      const float fator = (float)(y - ret.y) * inv_altura;
+      const Cor cor_linha = interpolar_cor(cor_início, cor_fim, fator);
+
+      if (cor_linha.alfa == 0) {
+        continue;
+      }
+
+      if (cor_linha.alfa == 255) {
+        Cor *linha = tela->píxeis + (size_t)y * largura_tela;
+        for (int32_t x = x_início; x < x_fim; ++x) {
+          linha[x] = cor_linha;
+        }
+      } else {
+        for (int32_t x = x_início; x < x_fim; ++x) {
+          desenhar_píxel_alfa(tela, (Int2D){ .x = x, .y = y }, cor_linha);
+        }
+      }
+    }
+  } else {
+    const float inv_largura = (ret.largura > 1) ? (1.0f / (float)(ret.largura - 1)) : 0.0f;
+
+    for (int32_t x = x_início; x < x_fim; ++x) {
+      const float fator = (float)(x - ret.x) * inv_largura;
+      const Cor cor_coluna = interpolar_cor(cor_início, cor_fim, fator);
+
+      if (cor_coluna.alfa == 0) {
+        continue;
+      }
+
+      if (cor_coluna.alfa == 255) {
+        for (int32_t y = y_início; y < y_fim; ++y) {
+          tela->píxeis[(size_t)y * largura_tela + (size_t)x] = cor_coluna;
+        }
+      } else {
+        for (int32_t y = y_início; y < y_fim; ++y) {
+          desenhar_píxel_alfa(tela, (Int2D){ .x = x, .y = y }, cor_coluna);
+        }
+      }
+    }
+  }
+}
+
+static inline uint32_t módulo_positivo(int64_t dividendo, uint32_t divisor) {
+  assert(divisor > 0);
+  const int64_t d = (int64_t)divisor;
+  const int64_t resto = dividendo % d;
+  return (uint32_t)((resto < 0) ? (resto + d) : resto);
 }
 
 void desenhar_retângulo_mosaico(Tela *tela, Retângulo área, const Tela *padrão, Int2D deslocamento) {
@@ -3378,12 +3541,11 @@ void aplicar_matriz_convolução(Tela * restrict destino, const Tela * restrict 
   const float fator_div = (fabsf(divisor) < 1e-6f) ? 1.0f : (1.0f / divisor);
   const int32_t larg = (int32_t)origem->largura;
   const int32_t alt = (int32_t)origem->altura;
-  const size_t passo_orig = (origem->passo > 0) ? origem->passo : origem->largura;
-  const size_t passo_dest = (destino->passo > 0) ? destino->passo : destino->largura;
+  const size_t largura_linha = (size_t)origem->largura;
 
   for (int32_t y = 0; y < alt; ++y) {
-    Cor * restrict linha_dest = destino->píxeis + (size_t)y * passo_dest;
-    const Cor * restrict linha_orig_atual = origem->píxeis + (size_t)y * passo_orig;
+    Cor * restrict linha_dest = destino->píxeis + (size_t)y * largura_linha;
+    const Cor * restrict linha_orig_atual = origem->píxeis + (size_t)y * largura_linha;
 
     for (int32_t x = 0; x < larg; ++x) {
       float soma_r = 0.0f;
@@ -3398,7 +3560,7 @@ void aplicar_matriz_convolução(Tela * restrict destino, const Tela * restrict 
           py = alt - 1;
         }
 
-        const Cor * restrict linha_amostra = origem->píxeis + (size_t)py * passo_orig;
+        const Cor * restrict linha_amostra = origem->píxeis + (size_t)py * largura_linha;
 
         for (int32_t kx = -1; kx <= 1; ++kx) {
           int32_t px = x + kx;
@@ -3441,17 +3603,11 @@ void aplicar_desfoque_gaussiano(Tela * restrict destino, const Tela * restrict o
 
   const int32_t larg = (int32_t)origem->largura;
   const int32_t alt = (int32_t)origem->altura;
-  const size_t passo_orig = (origem->passo > 0) ? origem->passo : origem->largura;
-  const size_t passo_inter = (intermédio->passo > 0) ? intermédio->passo : intermédio->largura;
-  const size_t passo_dest = (destino->passo > 0) ? destino->passo : destino->largura;
+  const size_t largura_linha = (size_t)origem->largura;
 
   if (raio == 0) {
     if (destino->píxeis != origem->píxeis) {
-      for (int32_t y = 0; y < alt; ++y) {
-        memcpy(destino->píxeis + (size_t)y * passo_dest,
-               origem->píxeis + (size_t)y * passo_orig,
-               (size_t)larg * sizeof(Cor));
-      }
+      memcpy(destino->píxeis, origem->píxeis, largura_linha * (size_t)alt * sizeof(Cor));
     }
     return;
   }
@@ -3480,8 +3636,8 @@ void aplicar_desfoque_gaussiano(Tela * restrict destino, const Tela * restrict o
 
   /* Passagem 1: Horizontal (origem -> intermédio) */
   for (int32_t y = 0; y < alt; ++y) {
-    const Cor * restrict linha_orig = origem->píxeis + (size_t)y * passo_orig;
-    Cor * restrict linha_inter = intermédio->píxeis + (size_t)y * passo_inter;
+    const Cor * restrict linha_orig = origem->píxeis + (size_t)y * largura_linha;
+    Cor * restrict linha_inter = intermédio->píxeis + (size_t)y * largura_linha;
 
     for (int32_t x = 0; x < larg; ++x) {
       float acc_r = 0.0f;
@@ -3516,7 +3672,7 @@ void aplicar_desfoque_gaussiano(Tela * restrict destino, const Tela * restrict o
 
   /* Passagem 2: Vertical (intermédio -> destino) */
   for (int32_t y = 0; y < alt; ++y) {
-    Cor * restrict linha_dest = destino->píxeis + (size_t)y * passo_dest;
+    Cor * restrict linha_dest = destino->píxeis + (size_t)y * largura_linha;
 
     for (int32_t x = 0; x < larg; ++x) {
       float acc_r = 0.0f;
@@ -3533,7 +3689,7 @@ void aplicar_desfoque_gaussiano(Tela * restrict destino, const Tela * restrict o
         }
 
         const float w = pesos[k + r];
-        const Cor amostra = intermédio->píxeis[(size_t)py * passo_inter + (size_t)x];
+        const Cor amostra = intermédio->píxeis[(size_t)py * largura_linha + (size_t)x];
         acc_r += (float)amostra.vermelho * w;
         acc_g += (float)amostra.verde * w;
         acc_b += (float)amostra.azul * w;
@@ -3758,12 +3914,11 @@ void aplicar_deteção_bordas_sobel(Tela * restrict destino, const Tela * restri
 
   const int32_t larg = (int32_t)origem->largura;
   const int32_t alt = (int32_t)origem->altura;
-  const size_t passo_orig = (origem->passo > 0) ? origem->passo : origem->largura;
-  const size_t passo_dest = (destino->passo > 0) ? destino->passo : destino->largura;
+  const size_t largura_linha = (size_t)origem->largura;
 
   for (int32_t y = 0; y < alt; ++y) {
-    Cor * restrict linha_dest = destino->píxeis + (size_t)y * passo_dest;
-    const Cor * restrict linha_orig_atual = origem->píxeis + (size_t)y * passo_orig;
+    Cor * restrict linha_dest = destino->píxeis + (size_t)y * largura_linha;
+    const Cor * restrict linha_orig_atual = origem->píxeis + (size_t)y * largura_linha;
 
     for (int32_t x = 0; x < larg; ++x) {
       float gx = 0.0f;
@@ -3777,7 +3932,7 @@ void aplicar_deteção_bordas_sobel(Tela * restrict destino, const Tela * restri
           py = alt - 1;
         }
 
-        const Cor * restrict linha_amostra = origem->píxeis + (size_t)py * passo_orig;
+        const Cor * restrict linha_amostra = origem->píxeis + (size_t)py * largura_linha;
 
         for (int32_t kx = -1; kx <= 1; ++kx) {
           int32_t px = x + kx;
@@ -5656,11 +5811,11 @@ int main(void) {
   desenhar_triângulo_preenchido(&tela, (Int2D){ 30, 80 }, (Int2D){ 70, 80 }, (Int2D){ 50, 120 }, COR_VERDE);
   assert(cores_iguais(obter_píxel(&tela, (Int2D){ 50, 95 }), COR_VERDE));
 
-  desenhar_retângulo_arredondado_preenchido(&tela, (Int2D){ 90, 80 }, 60, 40, 8, COR_AZUL);
+  desenhar_retângulo_arredondado_preenchido(&tela, (Retângulo){ 90, 80, 60, 40 }, 8, COR_AZUL);
   desenhar_círculo_preenchido(&tela, (Int2D){ 200, 100 }, 25, COR_AMARELA);
-  desenhar_gradiente_linear(&tela, (Int2D){ 10, 140 }, 100, 30, COR_VERMELHA, COR_AZUL, false);
+  desenhar_gradiente_linear(&tela, (Retângulo){ 10, 140, 100, 30 }, COR_VERMELHA, COR_AZUL, false);
 
-  desenhar_retângulo(&tela, (Int2D){ 130, 140 }, 40, 30, COR_BRANCA);
+  desenhar_retângulo(&tela, (Retângulo){ 130, 140, 40, 30 }, COR_BRANCA);
   preencher_área(&tela, (Int2D){ 150, 155 }, COR_CIANO);
   assert(cores_iguais(obter_píxel(&tela, (Int2D){ 150, 155 }), COR_CIANO));
 
@@ -5670,7 +5825,14 @@ int main(void) {
   desenhar_imagem_rodada(&tela, &sprite, (Int2D){ 60, 210 }, 0.785398f, (Int2D){ 16, 16 });
   desenhar_imagem_escala(&tela, &sprite, (Int2D){ 120, 190 }, 48, 48);
 
-  aplicar_desfoque_gaussiano(&tela, 1);
+  Tela aux = criar_tela(tela.largura, tela.altura);
+  Tela intermédio = criar_tela(tela.largura, tela.altura);
+  /* Desfoca 'tela' para 'aux' usando 'intermédio' */
+  aplicar_desfoque_gaussiano(&aux, &tela, &intermédio, 1);
+  /* Troca os ponteiros ou copia de volta */
+  destruir_tela(&tela);
+  tela = aux;
+  destruir_tela(&intermédio);
   espelhar_tela_horizontal(&tela);
   inverter_cores(&tela);
 
