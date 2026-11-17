@@ -155,14 +155,14 @@ typedef struct {
   float m[3][3];
 } Matriz3x3;
 
-void criar_matriz_identidade(Matriz3x3 *destino);
-void criar_matriz_translação(Matriz3x3 *destino, float tx, float ty);
-void criar_matriz_rotação(Matriz3x3 *destino, float radianos);
-void criar_matriz_escala(Matriz3x3 *destino, float sx, float sy);
-void multiplicar_matrizes(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x3 *b);
-bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m);
-Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m);
-Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m);
+void criar_matriz3x3_identidade(Matriz3x3 *destino);
+void criar_matriz3x3_translação(Matriz3x3 *destino, float tx, float ty);
+void criar_matriz3x3_rotação(Matriz3x3 *destino, float radianos);
+void criar_matriz3x3_escala(Matriz3x3 *destino, float sx, float sy);
+void multiplicar_matrizes3x3(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x3 *b);
+bool inverter_matriz3x3(Matriz3x3 *destino, const Matriz3x3 *m);
+Int2D transformar_int2d_matriz3x3(Int2D ponto, const Matriz3x3 *m);
+Flut2D transformar_flut2d_matriz3x3(Flut2D ponto, const Matriz3x3 *m);
 
 typedef struct {
   float m[4][4];
@@ -219,7 +219,7 @@ void desenhar_polilinha(Tela *tela, const Int2D vértices[], size_t núm_vértic
 
 void desenhar_curva_bezier_quadrática(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Cor cor);
 void desenhar_curva_bezier_cúbica(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Int2D p3, Cor cor);
-void desenhar_curva_bezier_adaptativa(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Int2D p3, Cor cor, float tolerância_píxeis);
+void desenhar_curva_bezier_adaptativa(Tela *tela, Flut2D p0, Flut2D p1, Flut2D p2, Flut2D p3, Cor cor, float tolerância_píxeis);
 void desenhar_spline_catmull_rom(Tela *tela, const Int2D pontos[], size_t núm_pontos, uint32_t subdivisões_por_segmento, Cor cor);
 
 void desenhar_triângulo(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Cor cor);
@@ -886,7 +886,7 @@ Flut3D rodar_flut3d_quaternião(Flut3D v, Quaternião q) {
   return somar_flut3d(v, somar_flut3d(parcela_w, parcela_vetorial));
 }
 
-void criar_matriz_identidade(Matriz3x3 *destino) {
+void criar_matriz3x3_identidade(Matriz3x3 *destino) {
   if (!destino) return;
   *destino = (Matriz3x3){
     .m = {
@@ -897,14 +897,14 @@ void criar_matriz_identidade(Matriz3x3 *destino) {
   };
 }
 
-void criar_matriz_translação(Matriz3x3 *destino, float tx, float ty) {
+void criar_matriz3x3_translação(Matriz3x3 *destino, float tx, float ty) {
   if (!destino) return;
-  criar_matriz_identidade(destino);
+  criar_matriz3x3_identidade(destino);
   destino->m[0][2] = tx;
   destino->m[1][2] = ty;
 }
 
-void criar_matriz_rotação(Matriz3x3 *destino, float radianos) {
+void criar_matriz3x3_rotação(Matriz3x3 *destino, float radianos) {
   if (!destino) return;
   float c = cosf(radianos);
   float s = sinf(radianos);
@@ -917,7 +917,7 @@ void criar_matriz_rotação(Matriz3x3 *destino, float radianos) {
   };
 }
 
-void criar_matriz_escala(Matriz3x3 *destino, float sx, float sy) {
+void criar_matriz3x3_escala(Matriz3x3 *destino, float sx, float sy) {
   if (!destino) return;
   *destino = (Matriz3x3){
     .m = {
@@ -928,7 +928,7 @@ void criar_matriz_escala(Matriz3x3 *destino, float sx, float sy) {
   };
 }
 
-void multiplicar_matrizes(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x3 *b) {
+void multiplicar_matrizes3x3(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x3 *b) {
   if (!destino || !a || !b) return;
   Matriz3x3 res = {0};
   for (int i = 0; i < 3; i++) {
@@ -941,7 +941,7 @@ void multiplicar_matrizes(Matriz3x3 *destino, const Matriz3x3 *a, const Matriz3x
   *destino = res;
 }
 
-bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m) {
+bool inverter_matriz3x3(Matriz3x3 *destino, const Matriz3x3 *m) {
   if (!destino || !m) return false;
   float det = m->m[0][0] * (m->m[1][1] * m->m[2][2] - m->m[2][1] * m->m[1][2]) -
               m->m[0][1] * (m->m[1][0] * m->m[2][2] - m->m[1][2] * m->m[2][0]) +
@@ -965,7 +965,7 @@ bool inverter_matriz(Matriz3x3 *destino, const Matriz3x3 *m) {
   return true;
 }
 
-Flut2D transformar_flut2d_matriz(Flut2D ponto, const Matriz3x3 *m) {
+Flut2D transformar_flut2d_matriz3x3(Flut2D ponto, const Matriz3x3 *m) {
   if (!m) return ponto;
   float x = m->m[0][0] * ponto.x + m->m[0][1] * ponto.y + m->m[0][2];
   float y = m->m[1][0] * ponto.x + m->m[1][1] * ponto.y + m->m[1][2];
@@ -1574,8 +1574,8 @@ bool obter_interseção_retângulos(Retângulo a, Retângulo b, Retângulo *resu
 
 
 
-Int2D transformar_int2d_matriz(Int2D ponto, const Matriz3x3 *m) {
-  Flut2D res = transformar_flut2d_matriz((Flut2D){ (float)ponto.x, (float)ponto.y }, m);
+Int2D transformar_int2d_matriz3x3(Int2D ponto, const Matriz3x3 *m) {
+  Flut2D res = transformar_flut2d_matriz3x3((Flut2D){ (float)ponto.x, (float)ponto.y }, m);
   return (Int2D){ .x = (int32_t)roundf(res.x), .y = (int32_t)roundf(res.y) };
 }
 
@@ -2167,40 +2167,87 @@ void desenhar_curva_bezier_cúbica(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Int
   }
 }
 
-static void subdividir_bezier_recursivo(Tela *tela, Flut2D p0, Flut2D p1, Flut2D p2, Flut2D p3, Cor cor, float tol_sq, int profundidade) {
-  float dx = p3.x - p0.x;
-  float dy = p3.y - p0.y;
-  float d2 = fabsf((p1.x - p3.x) * dy - (p1.y - p3.y) * dx);
-  float d3 = fabsf((p2.x - p3.x) * dy - (p2.y - p3.y) * dx);
+static inline bool bezier_cúbica_plana(Flut2D p0, Flut2D p1, Flut2D p2, Flut2D p3, float tolerância_quadrada) {
+  const float ux = 3.0f * p1.x - 2.0f * p0.x - p3.x;
+  const float uy = 3.0f * p1.y - 2.0f * p0.y - p3.y;
+  const float vx = 3.0f * p2.x - 2.0f * p3.x - p0.x;
+  const float vy = 3.0f * p2.y - 2.0f * p3.y - p0.y;
 
-  if ((d2 + d3) * (d2 + d3) <= tol_sq * (dx * dx + dy * dy) || profundidade >= 12) {
-    desenhar_linha(tela,
-      (Int2D){ (int32_t)roundf(p0.x), (int32_t)roundf(p0.y) },
-      (Int2D){ (int32_t)roundf(p3.x), (int32_t)roundf(p3.y) },
-      cor);
+  const float max_x = (ux * ux > vx * vx) ? (ux * ux) : (vx * vx);
+  const float max_y = (uy * uy > vy * vy) ? (uy * uy) : (vy * vy);
+
+  return (max_x + max_y) <= 16.0f * tolerância_quadrada;
+}
+
+void desenhar_curva_bezier_adaptativa(Tela *tela, Flut2D p0, Flut2D p1, Flut2D p2, Flut2D p3, Cor cor, float tolerância_píxeis) {
+  assert(tela != nullptr);
+
+  if (tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0 || cor.alfa == 0) {
     return;
   }
 
-  Flut2D p01   = { (p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f };
-  Flut2D p12   = { (p1.x + p2.x) * 0.5f, (p1.y + p2.y) * 0.5f };
-  Flut2D p23   = { (p2.x + p3.x) * 0.5f, (p2.y + p3.y) * 0.5f };
-  Flut2D p012  = { (p01.x + p12.x) * 0.5f, (p01.y + p12.y) * 0.5f };
-  Flut2D p123  = { (p12.x + p23.x) * 0.5f, (p12.y + p23.y) * 0.5f };
-  Flut2D p0123 = { (p012.x + p123.x) * 0.5f, (p012.y + p123.y) * 0.5f };
+  const float tol = (tolerância_píxeis > 0.05f) ? tolerância_píxeis : 0.05f;
+  const float tol_quadrada = tol * tol;
 
-  subdividir_bezier_recursivo(tela, p0, p01, p012, p0123, cor, tol_sq, profundidade + 1);
-  subdividir_bezier_recursivo(tela, p0123, p123, p23, p3, cor, tol_sq, profundidade + 1);
-}
+  typedef struct {
+    Flut2D p0;
+    Flut2D p1;
+    Flut2D p2;
+    Flut2D p3;
+    uint8_t profundidade;
+  } SegmentoBezier;
 
-void desenhar_curva_bezier_adaptativa(Tela *tela, Int2D p0, Int2D p1, Int2D p2, Int2D p3, Cor cor, float tolerância_píxeis) {
-  if (!tela) return;
-  float tol = fmaxf(0.1f, tolerância_píxeis);
-  subdividir_bezier_recursivo(tela,
-    (Flut2D){ (float)p0.x, (float)p0.y },
-    (Flut2D){ (float)p1.x, (float)p1.y },
-    (Flut2D){ (float)p2.x, (float)p2.y },
-    (Flut2D){ (float)p3.x, (float)p3.y },
-    cor, tol * tol, 0);
+  constexpr size_t CAPACIDADE_PILHA = 64;
+  constexpr uint8_t PROFUNDIDADE_MÁXIMA = 16;
+
+  SegmentoBezier pilha[CAPACIDADE_PILHA];
+  size_t topo = 0;
+
+  pilha[topo++] = (SegmentoBezier){
+    .p0 = p0,
+    .p1 = p1,
+    .p2 = p2,
+    .p3 = p3,
+    .profundidade = 0
+  };
+
+  while (topo > 0) {
+    const SegmentoBezier seg = pilha[--topo];
+
+    if (seg.profundidade >= PROFUNDIDADE_MÁXIMA ||
+        topo + 2 > CAPACIDADE_PILHA ||
+        bezier_cúbica_plana(seg.p0, seg.p1, seg.p2, seg.p3, tol_quadrada)) {
+      desenhar_linha_suavizada(tela, seg.p0, seg.p3, cor);
+      continue;
+    }
+
+    /* Subdivisão de De Casteljau no parâmetro t = 0.5 */
+    const Flut2D p01   = interpolar_flut2d(seg.p0, seg.p1, 0.5f);
+    const Flut2D p12   = interpolar_flut2d(seg.p1, seg.p2, 0.5f);
+    const Flut2D p23   = interpolar_flut2d(seg.p2, seg.p3, 0.5f);
+    const Flut2D p012  = interpolar_flut2d(p01, p12, 0.5f);
+    const Flut2D p123  = interpolar_flut2d(p12, p23, 0.5f);
+    const Flut2D meio  = interpolar_flut2d(p012, p123, 0.5f);
+
+    const uint8_t próxima_prof = seg.profundidade + 1;
+
+    /* Empilha primeiro a metade direita para processar a esquerda primeiro */
+    pilha[topo++] = (SegmentoBezier){
+      .p0 = meio,
+      .p1 = p123,
+      .p2 = p23,
+      .p3 = seg.p3,
+      .profundidade = próxima_prof
+    };
+
+    pilha[topo++] = (SegmentoBezier){
+      .p0 = seg.p0,
+      .p1 = p01,
+      .p2 = p012,
+      .p3 = meio,
+      .profundidade = próxima_prof
+    };
+  }
 }
 
 void desenhar_spline_catmull_rom(Tela *tela, const Int2D pontos[], size_t núm_pontos, uint32_t subdivisões_por_segmento, Cor cor) {
@@ -3125,12 +3172,12 @@ void desenhar_imagem_rodada(Tela *destino, const Tela *origem, Int2D posição, 
   if (!destino || !destino->píxeis || !origem || !origem->píxeis) return;
 
   Matriz3x3 t_origem, rot, t_destino, temp, m;
-  criar_matriz_translação(&t_origem, -(float)pivô.x, -(float)pivô.y);
-  criar_matriz_rotação(&rot, radianos);
-  criar_matriz_translação(&t_destino, (float)posição.x, (float)posição.y);
+  criar_matriz3x3_translação(&t_origem, -(float)pivô.x, -(float)pivô.y);
+  criar_matriz3x3_rotação(&rot, radianos);
+  criar_matriz3x3_translação(&t_destino, (float)posição.x, (float)posição.y);
 
-  multiplicar_matrizes(&temp, &rot, &t_origem);
-  multiplicar_matrizes(&m, &t_destino, &temp);
+  multiplicar_matrizes3x3(&temp, &rot, &t_origem);
+  multiplicar_matrizes3x3(&m, &t_destino, &temp);
   desenhar_imagem_matriz(destino, origem, m);
 }
 
@@ -3176,13 +3223,13 @@ void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
   if (!destino || !destino->píxeis || !origem || !origem->píxeis) return;
 
   Matriz3x3 inv;
-  if (!inverter_matriz(&inv, &m)) return;
+  if (!inverter_matriz3x3(&inv, &m)) return;
 
   Flut2D cantos[4] = {
-    transformar_flut2d_matriz((Flut2D){ 0.0f, 0.0f }, &m),
-    transformar_flut2d_matriz((Flut2D){ (float)origem->largura, 0.0f }, &m),
-    transformar_flut2d_matriz((Flut2D){ 0.0f, (float)origem->altura }, &m),
-    transformar_flut2d_matriz((Flut2D){ (float)origem->largura, (float)origem->altura }, &m)
+    transformar_flut2d_matriz3x3((Flut2D){ 0.0f, 0.0f }, &m),
+    transformar_flut2d_matriz3x3((Flut2D){ (float)origem->largura, 0.0f }, &m),
+    transformar_flut2d_matriz3x3((Flut2D){ 0.0f, (float)origem->altura }, &m),
+    transformar_flut2d_matriz3x3((Flut2D){ (float)origem->largura, (float)origem->altura }, &m)
   };
 
   float min_x = cantos[0].x, max_x = cantos[0].x;
@@ -3206,7 +3253,7 @@ void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
 
   for (int32_t dy = y0; dy <= y1; dy++) {
     for (int32_t dx = x0; dx <= x1; dx++) {
-      Flut2D src = transformar_flut2d_matriz((Flut2D){ (float)dx + 0.5f, (float)dy + 0.5f }, &inv);
+      Flut2D src = transformar_flut2d_matriz3x3((Flut2D){ (float)dx + 0.5f, (float)dy + 0.5f }, &inv);
       int32_t sx = (int32_t)floorf(src.x);
       int32_t sy = (int32_t)floorf(src.y);
 
@@ -5484,13 +5531,13 @@ int main(void) {
 
   /* 2. Matrizes e Transformações 2D */
   Matriz3x3 m_trans, m_esc, m_comb, m_inv;
-  criar_matriz_translação(&m_trans, 10.0f, 20.0f);
-  criar_matriz_escala(&m_esc, 2.0f, 2.0f);
-  multiplicar_matrizes(&m_comb, &m_trans, &m_esc);
-  assert(inverter_matriz(&m_inv, &m_comb));
+  criar_matriz3x3_translação(&m_trans, 10.0f, 20.0f);
+  criar_matriz3x3_escala(&m_esc, 2.0f, 2.0f);
+  multiplicar_matrizes3x3(&m_comb, &m_trans, &m_esc);
+  assert(inverter_matriz3x3(&m_inv, &m_comb));
 
-  Flut2D p = transformar_flut2d_matriz((Flut2D){ 5.0f, 5.0f }, &m_comb);
-  Flut2D p_volta = transformar_flut2d_matriz(p, &m_inv);
+  Flut2D p = transformar_flut2d_matriz3x3((Flut2D){ 5.0f, 5.0f }, &m_comb);
+  Flut2D p_volta = transformar_flut2d_matriz3x3(p, &m_inv);
   assert(fabsf(p_volta.x - 5.0f) < 1e-3f && fabsf(p_volta.y - 5.0f) < 1e-3f);
 
   Int2D rodado = rodar_ponto((Int2D){ 10, 0 }, (Int2D){ 0, 0 }, 1.5707963f);
