@@ -5418,6 +5418,56 @@ void desenhar_malha_3d(
   }
 }
 
+void aplicar_nevoeiro_profundidade(
+  Tela *tela,
+  const BufferProfundidade *zbuffer,
+  Cor cor_nevoeiro,
+  float início,
+  float fim
+) {
+  if (!tela || !tela->píxeis || !zbuffer || !zbuffer->valores) {
+    return;
+  }
+
+  uint32_t largura = (tela->largura < zbuffer->largura) ? tela->largura : zbuffer->largura;
+  uint32_t altura  = (tela->altura  < zbuffer->altura)  ? tela->altura  : zbuffer->altura;
+
+  if (largura == 0 || altura == 0) {
+    return;
+  }
+
+  float intervalo = fim - início;
+  bool intervalo_degenerado = fabsf(intervalo) < 1e-6f;
+
+  for (uint32_t y = 0; y < altura; ++y) {
+    size_t linha_tela = (size_t)y * (size_t)tela->largura;
+    size_t linha_z    = (size_t)y * (size_t)zbuffer->largura;
+
+    for (uint32_t x = 0; x < largura; ++x) {
+      float profundidade = zbuffer->valores[linha_z + x];
+
+      if (!isfinite(profundidade) || profundidade <= início) {
+        continue;
+      }
+
+      float fator;
+      if (profundidade >= fim || intervalo_degenerado) {
+        fator = 1.0f;
+      } else {
+        fator = (profundidade - início) / intervalo;
+        if (fator < 0.0f) fator = 0.0f;
+        if (fator > 1.0f) fator = 1.0f;
+      }
+
+      Cor original = tela->píxeis[linha_tela + x];
+      Cor misturada = interpolar_cor(original, cor_nevoeiro, fator);
+      misturada.alfa = original.alfa;
+
+      tela->píxeis[linha_tela + x] = misturada;
+    }
+  }
+}
+
 
 
 int main(void) {
