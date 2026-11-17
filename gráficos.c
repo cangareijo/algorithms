@@ -180,6 +180,7 @@ void criar_matriz4x4_perspetiva(Matriz4x4 *destino, float fov_radianos, float as
 void criar_matriz4x4_ortográfica(Matriz4x4 *destino, float esquerda, float direita, float baixo, float cima, float plano_próximo, float plano_distante);
 void multiplicar_matrizes4x4(Matriz4x4 *destino, const Matriz4x4 *a, const Matriz4x4 *b);
 bool inverter_matriz4x4(Matriz4x4 *destino, const Matriz4x4 *m);
+void transpor_matriz4x4(Matriz4x4 *destino, const Matriz4x4 *m);
 Flut3D transformar_flut3d_matriz4x4(Flut3D ponto, const Matriz4x4 *m);
 Flut4D transformar_flut4d_matriz4x4(Flut4D ponto, const Matriz4x4 *m);
 void quaternião_para_matriz4x4(Matriz4x4 *destino, Quaternião q);
@@ -5113,7 +5114,7 @@ static inline uint8_t flut_para_u8(float valor) {
   return (uint8_t)lroundf(limitado * 255.0f);
 }
 
-static void transpor_matriz4x4(Matriz4x4 *destino, const Matriz4x4 *origem) {
+void transpor_matriz4x4(Matriz4x4 *destino, const Matriz4x4 *origem) {
   Matriz4x4 temp;
   for (size_t i = 0; i < 4; ++i) {
     for (size_t j = 0; j < 4; ++j) {
