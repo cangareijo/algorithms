@@ -457,6 +457,7 @@ double **create_seidel_adjacency_matrix(const Graph *g);
 double **calculate_cosine_similarity_matrix(const Graph *g);
 double **calculate_lewis_weights(const Graph *g);
 
+double complex *calculate_adjacency_spectrum(const Graph *g);
 double complex *calculate_ihara_zeta_function_poles(const Graph *g, unsigned *count);
 
 int main();
@@ -9558,6 +9559,86 @@ static void solve(unsigned n, double A[n][n], double b[n], double x[n]) {
 }
 
 
+
+
+static void qr_step(unsigned m, unsigned n, double complex A[n][n], double complex shift) {
+  double complex Q[m][m] = {};
+  double complex R[m][m] = {};
+  for (unsigned i = 0; i < m; i++) {
+    A[i][i] -= shift;
+    Q[i][i] = 1;
+  }
+  for (unsigned k = 0; k < m; k++) {
+    double norm = 0;
+    for (unsigned i = k; i < m; i++) {
+      double mag = cabs(A[i][k]);
+      norm += mag * mag;
+    }
+    norm = sqrt(norm);
+    R[k][k] = norm;
+    if (norm == 0) continue;
+    for (unsigned i = k; i < m; i++) Q[i][k] = A[i][k] / norm;
+    for (unsigned j = k + 1; j < m; j++) {
+      double complex dot = 0;
+      for (unsigned i = k; i < m; i++) dot += conj(Q[i][k]) * A[i][j];
+      R[k][j] = dot;
+      for (unsigned i = k; i < m; i++) A[i][j] -= Q[i][k] * dot;
+    }
+  }
+  for (unsigned i = 0; i < m; i++)
+    for (unsigned j = 0; j < m; j++) {
+      double complex sum = (i == j) ? shift : 0;
+      for (unsigned k = 0; k < m; k++) sum += R[i][k] * Q[k][j];
+      A[i][j] = sum;
+    }
+}
+
+[[nodiscard]] double complex *calculate_adjacency_spectrum(const Graph *g) {
+  if (!g || g->size == 0 || !g->edges) return nullptr;
+  unsigned n = g->size;
+  double complex *eigenvalues = calloc(n, sizeof(double complex));
+  if (!eigenvalues) return nullptr;
+  double complex A[n][n] = {};
+  for (unsigned u = 0; u < n; u++)
+    for (Edge *e = g->edges[u]; e; e = e->next)
+      if (e->destination < n)
+        A[u][e->destination] += e->weight;
+  unsigned m = n;
+  unsigned iter = 0;
+  const double eps = 1e-12;
+  while (m > 0) {
+    if (m == 1) {
+      eigenvalues[0] = A[0][0];
+      break;
+    }
+    double row_norm = 0;
+    for (unsigned j = 0; j < m - 1; j++) row_norm += cabs(A[m - 1][j]);
+    double tol = eps * (cabs(A[m - 2][m - 2]) + cabs(A[m - 1][m - 1]));
+    if (row_norm <= (tol > 0 ? tol : eps)) {
+      eigenvalues[m - 1] = A[m - 1][m - 1];
+      m--;
+      iter = 0;
+      continue;
+    }
+    double complex shift;
+    if (iter > 0 && iter % 10 == 0) {
+      shift = cabs(A[m - 1][m - 2]) + 0.5 * I;
+    } else {
+      double complex a = A[m - 2][m - 2];
+      double complex b = A[m - 2][m - 1];
+      double complex c = A[m - 1][m - 2];
+      double complex d = A[m - 1][m - 1];
+      double complex trace = a + d;
+      double complex s = csqrt(trace * trace - 4 * (a * d - b * c));
+      double complex r1 = 0.5 * (trace + s);
+      double complex r2 = 0.5 * (trace - s);
+      shift = (cabs(r1 - d) < cabs(r2 - d)) ? r1 : r2;
+    }
+    qr_step(m, n, A, shift);
+    iter++;
+  }
+  return eigenvalues;
+}
 
 [[nodiscard]] double complex *calculate_ihara_zeta_function_poles(const Graph *g, unsigned *count) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
