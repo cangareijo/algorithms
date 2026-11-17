@@ -258,7 +258,7 @@ void desenhar_imagem_matriz(Tela * destino, const Tela * origem, Matriz3x3 m);
 
 void preencher_área(Tela *tela, Int2D semente, Cor cor);
 void aplicar_matriz_convolução(Tela * restrict destino, const Tela * restrict origem, Matriz3x3 núcleo, float divisor, float viés);
-void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
+void aplicar_desfoque_gaussiano(Tela * restrict destino, const Tela * restrict origem, Tela * restrict intermédio, uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *tela);
 void aplicar_modulação_alfa(Tela *tela, uint8_t alfa);
 void ajustar_brilho_contraste(Tela *tela, float brilho, float contraste);
@@ -268,8 +268,8 @@ void espelhar_tela_vertical(Tela *tela);
 void aplicar_sépia(Tela *tela);
 void aplicar_limiar(Tela *tela, uint8_t limiar);
 void aplicar_pontilhismo_bayer(Tela *tela, uint8_t níveis_por_canal);
-void aplicar_deteção_bordas_sobel(Tela *tela);
-void aplicar_nitidez(Tela *tela, float intensidade);
+void aplicar_deteção_bordas_sobel(Tela * restrict destino, const Tela * restrict origem);
+void aplicar_nitidez(Tela * restrict destino, const Tela * restrict origem, float intensidade);
 void aplicar_máscara_alfa(Tela *destino, const Tela *máscara, Int2D posição);
 Tela extrair_canal_vermelho(const Tela *origem);
 Tela extrair_canal_verde(const Tela *origem);
@@ -3427,78 +3427,127 @@ void aplicar_matriz_convolução(Tela * restrict destino, const Tela * restrict 
   }
 }
 
-void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio) {
-  if (!tela || !tela->píxeis || raio == 0) return;
+void aplicar_desfoque_gaussiano(Tela * restrict destino, const Tela * restrict origem, Tela * restrict intermédio, uint32_t raio) {
+  assert(destino != nullptr);
+  assert(origem != nullptr);
+  assert(intermédio != nullptr);
+  assert(destino->largura == origem->largura && destino->altura == origem->altura);
+  assert(intermédio->largura == origem->largura && intermédio->altura == origem->altura);
 
-  int32_t r = (int32_t)raio;
-  size_t tam_núcleo = (size_t)(2 * r + 1);
-  float *núcleo = malloc(tam_núcleo * sizeof(float));
-  size_t total = (size_t)tela->largura * (size_t)tela->altura;
-  Cor *temp = malloc(total * sizeof(Cor));
-
-  if (!núcleo || !temp) {
-    free(núcleo);
-    free(temp);
+  if (origem->píxeis == nullptr || destino->píxeis == nullptr || intermédio->píxeis == nullptr ||
+      origem->largura == 0 || origem->altura == 0) {
     return;
   }
 
-  float sigma = fmaxf((float)raio / 2.0f, 0.5f);
+  const int32_t larg = (int32_t)origem->largura;
+  const int32_t alt = (int32_t)origem->altura;
+  const size_t passo_orig = (origem->passo > 0) ? origem->passo : origem->largura;
+  const size_t passo_inter = (intermédio->passo > 0) ? intermédio->passo : intermédio->largura;
+  const size_t passo_dest = (destino->passo > 0) ? destino->passo : destino->largura;
+
+  if (raio == 0) {
+    if (destino->píxeis != origem->píxeis) {
+      for (int32_t y = 0; y < alt; ++y) {
+        memcpy(destino->píxeis + (size_t)y * passo_dest,
+               origem->píxeis + (size_t)y * passo_orig,
+               (size_t)larg * sizeof(Cor));
+      }
+    }
+    return;
+  }
+
+  constexpr uint32_t RAIO_MÁXIMO_PILHA = 64;
+  const uint32_t raio_efetivo = (raio > RAIO_MÁXIMO_PILHA) ? RAIO_MÁXIMO_PILHA : raio;
+  const size_t tam_núcleo = (size_t)raio_efetivo * 2 + 1;
+  float pesos[RAIO_MÁXIMO_PILHA * 2 + 1];
+
+  const float sigma = fmaxf((float)raio_efetivo * 0.5f, 0.5f);
+  const float inv_2sigma2 = 1.0f / (2.0f * sigma * sigma);
   float soma_pesos = 0.0f;
-  for (int32_t i = -r; i <= r; i++) {
-    float peso = expf(-((float)(i * i)) / (2.0f * sigma * sigma));
-    núcleo[i + r] = peso;
+
+  for (size_t i = 0; i < tam_núcleo; ++i) {
+    const float dist = (float)((int32_t)i - (int32_t)raio_efetivo);
+    const float peso = expf(-(dist * dist) * inv_2sigma2);
+    pesos[i] = peso;
     soma_pesos += peso;
   }
-  for (size_t i = 0; i < tam_núcleo; i++) {
-    núcleo[i] /= soma_pesos;
+
+  for (size_t i = 0; i < tam_núcleo; ++i) {
+    pesos[i] /= soma_pesos;
   }
 
-  /* Passagem horizontal */
-  for (uint32_t y = 0; y < tela->altura; y++) {
-    for (uint32_t x = 0; x < tela->largura; x++) {
-      float sr = 0.0f, sg = 0.0f, sb = 0.0f, sa = 0.0f;
-      for (int32_t k = -r; k <= r; k++) {
-        int32_t px = (int32_t)x + k;
-        if (px < 0) px = 0;
-        if (px >= (int32_t)tela->largura) px = (int32_t)tela->largura - 1;
+  const int32_t r = (int32_t)raio_efetivo;
 
-        Cor c = tela->píxeis[(size_t)y * tela->largura + (size_t)px];
-        float w = núcleo[k + r];
-        sr += (float)c.vermelho * w;
-        sg += (float)c.verde    * w;
-        sb += (float)c.azul     * w;
-        sa += (float)c.alfa     * w;
+  /* Passagem 1: Horizontal (origem -> intermédio) */
+  for (int32_t y = 0; y < alt; ++y) {
+    const Cor * restrict linha_orig = origem->píxeis + (size_t)y * passo_orig;
+    Cor * restrict linha_inter = intermédio->píxeis + (size_t)y * passo_inter;
+
+    for (int32_t x = 0; x < larg; ++x) {
+      float acc_r = 0.0f;
+      float acc_g = 0.0f;
+      float acc_b = 0.0f;
+      float acc_a = 0.0f;
+
+      for (int32_t k = -r; k <= r; ++k) {
+        int32_t px = x + k;
+        if (px < 0) {
+          px = 0;
+        } else if (px >= larg) {
+          px = larg - 1;
+        }
+
+        const float w = pesos[k + r];
+        const Cor amostra = linha_orig[px];
+        acc_r += (float)amostra.vermelho * w;
+        acc_g += (float)amostra.verde * w;
+        acc_b += (float)amostra.azul * w;
+        acc_a += (float)amostra.alfa * w;
       }
-      temp[(size_t)y * tela->largura + (size_t)x] = (Cor){
-        (uint8_t)roundf(sr), (uint8_t)roundf(sg), (uint8_t)roundf(sb), (uint8_t)roundf(sa)
+
+      linha_inter[x] = (Cor){
+        .vermelho = (uint8_t)lroundf(acc_r),
+        .verde    = (uint8_t)lroundf(acc_g),
+        .azul     = (uint8_t)lroundf(acc_b),
+        .alfa     = (uint8_t)lroundf(acc_a)
       };
     }
   }
 
-  /* Passagem vertical */
-  for (uint32_t y = 0; y < tela->altura; y++) {
-    for (uint32_t x = 0; x < tela->largura; x++) {
-      float sr = 0.0f, sg = 0.0f, sb = 0.0f, sa = 0.0f;
-      for (int32_t k = -r; k <= r; k++) {
-        int32_t py = (int32_t)y + k;
-        if (py < 0) py = 0;
-        if (py >= (int32_t)tela->altura) py = (int32_t)tela->altura - 1;
+  /* Passagem 2: Vertical (intermédio -> destino) */
+  for (int32_t y = 0; y < alt; ++y) {
+    Cor * restrict linha_dest = destino->píxeis + (size_t)y * passo_dest;
 
-        Cor c = temp[(size_t)py * tela->largura + (size_t)x];
-        float w = núcleo[k + r];
-        sr += (float)c.vermelho * w;
-        sg += (float)c.verde    * w;
-        sb += (float)c.azul     * w;
-        sa += (float)c.alfa     * w;
+    for (int32_t x = 0; x < larg; ++x) {
+      float acc_r = 0.0f;
+      float acc_g = 0.0f;
+      float acc_b = 0.0f;
+      float acc_a = 0.0f;
+
+      for (int32_t k = -r; k <= r; ++k) {
+        int32_t py = y + k;
+        if (py < 0) {
+          py = 0;
+        } else if (py >= alt) {
+          py = alt - 1;
+        }
+
+        const float w = pesos[k + r];
+        const Cor amostra = intermédio->píxeis[(size_t)py * passo_inter + (size_t)x];
+        acc_r += (float)amostra.vermelho * w;
+        acc_g += (float)amostra.verde * w;
+        acc_b += (float)amostra.azul * w;
+        acc_a += (float)amostra.alfa * w;
       }
-      tela->píxeis[(size_t)y * tela->largura + (size_t)x] = (Cor){
-        (uint8_t)roundf(sr), (uint8_t)roundf(sg), (uint8_t)roundf(sb), (uint8_t)roundf(sa)
+
+      linha_dest[x] = (Cor){
+        .vermelho = (uint8_t)lroundf(acc_r),
+        .verde    = (uint8_t)lroundf(acc_g),
+        .azul     = (uint8_t)lroundf(acc_b),
+        .alfa     = (uint8_t)lroundf(acc_a)
       };
     }
   }
-
-  free(núcleo);
-  free(temp);
 }
 
 void converter_para_tons_de_cinzento(Tela *tela) {
@@ -3679,144 +3728,106 @@ void aplicar_pontilhismo_bayer(Tela *tela, uint8_t níveis_por_canal) {
   }
 }
 
-void aplicar_deteção_bordas_sobel(Tela *tela) {
-  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+static inline float calcular_luminância_cor(Cor c) {
+  return 0.2126f * (float)c.vermelho +
+         0.7152f * (float)c.verde +
+         0.0722f * (float)c.azul;
+}
+
+void aplicar_deteção_bordas_sobel(Tela * restrict destino, const Tela * restrict origem) {
+  assert(destino != nullptr);
+  assert(origem != nullptr);
+  assert(destino->píxeis != origem->píxeis);
+  assert(destino->largura == origem->largura && destino->altura == origem->altura);
+
+  if (origem->píxeis == nullptr || destino->píxeis == nullptr || origem->largura == 0 || origem->altura == 0) {
     return;
   }
 
-  const size_t largura = (size_t)tela->largura;
-  const size_t altura = (size_t)tela->altura;
-  const size_t total_píxeis = largura * altura;
+  constexpr float gx_núcleo[3][3] = {
+    { -1.0f, 0.0f, 1.0f },
+    { -2.0f, 0.0f, 2.0f },
+    { -1.0f, 0.0f, 1.0f }
+  };
 
-  uint8_t *luminância = malloc(total_píxeis * sizeof(uint8_t));
-  if (luminância == nullptr) {
-    return;
-  }
+  constexpr float gy_núcleo[3][3] = {
+    { -1.0f, -2.0f, -1.0f },
+    {  0.0f,  0.0f,  0.0f },
+    {  1.0f,  2.0f,  1.0f }
+  };
 
-  /* Pré-calcular luminância perceptual em inteiros (0.299 R + 0.587 G + 0.114 B) */
-  for (size_t i = 0; i < total_píxeis; ++i) {
-    const Cor c = tela->píxeis[i];
-    luminância[i] = (uint8_t)(((uint32_t)c.vermelho * 77u +
-                               (uint32_t)c.verde    * 150u +
-                               (uint32_t)c.azul     * 29u) >> 8);
-  }
+  const int32_t larg = (int32_t)origem->largura;
+  const int32_t alt = (int32_t)origem->altura;
+  const size_t passo_orig = (origem->passo > 0) ? origem->passo : origem->largura;
+  const size_t passo_dest = (destino->passo > 0) ? destino->passo : destino->largura;
 
-  for (size_t y = 0; y < altura; ++y) {
-    const size_t y_ant = (y > 0) ? (y - 1) : 0;
-    const size_t y_seg = (y + 1 < altura) ? (y + 1) : (altura - 1);
+  for (int32_t y = 0; y < alt; ++y) {
+    Cor * restrict linha_dest = destino->píxeis + (size_t)y * passo_dest;
+    const Cor * restrict linha_orig_atual = origem->píxeis + (size_t)y * passo_orig;
 
-    const uint8_t *linha_sup = &luminância[y_ant * largura];
-    const uint8_t *linha_med = &luminância[y * largura];
-    const uint8_t *linha_inf = &luminância[y_seg * largura];
-    Cor *linha_destino = &tela->píxeis[y * largura];
+    for (int32_t x = 0; x < larg; ++x) {
+      float gx = 0.0f;
+      float gy = 0.0f;
 
-    for (size_t x = 0; x < largura; ++x) {
-      const size_t x_ant = (x > 0) ? (x - 1) : 0;
-      const size_t x_seg = (x + 1 < largura) ? (x + 1) : (largura - 1);
+      for (int32_t ky = -1; ky <= 1; ++ky) {
+        int32_t py = y + ky;
+        if (py < 0) {
+          py = 0;
+        } else if (py >= alt) {
+          py = alt - 1;
+        }
 
-      const int32_t p00 = linha_sup[x_ant];
-      const int32_t p01 = linha_sup[x];
-      const int32_t p02 = linha_sup[x_seg];
+        const Cor * restrict linha_amostra = origem->píxeis + (size_t)py * passo_orig;
 
-      const int32_t p10 = linha_med[x_ant];
-      const int32_t p12 = linha_med[x_seg];
+        for (int32_t kx = -1; kx <= 1; ++kx) {
+          int32_t px = x + kx;
+          if (px < 0) {
+            px = 0;
+          } else if (px >= larg) {
+            px = larg - 1;
+          }
 
-      const int32_t p20 = linha_inf[x_ant];
-      const int32_t p21 = linha_inf[x];
-      const int32_t p22 = linha_inf[x_seg];
+          const float lum = calcular_luminância_cor(linha_amostra[px]);
+          gx += lum * gx_núcleo[ky + 1][kx + 1];
+          gy += lum * gy_núcleo[ky + 1][kx + 1];
+        }
+      }
 
-      /* Gradiente horizontal Gx: [-1 0 +1; -2 0 +2; -1 0 +1] */
-      const int32_t gx = -p00 + p02 - (2 * p10) + (2 * p12) - p20 + p22;
+      const float magnitude = hypotf(gx, gy);
+      const uint8_t valor_borda = (magnitude >= 255.0f) ? 255 : (uint8_t)lroundf(magnitude);
 
-      /* Gradiente vertical Gy: [-1 -2 -1; 0 0 0; +1 +2 +1] */
-      const int32_t gy = -p00 - (2 * p01) - p02 + p20 + (2 * p21) + p22;
-
-      const float mag = hypotf((float)gx, (float)gy);
-      const uint8_t intensidade = (mag > 255.0f) ? 255u : (uint8_t)lroundf(mag);
-
-      linha_destino[x] = (Cor){
-        .vermelho = intensidade,
-        .verde    = intensidade,
-        .azul     = intensidade,
-        .alfa     = linha_destino[x].alfa
+      linha_dest[x] = (Cor){
+        .vermelho = valor_borda,
+        .verde    = valor_borda,
+        .azul     = valor_borda,
+        .alfa     = linha_orig_atual[x].alfa
       };
     }
   }
-
-  free(luminância);
 }
 
-static inline uint8_t limitar_u8_flut(float valor) {
-  if (valor <= 0.0f) {
-    return 0u;
-  }
-  if (valor >= 255.0f) {
-    return 255u;
-  }
-  return (uint8_t)lroundf(valor);
-}
+void aplicar_nitidez(Tela * restrict destino, const Tela * restrict origem, float intensidade) {
+  assert(destino != nullptr);
+  assert(origem != nullptr);
+  assert(destino->píxeis != origem->píxeis);
+  assert(destino->largura == origem->largura && destino->altura == origem->altura);
 
-void aplicar_nitidez(Tela *tela, float intensidade) {
-  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0 || tela->altura == 0) {
+  if (origem->píxeis == nullptr || destino->píxeis == nullptr || origem->largura == 0 || origem->altura == 0) {
     return;
   }
 
-  if (intensidade <= 0.0f) {
-    return;
-  }
+  const float centro = 1.0f + 4.0f * intensidade;
+  const float borda = -intensidade;
 
-  const size_t largura = (size_t)tela->largura;
-  const size_t altura = (size_t)tela->altura;
-  const size_t total_bytes = largura * altura * sizeof(Cor);
-
-  Cor *cópia = malloc(total_bytes);
-  if (cópia == nullptr) {
-    return;
-  }
-
-  memcpy(cópia, tela->píxeis, total_bytes);
-
-  /* Núcleo 3x3: centro = 1 + 4 * intensidade, vizinhos ortogonais = -intensidade */
-  const float peso_centro = 1.0f + 4.0f * intensidade;
-  const float peso_vizinho = -intensidade;
-
-  for (size_t y = 0; y < altura; ++y) {
-    const size_t y_ant = (y > 0) ? (y - 1) : 0;
-    const size_t y_seg = (y + 1 < altura) ? (y + 1) : (altura - 1);
-
-    const Cor *linha_sup = &cópia[y_ant * largura];
-    const Cor *linha_med = &cópia[y * largura];
-    const Cor *linha_inf = &cópia[y_seg * largura];
-    Cor *linha_destino = &tela->píxeis[y * largura];
-
-    for (size_t x = 0; x < largura; ++x) {
-      const size_t x_ant = (x > 0) ? (x - 1) : 0;
-      const size_t x_seg = (x + 1 < largura) ? (x + 1) : (largura - 1);
-
-      const Cor c_centro = linha_med[x];
-      const Cor c_cima   = linha_sup[x];
-      const Cor c_baixo  = linha_inf[x];
-      const Cor c_esq    = linha_med[x_ant];
-      const Cor c_dir    = linha_med[x_seg];
-
-      const float soma_viz_r = (float)c_cima.vermelho + (float)c_baixo.vermelho + (float)c_esq.vermelho + (float)c_dir.vermelho;
-      const float soma_viz_g = (float)c_cima.verde    + (float)c_baixo.verde    + (float)c_esq.verde    + (float)c_dir.verde;
-      const float soma_viz_b = (float)c_cima.azul     + (float)c_baixo.azul     + (float)c_esq.azul     + (float)c_dir.azul;
-
-      const float novo_r = (float)c_centro.vermelho * peso_centro + soma_viz_r * peso_vizinho;
-      const float novo_g = (float)c_centro.verde    * peso_centro + soma_viz_g * peso_vizinho;
-      const float novo_b = (float)c_centro.azul     * peso_centro + soma_viz_b * peso_vizinho;
-
-      linha_destino[x] = (Cor){
-        .vermelho = limitar_u8_flut(novo_r),
-        .verde    = limitar_u8_flut(novo_g),
-        .azul     = limitar_u8_flut(novo_b),
-        .alfa     = c_centro.alfa
-      };
+  const Matriz3x3 núcleo = {
+    .m = {
+      { 0.0f,  borda,  0.0f  },
+      { borda, centro, borda },
+      { 0.0f,  borda,  0.0f  }
     }
-  }
+  };
 
-  free(cópia);
+  aplicar_matriz_convolução(destino, origem, núcleo, 1.0f, 0.0f);
 }
 
 void aplicar_máscara_alfa(Tela *destino, const Tela *máscara, Int2D posição) {
