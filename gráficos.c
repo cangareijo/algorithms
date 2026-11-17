@@ -257,7 +257,7 @@ void desenhar_imagem_mistura(Tela * destino, const Tela * origem, Int2D posiçã
 void desenhar_imagem_matriz(Tela * destino, const Tela * origem, Matriz3x3 m);
 
 void preencher_área(Tela *tela, Int2D semente, Cor cor);
-void aplicar_matriz_convolução(Tela *tela, Matriz3x3 núcleo, float divisor, float viés);
+void aplicar_matriz_convolução(Tela * restrict destino, const Tela * restrict origem, Matriz3x3 núcleo, float divisor, float viés);
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio);
 void converter_para_tons_de_cinzento(Tela *tela);
 void aplicar_modulação_alfa(Tela *tela, uint8_t alfa);
@@ -3355,48 +3355,76 @@ void preencher_área(Tela *tela, Int2D semente, Cor nova_cor) {
   free(pilha);
 }
 
-void aplicar_matriz_convolução(Tela *tela, Matriz3x3 núcleo, float divisor, float viés) {
-  if (!tela || !tela->píxeis) return;
-  if (fabsf(divisor) < 1e-6f) divisor = 1.0f;
+static inline uint8_t limitar_uint8(float valor) {
+  if (valor <= 0.0f) {
+    return 0;
+  }
+  if (valor >= 255.0f) {
+    return 255;
+  }
+  return (uint8_t)lroundf(valor);
+}
 
-  size_t total = (size_t)tela->largura * (size_t)tela->altura;
-  Cor *cópia = malloc(total * sizeof(Cor));
-  if (!cópia) return;
-  memcpy(cópia, tela->píxeis, total * sizeof(Cor));
+void aplicar_matriz_convolução(Tela * restrict destino, const Tela * restrict origem, Matriz3x3 núcleo, float divisor, float viés) {
+  assert(destino != nullptr);
+  assert(origem != nullptr);
+  assert(destino->píxeis != origem->píxeis);
+  assert(destino->largura == origem->largura && destino->altura == origem->altura);
 
-  for (uint32_t y = 0; y < tela->altura; y++) {
-    for (uint32_t x = 0; x < tela->largura; x++) {
-      float soma_r = 0.0f, soma_g = 0.0f, soma_b = 0.0f;
+  if (origem->píxeis == nullptr || destino->píxeis == nullptr || origem->largura == 0 || origem->altura == 0) {
+    return;
+  }
 
-      for (int ky = -1; ky <= 1; ky++) {
-        int32_t py = (int32_t)y + ky;
-        if (py < 0) py = 0;
-        if (py >= (int32_t)tela->altura) py = (int32_t)tela->altura - 1;
+  const float fator_div = (fabsf(divisor) < 1e-6f) ? 1.0f : (1.0f / divisor);
+  const int32_t larg = (int32_t)origem->largura;
+  const int32_t alt = (int32_t)origem->altura;
+  const size_t passo_orig = (origem->passo > 0) ? origem->passo : origem->largura;
+  const size_t passo_dest = (destino->passo > 0) ? destino->passo : destino->largura;
 
-        for (int kx = -1; kx <= 1; kx++) {
-          int32_t px = (int32_t)x + kx;
-          if (px < 0) px = 0;
-          if (px >= (int32_t)tela->largura) px = (int32_t)tela->largura - 1;
+  for (int32_t y = 0; y < alt; ++y) {
+    Cor * restrict linha_dest = destino->píxeis + (size_t)y * passo_dest;
+    const Cor * restrict linha_orig_atual = origem->píxeis + (size_t)y * passo_orig;
 
-          float peso = núcleo.m[ky + 1][kx + 1];
-          Cor c = cópia[(size_t)py * tela->largura + (size_t)px];
-          soma_r += (float)c.vermelho * peso;
-          soma_g += (float)c.verde    * peso;
-          soma_b += (float)c.azul     * peso;
+    for (int32_t x = 0; x < larg; ++x) {
+      float soma_r = 0.0f;
+      float soma_g = 0.0f;
+      float soma_b = 0.0f;
+
+      for (int32_t ky = -1; ky <= 1; ++ky) {
+        int32_t py = y + ky;
+        if (py < 0) {
+          py = 0;
+        } else if (py >= alt) {
+          py = alt - 1;
+        }
+
+        const Cor * restrict linha_amostra = origem->píxeis + (size_t)py * passo_orig;
+
+        for (int32_t kx = -1; kx <= 1; ++kx) {
+          int32_t px = x + kx;
+          if (px < 0) {
+            px = 0;
+          } else if (px >= larg) {
+            px = larg - 1;
+          }
+
+          const float peso = núcleo.m[ky + 1][kx + 1];
+          const Cor amostra = linha_amostra[px];
+
+          soma_r += (float)amostra.vermelho * peso;
+          soma_g += (float)amostra.verde * peso;
+          soma_b += (float)amostra.azul * peso;
         }
       }
 
-      size_t idx = (size_t)y * tela->largura + (size_t)x;
-      tela->píxeis[idx] = (Cor){
-        .vermelho = limitar_u8((int32_t)roundf(soma_r / divisor + viés)),
-        .verde    = limitar_u8((int32_t)roundf(soma_g / divisor + viés)),
-        .azul     = limitar_u8((int32_t)roundf(soma_b / divisor + viés)),
-        .alfa     = cópia[idx].alfa
+      linha_dest[x] = (Cor){
+        .vermelho = limitar_uint8(soma_r * fator_div + viés),
+        .verde    = limitar_uint8(soma_g * fator_div + viés),
+        .azul     = limitar_uint8(soma_b * fator_div + viés),
+        .alfa     = linha_orig_atual[x].alfa
       };
     }
   }
-
-  free(cópia);
 }
 
 void aplicar_desfoque_gaussiano(Tela *tela, uint32_t raio) {
