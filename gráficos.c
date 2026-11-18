@@ -49,11 +49,17 @@ typedef struct {
 } Int2D;
 
 void transformar_pontos(const Int2D pontos_origem[], Int2D pontos_destino[], size_t núm_pontos, Int2D translação, float radianos, float escala);
-Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
 bool ponto_dentro_círculo(Int2D ponto, Int2D centro, uint32_t raio);
 bool ponto_dentro_triângulo(Int2D ponto, Int2D p1, Int2D p2, Int2D p3);
 bool ponto_dentro_polígono(Int2D ponto, const Int2D vértices[], size_t núm_vértices);
 size_t calcular_envoltória_convexa(const Int2D pontos[], size_t núm_pontos, Int2D saída[]);
+
+float suavizar_entrada_quadrática(float t);
+float suavizar_saída_quadrática(float t);
+float suavizar_entrada_saída_cúbica(float t);
+float suavizar_elástico(float t);
+float suavizar_ressalto(float t);
+Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
 
 typedef struct {
   float x;
@@ -356,6 +362,43 @@ void desenhar_triângulo_3d_zbuffer(Tela *tela, BufferProfundidade *zbuffer, Vé
 void desenhar_malha_3d(Tela *tela, BufferProfundidade *zbuffer, const Malha3D *malha, const Matriz4x4 *modelo, const Câmara3D *câmara, const Material3D *material, const Luz3D luzes[], size_t núm_luzes, ModoSombreamento modo);
 void aplicar_nevoeiro_profundidade(Tela *tela, const BufferProfundidade *zbuffer, Cor cor_nevoeiro, float início, float fim);
 
+typedef struct {
+  Flut4D posição_recorte;
+  Flut3D posição_mundo;
+  Flut3D normal;
+  Flut2D uv;
+  Cor cor;
+} VérticeRecorte3D;
+
+typedef enum {
+  FILTRO_VIZINHO_MAIS_PRÓXIMO,
+  FILTRO_BILINEAR
+} FiltroTextura;
+
+typedef enum {
+  MODO_UV_ESTENDER,
+  MODO_UV_REPETIR
+} ModoUV;
+
+typedef struct {
+  Cor cor_ambiente;
+  Cor cor_difusa;
+  Cor cor_especular;
+  float brilho_especular;
+  float opacidade;
+  const Tela *textura_difusa;
+  const Tela *textura_normais;
+  FiltroTextura filtro;
+  ModoUV modo_uv;
+} Material3D_v2;
+
+typedef struct {
+  const Câmara3D *câmara;
+  const Luz3D *luzes;
+  size_t núm_luzes;
+  Cor luz_ambiente_global;
+} Cena3D;
+
 
 
 #ifndef M_PI
@@ -460,18 +503,6 @@ CorHSV cor_para_hsv(Cor cor) {
     .saturação = s,
     .valor     = max,
     .alfa      = (float)cor.alfa / 255.0f
-  };
-}
-
-Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos) {
-  float s = sinf(radianos);
-  float c = cosf(radianos);
-  float dx = (float)(ponto.x - origem.x);
-  float dy = (float)(ponto.y - origem.y);
-
-  return (Int2D){
-    .x = (int32_t)roundf(dx * c - dy * s) + origem.x,
-    .y = (int32_t)roundf(dx * s + dy * c) + origem.y
   };
 }
 
@@ -607,6 +638,78 @@ size_t calcular_envoltória_convexa(const Int2D pontos[], size_t núm_pontos, In
 
   /* Remover o último ponto pois é duplicado do primeiro */
   return (k > 1) ? (k - 1) : k;
+}
+
+
+
+float suavizar_entrada_quadrática(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  return t * t;
+}
+
+float suavizar_saída_quadrática(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  return 1.0f - (1.0f - t) * (1.0f - t);
+}
+
+float suavizar_entrada_saída_cúbica(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  if (t < 0.5f) {
+    return 4.0f * t * t * t;
+  }
+
+  const float fator = -2.0f * t + 2.0f;
+  return 1.0f - (fator * fator * fator) * 0.5f;
+}
+
+float suavizar_elástico(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  constexpr float c4 = (2.0f * 3.14159265358979323846f) / 3.0f;
+
+  return powf(2.0f, -10.0f * t) * sinf((t * 10.0f - 0.75f) * c4) + 1.0f;
+}
+
+float suavizar_ressalto(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  constexpr float n1 = 7.5625f;
+  constexpr float d1 = 2.75f;
+
+  if (t < 1.0f / d1) {
+    return n1 * t * t;
+  }
+  if (t < 2.0f / d1) {
+    t -= 1.5f / d1;
+    return n1 * t * t + 0.75f;
+  }
+  if (t < 2.5f / d1) {
+    t -= 2.25f / d1;
+    return n1 * t * t + 0.9375f;
+  }
+
+  t -= 2.625f / d1;
+  return n1 * t * t + 0.984375f;
+}
+
+Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos) {
+  float s = sinf(radianos);
+  float c = cosf(radianos);
+  float dx = (float)(ponto.x - origem.x);
+  float dy = (float)(ponto.y - origem.y);
+
+  return (Int2D){
+    .x = (int32_t)roundf(dx * c - dy * s) + origem.x,
+    .y = (int32_t)roundf(dx * s + dy * c) + origem.y
+  };
 }
 
 
