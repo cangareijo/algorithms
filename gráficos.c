@@ -305,6 +305,7 @@ typedef struct {
 void destruir_malha3d(Malha3D *malha);
 Malha3D criar_malha_cubo(float lado);
 Malha3D criar_malha_esfera(float raio, uint32_t fatias, uint32_t pilhas);
+Malha3D criar_malha_cilindro(float raio, float altura, uint32_t fatias);
 Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões);
 Malha3D criar_malha_terreno_de_imagem(const Tela *mapa_altura, float escala_horizontal, float altura_máxima);
 bool carregar_malha_obj(Malha3D *destino, const char *caminho);
@@ -5011,6 +5012,160 @@ Malha3D criar_malha_esfera(float raio, uint32_t fatias, uint32_t pilhas) {
     .índices = índices,
     .núm_índices = núm_índices
   };
+}
+
+Malha3D criar_malha_cilindro(float raio, float altura, uint32_t fatias) {
+  Malha3D malha = {
+    .vértices = nullptr,
+    .núm_vértices = 0u,
+    .índices = nullptr,
+    .núm_índices = 0u
+  };
+
+  if (raio <= 0.0f || altura <= 0.0f || fatias < 3u) {
+    return malha;
+  }
+
+  /* Vértices:
+     - Corpo lateral: (fatias + 1) * 2 (duplicamos a costura para UV contínuo)
+     - Tampa superior: 1 centro + (fatias + 1) borda
+     - Tampa inferior: 1 centro + (fatias + 1) borda
+  */
+  const size_t verts_laterais = (size_t)(fatias + 1u) * 2u;
+  const size_t verts_tampa = (size_t)(fatias + 2u);
+  const size_t total_vértices = verts_laterais + verts_tampa * 2u;
+
+  /* Índices:
+     - Corpo lateral: fatias * 2 triângulos * 3 índices
+     - Tampa superior: fatias triângulos * 3 índices
+     - Tampa inferior: fatias triângulos * 3 índices
+  */
+  const size_t total_índices = (size_t)fatias * 12u;
+
+  malha.vértices = calloc(total_vértices, sizeof(Vértice3D));
+  malha.índices = calloc(total_índices, sizeof(uint32_t));
+
+  if (malha.vértices == nullptr || malha.índices == nullptr) {
+    free(malha.vértices);
+    free(malha.índices);
+    malha.vértices = nullptr;
+    malha.índices = nullptr;
+    return malha;
+  }
+
+  malha.núm_vértices = total_vértices;
+  malha.núm_índices = total_índices;
+
+  constexpr float dois_pi = 2.0f * 3.14159265358979323846f;
+  const float meia_altura = altura * 0.5f;
+  size_t v_idx = 0u;
+  size_t i_idx = 0u;
+
+  /* 1. Superfície Lateral */
+  const uint32_t início_lateral = (uint32_t)v_idx;
+  for (uint32_t i = 0u; i <= fatias; ++i) {
+    const float u = (float)i / (float)fatias;
+    const float ângulo = u * dois_pi;
+    const float cos_a = cosf(ângulo);
+    const float sin_a = sinf(ângulo);
+
+    const float px = cos_a * raio;
+    const float pz = sin_a * raio;
+    const Flut3D normal_lateral = { .x = cos_a, .y = 0.0f, .z = sin_a };
+
+    /* Vértice superior do anel lateral */
+    malha.vértices[v_idx++] = (Vértice3D){
+      .posição = { .x = px, .y = meia_altura, .z = pz },
+      .normal = normal_lateral,
+      .uv = { .x = u, .y = 0.0f },
+      .cor = COR_BRANCA
+    };
+
+    /* Vértice inferior do anel lateral */
+    malha.vértices[v_idx++] = (Vértice3D){
+      .posição = { .x = px, .y = -meia_altura, .z = pz },
+      .normal = normal_lateral,
+      .uv = { .x = u, .y = 1.0f },
+      .cor = COR_BRANCA
+    };
+  }
+
+  for (uint32_t i = 0u; i < fatias; ++i) {
+    const uint32_t sup_esq = início_lateral + i * 2u;
+    const uint32_t inf_esq = sup_esq + 1u;
+    const uint32_t sup_dir = sup_esq + 2u;
+    const uint32_t inf_dir = sup_esq + 3u;
+
+    malha.índices[i_idx++] = sup_esq;
+    malha.índices[i_idx++] = inf_esq;
+    malha.índices[i_idx++] = sup_dir;
+
+    malha.índices[i_idx++] = sup_dir;
+    malha.índices[i_idx++] = inf_esq;
+    malha.índices[i_idx++] = inf_dir;
+  }
+
+  /* 2. Tampa Superior (Y = +meia_altura, normal = +Y) */
+  const uint32_t centro_sup = (uint32_t)v_idx;
+  malha.vértices[v_idx++] = (Vértice3D){
+    .posição = { .x = 0.0f, .y = meia_altura, .z = 0.0f },
+    .normal = { .x = 0.0f, .y = 1.0f, .z = 0.0f },
+    .uv = { .x = 0.5f, .y = 0.5f },
+    .cor = COR_BRANCA
+  };
+
+  const uint32_t borda_sup = (uint32_t)v_idx;
+  for (uint32_t i = 0u; i <= fatias; ++i) {
+    const float u = (float)i / (float)fatias;
+    const float ângulo = u * dois_pi;
+    const float cos_a = cosf(ângulo);
+    const float sin_a = sinf(ângulo);
+
+    malha.vértices[v_idx++] = (Vértice3D){
+      .posição = { .x = cos_a * raio, .y = meia_altura, .z = sin_a * raio },
+      .normal = { .x = 0.0f, .y = 1.0f, .z = 0.0f },
+      .uv = { .x = cos_a * 0.5f + 0.5f, .y = sin_a * 0.5f + 0.5f },
+      .cor = COR_BRANCA
+    };
+  }
+
+  for (uint32_t i = 0u; i < fatias; ++i) {
+    malha.índices[i_idx++] = centro_sup;
+    malha.índices[i_idx++] = borda_sup + i + 1u;
+    malha.índices[i_idx++] = borda_sup + i;
+  }
+
+  /* 3. Tampa Inferior (Y = -meia_altura, normal = -Y) */
+  const uint32_t centro_inf = (uint32_t)v_idx;
+  malha.vértices[v_idx++] = (Vértice3D){
+    .posição = { .x = 0.0f, .y = -meia_altura, .z = 0.0f },
+    .normal = { .x = 0.0f, .y = -1.0f, .z = 0.0f },
+    .uv = { .x = 0.5f, .y = 0.5f },
+    .cor = COR_BRANCA
+  };
+
+  const uint32_t borda_inf = (uint32_t)v_idx;
+  for (uint32_t i = 0u; i <= fatias; ++i) {
+    const float u = (float)i / (float)fatias;
+    const float ângulo = u * dois_pi;
+    const float cos_a = cosf(ângulo);
+    const float sin_a = sinf(ângulo);
+
+    malha.vértices[v_idx++] = (Vértice3D){
+      .posição = { .x = cos_a * raio, .y = -meia_altura, .z = sin_a * raio },
+      .normal = { .x = 0.0f, .y = -1.0f, .z = 0.0f },
+      .uv = { .x = cos_a * 0.5f + 0.5f, .y = sin_a * 0.5f + 0.5f },
+      .cor = COR_BRANCA
+    };
+  }
+
+  for (uint32_t i = 0u; i < fatias; ++i) {
+    malha.índices[i_idx++] = centro_inf;
+    malha.índices[i_idx++] = borda_inf + i;
+    malha.índices[i_idx++] = borda_inf + i + 1u;
+  }
+
+  return malha;
 }
 
 Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões) {
