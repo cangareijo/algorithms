@@ -12,7 +12,15 @@
 
 int comparar_int32(const void *a, const void *b);
 
-static inline float normalizar_radianos(float ângulo);
+float normalizar_radianos(float ângulo);
+float suavizar_entrada_quadrática(float t);
+float suavizar_saída_quadrática(float t);
+float suavizar_entrada_saída_cúbica(float t);
+float suavizar_elástico(float t);
+float suavizar_ressalto(float t);
+float ruído_perlin_2d(float x, float y, uint32_t semente);
+float ruído_perlin_3d(float x, float y, float z, uint32_t semente);
+float ruído_fractal_2d(float x, float y, uint32_t oitavas, float persistência, float lacunaridade, uint32_t semente);
 
 typedef struct {
   uint8_t vermelho;
@@ -53,12 +61,6 @@ bool ponto_dentro_círculo(Int2D ponto, Int2D centro, uint32_t raio);
 bool ponto_dentro_triângulo(Int2D ponto, Int2D p1, Int2D p2, Int2D p3);
 bool ponto_dentro_polígono(Int2D ponto, const Int2D vértices[], size_t núm_vértices);
 size_t calcular_envoltória_convexa(const Int2D pontos[], size_t núm_pontos, Int2D saída[]);
-
-float suavizar_entrada_quadrática(float t);
-float suavizar_saída_quadrática(float t);
-float suavizar_entrada_saída_cúbica(float t);
-float suavizar_elástico(float t);
-float suavizar_ressalto(float t);
 Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos);
 
 typedef struct {
@@ -405,12 +407,6 @@ typedef struct {
 #define M_PI 3.14159265358979323846
 #endif
 
-static inline float limitar_flut(float valor, float min, float max) {
-  if (valor < min) return min;
-  if (valor > max) return max;
-  return valor;
-}
-
 static inline uint8_t limitar_u8(int32_t valor) {
   if (valor < 0) return 0;
   if (valor > 255) return 255;
@@ -423,7 +419,15 @@ int comparar_int32(const void *a, const void *b) {
   return (va > vb) - (va < vb);
 }
 
-static inline float normalizar_radianos(float ângulo) {
+
+
+static inline float limitar_flut(float valor, float min, float max) {
+  if (valor < min) return min;
+  if (valor > max) return max;
+  return valor;
+}
+
+float normalizar_radianos(float ângulo) {
   const float dois_pi = (float)(2.0 * M_PI);
   ângulo = fmodf(ângulo, dois_pi);
   if (ângulo < 0.0f) {
@@ -431,6 +435,213 @@ static inline float normalizar_radianos(float ângulo) {
   }
   return ângulo;
 }
+
+float suavizar_entrada_quadrática(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  return t * t;
+}
+
+float suavizar_saída_quadrática(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  return 1.0f - (1.0f - t) * (1.0f - t);
+}
+
+float suavizar_entrada_saída_cúbica(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  if (t < 0.5f) {
+    return 4.0f * t * t * t;
+  }
+
+  const float fator = -2.0f * t + 2.0f;
+  return 1.0f - (fator * fator * fator) * 0.5f;
+}
+
+float suavizar_elástico(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  constexpr float c4 = (2.0f * 3.14159265358979323846f) / 3.0f;
+
+  return powf(2.0f, -10.0f * t) * sinf((t * 10.0f - 0.75f) * c4) + 1.0f;
+}
+
+float suavizar_ressalto(float t) {
+  if (t <= 0.0f) return 0.0f;
+  if (t >= 1.0f) return 1.0f;
+
+  constexpr float n1 = 7.5625f;
+  constexpr float d1 = 2.75f;
+
+  if (t < 1.0f / d1) {
+    return n1 * t * t;
+  }
+  if (t < 2.0f / d1) {
+    t -= 1.5f / d1;
+    return n1 * t * t + 0.75f;
+  }
+  if (t < 2.5f / d1) {
+    t -= 2.25f / d1;
+    return n1 * t * t + 0.9375f;
+  }
+
+  t -= 2.625f / d1;
+  return n1 * t * t + 0.984375f;
+}
+
+static inline float interpolar_linear_ruído(float a, float b, float t) {
+  return a + t * (b - a);
+}
+
+static inline float curva_suavização_perlin(float t) {
+  return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+}
+
+static inline uint32_t misturar_hash_perlin(uint32_t x, uint32_t y, uint32_t z, uint32_t semente) {
+  uint32_t h = semente;
+  h ^= x * 374761393u;
+  h = (h << 13) | (h >> 19);
+  h ^= y * 668265263u;
+  h = (h << 13) | (h >> 19);
+  h ^= z * 2147483647u;
+  h ^= h >> 16;
+  h *= 2246822519u;
+  h ^= h >> 13;
+  h *= 3266489917u;
+  h ^= h >> 16;
+  return h;
+}
+
+static inline float gradiente_perlin_2d(uint32_t hash, float dx, float dy) {
+  switch (hash & 7u) {
+    case 0:  return  dx + dy;
+    case 1:  return -dx + dy;
+    case 2:  return  dx - dy;
+    case 3:  return -dx - dy;
+    case 4:  return  dx * 1.41421356f;
+    case 5:  return -dx * 1.41421356f;
+    case 6:  return  dy * 1.41421356f;
+    default: return -dy * 1.41421356f;
+  }
+}
+
+static inline float gradiente_perlin_3d(uint32_t hash, float dx, float dy, float dz) {
+  const uint32_t h = hash & 15u;
+  const float u = (h < 8u) ? dx : dy;
+  const float v = (h < 4u) ? dy : ((h == 12u || h == 14u) ? dx : dz);
+  return (((h & 1u) == 0u) ? u : -u) + (((h & 2u) == 0u) ? v : -v);
+}
+
+float ruído_perlin_2d(float x, float y, uint32_t semente) {
+  const float fx = floorf(x);
+  const float fy = floorf(y);
+
+  const uint32_t x0 = (uint32_t)(int32_t)fx;
+  const uint32_t y0 = (uint32_t)(int32_t)fy;
+  const uint32_t x1 = x0 + 1u;
+  const uint32_t y1 = y0 + 1u;
+
+  const float dx = x - fx;
+  const float dy = y - fy;
+
+  const float u = curva_suavização_perlin(dx);
+  const float v = curva_suavização_perlin(dy);
+
+  const uint32_t h00 = misturar_hash_perlin(x0, y0, 0u, semente);
+  const uint32_t h10 = misturar_hash_perlin(x1, y0, 0u, semente);
+  const uint32_t h01 = misturar_hash_perlin(x0, y1, 0u, semente);
+  const uint32_t h11 = misturar_hash_perlin(x1, y1, 0u, semente);
+
+  const float n00 = gradiente_perlin_2d(h00, dx,        dy);
+  const float n10 = gradiente_perlin_2d(h10, dx - 1.0f, dy);
+  const float n01 = gradiente_perlin_2d(h01, dx,        dy - 1.0f);
+  const float n11 = gradiente_perlin_2d(h11, dx - 1.0f, dy - 1.0f);
+
+  const float nx0 = interpolar_linear_ruído(n00, n10, u);
+  const float nx1 = interpolar_linear_ruído(n01, n11, u);
+
+  return interpolar_linear_ruído(nx0, nx1, v) * 0.70710678f;
+}
+
+float ruído_perlin_3d(float x, float y, float z, uint32_t semente) {
+  const float fx = floorf(x);
+  const float fy = floorf(y);
+  const float fz = floorf(z);
+
+  const uint32_t x0 = (uint32_t)(int32_t)fx;
+  const uint32_t y0 = (uint32_t)(int32_t)fy;
+  const uint32_t z0 = (uint32_t)(int32_t)fz;
+  const uint32_t x1 = x0 + 1u;
+  const uint32_t y1 = y0 + 1u;
+  const uint32_t z1 = z0 + 1u;
+
+  const float dx = x - fx;
+  const float dy = y - fy;
+  const float dz = z - fz;
+
+  const float u = curva_suavização_perlin(dx);
+  const float v = curva_suavização_perlin(dy);
+  const float w = curva_suavização_perlin(dz);
+
+  const uint32_t h000 = misturar_hash_perlin(x0, y0, z0, semente);
+  const uint32_t h100 = misturar_hash_perlin(x1, y0, z0, semente);
+  const uint32_t h010 = misturar_hash_perlin(x0, y1, z0, semente);
+  const uint32_t h110 = misturar_hash_perlin(x1, y1, z0, semente);
+  const uint32_t h001 = misturar_hash_perlin(x0, y0, z1, semente);
+  const uint32_t h101 = misturar_hash_perlin(x1, y0, z1, semente);
+  const uint32_t h011 = misturar_hash_perlin(x0, y1, z1, semente);
+  const uint32_t h111 = misturar_hash_perlin(x1, y1, z1, semente);
+
+  const float n000 = gradiente_perlin_3d(h000, dx,        dy,        dz);
+  const float n100 = gradiente_perlin_3d(h100, dx - 1.0f, dy,        dz);
+  const float n010 = gradiente_perlin_3d(h010, dx,        dy - 1.0f, dz);
+  const float n110 = gradiente_perlin_3d(h110, dx - 1.0f, dy - 1.0f, dz);
+  const float n001 = gradiente_perlin_3d(h001, dx,        dy,        dz - 1.0f);
+  const float n101 = gradiente_perlin_3d(h101, dx - 1.0f, dy,        dz - 1.0f);
+  const float n011 = gradiente_perlin_3d(h011, dx,        dy - 1.0f, dz - 1.0f);
+  const float n111 = gradiente_perlin_3d(h111, dx - 1.0f, dy - 1.0f, dz - 1.0f);
+
+  const float nx00 = interpolar_linear_ruído(n000, n100, u);
+  const float nx10 = interpolar_linear_ruído(n010, n110, u);
+  const float nx01 = interpolar_linear_ruído(n001, n101, u);
+  const float nx11 = interpolar_linear_ruído(n011, n111, u);
+
+  const float nxy0 = interpolar_linear_ruído(nx00, nx10, v);
+  const float nxy1 = interpolar_linear_ruído(nx01, nx11, v);
+
+  return interpolar_linear_ruído(nxy0, nxy1, w);
+}
+
+float ruído_fractal_2d(float x, float y, uint32_t oitavas, float persistência, float lacunaridade, uint32_t semente) {
+  if (oitavas == 0u) {
+    return 0.0f;
+  }
+
+  float total = 0.0f;
+  float frequência = 1.0f;
+  float amplitude = 1.0f;
+  float amplitude_máxima = 0.0f;
+
+  for (uint32_t i = 0u; i < oitavas; ++i) {
+    total += ruído_perlin_2d(x * frequência, y * frequência, semente + i * 1013u) * amplitude;
+    amplitude_máxima += amplitude;
+    amplitude *= persistência;
+    frequência *= lacunaridade;
+  }
+
+  if (amplitude_máxima <= 0.0f) {
+    return 0.0f;
+  }
+
+  return total / amplitude_máxima;
+}
+
+
 
 bool cores_iguais(Cor a, Cor b) {
   return a.vermelho == b.vermelho &&
@@ -638,66 +849,6 @@ size_t calcular_envoltória_convexa(const Int2D pontos[], size_t núm_pontos, In
 
   /* Remover o último ponto pois é duplicado do primeiro */
   return (k > 1) ? (k - 1) : k;
-}
-
-
-
-float suavizar_entrada_quadrática(float t) {
-  if (t <= 0.0f) return 0.0f;
-  if (t >= 1.0f) return 1.0f;
-
-  return t * t;
-}
-
-float suavizar_saída_quadrática(float t) {
-  if (t <= 0.0f) return 0.0f;
-  if (t >= 1.0f) return 1.0f;
-
-  return 1.0f - (1.0f - t) * (1.0f - t);
-}
-
-float suavizar_entrada_saída_cúbica(float t) {
-  if (t <= 0.0f) return 0.0f;
-  if (t >= 1.0f) return 1.0f;
-
-  if (t < 0.5f) {
-    return 4.0f * t * t * t;
-  }
-
-  const float fator = -2.0f * t + 2.0f;
-  return 1.0f - (fator * fator * fator) * 0.5f;
-}
-
-float suavizar_elástico(float t) {
-  if (t <= 0.0f) return 0.0f;
-  if (t >= 1.0f) return 1.0f;
-
-  constexpr float c4 = (2.0f * 3.14159265358979323846f) / 3.0f;
-
-  return powf(2.0f, -10.0f * t) * sinf((t * 10.0f - 0.75f) * c4) + 1.0f;
-}
-
-float suavizar_ressalto(float t) {
-  if (t <= 0.0f) return 0.0f;
-  if (t >= 1.0f) return 1.0f;
-
-  constexpr float n1 = 7.5625f;
-  constexpr float d1 = 2.75f;
-
-  if (t < 1.0f / d1) {
-    return n1 * t * t;
-  }
-  if (t < 2.0f / d1) {
-    t -= 1.5f / d1;
-    return n1 * t * t + 0.75f;
-  }
-  if (t < 2.5f / d1) {
-    t -= 2.25f / d1;
-    return n1 * t * t + 0.9375f;
-  }
-
-  t -= 2.625f / d1;
-  return n1 * t * t + 0.984375f;
 }
 
 Int2D rodar_ponto(Int2D ponto, Int2D origem, float radianos) {
