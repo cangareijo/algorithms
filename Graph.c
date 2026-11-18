@@ -354,6 +354,7 @@ unsigned *findKTrusses(const Graph *g);
 unsigned *findDegeneracyOrdering(const Graph *g);
 unsigned *calculate_clique_peeling(const Graph *g);
 unsigned *calculate_unweighted_eccentricity_distribution(const Graph *g);
+unsigned *find_k_cores_distribution(const Graph *g);
 unsigned *calculateUnweightedDistances(const Graph *g, unsigned v);
 unsigned *getPreOrderSort(const Graph *g, unsigned v);
 unsigned *getPostOrderSort(const Graph *g, unsigned v);
@@ -444,7 +445,7 @@ double *calculateWeightedDistances(const Graph *g, unsigned v);
 
 double (*calculateGraphLayout(const Graph *g, unsigned iterations))[2];
 
-double **calculateFloydWarshall(const Graph *g);
+double **create_distance_matrix_by_floyd_warshall(const Graph *g);
 double **calculateJaccardCoefficientMatrix(const Graph *g);
 double **calculateAdamicAdarIndex(const Graph *g);
 double **calculate_preferential_attachment(const Graph *g);
@@ -6586,6 +6587,42 @@ static void find_max_clique(
   return distribution;
 }
 
+[[nodiscard]] unsigned *find_k_cores_distribution(const Graph *g) {
+  if (!g || !g->edges) return nullptr;
+  if (g->size == 0) return calloc(1, sizeof(unsigned));
+  unsigned n = g->size;
+  unsigned *dist = calloc(n, sizeof(unsigned));
+  if (!dist) return nullptr;
+  for (unsigned k = 0; k < n; k++) {
+    bool active[n];
+    for (unsigned u = 0; u < n; u++) active[u] = true;
+    unsigned deg[n] = {};
+    for (unsigned u = 0; u < n; u++)
+      for (Edge *e = g->edges[u]; e; e = e->next)
+        if (e->destination != u)
+          deg[u]++;
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (unsigned u = 0; u < n; u++)
+        if (active[u] && deg[u] < k) {
+          active[u] = false;
+          changed = true;
+          for (Edge *e = g->edges[u]; e; e = e->next)
+            if (e->destination < n && active[e->destination] && deg[e->destination] > 0)
+              deg[e->destination]--;
+        }
+    }
+    unsigned count = 0;
+    for (unsigned u = 0; u < n; u++)
+      if (active[u])
+        count++;
+    dist[k] = count;
+    if (count == 0) break;
+  }
+  return dist;
+}
+
 [[nodiscard]] unsigned *calculateUnweightedDistances(const Graph *g, unsigned v) {
   if (!is_valid(g) || v >= g->size) return nullptr;
   unsigned *distances = malloc(g->size * sizeof(unsigned));
@@ -8457,7 +8494,7 @@ double calculatePathWeight(const Graph *g, const unsigned *path, unsigned length
 
 [[nodiscard]] double *calculateClosenessCentrality(const Graph *g) {
   if (!g) return nullptr;
-  double **distance = calculateFloydWarshall(g);
+  double **distance = create_distance_matrix_by_floyd_warshall(g);
   double *centrality = calloc(g->size, sizeof(double));
   if (!distance || !centrality) {
     freeMatrix(distance, g->size);
@@ -9217,7 +9254,7 @@ static void find_minimum_fractional_vertex_cover_recursive(
 
 
 
-[[nodiscard]] double **calculateFloydWarshall(const Graph *g) {
+[[nodiscard]] double **create_distance_matrix_by_floyd_warshall(const Graph *g) {
   if (!g || g->size == 0 || !g->edges) return nullptr;
   const unsigned n = g->size;
   double **distance = malloc(n * sizeof(double *));
