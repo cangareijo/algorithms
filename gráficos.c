@@ -210,6 +210,7 @@ typedef struct {
 Tela criar_tela(uint32_t largura, uint32_t altura);
 void destruir_tela(Tela *tela);
 void limpar_tela(Tela *tela, Cor fundo);
+void gerar_textura_ruído(Tela *destino, float escala, uint32_t oitavas, uint32_t semente);
 
 Cor obter_píxel(const Tela *tela, Int2D ponto);
 void desenhar_píxel(Tela *tela, Int2D ponto, Cor cor);
@@ -1862,6 +1863,43 @@ void limpar_tela(Tela *tela, Cor fundo) {
     tela->píxeis[i] = fundo;
   }
 }
+
+void gerar_textura_ruído(Tela *destino, float escala, uint32_t oitavas, uint32_t semente) {
+  if (destino == nullptr || destino->píxeis == nullptr || destino->largura == 0u || destino->altura == 0u) {
+    return;
+  }
+
+  const float escala_efetiva = (escala > 0.0f) ? escala : 1.0f;
+  const uint32_t oitavas_efetivas = (oitavas > 0u) ? oitavas : 1u;
+  constexpr float persistência = 0.5f;
+  constexpr float lacunaridade = 2.0f;
+
+  for (uint32_t y = 0u; y < destino->altura; ++y) {
+    const size_t deslocamento_linha = (size_t)y * (size_t)destino->largura;
+    const float ny = ((float)y / (float)destino->altura) * escala_efetiva;
+
+    for (uint32_t x = 0u; x < destino->largura; ++x) {
+      const float nx = ((float)x / (float)destino->largura) * escala_efetiva;
+
+      const float valor_ruído = ruído_fractal_2d(nx, ny, oitavas_efetivas, persistência, lacunaridade, semente);
+
+      float normalizado = (valor_ruído + 1.0f) * 0.5f;
+      if (normalizado < 0.0f) normalizado = 0.0f;
+      if (normalizado > 1.0f) normalizado = 1.0f;
+
+      const uint8_t intensidade = (uint8_t)lroundf(normalizado * 255.0f);
+
+      destino->píxeis[deslocamento_linha + (size_t)x] = (Cor){
+        .vermelho = intensidade,
+        .verde = intensidade,
+        .azul = intensidade,
+        .alfa = 255u
+      };
+    }
+  }
+}
+
+
 
 static inline bool ponto_dentro_tela(const Tela *tela, Int2D p) {
   return tela && tela->píxeis &&
