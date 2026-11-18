@@ -47,7 +47,7 @@ bool isWeaklyConnected(const Graph *g);
 bool isStronglyConnected(const Graph *g);
 bool isBipartite(const Graph *g);
 bool isUndirected(const Graph *g);
-bool hasParallelEdges(const Graph *g);
+bool has_parallel_edges(const Graph *g);
 bool isDirectedForest(const Graph *g);
 bool isUndirectedForest(const Graph *g);
 bool is_directed_tree(const Graph *g);
@@ -789,16 +789,13 @@ bool isUndirected(const Graph *g) {
   return true;
 }
 
-bool hasParallelEdges(const Graph *g) {
-  if (!g || g->size == 0 || !g->edges) return false;
-  for (unsigned v = 0; v < g->size; v++) {
-    bool visited[g->size] = {};
-    for (Edge *e = g->edges[v]; e; e = e->next) {
-      if (e->destination >= g->size) continue;
-      if (visited[e->destination]) return true;
-      visited[e->destination] = true;
-    }
-  }
+bool has_parallel_edges(const Graph *g) {
+  if (!g || !g->edges) return false;
+  for (unsigned v = 0; v < g->size; v++)
+    for (Edge *e1 = g->edges[v]; e1; e1 = e1->next)
+      for (Edge *e2 = e1->next; e2; e2 = e2->next)
+        if (e1->destination == e2->destination)
+          return true;
   return false;
 }
 
@@ -915,7 +912,7 @@ bool is_undirected_path_graph(const Graph *g) {
 }
 
 bool isCycleGraph(const Graph *g) {
-  return getSize(g) >= 3 && !hasSelfLoops(g) && !hasParallelEdges(g) && isUndirected(g) && isWeaklyConnected(g) && isKRegular(g, 2);
+  return getSize(g) >= 3 && !hasSelfLoops(g) && !has_parallel_edges(g) && isUndirected(g) && isWeaklyConnected(g) && isKRegular(g, 2);
 }
 
 bool isStarGraph(const Graph *g) {
