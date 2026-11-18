@@ -306,6 +306,7 @@ void destruir_malha3d(Malha3D *malha);
 Malha3D criar_malha_cubo(float lado);
 Malha3D criar_malha_esfera(float raio, uint32_t fatias, uint32_t pilhas);
 Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões);
+Malha3D criar_malha_terreno_de_imagem(const Tela *mapa_altura, float escala_horizontal, float altura_máxima);
 bool carregar_malha_obj(Malha3D *destino, const char *caminho);
 void calcular_normais_malha(Malha3D *malha);
 CaixaDelimitadora3D calcular_caixa_delimitadora_malha(const Malha3D *malha);
@@ -5071,6 +5072,116 @@ Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisõ
     .índices = índices,
     .núm_índices = núm_índices
   };
+}
+
+static inline float obter_altura_píxel_terreno(const Tela *mapa, uint32_t px, uint32_t pz, float altura_máxima) {
+  const Cor c = mapa->píxeis[(size_t)pz * (size_t)mapa->largura + (size_t)px];
+  const float luminância = (0.2126f * (float)c.vermelho + 0.7152f * (float)c.verde + 0.0722f * (float)c.azul) / 255.0f;
+  return luminância * altura_máxima;
+}
+
+Malha3D criar_malha_terreno_de_imagem(const Tela *mapa_altura, float escala_horizontal, float altura_máxima) {
+  Malha3D malha = {
+    .vértices = nullptr,
+    .núm_vértices = 0u,
+    .índices = nullptr,
+    .núm_índices = 0u
+  };
+
+  if (mapa_altura == nullptr || mapa_altura->píxeis == nullptr || mapa_altura->largura < 2u || mapa_altura->altura < 2u) {
+    return malha;
+  }
+
+  const uint32_t largura = mapa_altura->largura;
+  const uint32_t altura = mapa_altura->altura;
+  const size_t total_vértices = (size_t)largura * (size_t)altura;
+  const size_t total_quadrados = (size_t)(largura - 1u) * (size_t)(altura - 1u);
+  const size_t total_índices = total_quadrados * 6u;
+
+  malha.vértices = calloc(total_vértices, sizeof(Vértice3D));
+  malha.índices = calloc(total_índices, sizeof(uint32_t));
+
+  if (malha.vértices == nullptr || malha.índices == nullptr) {
+    free(malha.vértices);
+    free(malha.índices);
+    malha.vértices = nullptr;
+    malha.índices = nullptr;
+    return malha;
+  }
+
+  malha.núm_vértices = total_vértices;
+  malha.núm_índices = total_índices;
+
+  const float passo = (escala_horizontal > 0.0f) ? escala_horizontal : 1.0f;
+  const float deslocamento_x = ((float)(largura - 1u) * passo) * 0.5f;
+  const float deslocamento_z = ((float)(altura - 1u) * passo) * 0.5f;
+
+  for (uint32_t z = 0u; z < altura; ++z) {
+    const size_t linha_atual = (size_t)z * (size_t)largura;
+    const float v_tex = (float)z / (float)(altura - 1u);
+
+    for (uint32_t x = 0u; x < largura; ++x) {
+      const float u_tex = (float)x / (float)(largura - 1u);
+      const float y_pos = obter_altura_píxel_terreno(mapa_altura, x, z, altura_máxima);
+
+      const uint32_t x_esq = (x > 0u) ? (x - 1u) : x;
+      const uint32_t x_dir = (x + 1u < largura) ? (x + 1u) : x;
+      const uint32_t z_cima = (z > 0u) ? (z - 1u) : z;
+      const uint32_t z_baixo = (z + 1u < altura) ? (z + 1u) : z;
+
+      const float h_esq = obter_altura_píxel_terreno(mapa_altura, x_esq, z, altura_máxima);
+      const float h_dir = obter_altura_píxel_terreno(mapa_altura, x_dir, z, altura_máxima);
+      const float h_cima = obter_altura_píxel_terreno(mapa_altura, x, z_cima, altura_máxima);
+      const float h_baixo = obter_altura_píxel_terreno(mapa_altura, x, z_baixo, altura_máxima);
+
+      const float dx_esp = (float)(x_dir - x_esq) * passo;
+      const float dz_esp = (float)(z_baixo - z_cima) * passo;
+
+      Flut3D normal = {
+        .x = (dx_esp > 0.0f) ? ((h_esq - h_dir) / dx_esp) : 0.0f,
+        .y = 1.0f,
+        .z = (dz_esp > 0.0f) ? ((h_cima - h_baixo) / dz_esp) : 0.0f
+      };
+
+      const float comp = sqrtf(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+      if (comp > 0.0f) {
+        normal.x /= comp;
+        normal.y /= comp;
+        normal.z /= comp;
+      }
+
+      malha.vértices[linha_atual + (size_t)x] = (Vértice3D){
+        .posição = {
+          .x = (float)x * passo - deslocamento_x,
+          .y = y_pos,
+          .z = (float)z * passo - deslocamento_z
+        },
+        .normal = normal,
+        .uv = { .x = u_tex, .y = v_tex },
+        .cor = COR_BRANCA
+      };
+    }
+  }
+
+  size_t idx = 0u;
+  for (uint32_t z = 0u; z < altura - 1u; ++z) {
+    for (uint32_t x = 0u; x < largura - 1u; ++x) {
+      const uint32_t topo_esq = z * largura + x;
+      const uint32_t topo_dir = topo_esq + 1u;
+      const uint32_t baixo_esq = (z + 1u) * largura + x;
+      const uint32_t baixo_dir = baixo_esq + 1u;
+
+      malha.índices[idx++] = topo_esq;
+      malha.índices[idx++] = baixo_esq;
+      malha.índices[idx++] = topo_dir;
+
+      malha.índices[idx++] = topo_dir;
+      malha.índices[idx++] = baixo_esq;
+      malha.índices[idx++] = baixo_dir;
+    }
+  }
+
+  return malha;
 }
 
 bool carregar_malha_obj(Malha3D *destino, const char *caminho) {
