@@ -773,12 +773,12 @@ bool ponto_dentro_polígono(Int2D ponto, const Int2D vértices[], size_t núm_v�
     const int64_t prod_vetorial = (px - xi) * dy - (py - yi) * dx;
 
     if (prod_vetorial == 0) {
-      const int64_t min_x = (xi < xj) ? xi : xj;
-      const int64_t max_x = (xi > xj) ? xi : xj;
-      const int64_t min_y = (yi < yj) ? yi : yj;
-      const int64_t max_y = (yi > yj) ? yi : yj;
+      const int64_t mín_x = (xi < xj) ? xi : xj;
+      const int64_t máx_x = (xi > xj) ? xi : xj;
+      const int64_t mín_y = (yi < yj) ? yi : yj;
+      const int64_t máx_y = (yi > yj) ? yi : yj;
 
-      if (px >= min_x && px <= max_x && py >= min_y && py <= max_y) {
+      if (px >= mín_x && px <= máx_x && py >= mín_y && py <= máx_y) {
         return true;
       }
     }
@@ -2275,15 +2275,15 @@ void desenhar_cápsula_sdf(Tela *tela, Int2D p1, Int2D p2, uint32_t raio, Cor co
   const int64_t r = (int64_t)raio;
   const float raio_quadrado = (float)((uint64_t)raio * (uint64_t)raio);
 
-  const int64_t min_x_seg = (p1.x < p2.x) ? p1.x : p2.x;
-  const int64_t max_x_seg = (p1.x > p2.x) ? p1.x : p2.x;
-  const int64_t min_y_seg = (p1.y < p2.y) ? p1.y : p2.y;
-  const int64_t max_y_seg = (p1.y > p2.y) ? p1.y : p2.y;
+  const int64_t mín_x_seg = (p1.x < p2.x) ? p1.x : p2.x;
+  const int64_t máx_x_seg = (p1.x > p2.x) ? p1.x : p2.x;
+  const int64_t mín_y_seg = (p1.y < p2.y) ? p1.y : p2.y;
+  const int64_t máx_y_seg = (p1.y > p2.y) ? p1.y : p2.y;
 
-  const int64_t x0 = (min_x_seg - r > 0) ? (min_x_seg - r) : 0;
-  const int64_t y0 = (min_y_seg - r > 0) ? (min_y_seg - r) : 0;
-  const int64_t x1 = (max_x_seg + r < (int64_t)tela->largura - 1) ? (max_x_seg + r) : ((int64_t)tela->largura - 1);
-  const int64_t y1 = (max_y_seg + r < (int64_t)tela->altura - 1)  ? (max_y_seg + r) : ((int64_t)tela->altura - 1);
+  const int64_t x0 = (mín_x_seg - r > 0) ? (mín_x_seg - r) : 0;
+  const int64_t y0 = (mín_y_seg - r > 0) ? (mín_y_seg - r) : 0;
+  const int64_t x1 = (máx_x_seg + r < (int64_t)tela->largura - 1) ? (máx_x_seg + r) : ((int64_t)tela->largura - 1);
+  const int64_t y1 = (máx_y_seg + r < (int64_t)tela->altura - 1)  ? (máx_y_seg + r) : ((int64_t)tela->altura - 1);
 
   if (x0 > x1 || y0 > y1) {
     return;
@@ -2335,15 +2335,15 @@ void desenhar_cápsula_preenchida(Tela *tela, Int2D p1, Int2D p2, uint32_t raio,
   const float raio_quadrado = (float)((uint64_t)raio * (uint64_t)raio);
 
   /* Calcular caixa envolvente dos dois círculos extremos e recortar à tela */
-  const int64_t min_x_seg = (p1.x < p2.x) ? p1.x : p2.x;
-  const int64_t max_x_seg = (p1.x > p2.x) ? p1.x : p2.x;
-  const int64_t min_y_seg = (p1.y < p2.y) ? p1.y : p2.y;
-  const int64_t max_y_seg = (p1.y > p2.y) ? p1.y : p2.y;
+  const int64_t mín_x_seg = (p1.x < p2.x) ? p1.x : p2.x;
+  const int64_t máx_x_seg = (p1.x > p2.x) ? p1.x : p2.x;
+  const int64_t mín_y_seg = (p1.y < p2.y) ? p1.y : p2.y;
+  const int64_t máx_y_seg = (p1.y > p2.y) ? p1.y : p2.y;
 
-  const int64_t x0 = (min_x_seg - r > 0) ? (min_x_seg - r) : 0;
-  const int64_t y0 = (min_y_seg - r > 0) ? (min_y_seg - r) : 0;
-  const int64_t x1 = (max_x_seg + r < (int64_t)tela->largura - 1) ? (max_x_seg + r) : ((int64_t)tela->largura - 1);
-  const int64_t y1 = (max_y_seg + r < (int64_t)tela->altura - 1)  ? (max_y_seg + r) : ((int64_t)tela->altura - 1);
+  const int64_t x0 = (mín_x_seg - r > 0) ? (mín_x_seg - r) : 0;
+  const int64_t y0 = (mín_y_seg - r > 0) ? (mín_y_seg - r) : 0;
+  const int64_t x1 = (máx_x_seg + r < (int64_t)tela->largura - 1) ? (máx_x_seg + r) : ((int64_t)tela->largura - 1);
+  const int64_t y1 = (máx_y_seg + r < (int64_t)tela->altura - 1)  ? (máx_y_seg + r) : ((int64_t)tela->altura - 1);
 
   if (x0 > x1 || y0 > y1) {
     return;
@@ -2544,10 +2544,10 @@ static inline bool bezier_cúbica_plana(Flut2D p0, Flut2D p1, Flut2D p2, Flut2D 
   const float vx = 3.0f * p2.x - 2.0f * p3.x - p0.x;
   const float vy = 3.0f * p2.y - 2.0f * p3.y - p0.y;
 
-  const float max_x = (ux * ux > vx * vx) ? (ux * ux) : (vx * vx);
-  const float max_y = (uy * uy > vy * vy) ? (uy * uy) : (vy * vy);
+  const float máx_x = (ux * ux > vx * vx) ? (ux * ux) : (vx * vx);
+  const float máx_y = (uy * uy > vy * vy) ? (uy * uy) : (vy * vy);
 
-  return (max_x + max_y) <= 16.0f * tolerância_quadrada;
+  return (máx_x + máx_y) <= 16.0f * tolerância_quadrada;
 }
 
 void desenhar_curva_bezier_adaptativa(Tela *tela, Flut2D p0, Flut2D p1, Flut2D p2, Flut2D p3, Cor cor, float tolerância_píxeis) {
@@ -2668,9 +2668,9 @@ void desenhar_triângulo_preenchido(Tela *tela, Int2D p1, Int2D p2, Int2D p3, Co
 
   int32_t altura_total = p3.y - p1.y;
   if (altura_total == 0) {
-    int32_t min_x = p1.x < p2.x ? (p1.x < p3.x ? p1.x : p3.x) : (p2.x < p3.x ? p2.x : p3.x);
-    int32_t max_x = p1.x > p2.x ? (p1.x > p3.x ? p1.x : p3.x) : (p2.x > p3.x ? p2.x : p3.x);
-    desenhar_linha_horizontal(tela, p1.y, min_x, max_x, cor);
+    int32_t mín_x = p1.x < p2.x ? (p1.x < p3.x ? p1.x : p3.x) : (p2.x < p3.x ? p2.x : p3.x);
+    int32_t máx_x = p1.x > p2.x ? (p1.x > p3.x ? p1.x : p3.x) : (p2.x > p3.x ? p2.x : p3.x);
+    desenhar_linha_horizontal(tela, p1.y, mín_x, máx_x, cor);
     return;
   }
 
@@ -2709,29 +2709,29 @@ void desenhar_triângulo_gouraud(Tela *tela, Vértice2D v1, Vértice2D v2, Vért
   const float sinal = (área > 0.0f) ? 1.0f : -1.0f;
 
   /* Calcular caixa envolvente e recortar aos limites da tela */
-  const float min_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
-  const float max_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
-  const float min_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
-  const float max_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
+  const float mín_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
+  const float máx_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
+  const float mín_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
+  const float máx_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
 
-  int32_t min_x = (int32_t)floorf(min_xf);
-  int32_t max_x = (int32_t)ceilf(max_xf);
-  int32_t min_y = (int32_t)floorf(min_yf);
-  int32_t max_y = (int32_t)ceilf(max_yf);
+  int32_t mín_x = (int32_t)floorf(mín_xf);
+  int32_t máx_x = (int32_t)ceilf(máx_xf);
+  int32_t mín_y = (int32_t)floorf(mín_yf);
+  int32_t máx_y = (int32_t)ceilf(máx_yf);
 
-  if (min_x < 0) min_x = 0;
-  if (min_y < 0) min_y = 0;
-  if (max_x >= (int32_t)tela->largura) max_x = (int32_t)tela->largura - 1;
-  if (max_y >= (int32_t)tela->altura)  max_y = (int32_t)tela->altura - 1;
+  if (mín_x < 0) mín_x = 0;
+  if (mín_y < 0) mín_y = 0;
+  if (máx_x >= (int32_t)tela->largura) máx_x = (int32_t)tela->largura - 1;
+  if (máx_y >= (int32_t)tela->altura)  máx_y = (int32_t)tela->altura - 1;
 
-  if (min_x > max_x || min_y > max_y) {
+  if (mín_x > máx_x || mín_y > máx_y) {
     return;
   }
 
-  for (int32_t y = min_y; y <= max_y; ++y) {
+  for (int32_t y = mín_y; y <= máx_y; ++y) {
     Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
 
-    for (int32_t x = min_x; x <= max_x; ++x) {
+    for (int32_t x = mín_x; x <= máx_x; ++x) {
       /* Amostragem no centro do píxel */
       const Flut2D p = { .x = (float)x + 0.5f, .y = (float)y + 0.5f };
 
@@ -2779,32 +2779,32 @@ void desenhar_triângulo_texturizado(Tela *tela, const Tela *textura, Vértice2D
   const float sinal = (área > 0.0f) ? 1.0f : -1.0f;
 
   /* Calcular caixa envolvente e recortar aos limites da tela */
-  const float min_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
-  const float max_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
-  const float min_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
-  const float max_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
+  const float mín_xf = fminf(v1.posição.x, fminf(v2.posição.x, v3.posição.x));
+  const float máx_xf = fmaxf(v1.posição.x, fmaxf(v2.posição.x, v3.posição.x));
+  const float mín_yf = fminf(v1.posição.y, fminf(v2.posição.y, v3.posição.y));
+  const float máx_yf = fmaxf(v1.posição.y, fmaxf(v2.posição.y, v3.posição.y));
 
-  int32_t min_x = (int32_t)floorf(min_xf);
-  int32_t max_x = (int32_t)ceilf(max_xf);
-  int32_t min_y = (int32_t)floorf(min_yf);
-  int32_t max_y = (int32_t)ceilf(max_yf);
+  int32_t mín_x = (int32_t)floorf(mín_xf);
+  int32_t máx_x = (int32_t)ceilf(máx_xf);
+  int32_t mín_y = (int32_t)floorf(mín_yf);
+  int32_t máx_y = (int32_t)ceilf(máx_yf);
 
-  if (min_x < 0) min_x = 0;
-  if (min_y < 0) min_y = 0;
-  if (max_x >= (int32_t)tela->largura) max_x = (int32_t)tela->largura - 1;
-  if (max_y >= (int32_t)tela->altura)  max_y = (int32_t)tela->altura - 1;
+  if (mín_x < 0) mín_x = 0;
+  if (mín_y < 0) mín_y = 0;
+  if (máx_x >= (int32_t)tela->largura) máx_x = (int32_t)tela->largura - 1;
+  if (máx_y >= (int32_t)tela->altura)  máx_y = (int32_t)tela->altura - 1;
 
-  if (min_x > max_x || min_y > max_y) {
+  if (mín_x > máx_x || mín_y > máx_y) {
     return;
   }
 
-  const float max_u_tex = (float)(textura->largura - 1);
-  const float max_v_tex = (float)(textura->altura - 1);
+  const float máx_u_tex = (float)(textura->largura - 1);
+  const float máx_v_tex = (float)(textura->altura - 1);
 
-  for (int32_t y = min_y; y <= max_y; ++y) {
+  for (int32_t y = mín_y; y <= máx_y; ++y) {
     Cor *linha = &tela->píxeis[(size_t)y * tela->largura];
 
-    for (int32_t x = min_x; x <= max_x; ++x) {
+    for (int32_t x = mín_x; x <= máx_x; ++x) {
       /* Amostragem no centro do píxel */
       const Flut2D p = { .x = (float)x + 0.5f, .y = (float)y + 0.5f };
 
@@ -2821,8 +2821,8 @@ void desenhar_triângulo_texturizado(Tela *tela, const Tela *textura, Vértice2D
         const float u = fminf(fmaxf(w1 * v1.uv.x + w2 * v2.uv.x + w3 * v3.uv.x, 0.0f), 1.0f);
         const float v = fminf(fmaxf(w1 * v1.uv.y + w2 * v2.uv.y + w3 * v3.uv.y, 0.0f), 1.0f);
 
-        const uint32_t tex_x = (uint32_t)lroundf(u * max_u_tex);
-        const uint32_t tex_y = (uint32_t)lroundf(v * max_v_tex);
+        const uint32_t tex_x = (uint32_t)lroundf(u * máx_u_tex);
+        const uint32_t tex_y = (uint32_t)lroundf(v * máx_v_tex);
         const Cor texel = textura->píxeis[(size_t)tex_y * textura->largura + tex_x];
 
         /* Interpolar cor dos vértices para modulação (tinting) */
@@ -3187,20 +3187,20 @@ void desenhar_polígono(Tela *tela, const Int2D vértices[], size_t núm_vértic
 void desenhar_polígono_preenchido(Tela *tela, const Int2D vértices[], size_t núm_vértices, Cor cor) {
   if (!tela || !tela->píxeis || !vértices || núm_vértices < 3) return;
 
-  int32_t min_y = vértices[0].y, max_y = vértices[0].y;
+  int32_t mín_y = vértices[0].y, máx_y = vértices[0].y;
   for (size_t i = 1; i < núm_vértices; i++) {
-    if (vértices[i].y < min_y) min_y = vértices[i].y;
-    if (vértices[i].y > max_y) max_y = vértices[i].y;
+    if (vértices[i].y < mín_y) mín_y = vértices[i].y;
+    if (vértices[i].y > máx_y) máx_y = vértices[i].y;
   }
 
-  if (min_y < 0) min_y = 0;
-  if (max_y >= (int32_t)tela->altura) max_y = (int32_t)tela->altura - 1;
+  if (mín_y < 0) mín_y = 0;
+  if (máx_y >= (int32_t)tela->altura) máx_y = (int32_t)tela->altura - 1;
 
   int32_t *nós = malloc(núm_vértices * sizeof(int32_t));
   if (!nós) return;
 
-  for (int32_t y = min_y; y <= max_y; y++) {
-    size_t num_nós = 0;
+  for (int32_t y = mín_y; y <= máx_y; y++) {
+    size_t núm_nós = 0;
     size_t j = núm_vértices - 1;
     for (size_t i = 0; i < núm_vértices; i++) {
       if ((vértices[i].y < y && vértices[j].y >= y) ||
@@ -3208,14 +3208,14 @@ void desenhar_polígono_preenchido(Tela *tela, const Int2D vértices[], size_t n
         float x = (float)vértices[i].x +
                   ((float)(y - vértices[i].y) / (float)(vértices[j].y - vértices[i].y)) *
                   (float)(vértices[j].x - vértices[i].x);
-        nós[num_nós++] = (int32_t)roundf(x);
+        nós[núm_nós++] = (int32_t)roundf(x);
       }
       j = i;
     }
 
-    qsort(nós, num_nós, sizeof(int32_t), comparar_int32);
+    qsort(nós, núm_nós, sizeof(int32_t), comparar_int32);
 
-    for (size_t i = 0; i + 1 < num_nós; i += 2) {
+    for (size_t i = 0; i + 1 < núm_nós; i += 2) {
       desenhar_linha_horizontal(tela, y, nós[i], nós[i + 1], cor);
     }
   }
@@ -3766,19 +3766,19 @@ void desenhar_imagem_matriz(Tela *destino, const Tela *origem, Matriz3x3 m) {
     transformar_flut2d_matriz3x3((Flut2D){ (float)origem->largura, (float)origem->altura }, &m)
   };
 
-  float min_x = cantos[0].x, max_x = cantos[0].x;
-  float min_y = cantos[0].y, max_y = cantos[0].y;
+  float mín_x = cantos[0].x, máx_x = cantos[0].x;
+  float mín_y = cantos[0].y, máx_y = cantos[0].y;
   for (int i = 1; i < 4; i++) {
-    if (cantos[i].x < min_x) min_x = cantos[i].x;
-    if (cantos[i].x > max_x) max_x = cantos[i].x;
-    if (cantos[i].y < min_y) min_y = cantos[i].y;
-    if (cantos[i].y > max_y) max_y = cantos[i].y;
+    if (cantos[i].x < mín_x) mín_x = cantos[i].x;
+    if (cantos[i].x > máx_x) máx_x = cantos[i].x;
+    if (cantos[i].y < mín_y) mín_y = cantos[i].y;
+    if (cantos[i].y > máx_y) máx_y = cantos[i].y;
   }
 
-  int32_t x0 = (int32_t)floorf(min_x);
-  int32_t y0 = (int32_t)floorf(min_y);
-  int32_t x1 = (int32_t)ceilf(max_x);
-  int32_t y1 = (int32_t)ceilf(max_y);
+  int32_t x0 = (int32_t)floorf(mín_x);
+  int32_t y0 = (int32_t)floorf(mín_y);
+  int32_t x1 = (int32_t)ceilf(máx_x);
+  int32_t y1 = (int32_t)ceilf(máx_y);
 
   if (x0 < 0) x0 = 0;
   if (y0 < 0) y0 = 0;
@@ -6288,27 +6288,27 @@ static inline VérticeRecorte3D interpolar_vértice_recorte(VérticeRecorte3D a,
 size_t recortar_triângulo_recorte_3d(const VérticeRecorte3D entrada[3], VérticeRecorte3D saída[4], float plano_próximo) {
   VérticeRecorte3D temp_dentro[3];
   VérticeRecorte3D temp_fora[3];
-  size_t num_dentro = 0u;
-  size_t num_fora = 0u;
+  size_t núm_dentro = 0u;
+  size_t núm_fora = 0u;
 
   for (size_t i = 0u; i < 3u; ++i) {
     if (entrada[i].posição_recorte.w >= plano_próximo) {
-      temp_dentro[num_dentro++] = entrada[i];
+      temp_dentro[núm_dentro++] = entrada[i];
     } else {
-      temp_fora[num_fora++] = entrada[i];
+      temp_fora[núm_fora++] = entrada[i];
     }
   }
 
-  if (num_dentro == 0u) return 0u;
+  if (núm_dentro == 0u) return 0u;
 
-  if (num_dentro == 3u) {
+  if (núm_dentro == 3u) {
     saída[0] = entrada[0];
     saída[1] = entrada[1];
     saída[2] = entrada[2];
     return 3u;
   }
 
-  if (num_dentro == 1u) {
+  if (núm_dentro == 1u) {
     const float t1 = (plano_próximo - temp_dentro[0].posição_recorte.w) / (temp_fora[0].posição_recorte.w - temp_dentro[0].posição_recorte.w);
     const float t2 = (plano_próximo - temp_dentro[0].posição_recorte.w) / (temp_fora[1].posição_recorte.w - temp_dentro[0].posição_recorte.w);
 
@@ -6439,17 +6439,17 @@ void rasterizar_triângulo_cena(
     return;
   }
 
-  const float min_xf = fminf(e0.x, fminf(e1.x, e2.x));
-  const float max_xf = fmaxf(e0.x, fmaxf(e1.x, e2.x));
-  const float min_yf = fminf(e0.y, fminf(e1.y, e2.y));
-  const float max_yf = fmaxf(e0.y, fmaxf(e1.y, e2.y));
+  const float mín_xf = fminf(e0.x, fminf(e1.x, e2.x));
+  const float máx_xf = fmaxf(e0.x, fmaxf(e1.x, e2.x));
+  const float mín_yf = fminf(e0.y, fminf(e1.y, e2.y));
+  const float máx_yf = fmaxf(e0.y, fmaxf(e1.y, e2.y));
 
-  const int32_t min_x = (int32_t)fmaxf(0.0f, floorf(min_xf));
-  const int32_t max_x = (int32_t)fminf((float)(tela->largura - 1u), ceilf(max_xf));
-  const int32_t min_y = (int32_t)fmaxf(0.0f, floorf(min_yf));
-  const int32_t max_y = (int32_t)fminf((float)(tela->altura - 1u), ceilf(max_yf));
+  const int32_t mín_x = (int32_t)fmaxf(0.0f, floorf(mín_xf));
+  const int32_t máx_x = (int32_t)fminf((float)(tela->largura - 1u), ceilf(máx_xf));
+  const int32_t mín_y = (int32_t)fmaxf(0.0f, floorf(mín_yf));
+  const int32_t máx_y = (int32_t)fminf((float)(tela->altura - 1u), ceilf(máx_yf));
 
-  if (min_x > max_x || min_y > max_y) {
+  if (mín_x > máx_x || mín_y > máx_y) {
     return;
   }
 
@@ -6489,11 +6489,11 @@ void rasterizar_triângulo_cena(
     }
   }
 
-  for (int32_t y = min_y; y <= max_y; ++y) {
+  for (int32_t y = mín_y; y <= máx_y; ++y) {
     const float py = (float)y + 0.5f;
     const size_t linha_idx = (size_t)y * (size_t)tela->largura;
 
-    for (int32_t x = min_x; x <= max_x; ++x) {
+    for (int32_t x = mín_x; x <= máx_x; ++x) {
       const float px = (float)x + 0.5f;
 
       const float w0 = ((e1.x - px) * (e2.y - py) - (e1.y - py) * (e2.x - px)) * inv_área;
@@ -6638,11 +6638,11 @@ void renderizar_objeto_cena(
     }
 
     VérticeRecorte3D recortados[4];
-    const size_t num_recortados = recortar_triângulo_recorte_3d(v_recorte, recortados, cena->câmara->plano_próximo);
+    const size_t núm_recortados = recortar_triângulo_recorte_3d(v_recorte, recortados, cena->câmara->plano_próximo);
 
-    if (num_recortados >= 3u) {
+    if (núm_recortados >= 3u) {
       rasterizar_triângulo_cena(tela, zbuffer, cena, mat, recortados[0], recortados[1], recortados[2], escrever_zbuffer);
-      if (num_recortados == 4u) {
+      if (núm_recortados == 4u) {
         rasterizar_triângulo_cena(tela, zbuffer, cena, mat, recortados[0], recortados[2], recortados[3], escrever_zbuffer);
       }
     }
@@ -6678,7 +6678,7 @@ void desenhar_cena_3d(
   multiplicar_matrizes4x4(&visão_projeção, &matriz_visão, &matriz_projeção);
 
   ObjetoRenderizável *transparentes = calloc(núm_objetos, sizeof(ObjetoRenderizável));
-  size_t num_transparentes = 0u;
+  size_t núm_transparentes = 0u;
 
   /* 1. Passagem Opaca (escreve no Z-buffer) */
   for (size_t i = 0u; i < núm_objetos; ++i) {
@@ -6695,7 +6695,7 @@ void desenhar_cena_3d(
         .y = matrizes_modelo[i].m[3][1],
         .z = matrizes_modelo[i].m[3][2]
       };
-      transparentes[num_transparentes++] = (ObjetoRenderizável){
+      transparentes[núm_transparentes++] = (ObjetoRenderizável){
         .índice_objeto = i,
         .profundidade_câmara = distância_flut3d(cam->posição, pos_objeto)
       };
@@ -6706,10 +6706,10 @@ void desenhar_cena_3d(
   }
 
   /* 2. Passagem Transparente (ordenada de trás para a frente, sem escrita no Z-buffer) */
-  if (transparentes != nullptr && num_transparentes > 0u) {
-    qsort(transparentes, num_transparentes, sizeof(ObjetoRenderizável), comparar_objetos_transparentes);
+  if (transparentes != nullptr && núm_transparentes > 0u) {
+    qsort(transparentes, núm_transparentes, sizeof(ObjetoRenderizável), comparar_objetos_transparentes);
 
-    for (size_t i = 0u; i < num_transparentes; ++i) {
+    for (size_t i = 0u; i < núm_transparentes; ++i) {
       const size_t idx = transparentes[i].índice_objeto;
       renderizar_objeto_cena(tela, zbuffer, cena, &malhas[idx], &matrizes_modelo[idx], &visão_projeção, &materiais[idx], false);
     }
