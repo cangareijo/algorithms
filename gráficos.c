@@ -288,6 +288,7 @@ Tela extrair_canal_azul(const Tela *origem);
 Tela extrair_canal_alfa(const Tela *origem);
 void substituir_cor(Tela *tela, Cor alvo, Cor nova, uint8_t tolerância);
 void aplicar_fxaa(Tela * restrict destino, const Tela * restrict origem);
+void aplicar_bloom(Tela * restrict destino, const Tela * restrict origem, Tela * restrict buffer_temp1, Tela * restrict buffer_temp2, uint8_t limiar_brilho, uint32_t raio_desfoque, float intensidade);
 
 bool atualizar_textura_sdl(SDL_Texture *textura, const Tela *tela);
 SDL_Texture *criar_textura_sdl_de_tela(SDL_Renderer *renderizador, const Tela *tela);
@@ -4611,6 +4612,93 @@ void aplicar_fxaa(Tela * restrict destino, const Tela * restrict origem) {
         .alfa     = cor_centro.alfa
       };
     }
+  }
+}
+
+void aplicar_bloom(
+  Tela * restrict destino,
+  const Tela * restrict origem,
+  Tela * restrict buffer_temp1,
+  Tela * restrict buffer_temp2,
+  uint8_t limiar_brilho,
+  uint32_t raio_desfoque,
+  float intensidade
+) {
+  if (destino == nullptr || origem == nullptr || buffer_temp1 == nullptr || buffer_temp2 == nullptr) {
+    return;
+  }
+  if (destino->píxeis == nullptr || origem->píxeis == nullptr || buffer_temp1->píxeis == nullptr || buffer_temp2->píxeis == nullptr) {
+    return;
+  }
+
+  const uint32_t largura = origem->largura;
+  const uint32_t altura = origem->altura;
+
+  if (largura == 0u || altura == 0u) {
+    return;
+  }
+  if (destino->largura != largura || destino->altura != altura ||
+      buffer_temp1->largura != largura || buffer_temp1->altura != altura ||
+      buffer_temp2->largura != largura || buffer_temp2->altura != altura) {
+    return;
+  }
+
+  const size_t total_píxeis = (size_t)largura * (size_t)altura;
+
+  if (intensidade <= 0.0f) {
+    memcpy(destino->píxeis, origem->píxeis, total_píxeis * sizeof(Cor));
+    return;
+  }
+
+  const float limiar_norm = (float)limiar_brilho / 255.0f;
+  const float margem_suave = 0.1f;
+
+  /* 1. Extrair zonas luminosas acima do limiar para buffer_temp1 */
+  for (size_t i = 0u; i < total_píxeis; ++i) {
+    const Cor c = origem->píxeis[i];
+    const float luminância = (0.2126f * (float)c.vermelho + 0.7152f * (float)c.verde + 0.0722f * (float)c.azul) / 255.0f;
+
+    if (luminância <= limiar_norm) {
+      buffer_temp1->píxeis[i] = (Cor){ .vermelho = 0u, .verde = 0u, .azul = 0u, .alfa = c.alfa };
+    } else {
+      float contribuição = (luminância - limiar_norm) / (1.0f - limiar_norm + 1e-5f);
+      if (luminância < limiar_norm + margem_suave) {
+        const float t = (luminância - limiar_norm) / margem_suave;
+        contribuição *= t * t * (3.0f - 2.0f * t);
+      }
+      if (contribuição > 1.0f) contribuição = 1.0f;
+
+      buffer_temp1->píxeis[i] = (Cor){
+        .vermelho = (uint8_t)lroundf((float)c.vermelho * contribuição),
+        .verde    = (uint8_t)lroundf((float)c.verde    * contribuição),
+        .azul     = (uint8_t)lroundf((float)c.azul     * contribuição),
+        .alfa     = c.alfa
+      };
+    }
+  }
+
+  /* 2. Aplicar desfoque gaussiano de buffer_temp1 para destino (usando buffer_temp2 como intermédio) */
+  const Tela *mapa_brilho = buffer_temp1;
+  if (raio_desfoque > 0u) {
+    aplicar_desfoque_gaussiano(destino, buffer_temp1, buffer_temp2, raio_desfoque);
+    mapa_brilho = destino;
+  }
+
+  /* 3. Combinar aditivamente a imagem original com o brilho desfocado */
+  for (size_t i = 0u; i < total_píxeis; ++i) {
+    const Cor orig = origem->píxeis[i];
+    const Cor brilho = mapa_brilho->píxeis[i];
+
+    const long r = lroundf((float)orig.vermelho + (float)brilho.vermelho * intensidade);
+    const long g = lroundf((float)orig.verde    + (float)brilho.verde    * intensidade);
+    const long b = lroundf((float)orig.azul     + (float)brilho.azul     * intensidade);
+
+    destino->píxeis[i] = (Cor){
+      .vermelho = (r > 255L) ? 255u : ((r < 0L) ? 0u : (uint8_t)r),
+      .verde    = (g > 255L) ? 255u : ((g < 0L) ? 0u : (uint8_t)g),
+      .azul     = (b > 255L) ? 255u : ((b < 0L) ? 0u : (uint8_t)b),
+      .alfa     = orig.alfa
+    };
   }
 }
 
