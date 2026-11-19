@@ -342,6 +342,8 @@ typedef struct {
   float plano_distante;
 } Câmara3D;
 
+void desenhar_skybox(Tela *tela, const Tela faces[6], const Câmara3D *câmara);
+
 typedef enum {
   LUZ_DIRECIONAL,
   LUZ_PONTUAL,
@@ -5947,6 +5949,153 @@ void desenhar_caixa_delimitadora_3d(Tela *tela, BufferProfundidade *zbuffer, Cai
     const Flut3D início = cantos[arestas[i][0]];
     const Flut3D fim = cantos[arestas[i][1]];
     desenhar_linha_3d(tela, zbuffer, início, fim, mvp, cor);
+  }
+}
+
+static inline Cor amostrar_face_skybox_bilinear(const Tela *face, float u, float v) {
+  if (face == nullptr || face->píxeis == nullptr || face->largura == 0u || face->altura == 0u) {
+    return COR_PRETA;
+  }
+
+  if (u < 0.0f) u = 0.0f;
+  if (u > 1.0f) u = 1.0f;
+  if (v < 0.0f) v = 0.0f;
+  if (v > 1.0f) v = 1.0f;
+
+  const float fx = u * (float)(face->largura - 1u);
+  const float fy = v * (float)(face->altura - 1u);
+
+  const uint32_t x0 = (uint32_t)fx;
+  const uint32_t y0 = (uint32_t)fy;
+  const uint32_t x1 = (x0 + 1u < face->largura) ? (x0 + 1u) : x0;
+  const uint32_t y1 = (y0 + 1u < face->altura) ? (y0 + 1u) : y0;
+
+  const float tx = fx - (float)x0;
+  const float ty = fy - (float)y0;
+  const float inv_tx = 1.0f - tx;
+  const float inv_ty = 1.0f - ty;
+
+  const Cor c00 = face->píxeis[(size_t)y0 * (size_t)face->largura + (size_t)x0];
+  const Cor c10 = face->píxeis[(size_t)y0 * (size_t)face->largura + (size_t)x1];
+  const Cor c01 = face->píxeis[(size_t)y1 * (size_t)face->largura + (size_t)x0];
+  const Cor c11 = face->píxeis[(size_t)y1 * (size_t)face->largura + (size_t)x1];
+
+  const float p00 = inv_tx * inv_ty;
+  const float p10 = tx * inv_ty;
+  const float p01 = inv_tx * ty;
+  const float p11 = tx * ty;
+
+  return (Cor){
+    .vermelho = (uint8_t)lroundf((float)c00.vermelho * p00 + (float)c10.vermelho * p10 + (float)c01.vermelho * p01 + (float)c11.vermelho * p11),
+    .verde    = (uint8_t)lroundf((float)c00.verde    * p00 + (float)c10.verde    * p10 + (float)c01.verde    * p01 + (float)c11.verde    * p11),
+    .azul     = (uint8_t)lroundf((float)c00.azul     * p00 + (float)c10.azul     * p10 + (float)c01.azul     * p01 + (float)c11.azul     * p11),
+    .alfa     = 255u
+  };
+}
+
+void desenhar_skybox(Tela *tela, const Tela faces[6], const Câmara3D *câmara) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0u || tela->altura == 0u || faces == nullptr || câmara == nullptr) {
+    return;
+  }
+
+  /* Construir base ortonormal da câmara */
+  Flut3D frente = câmara->direção;
+  const float comp_frente = sqrtf(frente.x * frente.x + frente.y * frente.y + frente.z * frente.z);
+  if (comp_frente <= 1e-6f) {
+    return;
+  }
+  frente.x /= comp_frente;
+  frente.y /= comp_frente;
+  frente.z /= comp_frente;
+
+  /* direita = normalizar(produto_vetorial(frente, cima)) */
+  Flut3D direita = {
+    .x = frente.y * câmara->cima.z - frente.z * câmara->cima.y,
+    .y = frente.z * câmara->cima.x - frente.x * câmara->cima.z,
+    .z = frente.x * câmara->cima.y - frente.y * câmara->cima.x
+  };
+  const float comp_direita = sqrtf(direita.x * direita.x + direita.y * direita.y + direita.z * direita.z);
+  if (comp_direita <= 1e-6f) {
+    return;
+  }
+  direita.x /= comp_direita;
+  direita.y /= comp_direita;
+  direita.z /= comp_direita;
+
+  /* cima_real = produto_vetorial(direita, frente) */
+  const Flut3D cima_real = {
+    .x = direita.y * frente.z - direita.z * frente.y,
+    .y = direita.z * frente.x - direita.x * frente.z,
+    .z = direita.x * frente.y - direita.y * frente.x
+  };
+
+  const float aspeto = (float)tela->largura / (float)tela->altura;
+  const float escala_fov = tanf(câmara->fov_radianos * 0.5f);
+  const float inv_largura = 2.0f / (float)tela->largura;
+  const float inv_altura = 2.0f / (float)tela->altura;
+
+  for (uint32_t y = 0u; y < tela->altura; ++y) {
+    const size_t deslocamento_linha = (size_t)y * (size_t)tela->largura;
+    /* Coordenada NDC Y invertida (+1 em cima, -1 em baixo) */
+    const float ndc_y = (1.0f - ((float)y + 0.5f) * inv_altura) * escala_fov;
+
+    for (uint32_t x = 0u; x < tela->largura; ++x) {
+      const float ndc_x = (((float)x + 0.5f) * inv_largura - 1.0f) * aspeto * escala_fov;
+
+      /* Direção do raio no espaço do mundo */
+      const float dx = frente.x + direita.x * ndc_x + cima_real.x * ndc_y;
+      const float dy = frente.y + direita.y * ndc_x + cima_real.y * ndc_y;
+      const float dz = frente.z + direita.z * ndc_x + cima_real.z * ndc_y;
+
+      const float abs_x = fabsf(dx);
+      const float abs_y = fabsf(dy);
+      const float abs_z = fabsf(dz);
+
+      size_t índice_face = 0u;
+      float eixo_maior = 1.0f;
+      float uc = 0.0f;
+      float vc = 0.0f;
+
+      if (abs_x >= abs_y && abs_x >= abs_z) {
+        eixo_maior = abs_x;
+        if (dx > 0.0f) {
+          índice_face = 0u; /* +X */
+          uc = -dz;
+          vc = -dy;
+        } else {
+          índice_face = 1u; /* -X */
+          uc = dz;
+          vc = -dy;
+        }
+      } else if (abs_y >= abs_x && abs_y >= abs_z) {
+        eixo_maior = abs_y;
+        if (dy > 0.0f) {
+          índice_face = 2u; /* +Y */
+          uc = dx;
+          vc = dz;
+        } else {
+          índice_face = 3u; /* -Y */
+          uc = dx;
+          vc = -dz;
+        }
+      } else {
+        eixo_maior = abs_z;
+        if (dz > 0.0f) {
+          índice_face = 4u; /* +Z */
+          uc = dx;
+          vc = -dy;
+        } else {
+          índice_face = 5u; /* -Z */
+          uc = -dx;
+          vc = -dy;
+        }
+      }
+
+      const float u = 0.5f * (uc / eixo_maior + 1.0f);
+      const float v = 0.5f * (vc / eixo_maior + 1.0f);
+
+      tela->píxeis[deslocamento_linha + (size_t)x] = amostrar_face_skybox_bilinear(&faces[índice_face], u, v);
+    }
   }
 }
 
