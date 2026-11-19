@@ -287,6 +287,7 @@ Tela extrair_canal_verde(const Tela *origem);
 Tela extrair_canal_azul(const Tela *origem);
 Tela extrair_canal_alfa(const Tela *origem);
 void substituir_cor(Tela *tela, Cor alvo, Cor nova, uint8_t tolerância);
+void aplicar_fxaa(Tela * restrict destino, const Tela * restrict origem);
 
 bool atualizar_textura_sdl(SDL_Texture *textura, const Tela *tela);
 SDL_Texture *criar_textura_sdl_de_tela(SDL_Renderer *renderizador, const Tela *tela);
@@ -4464,6 +4465,151 @@ void substituir_cor(Tela *tela, Cor alvo, Cor nova, uint8_t tolerância) {
         db <= (int32_t)tolerância &&
         da <= (int32_t)tolerância) {
       tela->píxeis[i] = nova;
+    }
+  }
+}
+
+static inline float luminância_fxaa(Cor c) {
+  return (0.299f * (float)c.vermelho + 0.587f * (float)c.verde + 0.114f * (float)c.azul) / 255.0f;
+}
+
+static inline Cor amostrar_bilinear_fxaa(const Tela *tela, float fx, float fy) {
+  if (fx < 0.0f) fx = 0.0f;
+  if (fy < 0.0f) fy = 0.0f;
+  if (fx > (float)(tela->largura - 1u)) fx = (float)(tela->largura - 1u);
+  if (fy > (float)(tela->altura - 1u)) fy = (float)(tela->altura - 1u);
+
+  const uint32_t x0 = (uint32_t)fx;
+  const uint32_t y0 = (uint32_t)fy;
+  const uint32_t x1 = (x0 + 1u < tela->largura) ? (x0 + 1u) : x0;
+  const uint32_t y1 = (y0 + 1u < tela->altura) ? (y0 + 1u) : y0;
+
+  const float tx = fx - (float)x0;
+  const float ty = fy - (float)y0;
+  const float inv_tx = 1.0f - tx;
+  const float inv_ty = 1.0f - ty;
+
+  const Cor c00 = tela->píxeis[(size_t)y0 * (size_t)tela->largura + (size_t)x0];
+  const Cor c10 = tela->píxeis[(size_t)y0 * (size_t)tela->largura + (size_t)x1];
+  const Cor c01 = tela->píxeis[(size_t)y1 * (size_t)tela->largura + (size_t)x0];
+  const Cor c11 = tela->píxeis[(size_t)y1 * (size_t)tela->largura + (size_t)x1];
+
+  const float p00 = inv_tx * inv_ty;
+  const float p10 = tx * inv_ty;
+  const float p01 = inv_tx * ty;
+  const float p11 = tx * ty;
+
+  return (Cor){
+    .vermelho = (uint8_t)lroundf((float)c00.vermelho * p00 + (float)c10.vermelho * p10 + (float)c01.vermelho * p01 + (float)c11.vermelho * p11),
+    .verde    = (uint8_t)lroundf((float)c00.verde    * p00 + (float)c10.verde    * p10 + (float)c01.verde    * p01 + (float)c11.verde    * p11),
+    .azul     = (uint8_t)lroundf((float)c00.azul     * p00 + (float)c10.azul     * p10 + (float)c01.azul     * p01 + (float)c11.azul     * p11),
+    .alfa     = (uint8_t)lroundf((float)c00.alfa     * p00 + (float)c10.alfa     * p10 + (float)c01.alfa     * p01 + (float)c11.alfa     * p11)
+  };
+}
+
+void aplicar_fxaa(Tela * restrict destino, const Tela * restrict origem) {
+  if (destino == nullptr || origem == nullptr || destino->píxeis == nullptr || origem->píxeis == nullptr) {
+    return;
+  }
+  if (destino->largura != origem->largura || destino->altura != origem->altura || origem->largura == 0u || origem->altura == 0u) {
+    return;
+  }
+
+  constexpr float limiar_contraste_mínimo = 0.0312f;
+  constexpr float limiar_contraste_relativo = 0.125f;
+  constexpr float subpíxel_suavização = 0.75f;
+  constexpr float alcance_máximo = 8.0f;
+
+  const uint32_t largura = origem->largura;
+  const uint32_t altura = origem->altura;
+
+  for (uint32_t y = 0u; y < altura; ++y) {
+    const size_t linha_atual = (size_t)y * (size_t)largura;
+
+    for (uint32_t x = 0u; x < largura; ++x) {
+      const Cor cor_centro = origem->píxeis[linha_atual + (size_t)x];
+
+      if (x == 0u || y == 0u || x + 1u >= largura || y + 1u >= altura) {
+        destino->píxeis[linha_atual + (size_t)x] = cor_centro;
+        continue;
+      }
+
+      const size_t linha_cima = (size_t)(y - 1u) * (size_t)largura;
+      const size_t linha_baixo = (size_t)(y + 1u) * (size_t)largura;
+
+      const float lum_c  = luminância_fxaa(cor_centro);
+      const float lum_n  = luminância_fxaa(origem->píxeis[linha_cima + (size_t)x]);
+      const float lum_s  = luminância_fxaa(origem->píxeis[linha_baixo + (size_t)x]);
+      const float lum_o  = luminância_fxaa(origem->píxeis[linha_atual + (size_t)(x - 1u)]);
+      const float lum_e  = luminância_fxaa(origem->píxeis[linha_atual + (size_t)(x + 1u)]);
+
+      const float lum_min = fminf(lum_c, fminf(fminf(lum_n, lum_s), fminf(lum_o, lum_e)));
+      const float lum_max = fmaxf(lum_c, fmaxf(fmaxf(lum_n, lum_s), fmaxf(lum_o, lum_e)));
+      const float contraste = lum_max - lum_min;
+
+      if (contraste < fmaxf(limiar_contraste_mínimo, lum_max * limiar_contraste_relativo)) {
+        destino->píxeis[linha_atual + (size_t)x] = cor_centro;
+        continue;
+      }
+
+      const float lum_no = luminância_fxaa(origem->píxeis[linha_cima + (size_t)(x - 1u)]);
+      const float lum_ne = luminância_fxaa(origem->píxeis[linha_cima + (size_t)(x + 1u)]);
+      const float lum_so = luminância_fxaa(origem->píxeis[linha_baixo + (size_t)(x - 1u)]);
+      const float lum_se = luminância_fxaa(origem->píxeis[linha_baixo + (size_t)(x + 1u)]);
+
+      /* Deteção de direção da borda (horizontal vs. vertical) */
+      const float dir_x = -((lum_no + lum_ne) - (lum_so + lum_se));
+      const float dir_y =  ((lum_no + lum_so) - (lum_ne + lum_se));
+
+      const float redução = fmaxf((lum_no + lum_ne + lum_so + lum_se) * 0.25f * 0.25f, 1.0f / 128.0f);
+      const float escala_dir = 1.0f / (fminf(fabsf(dir_x), fabsf(dir_y)) + redução);
+
+      float passo_x = dir_x * escala_dir;
+      float passo_y = dir_y * escala_dir;
+
+      if (passo_x < -alcance_máximo) passo_x = -alcance_máximo;
+      if (passo_x >  alcance_máximo) passo_x =  alcance_máximo;
+      if (passo_y < -alcance_máximo) passo_y = -alcance_máximo;
+      if (passo_y >  alcance_máximo) passo_y =  alcance_máximo;
+
+      const float fx = (float)x;
+      const float fy = (float)y;
+
+      /* Amostras internas ao longo da tangente da borda */
+      const Cor a1 = amostrar_bilinear_fxaa(origem, fx + passo_x * (1.0f / 3.0f - 0.5f), fy + passo_y * (1.0f / 3.0f - 0.5f));
+      const Cor a2 = amostrar_bilinear_fxaa(origem, fx + passo_x * (2.0f / 3.0f - 0.5f), fy + passo_y * (2.0f / 3.0f - 0.5f));
+
+      const float cor_a_r = ((float)a1.vermelho + (float)a2.vermelho) * 0.5f;
+      const float cor_a_g = ((float)a1.verde    + (float)a2.verde)    * 0.5f;
+      const float cor_a_b = ((float)a1.azul     + (float)a2.azul)     * 0.5f;
+
+      /* Amostras externas ao longo da tangente da borda */
+      const Cor b1 = amostrar_bilinear_fxaa(origem, fx + passo_x * -0.5f, fy + passo_y * -0.5f);
+      const Cor b2 = amostrar_bilinear_fxaa(origem, fx + passo_x *  0.5f, fy + passo_y *  0.5f);
+
+      const float cor_b_r = cor_a_r * 0.5f + ((float)b1.vermelho + (float)b2.vermelho) * 0.25f;
+      const float cor_b_g = cor_a_g * 0.5f + ((float)b1.verde    + (float)b2.verde)    * 0.25f;
+      const float cor_b_b = cor_a_b * 0.5f + ((float)b1.azul     + (float)b2.azul)     * 0.25f;
+
+      const float lum_b = (0.299f * cor_b_r + 0.587f * cor_b_g + 0.114f * cor_b_b) / 255.0f;
+
+      float res_r = cor_b_r;
+      float res_g = cor_b_g;
+      float res_b = cor_b_b;
+
+      if (lum_b < lum_min || lum_b > lum_max) {
+        res_r = cor_a_r;
+        res_g = cor_a_g;
+        res_b = cor_a_b;
+      }
+
+      /* Mistura final com o centro controlada pelo fator de suavização de subpíxel */
+      destino->píxeis[linha_atual + (size_t)x] = (Cor){
+        .vermelho = (uint8_t)lroundf((float)cor_centro.vermelho * (1.0f - subpíxel_suavização) + res_r * subpíxel_suavização),
+        .verde    = (uint8_t)lroundf((float)cor_centro.verde    * (1.0f - subpíxel_suavização) + res_g * subpíxel_suavização),
+        .azul     = (uint8_t)lroundf((float)cor_centro.azul     * (1.0f - subpíxel_suavização) + res_b * subpíxel_suavização),
+        .alfa     = cor_centro.alfa
+      };
     }
   }
 }
