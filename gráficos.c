@@ -12,6 +12,7 @@
 
 int comparar_int32(const void *a, const void *b);
 
+bool ângulo_dentro_intervalo(float âng, float iní, float fim);
 float normalizar_radianos(float ângulo);
 float suavizar_entrada_quadrática(float t);
 float suavizar_saída_quadrática(float t);
@@ -83,6 +84,7 @@ Flut2D rodar_flut2d(Flut2D ponto, Flut2D origem, float radianos);
 Flut2D int2d_para_flut2d(Int2D ponto);
 Int2D flut2d_para_int2d(Flut2D ponto);
 bool intersetar_segmentos(Flut2D a1, Flut2D a2, Flut2D b1, Flut2D b2, Flut2D *interseção);
+bool flut2d_dentro_triângulo(Flut2D p, Flut2D a, Flut2D b, Flut2D c);
 
 typedef struct {
   Flut2D posição;
@@ -370,6 +372,8 @@ typedef struct {
   Cor cor;
 } VérticeRecorte3D;
 
+size_t recortar_triângulo_recorte_3d(const VérticeRecorte3D entrada[3], VérticeRecorte3D saída[4], float plano_próximo);
+
 typedef enum {
   FILTRO_VIZINHO_MAIS_PRÓXIMO,
   FILTRO_BILINEAR
@@ -393,11 +397,20 @@ typedef struct {
 } Material3D;
 
 typedef struct {
+  size_t índice_objeto;
+  float profundidade_câmara;
+} ObjetoRenderizável;
+
+typedef struct {
   const Câmara3D *câmara;
   const Luz3D *luzes;
   size_t núm_luzes;
   Cor luz_ambiente_global;
 } Cena3D;
+
+void rasterizar_triângulo_cena(Tela *tela, BufferProfundidade *zbuffer, const Cena3D *cena, const Material3D *mat, VérticeRecorte3D v0, VérticeRecorte3D v1, VérticeRecorte3D v2, bool escrever_zbuffer);
+void renderizar_objeto_cena(Tela *tela, BufferProfundidade *zbuffer, const Cena3D *cena, const Malha3D *malha, const Matriz4x4 *modelo, const Matriz4x4 *visão_projeção, const Material3D *mat, bool escrever_zbuffer);
+void desenhar_cena_3d(Tela *tela, BufferProfundidade *zbuffer, const Cena3D *cena, const Malha3D malhas[], const Matriz4x4 matrizes_modelo[], const Material3D materiais[], size_t núm_objetos);
 
 
 
@@ -3220,7 +3233,7 @@ static float área_assinada_polígono_v2d(const Vértice2D vértices[], size_t n
   return soma * 0.5f;
 }
 
-static bool ponto_flut_em_triângulo(Flut2D p, Flut2D a, Flut2D b, Flut2D c) {
+bool flut2d_dentro_triângulo(Flut2D p, Flut2D a, Flut2D b, Flut2D c) {
   const float d1 = (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
   const float d2 = (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y);
   const float d3 = (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y);
@@ -3292,7 +3305,7 @@ void desenhar_polígono_texturizado(Tela *tela, const Tela *textura, const Vért
           continue;
         }
 
-        if (ponto_flut_em_triângulo(vértices[idx_teste].posição, v_ant.posição, v_cur.posição, v_seg.posição)) {
+        if (flut2d_dentro_triângulo(vértices[idx_teste].posição, v_ant.posição, v_cur.posição, v_seg.posição)) {
           contém_outro_vértice = true;
           break;
         }
@@ -3400,7 +3413,7 @@ void desenhar_gradiente_radial(Tela *tela, Int2D centro, uint32_t raio, Cor cor_
   }
 }
 
-static bool ângulo_no_intervalo(float âng, float início, float fim) {
+bool ângulo_dentro_intervalo(float âng, float início, float fim) {
   âng    = normalizar_radianos(âng);
   início = normalizar_radianos(início);
   fim    = normalizar_radianos(fim);
@@ -3460,7 +3473,7 @@ void desenhar_setor_circular(Tela *tela, Int2D centro, uint32_t raio, float âng
           desenhar_píxel(tela, centro, cor);
         } else {
           float âng = atan2f((float)dy, (float)dx);
-          if (ângulo_no_intervalo(âng, ângulo_início, ângulo_fim)) {
+          if (ângulo_dentro_intervalo(âng, ângulo_início, ângulo_fim)) {
             desenhar_píxel(tela, (Int2D){ centro.x + dx, centro.y + dy }, cor);
           }
         }
@@ -6149,6 +6162,560 @@ void aplicar_nevoeiro_profundidade(
       tela->píxeis[linha_tela + x] = misturada;
     }
   }
+}
+
+//
+
+static int comparar_objetos_transparentes(const void *a, const void *b) {
+  const ObjetoRenderizável *obj_a = (const ObjetoRenderizável *)a;
+  const ObjetoRenderizável *obj_b = (const ObjetoRenderizável *)b;
+
+  if (obj_a->profundidade_câmara > obj_b->profundidade_câmara) return -1;
+  if (obj_a->profundidade_câmara < obj_b->profundidade_câmara) return 1;
+  return 0;
+}
+
+static inline float limitar_float_cena(float valor, float min, float max) {
+  if (valor < min) return min;
+  if (valor > max) return max;
+  return valor;
+}
+
+static inline Flut3D transformar_direção_matriz4x4(Flut3D dir, const Matriz4x4 *m) {
+  return (Flut3D){
+    .x = dir.x * m->m[0][0] + dir.y * m->m[1][0] + dir.z * m->m[2][0],
+    .y = dir.x * m->m[0][1] + dir.y * m->m[1][1] + dir.z * m->m[2][1],
+    .z = dir.x * m->m[0][2] + dir.y * m->m[1][2] + dir.z * m->m[2][2]
+  };
+}
+
+static inline CaixaDelimitadora3D transformar_caixa_aabb(CaixaDelimitadora3D caixa, const Matriz4x4 *m) {
+  const Flut3D cantos[8] = {
+    { caixa.mínimo.x, caixa.mínimo.y, caixa.mínimo.z },
+    { caixa.máximo.x, caixa.mínimo.y, caixa.mínimo.z },
+    { caixa.mínimo.x, caixa.máximo.y, caixa.mínimo.z },
+    { caixa.máximo.x, caixa.máximo.y, caixa.mínimo.z },
+    { caixa.mínimo.x, caixa.mínimo.y, caixa.máximo.z },
+    { caixa.máximo.x, caixa.mínimo.y, caixa.máximo.z },
+    { caixa.mínimo.x, caixa.máximo.y, caixa.máximo.z },
+    { caixa.máximo.x, caixa.máximo.y, caixa.máximo.z }
+  };
+
+  Flut3D p0 = transformar_flut3d_matriz4x4(cantos[0], m);
+  CaixaDelimitadora3D resultado = { .mínimo = p0, .máximo = p0 };
+
+  for (size_t i = 1u; i < 8u; ++i) {
+    const Flut3D p = transformar_flut3d_matriz4x4(cantos[i], m);
+    if (p.x < resultado.mínimo.x) resultado.mínimo.x = p.x;
+    if (p.y < resultado.mínimo.y) resultado.mínimo.y = p.y;
+    if (p.z < resultado.mínimo.z) resultado.mínimo.z = p.z;
+    if (p.x > resultado.máximo.x) resultado.máximo.x = p.x;
+    if (p.y > resultado.máximo.y) resultado.máximo.y = p.y;
+    if (p.z > resultado.máximo.z) resultado.máximo.z = p.z;
+  }
+
+  return resultado;
+}
+
+static inline Cor amostrar_textura_material(const Tela *tex, Flut2D uv, FiltroTextura filtro, ModoUV modo) {
+  if (tex == nullptr || tex->píxeis == nullptr || tex->largura == 0u || tex->altura == 0u) {
+    return COR_BRANCA;
+  }
+
+  float u = uv.x;
+  float v = uv.y;
+
+  if (modo == MODO_UV_REPETIR) {
+    u = u - floorf(u);
+    v = v - floorf(v);
+  } else {
+    u = limitar_float_cena(u, 0.0f, 1.0f);
+    v = limitar_float_cena(v, 0.0f, 1.0f);
+  }
+
+  if (filtro == FILTRO_VIZINHO_MAIS_PRÓXIMO) {
+    const uint32_t px = (uint32_t)lroundf(u * (float)(tex->largura - 1u));
+    const uint32_t py = (uint32_t)lroundf(v * (float)(tex->altura - 1u));
+    return tex->píxeis[(size_t)py * (size_t)tex->largura + (size_t)px];
+  }
+
+  const float fx = u * (float)(tex->largura - 1u);
+  const float fy = v * (float)(tex->altura - 1u);
+
+  const uint32_t x0 = (uint32_t)fx;
+  const uint32_t y0 = (uint32_t)fy;
+  const uint32_t x1 = (x0 + 1u < tex->largura) ? (x0 + 1u) : ((modo == MODO_UV_REPETIR) ? 0u : x0);
+  const uint32_t y1 = (y0 + 1u < tex->altura) ? (y0 + 1u) : ((modo == MODO_UV_REPETIR) ? 0u : y0);
+
+  const float tx = fx - (float)x0;
+  const float ty = fy - (float)y0;
+  const float inv_tx = 1.0f - tx;
+  const float inv_ty = 1.0f - ty;
+
+  const Cor c00 = tex->píxeis[(size_t)y0 * (size_t)tex->largura + (size_t)x0];
+  const Cor c10 = tex->píxeis[(size_t)y0 * (size_t)tex->largura + (size_t)x1];
+  const Cor c01 = tex->píxeis[(size_t)y1 * (size_t)tex->largura + (size_t)x0];
+  const Cor c11 = tex->píxeis[(size_t)y1 * (size_t)tex->largura + (size_t)x1];
+
+  const float p00 = inv_tx * inv_ty;
+  const float p10 = tx * inv_ty;
+  const float p01 = inv_tx * ty;
+  const float p11 = tx * ty;
+
+  return (Cor){
+    .vermelho = (uint8_t)lroundf((float)c00.vermelho * p00 + (float)c10.vermelho * p10 + (float)c01.vermelho * p01 + (float)c11.vermelho * p11),
+    .verde    = (uint8_t)lroundf((float)c00.verde    * p00 + (float)c10.verde    * p10 + (float)c01.verde    * p01 + (float)c11.verde    * p11),
+    .azul     = (uint8_t)lroundf((float)c00.azul     * p00 + (float)c10.azul     * p10 + (float)c01.azul     * p01 + (float)c11.azul     * p11),
+    .alfa     = (uint8_t)lroundf((float)c00.alfa     * p00 + (float)c10.alfa     * p10 + (float)c01.alfa     * p01 + (float)c11.alfa     * p11)
+  };
+}
+
+static inline VérticeRecorte3D interpolar_vértice_recorte(VérticeRecorte3D a, VérticeRecorte3D b, float t) {
+  return (VérticeRecorte3D){
+    .posição_recorte = {
+      .x = a.posição_recorte.x + t * (b.posição_recorte.x - a.posição_recorte.x),
+      .y = a.posição_recorte.y + t * (b.posição_recorte.y - a.posição_recorte.y),
+      .z = a.posição_recorte.z + t * (b.posição_recorte.z - a.posição_recorte.z),
+      .w = a.posição_recorte.w + t * (b.posição_recorte.w - a.posição_recorte.w)
+    },
+    .posição_mundo = interpolar_flut3d(a.posição_mundo, b.posição_mundo, t),
+    .normal = normalizar_flut3d(interpolar_flut3d(a.normal, b.normal, t)),
+    .uv = interpolar_flut2d(a.uv, b.uv, t),
+    .cor = interpolar_cor(a.cor, b.cor, t)
+  };
+}
+
+size_t recortar_triângulo_recorte_3d(const VérticeRecorte3D entrada[3], VérticeRecorte3D saída[4], float plano_próximo) {
+  VérticeRecorte3D temp_dentro[3];
+  VérticeRecorte3D temp_fora[3];
+  size_t num_dentro = 0u;
+  size_t num_fora = 0u;
+
+  for (size_t i = 0u; i < 3u; ++i) {
+    if (entrada[i].posição_recorte.w >= plano_próximo) {
+      temp_dentro[num_dentro++] = entrada[i];
+    } else {
+      temp_fora[num_fora++] = entrada[i];
+    }
+  }
+
+  if (num_dentro == 0u) return 0u;
+
+  if (num_dentro == 3u) {
+    saída[0] = entrada[0];
+    saída[1] = entrada[1];
+    saída[2] = entrada[2];
+    return 3u;
+  }
+
+  if (num_dentro == 1u) {
+    const float t1 = (plano_próximo - temp_dentro[0].posição_recorte.w) / (temp_fora[0].posição_recorte.w - temp_dentro[0].posição_recorte.w);
+    const float t2 = (plano_próximo - temp_dentro[0].posição_recorte.w) / (temp_fora[1].posição_recorte.w - temp_dentro[0].posição_recorte.w);
+
+    saída[0] = temp_dentro[0];
+    saída[1] = interpolar_vértice_recorte(temp_dentro[0], temp_fora[0], t1);
+    saída[2] = interpolar_vértice_recorte(temp_dentro[0], temp_fora[1], t2);
+    return 3u;
+  }
+
+  const float t1 = (plano_próximo - temp_dentro[0].posição_recorte.w) / (temp_fora[0].posição_recorte.w - temp_dentro[0].posição_recorte.w);
+  const float t2 = (plano_próximo - temp_dentro[1].posição_recorte.w) / (temp_fora[0].posição_recorte.w - temp_dentro[1].posição_recorte.w);
+
+  saída[0] = temp_dentro[0];
+  saída[1] = temp_dentro[1];
+  saída[2] = interpolar_vértice_recorte(temp_dentro[0], temp_fora[0], t1);
+  saída[3] = interpolar_vértice_recorte(temp_dentro[1], temp_fora[0], t2);
+  return 4u;
+}
+
+static inline Cor calcular_iluminação_fragmento(
+  const Cena3D *cena,
+  const Material3D *mat,
+  Flut3D pos_mundo,
+  Flut3D normal,
+  Cor cor_base,
+  float alfa_final
+) {
+  const float amb_global_r = (float)cena->luz_ambiente_global.vermelho / 255.0f;
+  const float amb_global_g = (float)cena->luz_ambiente_global.verde / 255.0f;
+  const float amb_global_b = (float)cena->luz_ambiente_global.azul / 255.0f;
+
+  const float mat_amb_r = (float)mat->cor_ambiente.vermelho / 255.0f;
+  const float mat_amb_g = (float)mat->cor_ambiente.verde / 255.0f;
+  const float mat_amb_b = (float)mat->cor_ambiente.azul / 255.0f;
+
+  const float base_r = (float)cor_base.vermelho / 255.0f;
+  const float base_g = (float)cor_base.verde / 255.0f;
+  const float base_b = (float)cor_base.azul / 255.0f;
+
+  const float esp_r = (float)mat->cor_especular.vermelho / 255.0f;
+  const float esp_g = (float)mat->cor_especular.verde / 255.0f;
+  const float esp_b = (float)mat->cor_especular.azul / 255.0f;
+
+  float acum_r = amb_global_r * mat_amb_r * base_r;
+  float acum_g = amb_global_g * mat_amb_g * base_g;
+  float acum_b = amb_global_b * mat_amb_b * base_b;
+
+  const Flut3D dir_vista = normalizar_flut3d(subtrair_flut3d(cena->câmara->posição, pos_mundo));
+
+  for (size_t i = 0u; i < cena->núm_luzes; ++i) {
+    const Luz3D *luz = &cena->luzes[i];
+    if (luz->intensidade <= 0.0f) continue;
+
+    Flut3D dir_luz = { 0.0f, 0.0f, 0.0f };
+    float atenuação = luz->intensidade;
+
+    if (luz->tipo == LUZ_DIRECIONAL) {
+      dir_luz = normalizar_flut3d(escalar_flut3d(luz->direção, -1.0f));
+    } else {
+      const Flut3D vetor_luz = subtrair_flut3d(luz->posição, pos_mundo);
+      const float dist = comprimento_flut3d(vetor_luz);
+      if (luz->alcance > 0.0f && dist > luz->alcance) continue;
+
+      dir_luz = (dist > 1e-6f) ? escalar_flut3d(vetor_luz, 1.0f / dist) : (Flut3D){ 0.0f, 1.0f, 0.0f };
+
+      if (luz->alcance > 0.0f) {
+        const float fator_dist = 1.0f - (dist / luz->alcance);
+        atenuação *= fator_dist * fator_dist;
+      }
+
+      if (luz->tipo == LUZ_HOLOFOTE) {
+        const Flut3D dir_foco = normalizar_flut3d(luz->direção);
+        const float cos_ângulo = produto_escalar_flut3d(escalar_flut3d(dir_luz, -1.0f), dir_foco);
+        const float cos_limite = cosf(luz->ângulo_cone_radianos * 0.5f);
+        if (cos_ângulo < cos_limite) continue;
+
+        const float borda = (cos_ângulo - cos_limite) / (1.0f - cos_limite + 1e-5f);
+        atenuação *= limitar_float_cena(borda, 0.0f, 1.0f);
+      }
+    }
+
+    const float n_dot_l = produto_escalar_flut3d(normal, dir_luz);
+    if (n_dot_l <= 0.0f) continue;
+
+    const float luz_r = ((float)luz->cor.vermelho / 255.0f) * atenuação;
+    const float luz_g = ((float)luz->cor.verde / 255.0f) * atenuação;
+    const float luz_b = ((float)luz->cor.azul / 255.0f) * atenuação;
+
+    acum_r += base_r * luz_r * n_dot_l;
+    acum_g += base_g * luz_g * n_dot_l;
+    acum_b += base_b * luz_b * n_dot_l;
+
+    if (mat->brilho_especular > 0.0f) {
+      const Flut3D meio = normalizar_flut3d(somar_flut3d(dir_luz, dir_vista));
+      const float n_dot_h = produto_escalar_flut3d(normal, meio);
+      if (n_dot_h > 0.0f) {
+        const float espec = powf(n_dot_h, mat->brilho_especular);
+        acum_r += esp_r * luz_r * espec;
+        acum_g += esp_g * luz_g * espec;
+        acum_b += esp_b * luz_b * espec;
+      }
+    }
+  }
+
+  return (Cor){
+    .vermelho = (uint8_t)lroundf(limitar_float_cena(acum_r, 0.0f, 1.0f) * 255.0f),
+    .verde    = (uint8_t)lroundf(limitar_float_cena(acum_g, 0.0f, 1.0f) * 255.0f),
+    .azul     = (uint8_t)lroundf(limitar_float_cena(acum_b, 0.0f, 1.0f) * 255.0f),
+    .alfa     = (uint8_t)lroundf(limitar_float_cena(alfa_final, 0.0f, 1.0f) * 255.0f)
+  };
+}
+
+void rasterizar_triângulo_cena(
+  Tela *tela,
+  BufferProfundidade *zbuffer,
+  const Cena3D *cena,
+  const Material3D *mat,
+  VérticeRecorte3D v0,
+  VérticeRecorte3D v1,
+  VérticeRecorte3D v2,
+  bool escrever_zbuffer
+) {
+  const Flut3D e0 = projetar_para_ecrã(v0.posição_recorte, tela->largura, tela->altura);
+  const Flut3D e1 = projetar_para_ecrã(v1.posição_recorte, tela->largura, tela->altura);
+  const Flut3D e2 = projetar_para_ecrã(v2.posição_recorte, tela->largura, tela->altura);
+
+  if (!triângulo_voltado_para_câmara(e0, e1, e2)) {
+    return;
+  }
+
+  const float min_xf = fminf(e0.x, fminf(e1.x, e2.x));
+  const float max_xf = fmaxf(e0.x, fmaxf(e1.x, e2.x));
+  const float min_yf = fminf(e0.y, fminf(e1.y, e2.y));
+  const float max_yf = fmaxf(e0.y, fmaxf(e1.y, e2.y));
+
+  const int32_t min_x = (int32_t)fmaxf(0.0f, floorf(min_xf));
+  const int32_t max_x = (int32_t)fminf((float)(tela->largura - 1u), ceilf(max_xf));
+  const int32_t min_y = (int32_t)fmaxf(0.0f, floorf(min_yf));
+  const int32_t max_y = (int32_t)fminf((float)(tela->altura - 1u), ceilf(max_yf));
+
+  if (min_x > max_x || min_y > max_y) {
+    return;
+  }
+
+  const float área = (e1.x - e0.x) * (e2.y - e0.y) - (e1.y - e0.y) * (e2.x - e0.x);
+  if (fabsf(área) <= 1e-6f) {
+    return;
+  }
+  const float inv_área = 1.0f / área;
+
+  const float inv_w0 = 1.0f / v0.posição_recorte.w;
+  const float inv_w1 = 1.0f / v1.posição_recorte.w;
+  const float inv_w2 = 1.0f / v2.posição_recorte.w;
+
+  Flut3D tangente = { 1.0f, 0.0f, 0.0f };
+  Flut3D bitangente = { 0.0f, 1.0f, 0.0f };
+  const bool tem_mapa_normais = (mat->textura_normais != nullptr && mat->textura_normais->píxeis != nullptr);
+
+  if (tem_mapa_normais) {
+    const Flut3D dp1 = subtrair_flut3d(v1.posição_mundo, v0.posição_mundo);
+    const Flut3D dp2 = subtrair_flut3d(v2.posição_mundo, v0.posição_mundo);
+    const Flut2D duv1 = subtrair_flut2d(v1.uv, v0.uv);
+    const Flut2D duv2 = subtrair_flut2d(v2.uv, v0.uv);
+
+    const float det = duv1.x * duv2.y - duv2.x * duv1.y;
+    if (fabsf(det) > 1e-6f) {
+      const float inv_det = 1.0f / det;
+      tangente = normalizar_flut3d((Flut3D){
+        .x = (dp1.x * duv2.y - dp2.x * duv1.y) * inv_det,
+        .y = (dp1.y * duv2.y - dp2.y * duv1.y) * inv_det,
+        .z = (dp1.z * duv2.y - dp2.z * duv1.y) * inv_det
+      });
+      bitangente = normalizar_flut3d((Flut3D){
+        .x = (-dp1.x * duv2.x + dp2.x * duv1.x) * inv_det,
+        .y = (-dp1.y * duv2.x + dp2.y * duv1.x) * inv_det,
+        .z = (-dp1.z * duv2.x + dp2.z * duv1.x) * inv_det
+      });
+    }
+  }
+
+  for (int32_t y = min_y; y <= max_y; ++y) {
+    const float py = (float)y + 0.5f;
+    const size_t linha_idx = (size_t)y * (size_t)tela->largura;
+
+    for (int32_t x = min_x; x <= max_x; ++x) {
+      const float px = (float)x + 0.5f;
+
+      const float w0 = ((e1.x - px) * (e2.y - py) - (e1.y - py) * (e2.x - px)) * inv_área;
+      const float w1 = ((e2.x - px) * (e0.y - py) - (e2.y - py) * (e0.x - px)) * inv_área;
+      const float w2 = 1.0f - w0 - w1;
+
+      if (w0 < 0.0f || w1 < 0.0f || w2 < 0.0f) {
+        continue;
+      }
+
+      const float z_interp = w0 * e0.z + w1 * e1.z + w2 * e2.z;
+      const size_t píxel_idx = linha_idx + (size_t)x;
+
+      if (zbuffer != nullptr && zbuffer->valores != nullptr) {
+        if (z_interp >= zbuffer->valores[píxel_idx]) {
+          continue;
+        }
+        if (escrever_zbuffer) {
+          zbuffer->valores[píxel_idx] = z_interp;
+        }
+      }
+
+      const float inv_w_interp = w0 * inv_w0 + w1 * inv_w1 + w2 * inv_w2;
+      const float w_corrigido = (inv_w_interp > 1e-6f) ? (1.0f / inv_w_interp) : 1.0f;
+
+      const Flut2D uv_interp = {
+        .x = (w0 * v0.uv.x * inv_w0 + w1 * v1.uv.x * inv_w1 + w2 * v2.uv.x * inv_w2) * w_corrigido,
+        .y = (w0 * v0.uv.y * inv_w0 + w1 * v1.uv.y * inv_w1 + w2 * v2.uv.y * inv_w2) * w_corrigido
+      };
+
+      const Flut3D pos_mundo = {
+        .x = (w0 * v0.posição_mundo.x * inv_w0 + w1 * v1.posição_mundo.x * inv_w1 + w2 * v2.posição_mundo.x * inv_w2) * w_corrigido,
+        .y = (w0 * v0.posição_mundo.y * inv_w0 + w1 * v1.posição_mundo.y * inv_w1 + w2 * v2.posição_mundo.y * inv_w2) * w_corrigido,
+        .z = (w0 * v0.posição_mundo.z * inv_w0 + w1 * v1.posição_mundo.z * inv_w1 + w2 * v2.posição_mundo.z * inv_w2) * w_corrigido
+      };
+
+      Flut3D normal_interp = normalizar_flut3d((Flut3D){
+        .x = w0 * v0.normal.x + w1 * v1.normal.x + w2 * v2.normal.x,
+        .y = w0 * v0.normal.y + w1 * v1.normal.y + w2 * v2.normal.y,
+        .z = w0 * v0.normal.z + w1 * v1.normal.z + w2 * v2.normal.z
+      });
+
+      if (tem_mapa_normais) {
+        const Cor tex_n = amostrar_textura_material(mat->textura_normais, uv_interp, mat->filtro, mat->modo_uv);
+        const float nx = ((float)tex_n.vermelho / 255.0f) * 2.0f - 1.0f;
+        const float ny = ((float)tex_n.verde    / 255.0f) * 2.0f - 1.0f;
+        const float nz = ((float)tex_n.azul     / 255.0f) * 2.0f - 1.0f;
+
+        normal_interp = normalizar_flut3d((Flut3D){
+          .x = tangente.x * nx + bitangente.x * ny + normal_interp.x * nz,
+          .y = tangente.y * nx + bitangente.y * ny + normal_interp.y * nz,
+          .z = tangente.z * nx + bitangente.z * ny + normal_interp.z * nz
+        });
+      }
+
+      const Cor cor_vértice = {
+        .vermelho = (uint8_t)lroundf(w0 * (float)v0.cor.vermelho + w1 * (float)v1.cor.vermelho + w2 * (float)v2.cor.vermelho),
+        .verde    = (uint8_t)lroundf(w0 * (float)v0.cor.verde    + w1 * (float)v1.cor.verde    + w2 * (float)v2.cor.verde),
+        .azul     = (uint8_t)lroundf(w0 * (float)v0.cor.azul     + w1 * (float)v1.cor.azul     + w2 * (float)v2.cor.azul),
+        .alfa     = (uint8_t)lroundf(w0 * (float)v0.cor.alfa     + w1 * (float)v1.cor.alfa     + w2 * (float)v2.cor.alfa)
+      };
+
+      const Cor cor_tex = amostrar_textura_material(mat->textura_difusa, uv_interp, mat->filtro, mat->modo_uv);
+
+      const Cor cor_albedo = {
+        .vermelho = (uint8_t)(((uint32_t)cor_tex.vermelho * (uint32_t)mat->cor_difusa.vermelho * (uint32_t)cor_vértice.vermelho) / 65025u),
+        .verde    = (uint8_t)(((uint32_t)cor_tex.verde    * (uint32_t)mat->cor_difusa.verde    * (uint32_t)cor_vértice.verde)    / 65025u),
+        .azul     = (uint8_t)(((uint32_t)cor_tex.azul     * (uint32_t)mat->cor_difusa.azul     * (uint32_t)cor_vértice.azul)     / 65025u),
+        .alfa     = 255u
+      };
+
+      const float alfa_final = ((float)cor_tex.alfa / 255.0f) * ((float)cor_vértice.alfa / 255.0f) * mat->opacidade;
+      if (alfa_final <= 0.001f) {
+        continue;
+      }
+
+      const Cor cor_final = calcular_iluminação_fragmento(cena, mat, pos_mundo, normal_interp, cor_albedo, alfa_final);
+
+      if (cor_final.alfa == 255u) {
+        tela->píxeis[píxel_idx] = cor_final;
+      } else {
+        desenhar_píxel_alfa(tela, (Int2D){ .x = x, .y = y }, cor_final);
+      }
+    }
+  }
+}
+
+void renderizar_objeto_cena(
+  Tela *tela,
+  BufferProfundidade *zbuffer,
+  const Cena3D *cena,
+  const Malha3D *malha,
+  const Matriz4x4 *modelo,
+  const Matriz4x4 *visão_projeção,
+  const Material3D *mat,
+  bool escrever_zbuffer
+) {
+  if (malha->vértices == nullptr || malha->índices == nullptr || malha->núm_índices < 3u) {
+    return;
+  }
+
+  Matriz4x4 mvp;
+  multiplicar_matrizes4x4(&mvp, modelo, visão_projeção);
+
+  const CaixaDelimitadora3D caixa_local = calcular_caixa_delimitadora_malha(malha);
+  const CaixaDelimitadora3D caixa_mundo = transformar_caixa_aabb(caixa_local, modelo);
+  if (!caixa_dentro_frusto(caixa_mundo, visão_projeção)) {
+    return;
+  }
+
+  Matriz4x4 modelo_inv;
+  Matriz4x4 matriz_normal;
+  if (inverter_matriz4x4(&modelo_inv, modelo)) {
+    transpor_matriz4x4(&matriz_normal, &modelo_inv);
+  } else {
+    matriz_normal = *modelo;
+  }
+
+  for (size_t i = 0u; i + 2u < malha->núm_índices; i += 3u) {
+    const uint32_t i0 = malha->índices[i];
+    const uint32_t i1 = malha->índices[i + 1u];
+    const uint32_t i2 = malha->índices[i + 2u];
+
+    if (i0 >= malha->núm_vértices || i1 >= malha->núm_vértices || i2 >= malha->núm_vértices) {
+      continue;
+    }
+
+    const Vértice3D orig[3] = {
+      malha->vértices[i0],
+      malha->vértices[i1],
+      malha->vértices[i2]
+    };
+
+    VérticeRecorte3D v_recorte[3];
+    for (size_t k = 0u; k < 3u; ++k) {
+      const Flut4D pos4 = { orig[k].posição.x, orig[k].posição.y, orig[k].posição.z, 1.0f };
+      v_recorte[k].posição_recorte = transformar_flut4d_matriz4x4(pos4, &mvp);
+      v_recorte[k].posição_mundo = transformar_flut3d_matriz4x4(orig[k].posição, modelo);
+      v_recorte[k].normal = normalizar_flut3d(transformar_direção_matriz4x4(orig[k].normal, &matriz_normal));
+      v_recorte[k].uv = orig[k].uv;
+      v_recorte[k].cor = orig[k].cor;
+    }
+
+    VérticeRecorte3D recortados[4];
+    const size_t num_recortados = recortar_triângulo_recorte_3d(v_recorte, recortados, cena->câmara->plano_próximo);
+
+    if (num_recortados >= 3u) {
+      rasterizar_triângulo_cena(tela, zbuffer, cena, mat, recortados[0], recortados[1], recortados[2], escrever_zbuffer);
+      if (num_recortados == 4u) {
+        rasterizar_triângulo_cena(tela, zbuffer, cena, mat, recortados[0], recortados[2], recortados[3], escrever_zbuffer);
+      }
+    }
+  }
+}
+
+void desenhar_cena_3d(
+  Tela *tela,
+  BufferProfundidade *zbuffer,
+  const Cena3D *cena,
+  const Malha3D malhas[],
+  const Matriz4x4 matrizes_modelo[],
+  const Material3D materiais[],
+  size_t núm_objetos
+) {
+  if (tela == nullptr || tela->píxeis == nullptr || tela->largura == 0u || tela->altura == 0u) {
+    return;
+  }
+  if (cena == nullptr || cena->câmara == nullptr || malhas == nullptr || matrizes_modelo == nullptr || materiais == nullptr || núm_objetos == 0u) {
+    return;
+  }
+
+  const Câmara3D *cam = cena->câmara;
+  const Flut3D alvo = somar_flut3d(cam->posição, cam->direção);
+  const float aspeto = (float)tela->largura / (float)tela->altura;
+
+  Matriz4x4 matriz_visão;
+  Matriz4x4 matriz_projeção;
+  Matriz4x4 visão_projeção;
+
+  criar_matriz4x4_visão(&matriz_visão, cam->posição, alvo, cam->cima);
+  criar_matriz4x4_perspetiva(&matriz_projeção, cam->fov_radianos, aspeto, cam->plano_próximo, cam->plano_distante);
+  multiplicar_matrizes4x4(&visão_projeção, &matriz_visão, &matriz_projeção);
+
+  ObjetoRenderizável *transparentes = calloc(núm_objetos, sizeof(ObjetoRenderizável));
+  size_t num_transparentes = 0u;
+
+  /* 1. Passagem Opaca (escreve no Z-buffer) */
+  for (size_t i = 0u; i < núm_objetos; ++i) {
+    if (materiais[i].opacidade <= 0.001f) {
+      continue;
+    }
+
+    const bool é_transparente = (materiais[i].opacidade < 0.999f) ||
+                                (materiais[i].cor_difusa.alfa < 255u);
+
+    if (é_transparente && transparentes != nullptr) {
+      const Flut3D pos_objeto = {
+        .x = matrizes_modelo[i].m[3][0],
+        .y = matrizes_modelo[i].m[3][1],
+        .z = matrizes_modelo[i].m[3][2]
+      };
+      transparentes[num_transparentes++] = (ObjetoRenderizável){
+        .índice_objeto = i,
+        .profundidade_câmara = distância_flut3d(cam->posição, pos_objeto)
+      };
+      continue;
+    }
+
+    renderizar_objeto_cena(tela, zbuffer, cena, &malhas[i], &matrizes_modelo[i], &visão_projeção, &materiais[i], true);
+  }
+
+  /* 2. Passagem Transparente (ordenada de trás para a frente, sem escrita no Z-buffer) */
+  if (transparentes != nullptr && num_transparentes > 0u) {
+    qsort(transparentes, num_transparentes, sizeof(ObjetoRenderizável), comparar_objetos_transparentes);
+
+    for (size_t i = 0u; i < num_transparentes; ++i) {
+      const size_t idx = transparentes[i].índice_objeto;
+      renderizar_objeto_cena(tela, zbuffer, cena, &malhas[idx], &matrizes_modelo[idx], &visão_projeção, &materiais[idx], false);
+    }
+  }
+
+  free(transparentes);
 }
 
 
