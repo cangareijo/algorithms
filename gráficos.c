@@ -307,6 +307,7 @@ Malha3D criar_malha_cubo(float lado);
 Malha3D criar_malha_esfera(float raio, uint32_t fatias, uint32_t pilhas);
 Malha3D criar_malha_cilindro(float raio, float altura, uint32_t fatias);
 Malha3D criar_malha_cone(float raio, float altura, uint32_t fatias);
+Malha3D criar_malha_toro(float raio_maior, float raio_menor, uint32_t fatias, uint32_t lados);
 Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões);
 Malha3D criar_malha_terreno_de_imagem(const Tela *mapa_altura, float escala_horizontal, float altura_máxima);
 bool carregar_malha_obj(Malha3D *destino, const char *caminho);
@@ -5295,6 +5296,89 @@ Malha3D criar_malha_cone(float raio, float altura, uint32_t fatias) {
   return malha;
 }
 
+Malha3D criar_malha_toro(float raio_maior, float raio_menor, uint32_t fatias, uint32_t lados) {
+  Malha3D malha = {
+    .vértices = nullptr,
+    .núm_vértices = 0u,
+    .índices = nullptr,
+    .núm_índices = 0u
+  };
+
+  if (raio_maior <= 0.0f || raio_menor <= 0.0f || fatias < 3u || lados < 3u) {
+    return malha;
+  }
+
+  const size_t total_vértices = (size_t)(fatias + 1u) * (size_t)(lados + 1u);
+  const size_t total_índices = (size_t)fatias * (size_t)lados * 6u;
+
+  malha.vértices = calloc(total_vértices, sizeof(Vértice3D));
+  malha.índices = calloc(total_índices, sizeof(uint32_t));
+
+  if (malha.vértices == nullptr || malha.índices == nullptr) {
+    free(malha.vértices);
+    free(malha.índices);
+    malha.vértices = nullptr;
+    malha.índices = nullptr;
+    return malha;
+  }
+
+  malha.núm_vértices = total_vértices;
+  malha.núm_índices = total_índices;
+
+  constexpr float dois_pi = 2.0f * 3.14159265358979323846f;
+  size_t v_idx = 0u;
+
+  for (uint32_t i = 0u; i <= fatias; ++i) {
+    const float u = (float)i / (float)fatias;
+    const float theta = u * dois_pi;
+    const float cos_theta = cosf(theta);
+    const float sin_theta = sinf(theta);
+
+    for (uint32_t j = 0u; j <= lados; ++j) {
+      const float v = (float)j / (float)lados;
+      const float phi = v * dois_pi;
+      const float cos_phi = cosf(phi);
+      const float sin_phi = sinf(phi);
+
+      const float raio_anel = raio_maior + raio_menor * cos_phi;
+
+      malha.vértices[v_idx++] = (Vértice3D){
+        .posição = {
+          .x = raio_anel * cos_theta,
+          .y = raio_menor * sin_phi,
+          .z = raio_anel * sin_theta
+        },
+        .normal = {
+          .x = cos_phi * cos_theta,
+          .y = sin_phi,
+          .z = cos_phi * sin_theta
+        },
+        .uv = { .x = u, .y = v },
+        .cor = COR_BRANCA
+      };
+    }
+  }
+
+  size_t i_idx = 0u;
+  const uint32_t passo_anel = lados + 1u;
+
+  for (uint32_t i = 0u; i < fatias; ++i) {
+    for (uint32_t j = 0u; j < lados; ++j) {
+      const uint32_t atual = i * passo_anel + j;
+      const uint32_t próximo = (i + 1u) * passo_anel + j;
+
+      malha.índices[i_idx++] = atual;
+      malha.índices[i_idx++] = próximo;
+      malha.índices[i_idx++] = atual + 1u;
+
+      malha.índices[i_idx++] = atual + 1u;
+      malha.índices[i_idx++] = próximo;
+      malha.índices[i_idx++] = próximo + 1u;
+    }
+  }
+
+  return malha;
+}
 
 Malha3D criar_malha_plano(float largura, float profundidade, uint32_t subdivisões) {
   const uint32_t segs = (subdivisões == 0) ? 1 : subdivisões;
