@@ -324,6 +324,7 @@ BufferProfundidade criar_buffer_profundidade(uint32_t largura, uint32_t altura);
 void destruir_buffer_profundidade(BufferProfundidade *buffer);
 void limpar_buffer_profundidade(BufferProfundidade *buffer, float valor_inicial);
 void desenhar_linha_3d(Tela *tela, BufferProfundidade *zbuffer, Flut3D início, Flut3D fim, const Matriz4x4 *mvp, Cor cor);
+void desenhar_caixa_delimitadora_3d(Tela *tela, BufferProfundidade *zbuffer, CaixaDelimitadora3D caixa, const Matriz4x4 *mvp, Cor cor);
 
 typedef enum {
   SOMBREAMENTO_ARAME,
@@ -5909,6 +5910,43 @@ void desenhar_linha_3d(Tela *tela, BufferProfundidade *zbuffer, Flut3D início, 
     x += inc_x;
     y += inc_y;
     z += inc_z;
+  }
+}
+
+void desenhar_caixa_delimitadora_3d(Tela *tela, BufferProfundidade *zbuffer, CaixaDelimitadora3D caixa, const Matriz4x4 *mvp, Cor cor) {
+  if (tela == nullptr || tela->píxeis == nullptr || mvp == nullptr) {
+    return;
+  }
+
+  const Flut3D min = caixa.mínimo;
+  const Flut3D max = caixa.máximo;
+
+  /* Os 8 cantos da caixa delimitadora (4 na base inferior, 4 no topo superior) */
+  const Flut3D cantos[8] = {
+    { .x = min.x, .y = min.y, .z = min.z }, /* 0: inf-tras-esq */
+    { .x = max.x, .y = min.y, .z = min.z }, /* 1: inf-tras-dir */
+    { .x = max.x, .y = min.y, .z = max.z }, /* 2: inf-frente-dir */
+    { .x = min.x, .y = min.y, .z = max.z }, /* 3: inf-frente-esq */
+    { .x = min.x, .y = max.y, .z = min.z }, /* 4: sup-tras-esq */
+    { .x = max.x, .y = max.y, .z = min.z }, /* 5: sup-tras-dir */
+    { .x = max.x, .y = max.y, .z = max.z }, /* 6: sup-frente-dir */
+    { .x = min.x, .y = max.y, .z = max.z }  /* 7: sup-frente-esq */
+  };
+
+  /* As 12 arestas definidas por pares de índices dos cantos */
+  static constexpr uint8_t arestas[12][2] = {
+    /* Face inferior */
+    { 0u, 1u }, { 1u, 2u }, { 2u, 3u }, { 3u, 0u },
+    /* Face superior */
+    { 4u, 5u }, { 5u, 6u }, { 6u, 7u }, { 7u, 4u },
+    /* Pilares verticais */
+    { 0u, 4u }, { 1u, 5u }, { 2u, 6u }, { 3u, 7u }
+  };
+
+  for (size_t i = 0u; i < 12u; ++i) {
+    const Flut3D início = cantos[arestas[i][0]];
+    const Flut3D fim = cantos[arestas[i][1]];
+    desenhar_linha_3d(tela, zbuffer, início, fim, mvp, cor);
   }
 }
 
